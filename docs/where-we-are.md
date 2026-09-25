@@ -4906,6 +4906,50 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P218 — item 6, build half: the whole lists, keyed on the parts that decide them
+
+> *"A map with one row passes for the one student who matches it and refuses everyone else, and we
+> would widen it for the second student anyway."*
+
+## His two corrections
+
+The education rows are facts about Sheffield's form, not about him, so they are not personal data
+and are not built around that concern. And they are built from the lists, whole, the way the
+countries went — not one row keyed on his answers.
+
+## What the lists needed
+
+A map keyed on two parts. Sheffield loads its grade list per grading system and its grading
+systems per institution; the funding list names twenty-two schemes and three loans that the
+registry knows only as `scholarship` or `loan` plus a name. One path cannot say either. So a
+`switch` rule: the part at a path chooses a case, the case's own rule reads the whole value, cases
+nest, and a value no case names refuses by name — an unread list is a refusal, never the nearest
+case. Parsed, refused when empty, and the usability check counts every case's values.
+
+## The rows
+
+Grade: institution → level → scale → system 7's ten spellings, under a Sheffield bachelor's on UK
+honours. Grading system: Sheffield's two the labels name. Subject and its search word: the
+eighty-five one search returned. Institution: the ten one search returned. Funding source: the four
+general kinds, and the twenty-five named by the details. Everything else refuses at the plan.
+
+A count of mine was wrong before commit — twenty-eight schemes where the list holds twenty-two —
+and is corrected in the note, the ADR, the rows and here.
+
+## What this means for his run
+
+If his institution, his subject and his grading system are within the lists on file, no row is
+his. If not, one read on the clean account, the same shape as item 4's: his institution chosen,
+its grading system chosen, his subject searched — and the lists are added whole.
+
+## The clock
+
+18:22 to 19:04 utc, about 42 minutes from the p217 push.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P217 — item 5 closed: the start date is not a question for this course
 
 > *"Do not work around it. If the honest state is 'this course has no start date and the page
@@ -4972,7 +5016,7 @@ and a test says so.
 
 Seven maps: the study mode in his words, the course entry and the qualification from the read as
 reviewed constants; the four funding boxes from the composite, with `scholarship` and `loan`
-refusing on purpose because the list names twenty-eight scholarships and three loans and the
+refusing on purpose because the list names twenty-two scholarships and schemes and three loans and the
 format language cannot key on the name as well (row 85).
 
 The funding radios carry no value at all in the markup (row 84). The runner now chooses a group

@@ -34,6 +34,8 @@ import {
   targetOf,
   type ReviewedTarget,
 } from "./target.js";
+import { parseMappingSet } from "./parse.js";
+import { FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fixtures";
 
 /** The reviewed half of a catalogue entry for the gated TEST portal. */
 const ENTRY: ReviewedCatalogueEntry = {
@@ -1209,5 +1211,43 @@ describe("two reviewed routes to the same course", () => {
     expect([...grouped.keys()]).toEqual([
       `${one.institutionRef}\u0000${one.courseRef}\u0000${one.intakeRef}`,
     ]);
+  });
+});
+
+describe("a mapping keyed on two parts is parsed as a `switch` (P218)", () => {
+  const set = () => JSON.parse(JSON.stringify(FIXTURE_MAPPING_SET)) as Record<string, unknown>;
+  const withFormat = (format: unknown) => ({
+    ...set(),
+    mappings: [
+      {
+        fieldRef: "nationality",
+        source: { kind: "profile_field", fieldKey: "identity.nationality", format },
+      },
+    ],
+  });
+
+  it("accepts one rule per case, nested, with an absent arm", () => {
+    const parsed = parseMappingSet(
+      withFormat({
+        kind: "switch",
+        path: "gradeScale",
+        absent: "leave_empty",
+        cases: {
+          uk_honours: { kind: "part", path: "grade", then: { kind: "option", options: { "2:1": "2.1" } } },
+          twenty_point: { kind: "switch", path: "level", cases: { "Bachelor's degree": { kind: "text" } } },
+        },
+      }),
+    );
+    if (!parsed.ok) expect.unreachable(`${parsed.refusal.path}: ${parsed.refusal.detail}`);
+    const format = (parsed.value.mappings[0]?.source as { format: { kind: string; cases?: Record<string, unknown>; absent?: string } }).format;
+    expect(format.kind).toBe("switch");
+    expect(Object.keys(format.cases ?? {})).toEqual(["uk_honours", "twenty_point"]);
+    expect(format.absent).toBe("leave_empty");
+  });
+
+  it("REFUSES a switch with no cases — a refusal wearing a rule's clothes", () => {
+    const parsed = parseMappingSet(withFormat({ kind: "switch", path: "gradeScale", cases: {} }));
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.refusal.path).toContain("cases");
   });
 });

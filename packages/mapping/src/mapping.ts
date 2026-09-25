@@ -1003,6 +1003,13 @@ function hasOptions(field: BlueprintField): boolean {
 function optionTargetsOf(rule: FormatRule): readonly string[] | null {
   if (rule.kind === "option") return Object.values(rule.options);
   if (rule.kind === "part") return rule.then === undefined ? null : optionTargetsOf(rule.then);
+  if (rule.kind === "switch") {
+    // Every case must name its values; one case of free text is free text
+    // onto the whole field (P218).
+    const perCase = Object.values(rule.cases).map((branch) => optionTargetsOf(branch));
+    if (perCase.some((targets) => targets === null)) return null;
+    return perCase.flatMap((targets) => targets ?? []);
+  }
   return null;
 }
 

@@ -156,7 +156,28 @@ export type FormatRule =
    * students they do not cover while working for the ones they do. This is for
    * a field where widening the map is the mistake.
    */
-  | { readonly kind: "not_derivable"; readonly reason: string };
+  | { readonly kind: "not_derivable"; readonly reason: string }
+  /**
+   * One rule per value of a part — a map keyed on TWO parts of a value
+   * (P218, closing blocker 78 and widening 85).
+   *
+   * Sheffield's grade list is loaded per grading system, and the grading
+   * system per institution; a grade string maps to a value only under one
+   * system. A funding list names twenty-eight scholarships; the registry says
+   * `scholarship` and holds the name apart. Neither is one path deep. This
+   * rule reads the part at `path`, picks the case named by its value, and
+   * applies that case's rule to the WHOLE value — so a case may `part` into a
+   * sibling. Cases nest. A value no case names refuses (`no_matching_case`):
+   * an unread list is a refusal, never the nearest case.
+   *
+   * `absent` as on `part`: what to render when the value has no such part.
+   */
+  | {
+      readonly kind: "switch";
+      readonly path: string;
+      readonly cases: Readonly<Record<string, FormatRule>>;
+      readonly absent?: "leave_empty" | { readonly typed: string };
+    };
 
 /** The date notations seen on application portals. */
 export type DatePattern =
@@ -201,7 +222,9 @@ export type RenderRefusal =
    * the list. This says *no list could help*: the value the portal wants was
    * never collected, and mapping what was collected is the defect.
    */
-  | { readonly kind: "not_derivable"; readonly detail: string };
+  | { readonly kind: "not_derivable"; readonly detail: string }
+  /** A `switch` met a part value none of its cases names (P218). */
+  | { readonly kind: "no_matching_case"; readonly detail: string; readonly value: string };
 
 export type RenderResult =
   | { readonly rendered: true; readonly value: ConfirmedValue<string> }
@@ -336,6 +359,30 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
       }
       const part = container[rule.path];
       return applyRule(part, rule.then ?? { kind: "text" });
+    }
+
+    case "switch": {
+      const container = value as Record<string, unknown> | null;
+      if (container === null || typeof container !== "object" || !(rule.path in container)) {
+        if (rule.absent === "leave_empty") return "";
+        if (rule.absent !== undefined) return rule.absent.typed;
+        return { kind: "no_such_part", detail: `The confirmed value has no part "${rule.path}".` };
+      }
+      const chosen = container[rule.path];
+      const key = chosen instanceof Date ? chosen.toISOString() : String(chosen);
+      const branch = rule.cases[key];
+      if (branch === undefined) {
+        // The same discipline as `option`: a case nobody wrote is a list nobody
+        // read, and the nearest case is not a reading of it.
+        return {
+          kind: "no_matching_case",
+          value: key,
+          detail:
+            `"${key}" (the value of "${rule.path}") is not one this mapping has a rule for. The ` +
+            `system will not choose the closest one — the list for it is read, or the student is asked.`,
+        };
+      }
+      return applyRule(value, branch);
     }
 
     case "join": {

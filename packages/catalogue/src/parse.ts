@@ -753,7 +753,7 @@ function readFormatRule(value: unknown, path: string): FormatRule {
   const source = record(value, path);
   const kind = oneOf(source, "kind", path, [
     "text", "uppercase", "date", "part", "join", "option", "number", "money_amount", "money_currency", "uk_postcode",
-    "not_derivable",
+    "not_derivable", "switch",
   ] as const);
 
   switch (kind) {
@@ -791,6 +791,17 @@ function readFormatRule(value: unknown, path: string): FormatRule {
     }
     case "uk_postcode":
       return { kind, part: oneOf(source, "part", path, ["outward", "inward"] as const) };
+    case "switch": {
+      // One rule per value of a part (P218). Empty cases are refused: a switch
+      // that names no case is a refusal wearing a rule's clothes, and the
+      // reviewer who wrote it meant to write cases.
+      const cases = record(source["cases"], `${path}.cases`);
+      const rebuilt: Record<string, FormatRule> = {};
+      for (const key of Object.keys(cases)) rebuilt[key] = readFormatRule(cases[key], `${path}.cases.${key}`);
+      if (Object.keys(rebuilt).length === 0) fail(`${path}.cases`, "expected at least one case");
+      const absent = readAbsent(source["absent"], `${path}.absent`);
+      return { kind, path: text(source, "path", path), cases: rebuilt, ...(absent === undefined ? {} : { absent }) };
+    }
     case "not_derivable": {
       // The reason is REQUIRED and must be substantial. This rule's whole
       // purpose is that whoever meets the stop reads why no mapping can be

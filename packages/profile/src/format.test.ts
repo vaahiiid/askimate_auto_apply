@@ -365,3 +365,75 @@ describe("a field the registry has no fact for (not_derivable, blocker 71)", () 
     expect(result.rendered ? "rendered" : result.refusal.kind).not.toBe("no_matching_option");
   });
 });
+
+describe("a map keyed on two parts (switch, P218 — blocker 78's shape)", () => {
+  // Sheffield loads its grade list per grading system, and the system per
+  // institution: "2:1" submits "2.1" under system 7 and nothing under a
+  // Pass/Fail system. One path cannot say that; a case per value can.
+  const GRADE: Parameters<typeof renderConfirmed>[1] = {
+    kind: "switch",
+    path: "gradeScale",
+    cases: {
+      uk_honours: { kind: "part", path: "grade", then: { kind: "option", options: { "2:1": "2.1", "1st": "1st" } } },
+    },
+  };
+  const qualification = (over: Record<string, unknown>) =>
+    confirmed("identity.nationality", { grade: "2:1", gradeScale: "uk_honours", ...over } as never);
+
+  it("applies the case its part names to the WHOLE value, so a case may read a sibling part", () => {
+    const result = renderConfirmed(qualification({}), GRADE);
+    if (!result.rendered) expect.unreachable(result.refusal.detail);
+    expect(unwrapConfirmed(result.value)).toBe("2.1");
+  });
+
+  it("REFUSES a value no case names, by its own name — never the nearest case", () => {
+    const result = renderConfirmed(qualification({ gradeScale: "twenty_point", grade: "17.2" }), GRADE);
+    if (result.rendered) expect.unreachable("a scale with no case rendered");
+    expect(result.refusal.kind).toBe("no_matching_case");
+    if (result.refusal.kind === "no_matching_case") expect(result.refusal.value).toBe("twenty_point");
+    expect(result.refusal.detail).toContain("will not choose the closest one");
+  });
+
+  it("refuses inside a case the way the case's own rule does", () => {
+    const result = renderConfirmed(qualification({ grade: "Distinction" }), GRADE);
+    if (result.rendered) expect.unreachable("an unlisted grade rendered");
+    expect(result.refusal.kind).toBe("no_matching_option");
+  });
+
+  it("refuses a value with no such part, unless the rule says what an absent part means", () => {
+    const missing = renderConfirmed(confirmed("identity.nationality", { grade: "2:1" } as never), GRADE);
+    if (missing.rendered) expect.unreachable("rendered with no scale");
+    expect(missing.refusal.kind).toBe("no_such_part");
+    const tolerant = renderConfirmed(confirmed("identity.nationality", { known: false } as never), {
+      kind: "switch",
+      path: "source",
+      absent: "leave_empty",
+      cases: { employer: { kind: "part", path: "source", then: { kind: "option", options: { employer: "Employer" } } } },
+    });
+    if (!tolerant.rendered) expect.unreachable(tolerant.refusal.detail);
+    expect(unwrapConfirmed(tolerant.value)).toBe("");
+  });
+
+  it("nests, so a grade can depend on the institution, the level and the scale together", () => {
+    const nested: Parameters<typeof renderConfirmed>[1] = {
+      kind: "switch",
+      path: "institution",
+      cases: {
+        "University of Sheffield": {
+          kind: "switch",
+          path: "level",
+          cases: { "Bachelor's degree": GRADE },
+        },
+      },
+    };
+    const sheffield = renderConfirmed(qualification({ institution: "University of Sheffield", level: "Bachelor's degree" }), nested);
+    if (!sheffield.rendered) expect.unreachable(sheffield.refusal.detail);
+    expect(unwrapConfirmed(sheffield.value)).toBe("2.1");
+    const masters = renderConfirmed(qualification({ institution: "University of Sheffield", level: "Master's degree" }), nested);
+    if (masters.rendered) expect.unreachable("a master's grade rendered from a bachelor's list");
+    expect(masters.refusal.kind).toBe("no_matching_case");
+    const elsewhere = renderConfirmed(qualification({ institution: "Sharif University of Technology", level: "Bachelor's degree" }), nested);
+    if (elsewhere.rendered) expect.unreachable("another institution rendered from Sheffield's list");
+    expect(elsewhere.refusal.kind).toBe("no_matching_case");
+  });
+});

@@ -7,7 +7,7 @@
 
 Sheffield's taught-course page asks six things about money: *Do you know how you want to fund
 your studies?* (a yes-or-no, mandatory), a likely funding source (five general options and
-twenty-eight named scholarships), free-text details, and the stage the funding is at (five
+twenty-two named scholarships and schemes), free-text details, and the stage the funding is at (five
 sentences, mandatory). The registry held `finance.funding_source` as free text (*"who is paying,
 e.g. self-funded, family, an employer, a government scholarship"*), `finance.sponsor_name` and
 `finance.available_funds`. Read box by box in P215: one answerable from what was held, one only
@@ -30,6 +30,10 @@ In his words:
 > where a student who is unsure goes honestly, and it should be reachable — a student who has not
 > sorted their funding is the normal case, not an edge."*
 
+(The list as read holds thirty-two options: two placeholders, the five general sources, twenty-two
+named scholarships and schemes, and three loans. His "28 named" is his count from the page; the
+entry's map is built from the read list, twenty-five named.)
+
 So:
 
 1. **`finance.funding`** replaces `finance.funding_source` and `finance.sponsor_name`: one
@@ -43,7 +47,7 @@ So:
    inferred from a date or a sponsor.
 3. **A portal's list is mapped from the vocabulary, per portal**, like the countries. Sheffield's
    map names the four general options the vocabulary can honestly name — self or family, employer,
-   sponsor, other. `scholarship` and `loan` have no row: the list names twenty-eight scholarships
+   sponsor, other. `scholarship` and `loan` have no row: the list names twenty-two scholarships and schemes
    and three loans, and choosing *"not listed below"* or one loan for a student whose scholarship or
    loan is not known would be a claim. That needs a second key — the name — which the format
    language cannot express (blocker 85); such a student refuses loudly and is asked about.

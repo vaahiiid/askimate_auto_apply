@@ -63,7 +63,7 @@
     "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.41",
+  "version": "0.3.42",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.31",
@@ -3943,12 +3943,20 @@
           "then": {
             "kind": "option",
             "options": {
-              "University of Sheffield": "SHEFFIELD"
+              "University of Sheffield": "SHEFFIELD",
+              "Sheffield College": "SCH40189",
+              "Sheffield Hallam University": "UNI1182",
+              "Sheffield Hallam University / City University Hong Kong": "UNI9147",
+              "Sheffield International College": "SHE0512",
+              "Sheffield School of Nursing": "UNI7760",
+              "Sheffield and North Trent College of Nursing and Midwifery": "UNI24866",
+              "University of Sheffield International College": "SHE0600",
+              "University of Sheffield's Institute of Work Psychology": "UNI7619"
             }
           }
         }
       },
-      "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). Names the VALUE the form submits, SHEFFIELD, for the one institution the synthetic profile holds, keyed on the profile part exactly as written; the blueprint records the text it reads as, 'University of Sheffield', and the runner requires both at the fill (ADR-0109). The eleven recorded entries are one search ('Sheff', United Kingdom, P118): a student whose institution is not among them, or is spelled otherwise, is a loud blocker on this box — never the escape 'Not in list', which the check refuses by value, and never an approximation. The hidden <select name=\"institutionCode\"> is set by the box and mapped by nothing. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, University of Sheffield → SHEFFIELD, is the synthetic profile's institution, chosen to match it and not read from a student. It changes at the real run."
+      "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). The WHOLE list one search returned ('Sheff', United Kingdom, 2026-09-10): ten institutions keyed on the label the form prints and mapped to the value it submits, the escape ('Not in list') excluded because it is the student's own act. A typeahead has no list to be complete against (blocker 25): an institution this search did not return refuses and is asked about, and another search's entries are added whole when that search is read (P218)."
     },
     {
       "fieldRef": "subjectSearch",
@@ -3961,12 +3969,95 @@
           "then": {
             "kind": "option",
             "options": {
-              "Business Management": "business"
+              "Agri Marketing and Business Ad": "business",
+              "Applied Business": "business",
+              "GCE Applied Business Advanced": "business",
+              "BUSINESS MANAGEMENT AND TRAVEL": "business",
+              "Business Studies With Humaniti": "business",
+              "BUSINESS AND ACCOUNTING": "business",
+              "Business Administration": "business",
+              "Business Economics": "business",
+              "BUSINESS WITH ENGLISH": "business",
+              "Business Environment": "business",
+              "Business Management": "business",
+              "Business Organisation": "business",
+              "Business Policies": "business",
+              "Business and Professional Stud": "business",
+              "Small Business Systems": "business",
+              "Business Studies": "business",
+              "BUSINESS TECHNOLOGY": "business",
+              "Business and Travel": "business",
+              "Business Administration with Travel & Tourism": "business",
+              "Business Management in Maritim": "business",
+              "Business, Administration & Fin": "business",
+              "business studies and economics": "business",
+              "Business and Enterprise": "business",
+              "Business and Finance": "business",
+              "Business Information Systems": "business",
+              "BUSINESS AND LAW": "business",
+              "BUSINESS WITH MATHEMATICS": "business",
+              "Business Skills": "business",
+              "Business Analytics And Change Management": "business",
+              "Business and Hospitality": "business",
+              "Business Improvement": "business",
+              "Business, Legal and Language S": "business",
+              "Business and Logistics": "business",
+              "Business and Marketing": "business",
+              "Business": "business",
+              "Business and Social Science": "business",
+              "Business Support": "business",
+              "Business Travel": "business",
+              "Computing and Business": "business",
+              "Digital Business Services": "business",
+              "Economics and Business": "business",
+              "European Business Studies": "business",
+              "Events and Business Management": "business",
+              "Financial and Business Managem": "business",
+              "Chemistry with Business Administration": "business",
+              "FASHION BUSINESS": "business",
+              "Fashion Business and Retail": "business",
+              "Information Tech. & Business": "business",
+              "Business, Law & Social Science": "business",
+              "Business Law": "business",
+              "Logistics with Business Manage": "business",
+              "Legal Services: Business, Finance And Employment": "business",
+              "Music Business": "business",
+              "Business and Management Studies": "business",
+              "Internatinal Business, Economics": "business",
+              "Transport and other Business and Admin Studies": "business",
+              "OCR National Certificate in Business": "business",
+              "OCR National Diploma in Business": "business",
+              "OCR National Ext.Dip. Business": "business",
+              "Business Studies and Economics": "business",
+              "Business & Finance": "business",
+              "Accounting & Financial Mgt & Business Studies": "business",
+              "Business Studies and Information Management": "business",
+              "Business Studies and Japanese Studies": "business",
+              "Business Admin & Mod Langs": "business",
+              "Personal and Business Finance": "business",
+              "Professional Business Services": "business",
+              "Retail Business": "business",
+              "Reformed Applied Business": "business",
+              "French and Business Studies": "business",
+              "German and Business Studies": "business",
+              "Spanish and Business Studies": "business",
+              "Russian and Business Studies": "business",
+              "Skills for Business: Customer": "business",
+              "Skills for Business": "business",
+              "Skills for Business: Enterpris": "business",
+              "Skills for Business: Finance": "business",
+              "Skills for Business: Human Res": "business",
+              "Skills for Business: IT": "business",
+              "Skills for Business: Retail": "business",
+              "Skills for Business: Sales and": "business",
+              "Sports Coaching and Business M": "business",
+              "Chinese Studies and Business Studies": "business",
+              "Korean Studies and Business Studies": "business"
             }
           }
         }
       },
-      "note": "Search: — the word typed into the subject search before subjectSearchButton is pressed (ADR-0105). The map names, per subject, the SEARCH WORD whose results the reviewer read: the 87 captured options came from 'business' (P132), and 'Business Management' is among them. The subject itself is never typed here as if the portal matched whole names — nobody has observed what a two-word search returns. A subject the map does not name is a loud blocker. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, Business Management → 'business', is the synthetic profile's subject and the search word its 87 results came from; chosen to match it, not read from a student. It changes at the real run."
+      "note": "Search: — the word typed into the subject search before subjectSearchButton is pressed (ADR-0105). Every subject the 'business' search returned maps to that one word, because that word is what produced it (P218); a subject from another search maps to its own word when that search is read."
     },
     {
       "fieldRef": "subject",
@@ -3979,12 +4070,95 @@
           "then": {
             "kind": "option",
             "options": {
-              "Business Management": "Business Management"
+              "Agri Marketing and Business Ad": "Agri Marketing and Business Ad",
+              "Applied Business": "Applied Business",
+              "GCE Applied Business Advanced": "GCE Applied Business Advanced ",
+              "BUSINESS MANAGEMENT AND TRAVEL": "BUSINESS MANAGEMENT AND TRAVEL",
+              "Business Studies With Humaniti": "Business Studies With Humaniti",
+              "BUSINESS AND ACCOUNTING": "BUSINESS AND ACCOUNTING",
+              "Business Administration": "Business Administration",
+              "Business Economics": "Business Economics",
+              "BUSINESS WITH ENGLISH": "BUSINESS WITH ENGLISH",
+              "Business Environment": "Business Environment",
+              "Business Management": "Business Management",
+              "Business Organisation": "Business Organisation",
+              "Business Policies": "Business Policies",
+              "Business and Professional Stud": "Business and Professional Stud",
+              "Small Business Systems": "Small Business Systems",
+              "Business Studies": "Business Studies",
+              "BUSINESS TECHNOLOGY": "BUSINESS TECHNOLOGY",
+              "Business and Travel": "Business and Travel",
+              "Business Administration with Travel & Tourism": "Business Administration with Travel & Tourism",
+              "Business Management in Maritim": "Business Management in Maritim",
+              "Business, Administration & Fin": "Business, Administration & Fin",
+              "business studies and economics": "business studies and economics",
+              "Business and Enterprise": "Business and Enterprise",
+              "Business and Finance": "Business and Finance",
+              "Business Information Systems": "Business Information Systems",
+              "BUSINESS AND LAW": "BUSINESS AND LAW",
+              "BUSINESS WITH MATHEMATICS": "BUSINESS WITH MATHEMATICS",
+              "Business Skills": "Business Skills",
+              "Business Analytics And Change Management": "Business Analytics And Change Management",
+              "Business and Hospitality": "Business and Hospitality",
+              "Business Improvement": "Business Improvement",
+              "Business, Legal and Language S": "Business, Legal and Language S",
+              "Business and Logistics": "Business and Logistics",
+              "Business and Marketing": "Business and Marketing",
+              "Business": "Business",
+              "Business and Social Science": "Business and Social Science",
+              "Business Support": "Business Support",
+              "Business Travel": "Business Travel",
+              "Computing and Business": "Computing and Business",
+              "Digital Business Services": "Digital Business Services",
+              "Economics and Business": "Economics and Business",
+              "European Business Studies": "European Business Studies",
+              "Events and Business Management": "Events and Business Management",
+              "Financial and Business Managem": "Financial and Business Managem",
+              "Chemistry with Business Administration": "Chemistry with Business Administration",
+              "FASHION BUSINESS": "FASHION BUSINESS",
+              "Fashion Business and Retail": "Fashion Business and Retail",
+              "Information Tech. & Business": "Information Tech. & Business",
+              "Business, Law & Social Science": "Business, Law & Social Science",
+              "Business Law": "Business Law",
+              "Logistics with Business Manage": "Logistics with Business Manage",
+              "Legal Services: Business, Finance And Employment": "Legal Services: Business, Finance And Employment",
+              "Music Business": "Music Business",
+              "Business and Management Studies": "Business and Management Studies",
+              "Internatinal Business, Economics": "Internatinal Business, Economics",
+              "Transport and other Business and Admin Studies": "Transport and other Business and Admin Studies",
+              "OCR National Certificate in Business": "OCR National Certificate in Business",
+              "OCR National Diploma in Business": "OCR National Diploma in Business",
+              "OCR National Ext.Dip. Business": "OCR National Ext.Dip. Business",
+              "Business Studies and Economics": "Business Studies and Economics",
+              "Business & Finance": "Business & Finance",
+              "Accounting & Financial Mgt & Business Studies": "Accounting & Financial Mgt & Business Studies",
+              "Business Studies and Information Management": "Business Studies and Information Management",
+              "Business Studies and Japanese Studies": "Business Studies and Japanese Studies",
+              "Business Admin & Mod Langs": "Business Admin & Mod Langs",
+              "Personal and Business Finance": "Personal and Business Finance",
+              "Professional Business Services": "Professional Business Services",
+              "Retail Business": "Retail Business",
+              "Reformed Applied Business": "Reformed Applied Business",
+              "French and Business Studies": "French and Business Studies",
+              "German and Business Studies": "German and Business Studies",
+              "Spanish and Business Studies": "Spanish and Business Studies",
+              "Russian and Business Studies": "Russian and Business Studies",
+              "Skills for Business: Customer": "Skills for Business: Customer ",
+              "Skills for Business": "Skills for Business",
+              "Skills for Business: Enterpris": "Skills for Business: Enterpris",
+              "Skills for Business: Finance": "Skills for Business: Finance",
+              "Skills for Business: Human Res": "Skills for Business: Human Res",
+              "Skills for Business: IT": "Skills for Business: IT",
+              "Skills for Business: Retail": "Skills for Business: Retail",
+              "Skills for Business: Sales and": "Skills for Business: Sales and",
+              "Sports Coaching and Business M": "Sports Coaching and Business M",
+              "Chinese Studies and Business Studies": "Chinese Studies and Business Studies",
+              "Korean Studies and Business Studies": "Korean Studies and Business Studies"
             }
           }
         }
       },
-      "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). Names the captured value exactly, for the one subject the synthetic profile holds; the runner waits a bounded time for it after the press. Two captured values carry a trailing space the label hides and one is listed twice — a reviewer extending this map copies the VALUE from the blueprint, never the label. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, Business Management, is the synthetic profile's subject, chosen to match it and not read from a student. It changes at the real run."
+      "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). The WHOLE list the search for 'business' returned on 2026-09-10 and again on 2026-09-25: eighty-five subjects, keyed on the label the form prints and mapped to the value it submits — two carry a trailing space the label hides, one is listed twice and the second copy is what the map names (P132). A subject the search did not return refuses and is asked about; another search word's results are added the same way, whole (P218)."
     },
     {
       "fieldRef": "gradingSystemId",
@@ -3992,17 +4166,24 @@
         "kind": "profile_field",
         "fieldKey": "education.prior_qualifications",
         "format": {
-          "kind": "part",
-          "path": "level",
-          "then": {
-            "kind": "option",
-            "options": {
-              "Bachelor's degree": "7"
+          "kind": "switch",
+          "path": "institution",
+          "cases": {
+            "University of Sheffield": {
+              "kind": "part",
+              "path": "level",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "Bachelor's degree": "7",
+                  "Master's degree": "8"
+                }
+              }
             }
           }
         }
       },
-      "note": "Grading System: — Sheffield's own list, PER INSTITUTION (P132), following the institution box (0.2.24). Mapped from the qualification's LEVEL, not its gradeScale: the portal's systems are 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8, a level-and-country vocabulary, and uk_honours says nothing about which. Only 7 is named: the grade list was read for system 7 alone (nine options), so a Master's entry would set 8 and then wait at the fill for a grade from a list nobody read — refused at plan time instead, as a loud blocker on this box. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, Bachelor's degree → 7, is right for the synthetic profile's Sheffield bachelor's and for no other institution — the list is loaded per institution and only Sheffield's has been read (blocker 77). It changes at the real run."
+      "note": "Grading System: — Sheffield's own list, loaded PER INSTITUTION (P132; twice read, 2026-09-10 and 2026-09-25), following the institution box. Keyed on the institution first (P218): for the University of Sheffield the systems are a level vocabulary and the two the labels name are mapped — 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8; 'UK Research Degree' (9) and 'UK Medical Degree (MBBS, MBChB)' (81) are not derivable from a level and refuse. Any other institution refuses with no_matching_case: its list has never been read (blocker 77), and a row for it would move a loud refusal at the plan to a lost attempt at the fill."
     },
     {
       "fieldRef": "grade",
@@ -4010,20 +4191,44 @@
         "kind": "profile_field",
         "fieldKey": "education.prior_qualifications",
         "format": {
-          "kind": "part",
-          "path": "grade",
-          "then": {
-            "kind": "option",
-            "options": {
-              "1st": "1st",
-              "2:1": "2.1",
-              "2:2": "2.2",
-              "3rd": "3rd"
+          "kind": "switch",
+          "path": "institution",
+          "cases": {
+            "University of Sheffield": {
+              "kind": "switch",
+              "path": "level",
+              "cases": {
+                "Bachelor's degree": {
+                  "kind": "switch",
+                  "path": "gradeScale",
+                  "cases": {
+                    "uk_honours": {
+                      "kind": "part",
+                      "path": "grade",
+                      "then": {
+                        "kind": "option",
+                        "options": {
+                          "1st": "1st",
+                          "2:1": "2.1",
+                          "2.1": "2.1",
+                          "2:2": "2.2",
+                          "2.2": "2.2",
+                          "3rd": "3rd",
+                          "Pass": "Pass",
+                          "Fail": "Fail",
+                          "Still waiting for grade": "Still waiting for grade",
+                          "Failed to complete course": "Failed to complete course"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
       },
-      "note": "grade — system 7's nine captured values, following gradingSystemId. The student's grade as awarded (the registry keeps it raw, never normalised on the way in) maps onto the portal's spellings for the four honours classes: '2:1' → '2.1' is the reviewer's reading of the same class in two houses' notation, recorded here, not a conversion between scales. 'Pass', 'Fail' and the two non-grades are not named: the synthetic profile holds a classified degree, and whether a student's 'Pass' is the portal's 'Pass' is a question for a real review. Any other spelling ('2.1', 'Upper second', '17.2') is a loud blocker, never a guess. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the four rows are system 7's honours classes, of which the synthetic profile uses 2:1 → 2.1; a 2026-09-25 read showed another of Sheffield's systems carries only Pass and Fail, and this map cannot depend on the system (blocker 78). They change at the real run."
+      "note": "grade — the WHOLE grade list Sheffield loads for grading system 7, 'UK Bachelors Degree (BA, BSc)' (P132; nine captured values, the honours classes keyed also on their colon spellings 2:1 / 2:2 as the registry's own example writes them), keyed on THREE parts because that is what decides it (P218, blocker 78 closed): the institution (the grading systems are loaded per institution), the level (system 7 is the bachelor's system) and the grade scale (the list carries UK honours classes). Any other institution, level or scale REFUSES with no_matching_case — a list nobody has read is a refusal, never the nearest one. A Sheffield master's therefore stops here, loudly: system 8's list is unread. The 'Still waiting for grade' and 'Failed to complete course' entries are the portal's own words for a student who states them as their grade."
     },
     {
       "fieldRef": "courseStartYear",
@@ -4090,21 +4295,97 @@
         "kind": "profile_field",
         "fieldKey": "finance.funding",
         "format": {
-          "kind": "part",
+          "kind": "switch",
           "path": "source",
           "absent": "leave_empty",
-          "then": {
-            "kind": "option",
-            "options": {
-              "self_or_family": "Self or Family",
-              "employer": "Employer",
-              "sponsor": "Sponsor",
-              "other": "Other"
+          "cases": {
+            "self_or_family": {
+              "kind": "part",
+              "path": "source",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "self_or_family": "Self or Family"
+                }
+              }
+            },
+            "employer": {
+              "kind": "part",
+              "path": "source",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "employer": "Employer"
+                }
+              }
+            },
+            "sponsor": {
+              "kind": "part",
+              "path": "source",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "sponsor": "Sponsor"
+                }
+              }
+            },
+            "other": {
+              "kind": "part",
+              "path": "source",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "other": "Other"
+                }
+              }
+            },
+            "scholarship": {
+              "kind": "part",
+              "path": "details",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "Allan and Nesta Ferguson Charitable Trust (Scholarship)": "Allan and Nesta Ferguson Charitable Trust (Scholarship)",
+                  "Asylum Seeker Scholarship": "Asylum Seeker Scholarship",
+                  "Aziz Foundation Scholarship": "Aziz Foundation Scholarship",
+                  "Chevening Scholarship": "Chevening Scholarship",
+                  "China Scholarship Council Scholarship": "China Scholarship Council Scholarship",
+                  "COLFUTURO Scholarship": "COLFUTURO Scholarship",
+                  "Commonwealth Scholarship": "Commonwealth Scholarship",
+                  "ELCAS": "ELCAS",
+                  "Fulbright Scholarship": "Fulbright Scholarship",
+                  "Gaza-Palestine Postgraduate Taught Scholarship": "Gaza-Palestine Postgraduate Taught Scholarship",
+                  "Guatefuturo Scholarship": "Guatefuturo Scholarship",
+                  "Islamic Development Bank Scholarship": "Islamic Development Bank Scholarship",
+                  "Jean Monnet Scholarship": "Jean Monnet Scholarship",
+                  "Leverhulme Scholarship": "Leverhulme Scholarship",
+                  "LIFE Lebanon Scholarship": "LIFE Lebanon Scholarship",
+                  "Marshall Scholarship": "Marshall Scholarship",
+                  "NCUK Merit Scholarship": "NCUK Merit Scholarship",
+                  "Pakistan HEC Scholarship": "Pakistan HEC Scholarship",
+                  "PRONABEC Scholarship": "PRONABEC Scholarship",
+                  "SECIHTI Mexican Scholarship": "SECIHTI Mexican Scholarship",
+                  "Turing Institute Scholarship": "Turing Institute Scholarship",
+                  "University of Sheffield International Merit Scholarship PGT": "University of Sheffield International Merit Scholarship PGT"
+                }
+              }
+            },
+            "loan": {
+              "kind": "part",
+              "path": "details",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "Postgraduate Government Loan": "Postgraduate Government Loan",
+                  "US Loan (Federal)": "US Loan (Federal)",
+                  "US Loan (Private)": "US Loan (Private)"
+                }
+              }
             }
           }
         }
       },
-      "note": "Please select your likely funding source — from the registry's closed vocabulary (ADR-0143) onto the four general options the list offers. Left EMPTY for a student who does not know (absent part). 'scholarship' and 'loan' have NO row on purpose: the list names twenty-eight scholarships and three loans, and choosing 'Scholarship or studentship (not listed below)' or one loan for a student whose scholarship or loan is not known would be a claim — a second key (the name) is needed, which the format language cannot express (blocker 85). A student on a scholarship or a loan refuses here, loudly, and is asked about."
+      "note": "Please select your likely funding source — from the registry's closed vocabulary (ADR-0143) onto the list's own options, keyed on TWO parts where the list needs two (P218, blocker 85 widened): a scholarship or a loan is named by its details — the name as the student gave it — onto the twenty-two scholarships and schemes and three loans the list carries, exactly as the form prints them. A scholarship or loan the list does not name refuses and is asked about; 'Scholarship or studentship (not listed below)' is the student's own escape and is never chosen by this map. Left EMPTY for a student who does not know (absent part)."
     },
     {
       "fieldRef": "fundingStage",

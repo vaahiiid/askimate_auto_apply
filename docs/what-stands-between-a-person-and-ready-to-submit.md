@@ -42,7 +42,7 @@ signed entry and the registry, and the tests each item carries will pin them.
 | ~~3~~ | ~~The award title: the registry does not hold it, so `degree` refuses by design~~ **Closed, P213: 13:42 to 13:49 UTC, about 6 minutes, against 6 h; unsigned until item 6** | ~~6 h~~ | — |
 | 4 | The education page refuses his real degree on four more boxes — **re-shaped in P214:** the shape is read and recorded; the rows for his values move into item 6, where his values will exist | ~2 h, at item 6 | his read (done, `1c13dbd`); a read of his own institution's lists at the real run if it is not Sheffield |
 | ~~5~~ | ~~Part 2 is unread, and `ready_to_submit` today is the end of Part 1~~ **Closed, P217: the taught page is in the entry and fully mapped; the start date is not a question for this course, read from the markup** | ~~8 h~~ | done: three reads, one statement, one decision |
-| 6 | The signature, and the run itself | 1 h | one signature; the run (~1 h); his answers |
+| 6 | The signature, and the run itself — **build half done, P218:** the education and funding maps are the whole lists read, keyed on two parts where needed; nothing in the entry is one row for one student | ~1 h | the clean account under a dedicated e-mail, its id, one signature, his answers, the run |
 | | **Total remaining** | **14 h** (41 h estimated at the start; items 1, 2 and 3 closed in about an hour and a half together) | two reads, one signature, one run |
 
 Forty-one hours of build is about five and a half working days. The items are ordered by when a
@@ -348,3 +348,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-09-25 (P215):** item 5 half built on his read — the taught page in the entry, one map, five boxes named as waiting on his study-mode statement, his read with a course chosen, and the funding decision. Rows 79–82. Entry `34e8e737…`, unsigned.
 - **2026-09-25 (P216):** item 5 all but one box — the course, the qualification, the study mode and the funding mapped on his three inputs (ADR-0143); `startDate` waits on one read. Rows 83–86. Entry `27f5b6c9…`, unsigned.
 - **2026-09-25 (P217):** item 5 struck — the start date is not a question for this course; the taught page fully mapped; the read exits 0 on both parts. Row 83 closed, row 87. Entry `80d99170…`, unsigned. One item remains: the signature over everything, and the run.
+- **2026-09-25 (P218):** item 6, build half — the education and funding maps as the whole lists read (a `switch` rule for two-part keys; rows 78 closed, 85 widened). Entry `7b46e6fe…`, unsigned. Left for the run: the clean account, its id, one signature, his answers.

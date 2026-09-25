@@ -52,3 +52,12 @@ rows change: the institution entry (`SHEFFIELD`), the subject search word (*busi
 (*Business Management*), the grading system (`7`, from *Bachelor's degree*), the grade rows
 (system 7's), the UK-study qualification (*UG DEGREE*), and the award title the fixture states
 (`BSc`). None of them is his.
+
+## P218: the rows are the whole lists now
+
+His correction: a map row is a fact about Sheffield's form, not about a person, and a one-row map
+passes for the one student who matches it. So the education maps are the whole lists on file —
+system 7's grades, Sheffield's two level-named systems, the eighty-five subjects of one search, the
+ten institutions of one search — keyed on the parts that decide them (a `switch` rule), and every
+list not read refuses by name. The *SYNTHETIC-PROFILE VALUE* marks on those five maps are gone
+with the rows they marked; the UK-study qualification map still carries one and says so.

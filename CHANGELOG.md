@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.214.0] — 2026-09-25
+
+**P218 — item 6, build half: the education and funding maps are the whole lists read, keyed on two parts where the list needs two.**
+
+- **Added** the `switch` format rule: one rule per value of a part, applied to the whole value,
+  nesting, refusing a value no case names (`no_matching_case`), with an `absent` arm. Parsed and
+  refused when empty; the usability check counts every case's values.
+- **Rebuilt** six maps from the lists on file: grade (institution → level → scale, system 7's
+  list), grading system (Sheffield's two level-named), subject and its search word (eighty-five),
+  institution (ten), funding source (the four kinds, and twenty-five names by the details). Set
+  0.3.41 → 0.3.42, entry `sha256:7b46e6fe2216fe4fb75116d6bc6083205650679e71655be1f38d18e02fde7a73`, unsigned.
+- **Closed** row 78 and **widened** row 85. **Corrected** a count: twenty-two named schemes and
+  three loans, not twenty-eight.
+
+---
+
 ## [0.213.0] — 2026-09-25
 
 **P217 — item 5 closed: the start date is not a question for this course, read from the markup.**

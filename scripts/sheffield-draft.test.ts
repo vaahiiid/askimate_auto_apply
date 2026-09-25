@@ -266,12 +266,15 @@ describe("the Sheffield drafts, under the real checks", () => {
     // grade on a Sheffield entry, a subject the one search did not list.
     const refusedOn = (profile: ReturnType<typeof sheffield>) =>
       planFill(blueprint, check.mappingSet, profile).blockers.filter((b) => b.kind === "render_refused").map((b) => b.fieldRef).sort();
-    // Each row names the box that its own change makes unmappable, and
-    // nothing else. `degree` left these rows in P213: with the title stated,
-    // it is a map like the others — and a title the portal's list does not
-    // carry refuses like the others (below).
-    expect(refusedOn(sheffield({ institution: "Sharif University of Technology", countryCode: "IR" }))).toEqual(["institution-ts-control"]);
-    expect(refusedOn(sheffield({ level: "Master's degree" }))).toEqual(["gradingSystemId"]);
+    // Each row names the boxes that its own change makes unmappable, and
+    // nothing else. P218 keyed the grade on the institution, the level and
+    // the scale together, and the grading system on the institution, so
+    // another institution refuses on all three boxes whose lists are loaded
+    // per institution — its lists have never been read — and a Sheffield
+    // master's maps its system (8) and refuses its grade (system 8's list is
+    // unread). Loud, at the plan, never at the fill.
+    expect(refusedOn(sheffield({ institution: "Sharif University of Technology", countryCode: "IR" }))).toEqual(["grade", "gradingSystemId", "institution-ts-control"]);
+    expect(refusedOn(sheffield({ level: "Master's degree" }))).toEqual(["grade"]);
     expect(refusedOn(sheffield({ grade: "17.2" }))).toEqual(["grade"]);
     expect(refusedOn(sheffield({ subject: "Industrial Engineering" }))).toEqual(["subject", "subjectSearch"]);
     expect(refusedOn(sheffield({ awardTitle: "Bachelor of Science" })), "a title spelt as the portal does not list it is asked about, not matched").toEqual(["degree"]);
@@ -425,7 +428,7 @@ describe("the Sheffield drafts, under the real checks", () => {
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.31");
-    expect(mappingSet.version).toBe("0.3.41");
+    expect(mappingSet.version).toBe("0.3.42");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
