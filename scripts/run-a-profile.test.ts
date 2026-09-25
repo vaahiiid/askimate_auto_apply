@@ -101,15 +101,14 @@ describe("the synthetic profile for Run A (P150)", () => {
     const PART_2 = new Set(
       blueprint.pages.find((page) => page.pageRef === "page12")?.sections.flatMap((section) => section.fields.map((field) => field.fieldRef)) ?? [],
     );
-    // P216: his study mode stated, his second read with the course chosen,
-    // the funding decision built — four of the five are mapped. The start-date
-    // list follows the qualification and was not loaded, so ONE stands.
-    expect(plan.blockers.map((blocker) => `${blocker.kind}:${blocker.fieldRef}`).sort()).toEqual([
-      "no_mapping:startDate",
-    ]);
-    for (const blocker of plan.blockers) expect(PART_2.has(blocker.fieldRef), `${blocker.fieldRef} is on page 12`).toBe(true);
+    // P217: NOTHING blocks, on either part. The last Part 2 box, `startDate`,
+    // turned out to be a row the page hides for a course with one fixed start
+    // (three reads, the markup's own tooltips), so it is not a box on this
+    // page. Part 1 and Part 2 plan clean from what the fixture states.
+    expect(plan.blockers).toEqual([]);
+    expect(PART_2.size, "page 12 is in the blueprint").toBeGreaterThan(0);
     const validation = validatePlan(blueprint, plan);
-    for (const violation of validation.violations) expect(PART_2.has(violation.fieldRef), `${violation.fieldRef} is on page 12`).toBe(true);
+    expect(validation.violations).toEqual([]);
     expect(validation.unknownFields).toEqual([]);
     const typed = new Map(plan.instructions.map((i) => [`${i.fieldRef}${i.item === undefined ? "" : `#${String(i.item.index)}`}`, textOf(i.value)]));
     // The education chain, per P149; the UK-study qualification, per P150.
@@ -122,21 +121,8 @@ describe("the synthetic profile for Run A (P150)", () => {
     expect(typed.get("grade#0")).toBe("2.1");
     expect(typed.get("qualificationLevel")).toBe("UNIVERSITY_LEVEL");
     expect(typed.get("highestQualification(UNIVERSITY_LEVEL)")).toBe("UG DEGREE");
-    // The preview refuses an incomplete plan, so the rest is measured on Part 1
-    // alone — the blueprint without page 12 and the set without its map —
-    // never with values put into the five boxes to make a preview build.
-    const partOne = {
-      ...blueprint,
-      pages: blueprint.pages
-        .filter((page) => page.pageRef !== "page12")
-        .map((page) => (page.pageRef === "page11" ? (({ nextPageRef: _next, ...rest }) => rest)(page) : page)),
-    };
-    const partOneSet = { ...asIfReviewed, mappings: asIfReviewed.mappings.filter((mapping) => !PART_2.has(mapping.fieldRef)) };
-    const partOneCheck = checkUsable(partOneSet, partOne);
-    if (!partOneCheck.usable) expect.unreachable(partOneCheck.refusal.detail);
-    const partOnePlan = planFill(partOne, partOneCheck.mappingSet, profile);
-    expect(partOnePlan.blockers, "nothing in Part 1 blocks").toEqual([]);
-    const preview = buildPreview(partOne, partOnePlan, new Map(), { portalHost: "www.sheffield.ac.uk" });
+    // The preview builds from the WHOLE plan again — Part 2 included.
+    const preview = buildPreview(blueprint, plan, new Map(), { portalHost: "www.sheffield.ac.uk" });
     if (!preview.built) expect.unreachable(preview.refusal.kind);
     const text = renderPreview(preview.preview);
     expect(text).toContain("University of Sheffield");
@@ -418,9 +404,12 @@ describe("the catalogue entry for Run A (P152)", () => {
     //                     mapping set 0.3.38 (unsigned)
     //   sha256:34e8e737…  25 September, Part 2's taught page in the blueprint
     //                     (0.2.29) with one map (0.3.39), P215 (unsigned)
-    //   sha256:27f5b6c9…  25 September, THIS one — the course, the qualification,
-    //                     the study mode and the funding mapped (0.2.30 /
-    //                     0.3.40, ADR-0143), P216
+    //   sha256:27f5b6c9…  25 September, the course, the qualification, the
+    //                     study mode and the funding mapped (0.2.30 / 0.3.40,
+    //                     ADR-0143), P216 (unsigned)
+    //   sha256:80d99170…  25 September, THIS one — the start-date rows the page
+    //                     hides for this course taken off page 12 (0.2.31 /
+    //                     0.3.41), P217. Item 5 closed.
     //
     // The `degree` mapping reads `awardTitle` — the part the registry now
     // holds, stated by the student and distinct from `level` — onto the
@@ -431,12 +420,12 @@ describe("the catalogue entry for Run A (P152)", () => {
     // every interval. What it protects: the content it refuses to load is
     // content that types a value the student stated; the gate does not care
     // which direction a change goes.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:27f5b6c90b939479cde8407a833c5cf76457a280f98ee4ab6f314629d46d5254");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:80d991700e4cf42e1b085d51de3fb7b4fbd35fb172834b89f2647feabf1250f7");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
     expect(load.ok, "REFUSED until he signs, at item 6 — ADR-0057 working").toBe(false);
     if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
     expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:27f5b6c9",
+      "No approval exists for sha256:80d99170",
     );
     // The superseded approval is still the only one on file, and it now
     // approves content that no longer exists. It goes out in the SAME commit
@@ -496,24 +485,23 @@ describe("the catalogue entry for Run A (P152)", () => {
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
-    // ── EXIT 1 again, and the five names are the point (P215) ───────────
+    // ── A FILLED APPLICATION, Part 1 and Part 2 (P217) ─────────────────
     //
-    // Part 2's taught page is in the blueprint and four of its required boxes
-    // have no map yet, each waiting on something named in the entry: his
-    // statement of the study mode, his read with a course chosen, the funding
-    // decision. What will be typed today is therefore nothing, and this file
-    // says which five boxes stand in the way — which is the list, in the
-    // artefact itself, rather than a page of Part 1 values that would read as
-    // an application ready to go.
-    expect(code).toBe(1);
+    // Every box on the path is mapped, handed or hidden by the page's own
+    // rule, so what will be typed is a page of values again — this time
+    // through the course choice: the study mode in his words, the window, the
+    // course entry, the qualification, and the funding as the fixture states
+    // it. Nothing typed here came from a map's guess.
+    expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.30, mapping set 0.3.40, reviewed by Vahid Mohammadi.");
-    expect(output).toContain("The plan has 1 blocker(s)");
-    expect(output).toContain("no_mapping: startDate");
-    for (const box of ["studyTerm", "qualification", "fundingSourceKnown", "fundingStage"]) {
-      expect(output, `${box} is mapped since P216`).not.toContain(`no_mapping: ${box}`);
-    }
+    expect(output).toContain("REVIEWED — blueprint 0.2.31, mapping set 0.3.41, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("How do you want to study?*: Full Time");
+    expect(output).toContain('(sent as "MGT:Management and International Business")');
+    expect(output).toContain("MSC, Master of Science");
+    expect(output).toContain("Self or Family");
+    expect(output).not.toContain("blocker(s)");
     expect(output).not.toContain("render_refused");
+    expect(output).not.toContain("no_mapping");
   });
 });
 

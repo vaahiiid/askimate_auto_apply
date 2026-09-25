@@ -41,7 +41,7 @@ signed entry and the registry, and the tests each item carries will pin them.
 | ~~2~~ | ~~The interview finishes and the plan still blocks on four fields nobody asked~~ **Closed, P212: about 5 minutes by the clock, against 3 h** | ~~3 h~~ | — |
 | ~~3~~ | ~~The award title: the registry does not hold it, so `degree` refuses by design~~ **Closed, P213: 13:42 to 13:49 UTC, about 6 minutes, against 6 h; unsigned until item 6** | ~~6 h~~ | — |
 | 4 | The education page refuses his real degree on four more boxes — **re-shaped in P214:** the shape is read and recorded; the rows for his values move into item 6, where his values will exist | ~2 h, at item 6 | his read (done, `1c13dbd`); a read of his own institution's lists at the real run if it is not Sheffield |
-| 5 | Part 2 is unread, and `ready_to_submit` today is the end of Part 1 — **all but one box, P216:** the course, the qualification, the study mode and the funding are mapped (ADR-0143); `startDate` waits on one more read with the qualification chosen | ~½ h after the read | done: two reads, the statement, the decision; next: one small read |
+| ~~5~~ | ~~Part 2 is unread, and `ready_to_submit` today is the end of Part 1~~ **Closed, P217: the taught page is in the entry and fully mapped; the start date is not a question for this course, read from the markup** | ~~8 h~~ | done: three reads, one statement, one decision |
 | 6 | The signature, and the run itself | 1 h | one signature; the run (~1 h); his answers |
 | | **Total remaining** | **14 h** (41 h estimated at the start; items 1, 2 and 3 closed in about an hour and a half together) | two reads, one signature, one run |
 
@@ -220,7 +220,16 @@ portal's entries for the student to choose from — which is what a *second* per
 goal does not; the other 86 subjects; other institutions. If his degree is from the University of
 Sheffield, this item collapses to the grade row and its read.
 
-### 5 · Part 2 — ALL BUT ONE BOX, P216
+### ~~5 · Part 2 — 8 h + one read, possibly one decision~~ CLOSED, P217
+
+**Closed 2026-09-25 (P217).** Three reads of his, one statement, one decision, and the page is in
+the entry and fully mapped: the study mode in his words, the window, the course entry, the
+qualification, and the funding from the registry's new closed vocabulary (ADR-0143). The last
+box, `startDate`, turned out not to be a question for this course: both start-date rows are hidden
+in the markup and their own tooltips say they are shown only for a course with several or flexible
+starts. The page-by-page read exits 0 on both parts. Entry `sha256:80d99170…`, blueprint 0.2.31, set
+0.3.41, unsigned until item 6. Rows 79–87 for what was found on the way. 18:08 to 18:12 utc, about 3 minutes from his third capture commit.
+
 
 **His three inputs are in and built:** the study mode in his words (a reviewed constant), the
 second read (`526174c`) with the course chosen — the course entry and the qualification list
@@ -325,7 +334,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 ## The two lines every report carries
 
 - *Declared-but-unreachable: four.*
-- *Distance to the goal: two items, about 3 h of build, three struck; item 4's rows folded into item 6, item 5 all but one box.* — this file's list, by count.
+- *Distance to the goal: one item, about 3 h of build, four struck; item 4's rows folded into item 6.* — this file's list, by count.
   Struck items move to a "What moved" section below as they close; the count in every report is
   the number not yet struck.
 
@@ -338,3 +347,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-09-25 (P214):** item 4 re-shaped on his read — the shape recorded, the synthetic-chosen rows marked in the entry, the rows for his values folded into item 6. Two rows (77, 78). Entry `26aafb1b…`, unsigned.
 - **2026-09-25 (P215):** item 5 half built on his read — the taught page in the entry, one map, five boxes named as waiting on his study-mode statement, his read with a course chosen, and the funding decision. Rows 79–82. Entry `34e8e737…`, unsigned.
 - **2026-09-25 (P216):** item 5 all but one box — the course, the qualification, the study mode and the funding mapped on his three inputs (ADR-0143); `startDate` waits on one read. Rows 83–86. Entry `27f5b6c9…`, unsigned.
+- **2026-09-25 (P217):** item 5 struck — the start date is not a question for this course; the taught page fully mapped; the read exits 0 on both parts. Row 83 closed, row 87. Entry `80d99170…`, unsigned. One item remains: the signature over everything, and the run.

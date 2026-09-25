@@ -76,11 +76,11 @@ function load() {
   return { blueprint: blueprint.value, mappingSet: mappingSet.value };
 }
 
-const PART_2_WAITING = [
-  // Page 12's one required box with no map yet (P216): the start-date list
-  // follows the qualification and no qualification was chosen in his second
-  // read, so the list is unread. Named here so a second would be noticed.
-  "startDate",
+const PART_2_WAITING: readonly string[] = [
+  // Page 12's required boxes with no map: NONE since P217. `startDate` and
+  // the flexible pair are hidden for this course in all three reads and are
+  // not recorded as boxes (the entry's provenance says why). Kept as a named
+  // list so a box that appears here is noticed by name.
 ];
 
 describe("the Sheffield drafts, under the real checks", () => {
@@ -136,7 +136,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.30");
+    expect(blueprint.version).toBe("0.2.31");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -330,7 +330,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     }
   });
 
-  it("classify every one of the 228 fields, and accept the two refusals the form offers", () => {
+  it("classify every one of the 225 fields, and accept the two refusals the form offers", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     expect(check.usable, check.usable ? "" : JSON.stringify(check.refusal).slice(0, 300)).toBe(true);
     if (!check.usable) expect.unreachable("usable");
@@ -352,9 +352,9 @@ describe("the Sheffield drafts, under the real checks", () => {
     // P145 (ADR-0119): the twenty are handed to the student for Run A, so no
     // required field is without a mapping or a hand; what remains is the
     // synthetic profile's values.
-    // P215: Part 2's taught page is in, and its unmapped required boxes are
-    // `no_mapping` by design — the five named below, and no other.
-    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable", "no_mapping"]));
+    // P217: every required box on every page is mapped or handed — Part 2's
+    // included — so an empty profile blocks only on values it has not given.
+    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable"]));
     // P139 (ADR-0115) mapped the twelve nationality radios and P141 the
     // passport; P142 put the page's own show/hide on the draft from
     // nationality.js, so with NOTHING confirmed the sections a controlling
@@ -424,8 +424,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.30");
-    expect(mappingSet.version).toBe("0.3.40");
+    expect(blueprint.version).toBe("0.2.31");
+    expect(mappingSet.version).toBe("0.3.41");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");

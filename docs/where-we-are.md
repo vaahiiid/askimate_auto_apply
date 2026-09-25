@@ -4906,6 +4906,46 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P217 — item 5 closed: the start date is not a question for this course
+
+> *"Do not work around it. If the honest state is 'this course has no start date and the page
+> wants the flexible pair instead', say so and map that."*
+
+## What the markup says
+
+Neither. With the course and the qualification chosen, both start-date rows are hidden —
+`startDateRow` and `flexibleStartDateRow`, `display:none` — and each row carries its own tooltip
+saying when it appears: *more than one start date in the year*, or *a flexible start date*. This
+course has one fixed start, so the page asks nothing, and the mandatory marker sits inside a row
+the applicant never sees, as `unlistedDegree`'s does behind `degree`. The fee-status warning is
+hidden and empty: the course is open.
+
+So his two questions answer themselves from the page: it expects nothing in the box, and the box
+is not mandatory when hidden. The page-by-page read's blocker was our model naming a box the page
+does not show. The three boxes are off page 12, with the observation written where the next reader
+will meet it, and the read exits 0 on both parts.
+
+## What he did not do
+
+He could have picked a day in the flexible box that already showed a `1`, and the read would have
+looked answered. He named it as the degree map's shape — a value that renders because something
+plausible is sitting there — and left it. That sentence is the rule this repository keeps finding
+by hand, stated by the person at the keyboard before the code could get it wrong.
+
+## What would notice a change
+
+Only the portal. The blueprint records no box, so the runner never touches the rows and cannot
+check they are hidden; if Sheffield ever adds a second start to this course, the save fails at the
+portal, loud, one attempt lost. Row 87 names the check that would move that to the plan.
+
+## The clock
+
+18:08 to 18:12 utc, about 3 minutes from his third capture commit.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P216 — item 5, second half: the course, the qualification, the study mode and the funding
 
 > *"Read it from the file rather than from my grep, and if the list is not there say so."*

@@ -77,3 +77,30 @@ one submits `MGT:Management and International Business`; `qualification` loaded 
 was chosen (row 83). The funding radios carry `value=""` on both (row 84). Built: the course, the
 qualification and the study mode (his words) as reviewed constants; the four funding boxes from
 `finance.funding` (ADR-0143). One box stands: `startDate`.
+
+## The third read (2c54b6c): the start date is not a question for this course
+
+`taught-with-qualification-*`: everything above `startDate` chosen by hand, a synthetic change
+fired on the qualification, then the qualification re-chosen with the mouse — `startDate` and
+`flexibleStartDateMonth` stayed at zero entries. **Read from the markup, not the script:** both
+rows are hidden, `<div id="startDateRow" style="display:none">` and
+`<div id="flexibleStartDateRow" style="display:none">`, and each carries its own tooltip saying
+when it is shown — *"The course you have selected has more than one start date in the year so
+please select when you want to start"* and *"The course you have selected has a flexible start
+date so please select when you want to start"*. So the page asks for a start date only of a course
+with several starts, or a flexible one, and asks nothing of a course with one fixed start; the
+mandatory marker sits inside a hidden row, exactly as `unlistedDegree`'s does behind `degree`.
+`closedForFeeStatusWarning` is hidden and empty: the course is open for the account's fee status.
+
+His two questions, answered from that: **what the page expects when `startDate` is empty** — nothing;
+the row is hidden and the form saves without it, as it saves without `unlistedDegree` when the
+degree is listed. **Whether it is mandatory when it holds nothing** — no; a marker in a hidden row
+is not a box the page will not save without. The page-by-page read's blocker was our model naming a
+box the page does not show, and the answer was not to wait for a list.
+
+**Built (P217):** the three start-date boxes are taken off page 12 in the entry and the curated
+draft, with the observation written into the blueprint's provenance and the section's title. The
+runner never meets them, as a person does not. If Sheffield ever shows one of them for this course,
+the save fails at the portal, loudly, and the page is re-read (row 87). His own line is the rule
+that stands over the flexible day box with a `1` sitting in it: the degree map's shape, a value
+that renders because something plausible is there — not answered.

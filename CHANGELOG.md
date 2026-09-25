@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.213.0] — 2026-09-25
+
+**P217 — item 5 closed: the start date is not a question for this course, read from the markup.**
+
+- **Read** his third in-place capture (`2c54b6c`): both start-date rows are hidden with the
+  course and qualification chosen, and their own tooltips say a row is shown only for a course with
+  several or flexible starts. The mandatory marker sits inside a hidden row.
+- **Removed** the three start-date boxes from page 12 in the entry and the curated draft, with the
+  observation in the provenance and the section title (blueprint 0.2.30 → 0.2.31, set 0.3.40 →
+  0.3.41, entry `sha256:80d991700e4cf42e1b085d51de3fb7b4fbd35fb172834b89f2647feabf1250f7`, unsigned).
+- **Measured:** the page-by-page read exits 0 with Part 1 and Part 2 typed from what the fixture
+  states and what he stated and read; the tests assert a clean plan on the whole blueprint.
+- **Rows:** 83 closed; 87 for the check that would notice a change before the portal does.
+
+---
+
 ## [0.212.0] — 2026-09-25
 
 **P216 — item 5, second half: the course, the qualification, the study mode and the funding are mapped; `startDate` stands.**
