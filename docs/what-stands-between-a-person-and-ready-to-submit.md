@@ -38,12 +38,12 @@ signed entry and the registry, and the tests each item carries will pin them.
 | # | What stops the sentence | Build | His act |
 |---|---|---|---|
 | ~~1~~ | ~~The interview escalates on its first turn~~ **Closed, P211: about a quarter of an hour by the clock, against 18 h estimated** | ~~18 h~~ | — |
-| 2 | The interview finishes and the plan still blocks on four fields nobody asked | 3 h | — |
+| ~~2~~ | ~~The interview finishes and the plan still blocks on four fields nobody asked~~ **Closed, P212: about 5 minutes by the clock, against 3 h** | ~~3 h~~ | — |
 | 3 | The award title: the registry does not hold it, so `degree` refuses by design | 6 h | — |
 | 4 | The education page refuses his real degree on four more boxes | 5 h | one read (~1 h) |
 | 5 | Part 2 is unread, and `ready_to_submit` today is the end of Part 1 | 8 h | one read (~1–2 h), possibly one decision |
 | 6 | The signature, and the run itself | 1 h | one signature; the run (~1 h); his answers |
-| | **Total remaining** | **23 h** (41 h estimated at the start; item 1 closed in about a quarter of an hour) | two reads, one signature, one run |
+| | **Total remaining** | **20 h** (41 h estimated at the start; items 1 and 2 closed in under an hour together) | two reads, one signature, one run |
 
 Forty-one hours of build is about five and a half working days. The items are ordered by when a
 person meets them, which is also close to the build order: 1 and 2 are independent of everything;
@@ -107,7 +107,14 @@ tests; 6 h for the qualification spec, which waits on item 3. **Not included:** 
 claims scoped by residence (ADR-0113's scope note — *"Run B, not a shape change"*), a pasted CV, a
 model composing anything.
 
-### 2 · The interview finishes and the plan still blocks on four fields nobody asked — 3 h
+### ~~2 · The interview finishes and the plan still blocks on four fields nobody asked — 3 h~~ CLOSED, P212
+
+**Closed 2026-09-25 (P212), 13:27 to 13:32 UTC, about 5 minutes, against 3 h estimated.** The interview's worklist is now
+the static list plus the field behind every `value_unavailable` blocker, derived at the moment of
+asking; the silent form is a named specialist stop, unreachable by construction and kept. Measured
+red first at both levels — the orchestrator's step was `complete`, and through the real driver the
+assistant said nothing — and green after. The record of what was measured before stays below.
+
 
 **Measured.** A profile holding exactly the fourteen fields `requiredFieldsFor` returns, and
 nothing else:
@@ -282,7 +289,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 ## The two lines every report carries
 
 - *Declared-but-unreachable: four.*
-- *Distance to the goal: five items, 23 h of build, one struck.* — this file's list, by count.
+- *Distance to the goal: four items, 20 h of build, two struck.* — this file's list, by count.
   Struck items move to a "What moved" section below as they close; the count in every report is
   the number not yet struck.
 
@@ -290,3 +297,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 
 - **2026-09-25 (P210):** the list written, measured against the signed entry. Nothing struck.
 - **2026-09-25 (P211):** item 1 struck — the interview collects a list entry by entry (ADR-0113 built). About a quarter of an hour by the clock against 18 h. Five items, 23 h remain, and the remaining estimates are now suspect in the same direction.
+- **2026-09-25 (P212):** item 2 struck — the interview asks what the plan blocks on; *complete while blocked* is a named stop. 13:27 to 13:32 utc, about 5 minutes against 3 h. Four items, 20 h remain.

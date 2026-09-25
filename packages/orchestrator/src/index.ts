@@ -36,6 +36,7 @@ export {
   pageAttachmentsOf,
   pageFillTarget,
   pageValuesOf,
+  interviewWorklist,
   requiredFieldsFor,
   requiresSecureRequest,
   signInWorkOf,

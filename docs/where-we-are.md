@@ -4906,6 +4906,45 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P212 — item 2: the interview asks what the plan blocks on
+
+> *"Item 2 is the same shape as the silent seven and belongs in that count."*
+
+## Measured first, twice
+
+The orchestrator: the fixture blueprint with the `required` marker taken off its nationality box,
+a profile holding everything but the nationality. `requiredFieldsFor` no longer names the field;
+the plan blocks on it; the step came back `interview` / `complete`. Then the real driver, same
+entry, run started: the assistant said nothing at all, and the run stood at `running` with no
+question open. That is what P210 found by reasoning from the code, reproduced on purpose through
+the code before a line of it changed.
+
+## What was built
+
+`interviewWorklist(state, plan)`: the interview's worklist is the static list plus the field
+behind every `value_unavailable` blocker, in that order, derived at the moment of asking. One is
+computed from the other, so they cannot disagree. `nextStep` asks from it; the driver composes a
+walk's next question from it too, because P194 put that question in the request that answered
+the last part, and a field no marker names would otherwise be mid-walk with nothing to ask it.
+
+The silent form became a stop with a name — `interview_complete_while_blocked`, listing the boxes
+the plan still waits on. It is unreachable by construction now, and kept: the reason blocker 72
+existed is that this shape had no name, and a branch that says what would have happened is worth
+twelve ignored lines.
+
+## Measured after
+
+`ask` for `identity.nationality` at both levels; the run live; nothing raised for a person,
+because this is the student's to answer.
+
+## The estimate
+
+Three hours. By the clock, 13:27 to 13:32 UTC, about 5 minutes.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P211 — item 1: the interview collects a list entry by entry
 
 > *"Start at one and work down."*

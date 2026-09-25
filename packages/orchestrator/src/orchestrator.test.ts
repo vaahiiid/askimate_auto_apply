@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { FieldLocator } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, FieldLocator } from "@askimate/aas-blueprint";
 import type { ConfirmedValue, StudentId } from "@askimate/aas-domain";
 import { proposeValue, studentId } from "@askimate/aas-domain";
 import { newInterview } from "@askimate/aas-interview";
@@ -196,6 +196,59 @@ describe("who gets asked", () => {
     expect(step.kind).toBe("interview");
     if (step.kind !== "interview") expect.unreachable("checked above");
     expect(step.action.kind).toBe("ask");
+  });
+
+  it("asks the STUDENT for a value the plan blocks on even when the box is not marked required — never 'complete' while blocked (blocker 72, P212)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Item 2 of the list. P210 measured, on the signed Sheffield entry: the
+    // plan blocks on every set-read field whose value is absent, the
+    // interview asks only fields behind a `required` marker, four fields fall
+    // in the gap — and once the interview had asked its last question it
+    // answered `complete` while the plan held 23 blockers. The driver puts
+    // no question for a `complete` and raises nothing. The run sat, and
+    // nothing said so. Vahid: *"the same shape as the silent seven."*
+    // ═══════════════════════════════════════════════════════════════════
+    const nationalityUnstarred: ApplicationBlueprint = {
+      ...FIXTURE_BLUEPRINT,
+      pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) =>
+            field.fieldRef === "nationality"
+              ? { ...field, validations: field.validations.filter((v) => v.kind !== "required") }
+              : field,
+          ),
+        })),
+      })),
+    };
+    // The `required` marker no longer names it, so the static worklist omits it…
+    expect(requiredFieldsFor(nationalityUnstarred, usable())).not.toContain("identity.nationality");
+    // …and the profile holds everything else.
+    const allButNationality = withConfirmed([
+      ["identity.given_name", "Niloofar"],
+      ["identity.family_name", "Hosseini"],
+      ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
+      ["contact.email", "niloofar.hosseini@example.com"],
+      ["study.personal_statement", STATEMENT],
+    ]);
+    const state = beginRun({
+      inputs: inputs({ blueprint: nationalityUnstarred }),
+      profile: allButNationality,
+      interview: newInterview({
+        studentRef: STUDENT,
+        profile: allButNationality,
+        requiredFields: requiredFieldsFor(nationalityUnstarred, usable()),
+        requiredDocuments: [],
+      }),
+    });
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("interview");
+    if (step.kind !== "interview") expect.unreachable("checked above");
+    // The plan blocks on the nationality; the interview must ask for it, not
+    // report done.
+    expect(step.action.kind, "asked, not 'complete' while the plan blocks").toBe("ask");
+    if (step.action.kind === "ask") expect(step.action.fieldKey).toBe("identity.nationality");
   });
 
   it("asks a SPECIALIST about a missing mapping", async () => {

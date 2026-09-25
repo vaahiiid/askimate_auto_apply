@@ -89,7 +89,7 @@ import type {
 } from "@askimate/aas-preparation";
 import { buildPreview, checkAuthorisable, renderPreview, stillCovers, validatePlan } from "@askimate/aas-preparation";
 import type { ConfirmedProfile, ProfileFieldKey } from "@askimate/aas-profile";
-import { resolveField } from "@askimate/aas-profile";
+import { resolveField, categoryOf } from "@askimate/aas-profile";
 
 /** Everything a run needs. */
 export interface RunInputs {
@@ -494,8 +494,24 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
   }
 
   if (plan.blockers.length > 0) {
-    // Missing values. The interview asks, one thing at a time.
-    return { kind: "interview", action: await nextAction(state.interview, model) };
+    // Missing values. The interview asks, one thing at a time — for what the
+    // PLAN blocks on, not only for what a `required` marker names.
+    const action = await nextAction(interviewWorklist(state, plan), model);
+    /* c8 ignore next 12 -- unreachable by construction: the worklist above holds every field the plan blocks on, so the interview cannot be complete while a blocker remains. Kept as a named stop rather than deleted, because the silent form of this (blocker 72) is what P210 found. */
+    if (action.kind === "complete") {
+      return {
+        kind: "specialist",
+        reason: "interview_complete_while_blocked",
+        detail:
+          `The interview has nothing left to ask, and the plan still waits on ` +
+          plan.blockers
+            .filter((blocker) => blocker.kind === "value_unavailable")
+            .map((blocker) => `"${blocker.label}"`)
+            .join(", ") +
+          `. Nothing would have asked for it, so a person is asked instead.`,
+      };
+    }
+    return { kind: "interview", action };
   }
 
   // ── The portal's account: the REFUSALS first, the asks after the yes ────
@@ -2024,6 +2040,39 @@ export function withProfile(
   interview: InterviewState,
 ): RunState {
   return { ...state, profile, interview };
+}
+
+/**
+ * The interview with its worklist widened to what the plan blocks on.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * BLOCKER 72, item 2 of the list (P212). Measured in P210 on the signed
+ * Sheffield entry: `planFill` blocks on EVERY set-read field whose value is
+ * absent, required box or not; `requiredFieldsFor` hands the interview only
+ * the fields behind a `required` marker; four fields fell in the gap. Once
+ * the interview had asked its last question it answered `complete` while the
+ * plan held 23 `value_unavailable` blockers — and the driver puts no question
+ * for a `complete` and raises nothing. The run sat, and nothing said so.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * So the interview's worklist is the static list PLUS the field behind every
+ * `value_unavailable` blocker, in that order — the two can then never
+ * disagree, because one is derived from the other at the moment of asking.
+ * Only ordinary fields are added: a field the interview may not ask for
+ * (ADR-0102) cannot reach a mapping in the first place, and the type says so
+ * rather than a cast.
+ *
+ * Shared with the run driver, which composes the walk's NEXT question in the
+ * request that answered the last one (P194) and must see the same worklist.
+ */
+export function interviewWorklist(state: RunState, plan: FillPlan): InterviewState {
+  const blocked = plan.blockers.flatMap((blocker) =>
+    blocker.kind === "value_unavailable" && categoryOf(blocker.fieldKey) === "ordinary"
+      ? [blocker.fieldKey]
+      : [],
+  );
+  const requiredFields = [...new Set([...state.interview.requiredFields, ...blocked])];
+  return { ...state.interview, requiredFields };
 }
 
 /**

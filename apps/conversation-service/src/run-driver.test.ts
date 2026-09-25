@@ -9789,6 +9789,96 @@ describeIfDatabase("a list is collected entry by entry, and the walk survives th
   }, 300_000);
 });
 
+const NATIONALITY_UNSTARRED: CatalogueEntry = {
+  ...ENTRY,
+  blueprint: {
+    ...FIXTURE_BLUEPRINT,
+    pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) =>
+          field.fieldRef === "nationality"
+            ? { ...field, validations: field.validations.filter((v) => v.kind !== "required") }
+            : field,
+        ),
+      })),
+    })),
+  },
+};
+
+describeIfDatabase("the interview asks what the plan blocks on, and never sits 'complete' while blocked (blocker 72, P212)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Item 2 of the list. P210 measured, on the signed Sheffield entry: the
+  // plan blocks on every set-read field that is absent, the interview asked
+  // only what a `required` marker named, and once its last question was
+  // answered it said `complete` while 23 blockers stood. This driver puts no
+  // question for a `complete` and raises nothing: the run sat, silently.
+  //
+  // Here the fixture's nationality box loses its marker, the profile holds
+  // everything but the nationality, and the run is started. Before P212 the
+  // assistant said nothing and the run stayed `running` with no question
+  // open. Now it asks.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX19403";
+  let owner = "";
+  let runId = "";
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(NATIONALITY_UNSTARRED));
+    try {
+      const store = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(store, "identity.given_name", "Niloofar", "Niloofar", owner);
+      await confirmInto(store, "identity.family_name", "Hosseini", "Hosseini", owner);
+      await confirmInto(store, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", owner);
+      await confirmInto(store, "contact.email", "niloofar@example.test", "niloofar@example.test", owner);
+      await confirmInto(store, "study.personal_statement", "Because it is the course I want.", "…", owner);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("ASKS for the nationality the plan blocks on, although no required marker names it", async () => {
+    const said = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content
+         FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant'
+        ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    const text = said.rows.map((row) => row.content).join(" ").toLowerCase();
+    expect(text, "the question was put, not swallowed by a 'complete'").toContain("nationality");
+    const open = await pool.query<{ field_key: string }>(
+      `SELECT field_key FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_asked' ORDER BY ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    expect(open.rows[0]?.field_key).toBe("identity.nationality");
+  }, 300_000);
+
+  it("keeps the run live and raises nothing for a person: this is the student's to answer", async () => {
+    const status = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(status.rows[0]?.status).toBe("running");
+    const interventions = await pool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    expect(Number(interventions.rows[0]!.n)).toBe(0);
+  }, 300_000);
+});
+
 describeIfDatabase("stopping is available while a person is looking", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // ADR-0053: "a stop button that only worked at certain steps would not be

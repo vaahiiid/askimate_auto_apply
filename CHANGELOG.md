@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.208.0] — 2026-09-25
+
+**P212 — item 2 closed: the interview asks what the plan blocks on, and never sits "complete" while blocked (blocker 72).**
+
+- **Added** `interviewWorklist(state, plan)` in the orchestrator: the interview's worklist is the
+  static `requiredFieldsFor` list PLUS the field behind every `value_unavailable` blocker, derived
+  at the moment of asking, so the two can never disagree. `nextStep` asks from it, and so does the
+  run driver when it composes the walk's next question in the request that answered the last.
+- **Named** the stop that the silent form used to be: `interview_complete_while_blocked`, a
+  specialist step listing the boxes the plan still waits on. Unreachable by construction now, and
+  kept as the stop rather than deleted.
+- **Measured first, then reversed**, at both levels. Orchestrator: a fixture whose nationality box
+  is not marked required, a profile missing only the nationality — the step was `interview` /
+  `complete`, and is `ask` for `identity.nationality`. Real driver: the same entry, the run started
+  — the assistant said **nothing** and the run stayed `running` with no question open; now it asks
+  for the nationality, the run stays live, and no intervention is raised, because this is the
+  student's to answer.
+- **Estimate:** 3 h; by the clock 13:27 to 13:32 UTC, about 5 minutes.
+
+---
+
 ## [0.207.0] — 2026-09-25
 
 **P211 — item 1 closed: the interview collects a list entry by entry (ADR-0113).**

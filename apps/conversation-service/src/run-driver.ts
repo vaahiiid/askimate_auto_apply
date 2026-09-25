@@ -169,6 +169,8 @@ import {
   withCheckpoint,
   withSecret,
   withSession,
+  assess,
+  interviewWorklist,
 } from "@askimate/aas-orchestrator";
 import type {
   DurableStores,
@@ -4350,7 +4352,14 @@ export class RunDriver {
     // this request was situated on was computed before the answer and still
     // names the part that has just been read.
     if (outcome.state.pending === undefined) {
-      const next = await nextAction(outcome.state, this.#options.model);
+      // The same worklist `nextStep` asks from (blocker 72, P212): a field the
+      // plan blocks on that no `required` marker names is mid-walk here too,
+      // and composing its next question from the static list alone would
+      // answer `complete` and leave the student waiting for a poll.
+      const answered: RunState = { ...situated.state, interview: outcome.state };
+      const plan = assess(answered).plan;
+      const worklist = plan === null ? outcome.state : interviewWorklist(answered, plan);
+      const next = await nextAction(worklist, this.#options.model);
       if (next.kind === "ask") await this.#putTheQuestion(input.conversationId, next);
     }
   }

@@ -110,7 +110,7 @@ costs an attempt, a silent one costs a student something they cannot get back.
   marker, and four fields fall in the gap. Once the interview has asked its last question it answers
   `complete`; the plan still holds 23 `value_unavailable` blockers; the driver puts no question for a
   `complete` and raises nothing. The run sits, and nothing says so. Vahid: *"Item 2 is the same
-  shape as the silent seven and belongs in that count."* Item 2 of the list; open until it closes.
+  shape as the silent seven and belongs in that count."* **Closed in P212**: the interview asks what the plan blocks on, and the silent form is a named stop.
 
 **Loud — an attempt was lost, and the reason was unreadable:**
 
