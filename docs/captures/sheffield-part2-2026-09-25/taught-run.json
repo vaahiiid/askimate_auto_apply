@@ -1,0 +1,30 @@
+{
+  "runId": "attached-sheffield-pgt-september-direct-2026-09-25T17-07-09-822Z",
+  "mode": "attached_read_only",
+  "target": {
+    "targetId": "sheffield-pgt-september-direct",
+    "institutionName": "University of Sheffield",
+    "allowedHosts": [
+      "sheffield.ac.uk"
+    ]
+  },
+  "cdpEndpoint": "127.0.0.1:9222",
+  "urls": [
+    "https://www.sheffield.ac.uk/postgradapplication/studyprogrammetaught.do"
+  ],
+  "visited": [
+    "https://www.sheffield.ac.uk/postgradapplication/studyprogrammetaught.do"
+  ],
+  "failed": [],
+  "readInPlace": true,
+  "blockedRequests": [],
+  "refusedNavigations": [],
+  "asRunner": false,
+  "presented": null,
+  "offHostReads": [],
+  "covering": [],
+  "crawlDelayMs": 2000,
+  "robots": "not applied: attached to a person's own signed-in session, a named handful of pages, one tab, paced. ADR-0091 governs a crawler; this is not one. Recorded so the choice is visible.",
+  "capturesScrubbed": "input values and textarea bodies removed from pages/*.html; the page itself was not touched",
+  "startedAt": "2026-09-25T17:07:09.822Z"
+}
