@@ -4906,6 +4906,62 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P215 — item 5, first half: Part 2's taught page, and three questions answered from the capture
+
+> *"I would rather hear 'unread' than a guess."*
+
+## What his read settled
+
+Opening Part 2 commits nothing: the overview's two links out of Part 1 are plain GETs. The taught
+page is a save and a back, the shape of every Part 1 page, with no submit-the-application control
+on it. Fourteen fields, six marked; the course typeahead follows the study mode and the start
+window, the qualification list follows the course, the start-date list follows the qualification,
+the funding rows toggle on a yes-or-no — all read from the handlers the markup names, because the
+script that holds their bodies was not captured (row 82).
+
+## What was built
+
+Page 12 in the entry's blueprint and the curated draft, page 11 continuing to it, `saveBtn` by
+name as Run A taught. One map: `courseStartYear` — the page's `startYear`, renamed because page 8
+already holds that ref and a ref names one field in a blueprint; the locator carries the real
+name — a reviewed constant `2027` from the target's intake. The page-by-page read exits 1 and
+names the five boxes that stand, which is the list in the artefact itself:
+
+```
+no_mapping: studyTerm            his statement of the study mode, in the target file
+no_mapping: qualification        his read with the course chosen in the typeahead
+no_mapping: startDate            the same read
+no_mapping: fundingSourceKnown   the funding decision
+no_mapping: fundingStage         the funding decision
+```
+
+Part 1 stays clean, and the test now holds that on Part 1 alone rather than letting five honest
+blockers hide a regression elsewhere.
+
+## His three questions
+
+**Where the submission is.** Not on this page, and unread beyond it: the overview's HTML was not
+kept, and nothing read shows the overview after a choice is saved, nor whether a saved choice can
+be removed. Saving here saves one course choice; whether that is the choice's submission is not
+known. Row 80, on the path only after `ready_to_submit`.
+
+**One case, one course.** Fits the goal as it stands. The strain is a second course on the same
+account, whose case would re-type the shared Part 1. Row 81.
+
+**Funding.** `fundingDetails` is answerable from the sponsor's name. `fundingSourceKnown` is
+answerable only as *Yes*, and only by deriving it from a source being held, which his rule refuses;
+*No* has no registry home. `fundingSource` cannot be keyed on free text — the registry's source
+needs a closed vocabulary. `fundingStage` is not held. That is his decision, put to him in the
+report and not built.
+
+## The clock
+
+17:07 to 17:15 utc, about 7 minutes from his capture commit.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P214 — item 4: his read is the shape, and the one thing it does not show
 
 > *"This capture is evidence of the SHAPE … It is not evidence of which rows a particular student

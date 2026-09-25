@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.211.0] — 2026-09-25
+
+**P215 — item 5, first half: Part 2's taught page is in the entry; his three questions answered from the capture.**
+
+- **Added** page 12 to the entry's blueprint and the curated draft (0.2.28 → 0.2.29): the taught
+  course page from his 2026-09-25 read, fourteen fields, the loading order the markup's handlers
+  name, `saveBtn` by name, page 11 continuing to it. `startYear` renamed `courseStartYear` (page 8
+  holds the ref); its locator is the real name.
+- **Mapped** `courseStartYear` as a reviewed constant `2027` from the target's intake (set 0.3.38
+  → 0.3.39). The other required boxes stay unmapped on purpose, each named with what it waits on;
+  the page-by-page read exits 1 naming the five. Entry `sha256:34e8e737aadba925718565b50ae5a54b4115ced991510ec5fe1904044af604aa`, unsigned.
+- **Wrote** the capture's README with the readings: the submission is unread (row 80), the research
+  route is unread (row 79), one case one course fits the goal (row 81), two conditions the
+  uncaptured script decides (row 82), and the funding boxes read against the registry.
+
+---
+
 ## [0.210.0] — 2026-09-25
 
 **P214 — item 4 on his read: the shape recorded, the synthetic-chosen rows marked, the rows for his values folded into item 6.**

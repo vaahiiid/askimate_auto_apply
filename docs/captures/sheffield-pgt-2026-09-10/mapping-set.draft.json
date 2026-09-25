@@ -63,10 +63,10 @@
     "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.38",
+  "version": "0.3.39",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.28",
+  "blueprintVersion": "0.2.29",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -4024,6 +4024,16 @@
         }
       },
       "note": "grade — system 7's nine captured values, following gradingSystemId. The student's grade as awarded (the registry keeps it raw, never normalised on the way in) maps onto the portal's spellings for the four honours classes: '2:1' → '2.1' is the reviewer's reading of the same class in two houses' notation, recorded here, not a conversion between scales. 'Pass', 'Fail' and the two non-grades are not named: the synthetic profile holds a classified degree, and whether a student's 'Pass' is the portal's 'Pass' is a question for a real review. Any other spelling ('2.1', 'Upper second', '17.2') is a loud blocker, never a guess. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the four rows are system 7's honours classes, of which the synthetic profile uses 2:1 → 2.1; a 2026-09-25 read showed another of Sheffield's systems carries only Pass and Fail, and this map cannot depend on the system (blocker 78). They change at the real run."
+    },
+    {
+      "fieldRef": "courseStartYear",
+      "source": {
+        "kind": "constant",
+        "value": "2027",
+        "classification": "application_metadata",
+        "rationale": "The target's intake is 2027-09 (targets/sheffield-pgt-2026-09.json, stated by Vahid 2026-09-10), and the select's window that holds September 2027 is 'August 2027 to July 2028', whose value the form submits is 2027. Application metadata, not the student's data."
+      },
+      "note": "Show courses starting between:* — the one Part 2 box derivable today (P215). The rest of the page waits: studyTerm on Vahid stating the study mode in the target file in his own words; the course typeahead, qualification and startDate on his next read with the course chosen in the typeahead (no save); the four funding boxes on the registry decision his reading asked for. Each is a no_mapping blocker at the plan until then — loudly, by design."
     }
   ]
 }

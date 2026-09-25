@@ -76,6 +76,13 @@ function load() {
   return { blueprint: blueprint.value, mappingSet: mappingSet.value };
 }
 
+const PART_2_WAITING = [
+  // Page 12's required boxes with no map yet (P215), each waiting on something
+  // named in the entry: his study-mode statement, his read with a course
+  // chosen, the funding decision. Named here so a sixth would be noticed.
+  "fundingSourceKnown", "fundingStage", "qualification", "startDate", "studyTerm",
+];
+
 describe("the Sheffield drafts, under the real checks", () => {
   const { blueprint, mappingSet } = load();
   // What a second reviewer's signature would do. In memory only: the files
@@ -129,7 +136,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.28");
+    expect(blueprint.version).toBe("0.2.29");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -323,7 +330,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     }
   });
 
-  it("classify every one of the 216 fields, and accept the two refusals the form offers", () => {
+  it("classify every one of the 228 fields, and accept the two refusals the form offers", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     expect(check.usable, check.usable ? "" : JSON.stringify(check.refusal).slice(0, 300)).toBe(true);
     if (!check.usable) expect.unreachable("usable");
@@ -345,13 +352,15 @@ describe("the Sheffield drafts, under the real checks", () => {
     // P145 (ADR-0119): the twenty are handed to the student for Run A, so no
     // required field is without a mapping or a hand; what remains is the
     // synthetic profile's values.
-    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable"]));
+    // P215: Part 2's taught page is in, and its unmapped required boxes are
+    // `no_mapping` by design — the five named below, and no other.
+    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable", "no_mapping"]));
     // P139 (ADR-0115) mapped the twelve nationality radios and P141 the
     // passport; P142 put the page's own show/hide on the draft from
     // nationality.js, so with NOTHING confirmed the sections a controlling
     // answer opens are hidden — neither typed nor missing — and only the
     // language and education pages' unmapped fields remain.
-    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toEqual([]);
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual(PART_2_WAITING);
     // P147 (ADR-0119): the language page's section is optional in Sheffield's own
     // words, so its seventeen marked boxes are not boxes the page will not save
     // without — un-handed at Vahid's word, left empty and said so, with the words.
@@ -395,7 +404,8 @@ describe("the Sheffield drafts, under the real checks", () => {
     // or not: an unmapped optional box is left alone, a MAPPED one with no
     // value is a value the student has not given. Every other nationality
     // field sits behind an answer the page has not got, so it is hidden.
-    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(0);
+    // P215: Part 1 has no unmapped required box; Part 2's five are the list.
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual(PART_2_WAITING);
     // Every box handed rather than mapped (P145, ADR-0119) is one of the
     // fifteen on the language page or the two per qualification on education.
     // P148: the set hands nothing to the student on any page; every own act is a document slot.
@@ -413,8 +423,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.28");
-    expect(mappingSet.version).toBe("0.3.38");
+    expect(blueprint.version).toBe("0.2.29");
+    expect(mappingSet.version).toBe("0.3.39");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");

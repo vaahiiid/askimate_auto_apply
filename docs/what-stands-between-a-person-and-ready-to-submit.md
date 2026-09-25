@@ -41,7 +41,7 @@ signed entry and the registry, and the tests each item carries will pin them.
 | ~~2~~ | ~~The interview finishes and the plan still blocks on four fields nobody asked~~ **Closed, P212: about 5 minutes by the clock, against 3 h** | ~~3 h~~ | — |
 | ~~3~~ | ~~The award title: the registry does not hold it, so `degree` refuses by design~~ **Closed, P213: 13:42 to 13:49 UTC, about 6 minutes, against 6 h; unsigned until item 6** | ~~6 h~~ | — |
 | 4 | The education page refuses his real degree on four more boxes — **re-shaped in P214:** the shape is read and recorded; the rows for his values move into item 6, where his values will exist | ~2 h, at item 6 | his read (done, `1c13dbd`); a read of his own institution's lists at the real run if it is not Sheffield |
-| 5 | Part 2 is unread, and `ready_to_submit` today is the end of Part 1 | 8 h | one read (~1–2 h), possibly one decision |
+| 5 | Part 2 is unread, and `ready_to_submit` today is the end of Part 1 — **half built, P215:** the taught page is in the entry with one map; five boxes wait on his study-mode statement, his read with a course chosen, and the funding decision | ~3 h after his inputs | done: the read (`581070e`); next: one statement, one small read, one decision |
 | 6 | The signature, and the run itself | 1 h | one signature; the run (~1 h); his answers |
 | | **Total remaining** | **14 h** (41 h estimated at the start; items 1, 2 and 3 closed in about an hour and a half together) | two reads, one signature, one run |
 
@@ -220,7 +220,18 @@ portal's entries for the student to choose from — which is what a *second* per
 goal does not; the other 86 subjects; other institutions. If his degree is from the University of
 Sheffield, this item collapses to the grade row and its read.
 
-### 5 · Part 2 — 8 h + one read, possibly one decision
+### 5 · Part 2 — HALF BUILT, P215
+
+**His read is in (`581070e`) and the taught page is in the entry** (blueprint 0.2.29, set 0.3.39,
+entry `sha256:34e8e737…`, unsigned). The page-by-page read now names, in the artefact itself, the
+five boxes that stand: `studyTerm` (his statement of the study mode, in the target file, in his
+words), `qualification` and `startDate` (his next read with the course chosen in the typeahead —
+a client-side choice, not a save — which also yields the course entry's value), and
+`fundingSourceKnown` and `fundingStage` (the funding decision his reading asked for; the registry
+holds a free-text source and a sponsor, not a stage and not a "don't know yet"). About 3 h of build
+once those three land. Rows 79–82 for what was found and is not on the path. The estimate below
+stays as written for the record.
+
 
 **Measured.** `ready_to_submit` is reached after every page of the blueprint is filled
 (`packages/orchestrator/src/run.ts`, `state.filled`). The blueprint is Part 1: nine form pages,
@@ -306,7 +317,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 ## The two lines every report carries
 
 - *Declared-but-unreachable: four.*
-- *Distance to the goal: three items, about 11 h of build, three struck; item 4's rows folded into item 6.* — this file's list, by count.
+- *Distance to the goal: two items, about 6 h of build after his three inputs, three struck; item 4's rows folded into item 6, item 5 half built.* — this file's list, by count.
   Struck items move to a "What moved" section below as they close; the count in every report is
   the number not yet struck.
 
@@ -317,3 +328,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-09-25 (P212):** item 2 struck — the interview asks what the plan blocks on; *complete while blocked* is a named stop. 13:27 to 13:32 utc, about 5 minutes against 3 h. Four items, 20 h remain.
 - **2026-09-25 (P213):** item 3 struck — the award title in the registry (ADR-0142), `degree` typed from it; entry `55759f10…` unsigned until item 6. 13:42 to 13:49 utc, about 6 minutes against 6 h. Three items, 14 h remain.
 - **2026-09-25 (P214):** item 4 re-shaped on his read — the shape recorded, the synthetic-chosen rows marked in the entry, the rows for his values folded into item 6. Two rows (77, 78). Entry `26aafb1b…`, unsigned.
+- **2026-09-25 (P215):** item 5 half built on his read — the taught page in the entry, one map, five boxes named as waiting on his study-mode statement, his read with a course chosen, and the funding decision. Rows 79–82. Entry `34e8e737…`, unsigned.
