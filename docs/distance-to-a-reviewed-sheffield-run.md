@@ -254,6 +254,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## The two lines every report carries
 
+> **Superseded for the distance line, 2026-09-25 (P210).** The goal is now one sentence of Vahid's —
+> a real person, himself, from an empty conversation to `ready_to_submit` — and the list that
+> measures the distance to it is
+> [`what-stands-between-a-person-and-ready-to-submit.md`](./what-stands-between-a-person-and-ready-to-submit.md).
+> Reports carry *that* count. This file stays as the record of Run A's own distance.
+
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
 - *Distance to Run A: zero of ten — Run A was made on 2026-09-22* — this file's list, by count.

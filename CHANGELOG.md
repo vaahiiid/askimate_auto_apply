@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.206.0] — 2026-09-25
+
+**P210 — the list: what stands between a person and `ready_to_submit`, measured.**
+
+- **Added** `docs/what-stands-between-a-person-and-ready-to-submit.md`: six items, ordered as a
+  person hits them, an estimate each, 41 h in total, two reads of Vahid's and one signature batched
+  at the end. Measured against the signed entry: an empty profile's first interview action is
+  `escalate` (item 1); a profile holding exactly the fourteen required-derived fields leaves 23
+  blockers on four fields the interview never asks while it answers `complete` (item 2, blocker 72);
+  a full real shape refuses on five education boxes (items 3 and 4); `ready_to_submit` is the end of
+  Part 1 (item 5).
+- **Raised** blockers 72 (the plan blocks on what the interview never asks, and the run sits
+  silently), 73 (`residence.history` beyond four periods is typed nowhere) and 74 (the approval
+  admits one `students.id` that a recreated database would orphan) and 75 (an interrupted census
+  leaves the local stack's child processes alive, and they poison the next census). Rows, no
+  phases.
+- **Flipped** the interval assertion in `scripts/run-a-profile.test.ts`: the seventh signature
+  (`36c4145`, `sha256:be3b0ae0…`) loads, admits his account only, one approval on file.
+
+---
+
 ## [0.205.0] — 2026-09-25
 
 **P209 — blocker 71's stop, with its own words; and the census keeps a red run's report.**

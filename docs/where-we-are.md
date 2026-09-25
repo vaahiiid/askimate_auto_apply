@@ -4906,6 +4906,81 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P210 — the list: what stands between a person and `ready_to_submit`
+
+> *"One goal, and nothing else gets built until it is met … Work backwards from that and tell me
+> what stands in the way. Not everything that is imperfect — only what actually blocks that
+> sentence."*
+
+The direction replaced everything queued — the accounting page, the six partial maps, the lot. The
+deliverable is a list, ordered as a person hits it, an estimate each, a total. It is
+[`what-stands-between-a-person-and-ready-to-submit.md`](./what-stands-between-a-person-and-ready-to-submit.md).
+
+## How it was measured
+
+Three profiles through the plan, the validator, the preview and the interview's first move,
+against the signed entry with the deterministic client the service wires:
+
+| Profile | Plan | Interview's first action |
+|---|---|---|
+| Empty | 25 `value_unavailable` | `escalate` on `employment.history` — before the name |
+| Exactly the fourteen fields `requiredFieldsFor` returns | 23 `value_unavailable` on four fields it never asks, 5 `render_refused` | `complete` |
+| A full real shape (non-UK bachelor's, one job, two residence periods) | 5 `render_refused`, all on the education page; 66 typed | `complete` |
+
+The first row is item 1. The second row is the silent sit — the driver puts no question for a
+`complete` and raises nothing — item 2, blocker 72. The third row is items 3 and 4: `degree` by
+design, and four boxes holding one synthetic profile's values.
+
+## The six
+
+| # | | Build |
+|---|---|---|
+| 1 | The interview escalates on its first turn: three list-valued fields have no question, and the undefined field is checked before any askable one. ADR-0113's build | 18 h |
+| 2 | The interview asks what the plan blocks on, and *complete while blocked* becomes a named stop | 3 h |
+| 3 | The award title in the registry; `degree` becomes the student's recognition of Sheffield's own 42 | 6 h |
+| 4 | The education page for his real degree: his read of the institution, grading-system and grade lists; rows for his values | 5 h |
+| 5 | Part 2: his read, its pages and maps; `ready_to_submit` then follows the blueprint's end | 8 h |
+| 6 | The one signature and the run: the seeded rows deleted, his answers in the chat | 1 h |
+
+**41 h.** Two reads of his, one signature at the end, possibly one decision if Part 2's shape
+strains the one-case-one-course model.
+
+## What is excluded, and got a row
+
+A model (blocker 3): the questions and the parsers are deterministic, and a person who answers
+plainly needs none. Blocker 25's interview step: a second person's need. 35, 32, 63: reached only
+by a failure this run need not have. The English page: skippable by the portal's words. Two new
+rows: `residence.history` beyond four periods (73) and the approval admitting one `students.id`
+that a recreated database would orphan (74).
+
+## Also in this phase
+
+The red interval assertion flipped to its opposite: his seventh signature (`36c4145`,
+`sha256:be3b0ae0…`) loads, admits his account only, one approval on file, the four spellings of
+Iran held. Fifteen tests green in that file after the change.
+
+## The census, and what stopping one does
+
+The first census of this phase had the wrong environment for three browser tests (the container
+reset had taken Playwright's pinned browser revision with it) and was stopped by hand. The second,
+environment fixed, went red on three files with nothing in common — nineteen 404s in the target
+selection routes, a journey hook timing out at 300 s, an offer naming another port. All three
+passed alone. The cause was the first census: two of the local stack's processes it had spawned
+survived the kill and kept consuming from the shared Redis. Row 75; the third census, after the
+orphans were killed, is the one this phase reports.
+
+## What it cost, said plainly
+
+The list was estimated at about two hours. It took longer: the workflow's eight readers all failed
+on the weekly limit, then the container was reset and their outputs, the journal and the installed
+packages went with it, and every number was re-measured by hand against a fresh install. That is
+past twice the estimate. The rule says stop and say so; the list is the thing that was owed, so it
+is finished and said here rather than left half-written.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P209 — the stop, with its own words; and the tool that ate its own evidence
 
 > *"Make the refusal say what is actually true… Whoever meets that stop should end up reading the

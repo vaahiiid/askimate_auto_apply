@@ -389,7 +389,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     }
   });
 
-  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — a FIFTH time, once for ADR-0138 and ADR-0139 together (2026-09-22, commit eb4e83e): the directory loads and admits exactly that account", async () => {
+  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — a SEVENTH time, for blocker 71's stop (2026-09-25, commit 36c4145): the directory loads and admits exactly that account", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Five signatures now, each superseding the last:
     //
@@ -439,41 +439,38 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    // ── THE INTERVAL AGAIN (P209): blocker 71's stop is in ──────────────
-    //
+    // ── SIGNED A SEVENTH TIME, 2026-09-25, commit 36c4145 ───────────────
     //   sha256:baca64a9…  16 September, the entry as first reviewed
     //   sha256:21060fca…  21 September 08:00, the consent notice (ADR-0131)
     //   sha256:3238406a…  21 September 12:00, six save locators by name
     //   sha256:56388e65…  22 September, the education months (ADR-0136)
     //   sha256:e2a10113…  22 September, ADR-0138 and ADR-0139 together
-    //   sha256:f13dff6d…  25 September, the country maps (signed, f67ec69)
+    //   sha256:f13dff6d…  25 September, the country maps (f67ec69)
     //   sha256:be3b0ae0…  25 September, THIS one — `degree` refuses by design
     //
-    // The `degree` mapping's `option` rule became a `not_derivable` rule
-    // carrying its own reason, and the mapping set went 0.3.35 → 0.3.36. So
-    // the entry no longer hashes to `f13dff6d…` and the directory REFUSES to
-    // load it until Vahid computes `be3b0ae0…` himself.
+    // What the seventh covers: the `degree` mapping's option map became a
+    // `not_derivable` rule carrying its own reason, and the mapping set went
+    // 0.3.35 → 0.3.36. Nothing else in the entry moved since `f13dff6d`. His
+    // note on the approval says what he signed and why: *"Signed to STOP the
+    // run, not to enable it … I am signing a system that does less and lies
+    // less."* He computed the hash himself before writing it.
     //
-    // The refusal is the assertion, as it has been in every interval. What it
-    // is protecting here is worth naming: the content it refuses to load is
-    // content that STOPPED telling universities something untrue, and the gate
-    // does not care which direction a change goes. That is the property.
+    // The interval between the two signatures — the directory refusing to
+    // load `be3b0ae0` until he signed it — was asserted here while it lasted
+    // (P209), as every interval has been. This is the assertion after it.
     expect(labelledHash(toCanonical(value))).toBe("sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    expect(load.ok, "REFUSED until he signs the degree stop — ADR-0057 working").toBe(false);
-    if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
-    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:be3b0ae0",
-    );
-    // The superseded approval is still the only one on file, and it now
-    // approves content that no longer exists. It goes out in the SAME commit
-    // as the new one comes in — never left beside it.
+    if (!load.ok) expect.unreachable(load.problems.map((problem) => problem.detail).join("; "));
+    expect(load.catalogue.size).toBe(1);
+    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
+    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
+    // ONE approval on file: the voided one is gone, not merely outvoted.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as {
       contentHash: string;
     }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
-    expect(approvals[0]?.contentHash, "still the country one, now void").toBe(
-      "sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59",
+    expect(approvals[0]?.contentHash).toBe(
+      "sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd",
     );
     // The four spellings of Iran, from the entry itself: unchanged by this
     // edit, and the reason the countries' signature was spent.
