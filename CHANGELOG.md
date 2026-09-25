@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.215.0] — 2026-09-25
+
+**P219 — item 6, the account: we create it, the student does not (ADR-0144); the creation meets the consent notice before it types.**
+
+- **Added** the consent-notice branch to the account creation (`createPortalAccount`): before a
+  character is typed, the submit control is checked for something over it; the notice with no
+  choice on record stops with `consent_banner_met` — nothing typed, no password spent; a recorded
+  choice is pressed and read back as the sign-in's is (ADR-0131, P169). The shared code is
+  `apps/browser-runner/src/consent.ts`; the sign-in's lines are unchanged.
+- **Added** `consent` to `RegistrationTargets` on the wire, parsed as the login's is, closed by the
+  same compile-time check; the driver carries the notice's buttons and the student's choice on a
+  creation as on a sign-in.
+- **Added** `last_failure` to the intent ledger (migration 0008): the code the last completion
+  closed with, attempt or not; the driver derives the creation's `consentChoiceNeeded` from it and
+  the consent store, and the orchestrator asks the choice ahead of a second hand-out. The question
+  says *"create your account"* or *"sign in"* by the step.
+- **Added** the fixture portal's notice over the registration form; five fixture tests on the
+  creation's consent step, made to fail first (the old runner ended `uncertain` with the password
+  spent); one driver test for the creation's path end to end; one ledger contract test.
+- **Recorded** ADR-0144 in his words, amending ADR-0110 §2 for the item-6 run, and the runbook
+  `docs/run-a/item-6-runbook.md`.
+- **Replaced** the employment capture `preparation.test.ts` read — removed today (31e8848) for a
+  real e-mail in its page text — with `fixtures/sheffield-summary-listing.html`, the listing's
+  markup as the capture's README recorded it, holding no person's data.
+
+---
+
 ## [0.214.0] — 2026-09-25
 
 **P218 — item 6, build half: the education and funding maps are the whole lists read, keyed on two parts where the list needs two.**

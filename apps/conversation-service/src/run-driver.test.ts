@@ -12872,6 +12872,124 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
     }
   }, 300_000);
 
+  it("the consent notice met at the account CREATION: nothing typed, no password spent, not counted, the student asked before the creation is offered again, the choice carried on the next creation, and a disagreeing record stops for a person (ADR-0144)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-09-25: *"we create the account, the student does not."*
+    // On Sheffield the registration and the sign-in are one page under one
+    // notice, so the creation meets what the sign-in met — but BEFORE it
+    // types, because there it can. Nothing typed, no password spent: the
+    // ledger's count is untouched, the handle is not recorded as spent, and
+    // the run's next step is the student's choice, ahead of a second
+    // hand-out onto the same notice.
+    // ═══════════════════════════════════════════════════════════════════
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00781";
+    await ownConversation(conversation);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure, CONSENT_CATALOGUE);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation, CONSENT_ENTRY);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: CREATION_HANDLE },
+      });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      expect(creating.position.step).toBe("create_account");
+      const boxes = await requestsOpened(conversation);
+
+      // The creation on offer carries the notice's buttons and no choice yet.
+      await nextOnOffer(runId);
+      const first = await instance.driver.claimWork({ holder: "runner-creation-consent", leaseSeconds: 60, sessions: [] });
+      if (first === null || first.runId !== runId) expect.unreachable(`the creation should be this run's work, got ${first?.runId ?? "nothing"}`);
+      expect(first.kind).toBe("create_account");
+      expect(first.secretHandle).toBe(CREATION_HANDLE);
+      expect(first.registration?.consent).toEqual({
+        choices: [
+          { id: "accept", steps: [{ strategy: "id", value: "ccc-accept" }] },
+          { id: "reject", steps: [{ strategy: "id", value: "ccc-settings" }, { strategy: "id", value: "ccc-close" }] },
+        ],
+      });
+
+      // 1. The runner met the notice before typing and pressed nothing on it.
+      expect(await instance.driver.reportWork({ runId, report: { leaseId: first.leaseId, outcome: "failed", failure: "consent_banner_met" } })).toBe(true);
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const ledger = await new PostgresWorkflowRunStore(instance.pool).findIntent(runRef, key);
+      expect(ledger, "not an attempt, and the row says why it closed").toMatchObject({
+        attemptsMade: 0,
+        attemptFailures: [],
+        completed: { outcome: "failed_cleanly", failure: "consent_banner_met" },
+      });
+      expect(ledger?.completed?.spentSecretRequestId, "the Secure Plane was never asked, so the handle is not spent").toBeUndefined();
+      expect(await interventionFor(runId), "not a stop for a person").toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+      const met = (await saidTo(conversation)).filter((content) => content.includes("pressed nothing on it and typed nothing"));
+      expect(met, "told once, in the student's words").toHaveLength(1);
+      expect(met[0]).toContain("The password you typed was not used");
+
+      // 2. The question comes BEFORE the creation is offered again, in the
+      //    creation's words, and no new password box opened.
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("consent_choice");
+      expect(await requestsOpened(conversation), "no password asked for").toEqual(boxes);
+      expect((await instance.driver.runFor(conversation))?.pending?.decision).toBe("consent_choice");
+      const question = (await saidTo(conversation)).filter((content) => content.includes("The notice says:"));
+      expect(question, "the question in the notice's own words").toHaveLength(1);
+      expect(question[0]).toContain("Before I can create your account on gated.portal.test");
+      expect(question[0]).not.toContain("sign in");
+
+      // 3. Recorded: the creation is offered again with the SAME handle — the
+      //    password typed once is still the one to use — and carries the choice.
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "reject" } })).toEqual({ ok: true });
+      const again = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("create_account");
+      expect(await requestsOpened(conversation), "no second box: nothing was spent").toEqual(boxes);
+      await nextOnOffer(runId);
+      const second = await instance.driver.claimWork({ holder: "runner-creation-consent-2", leaseSeconds: 60, sessions: [] });
+      if (second === null || second.runId !== runId) expect.unreachable(`the creation should be on offer again, got ${second?.runId ?? "nothing"}`);
+      expect(second.kind).toBe("create_account");
+      expect(second.secretHandle).toBe(CREATION_HANDLE);
+      expect(second.registration?.consent).toEqual({
+        choices: [
+          { id: "accept", steps: [{ strategy: "id", value: "ccc-accept" }] },
+          { id: "reject", steps: [{ strategy: "id", value: "ccc-settings" }, { strategy: "id", value: "ccc-close" }] },
+        ],
+        chosen: "reject",
+        verify: {
+          cookie: "portal_consent",
+          mustHold: [
+            { path: ["interactedWith"], present: true, equals: true },
+            { path: ["optionalCookies", "analytics"], present: false },
+          ],
+        },
+      });
+      // Keys, locators and flags only on the wire, as for the sign-in.
+      expect(JSON.stringify(second)).not.toContain("measure how");
+      expect(JSON.stringify(second)).not.toContain("Close Cookie Control");
+
+      // 4. The path was pressed and the portal's record disagrees: nothing
+      //    typed, nothing counted, said plainly, stopped for a person.
+      expect(await instance.driver.reportWork({ runId, report: { leaseId: second.leaseId, outcome: "failed", failure: "consent_not_recorded" } })).toBe(true);
+      const closed = await new PostgresWorkflowRunStore(instance.pool).findIntent(runRef, key);
+      expect(closed).toMatchObject({ attemptsMade: 0, attemptFailures: [], completed: { failure: "consent_not_recorded" } });
+      const told = (await saidTo(conversation)).filter((content) => content.includes("I did not create your account, I typed nothing"));
+      expect(told).toHaveLength(1);
+      const intervention = await interventionFor(runId);
+      expect(intervention?.reason).toBe("new_portal_behaviour");
+      expect(intervention?.encountered).toContain("pressed at the account creation");
+      expect(intervention?.encountered).toContain("Nothing was typed, no account was attempted, no password was spent");
+      expect(await statusOf(runId)).toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
   it("the consent path was pressed and the portal's record disagrees: not counted as a sign-in, said plainly, stopped for a person (ADR-0131, P169)", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // The plane's half of shape 3. The runner pressed controls on the

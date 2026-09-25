@@ -235,7 +235,8 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
     // pairs it with a completion.
     const updated = await this.pool.query(
       `UPDATE workflow_action_intents
-          SET started_at = $1, outcome = NULL, completed_at = NULL, spent_secret_request_id = NULL
+          SET started_at = $1, outcome = NULL, completed_at = NULL, spent_secret_request_id = NULL,
+              last_failure = NULL
         WHERE run_id = $2 AND idempotency_key = $3 AND outcome = 'failed_cleanly'`,
       [startedAt, runId, idempotencyKey],
     );
@@ -259,7 +260,8 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
           SET outcome = $1, completed_at = $2,
               attempts_made = attempts_made + $5,
               spent_secret_request_id = $6,
-              attempt_failures = attempt_failures || $7::text[]
+              attempt_failures = attempt_failures || $7::text[],
+              last_failure = $8
         WHERE run_id = $3 AND idempotency_key = $4 AND outcome IS NULL`,
       [
         outcome,
@@ -270,6 +272,8 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
         detail?.spentSecretRequestId ?? null,
         // The code of an attempt MADE that failed (ADR-0122); nothing otherwise.
         detail?.attempted === false || detail?.failure === undefined ? [] : [detail.failure],
+        // The code this completion closed with, attempt or not (ADR-0144).
+        outcome === "succeeded" ? null : (detail?.failure ?? null),
       ],
     );
     if (updated.rowCount === 1) return;
@@ -303,9 +307,10 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
       attempts_made: number;
       spent_secret_request_id: string | null;
       attempt_failures: string[];
+      last_failure: string | null;
     }>(
       `SELECT idempotency_key, action, target, started_at, outcome, completed_at,
-              attempts_made, spent_secret_request_id, attempt_failures
+              attempts_made, spent_secret_request_id, attempt_failures, last_failure
          FROM workflow_action_intents WHERE run_id = $1 AND idempotency_key = $2`,
       [runId, idempotencyKey],
     );
@@ -335,9 +340,10 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
       attempts_made: number;
       spent_secret_request_id: string | null;
       attempt_failures: string[];
+      last_failure: string | null;
     }>(
       `SELECT idempotency_key, action, target, started_at, outcome, completed_at,
-              attempts_made, spent_secret_request_id, attempt_failures
+              attempts_made, spent_secret_request_id, attempt_failures, last_failure
          FROM workflow_action_intents WHERE run_id = $1 AND action = $2
         ORDER BY started_at ASC, idempotency_key ASC`,
       [runId, action],
@@ -439,6 +445,7 @@ function intentRecordOf(
     readonly attempts_made: number;
     readonly spent_secret_request_id: string | null;
     readonly attempt_failures: readonly string[];
+    readonly last_failure: string | null;
   },
   intent: ActionIntent,
 ): IntentRecord {
@@ -453,6 +460,7 @@ function intentRecordOf(
       ...(row.spent_secret_request_id === null
         ? {}
         : { spentSecretRequestId: row.spent_secret_request_id }),
+      ...(row.last_failure === null ? {} : { failure: row.last_failure }),
     },
     attemptsMade: row.attempts_made,
     attemptFailures: row.attempt_failures,

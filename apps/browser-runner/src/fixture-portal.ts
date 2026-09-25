@@ -187,6 +187,13 @@ export interface FixturePortalOptions {
    * carries no notice, as the real one behaves once answered.
    */
   readonly loginConsentBanner?: boolean | "settings-records-everything";
+  /**
+   * ADR-0144. The same notice over the REGISTRATION form — Sheffield's
+   * registration and sign-in are one page under one notice, and the account
+   * creation meets it before it types anything. Answered once, in either
+   * place, it is shown in neither.
+   */
+  readonly registerConsentBanner?: boolean | "settings-records-everything";
 }
 
 /** The widget as the real one renders: a marked div and the response field it writes to. */
@@ -194,7 +201,11 @@ const CAPTCHA_WIDGET = `
   <div class="g-recaptcha" id="captcha" data-sitekey="fixture-site-key">I am not a robot</div>
   <textarea name="g-recaptcha-response" id="captchaResponse" hidden></textarea>`;
 
-const REGISTER_PAGE = (error: string | null, challenge?: FixtureChallenge): string =>
+const REGISTER_PAGE = (
+  error: string | null,
+  challenge?: FixtureChallenge,
+  consentBanner: false | "nothing" | "everything" = false,
+): string =>
   page(
     "Create your account",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
@@ -215,7 +226,7 @@ ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="createAccount">Create account</button>
 </form>
 <p>Already registered? <a href="/login">Sign in</a></p>
-<p><a href="/private/staff-only">Staff area</a></p>`,
+<p><a href="/private/staff-only">Staff area</a></p>${consentBanner === false ? "" : CONSENT_BANNER(consentBanner)}`,
   );
 
 /** Over everything, sees every click, says nothing: the overlay case (ADR-0127). */
@@ -727,6 +738,12 @@ export async function startFixturePortal(
       : options.loginConsentBanner === "settings-records-everything"
         ? "everything"
         : false;
+  const registerConsentBanner: false | "nothing" | "everything" =
+    options.registerConsentBanner === true
+      ? "nothing"
+      : options.registerConsentBanner === "settings-records-everything"
+        ? "everything"
+        : false;
   const tagScriptUrl = options.loginTagScriptUrl;
   const pixelFrameUrl = options.loginPixelFrameUrl;
   const accounts = new Map<string, Account>();
@@ -769,7 +786,10 @@ export async function startFixturePortal(
       }
 
       if (method === "GET" && (path === "/" || path === "/register")) {
-        send(response, 200, REGISTER_PAGE(null, challenge));
+        // The notice is shown until answered, here as on the login page: the
+        // answer is a cookie, as the real one keeps it (ADR-0131, ADR-0144).
+        const answered = consentOf(request) !== null;
+        send(response, 200, REGISTER_PAGE(null, challenge, answered ? false : registerConsentBanner));
         return;
       }
 

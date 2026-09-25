@@ -151,7 +151,6 @@ import {
   handoffTokenFor,
   browserWorkFor,
   consentQuestionOf,
-  describeConsentChoice,
   caseStateForStep,
   executePlanOf,
   nextCaseHop,
@@ -845,6 +844,37 @@ function consentNotRecordedMessage(entry: CatalogueEntry): string {
     `into the sign-in form before I got that far and is spent, so you will be asked for it ` +
     `again when this goes on. I am not going to tell you the site is set the way you asked ` +
     `when I cannot see that it is. Someone is looking at it, and I will come back to you.`
+  );
+}
+
+/**
+ * The runner met the portal's consent notice at the REGISTRATION form and
+ * pressed nothing on it — and, because the creation reads the notice before
+ * it types, nothing was typed and no password was spent (ADR-0144). Said
+ * once; the question itself is the run's next step.
+ */
+function consentMetAtCreationMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I went to create your account on ${institution}'s application portal and the site put a ` +
+    `notice over the page that has to be answered first. It is about what the site may remember ` +
+    `about you, and that is your choice to make on your account, not mine, so I pressed nothing ` +
+    `on it and typed nothing. I will ask you which choice you want next, and then create the ` +
+    `account. The password you typed was not used; if it has lapsed by the time I get back to ` +
+    `it, I will open the secure box again. Nothing has been submitted.`
+  );
+}
+
+/** As `consentNotRecordedMessage`, for the creation: nothing typed, no password spent (ADR-0144). */
+function consentNotRecordedAtCreationMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `On ${institution}'s application portal I made the choice you recorded about what the site ` +
+    `may remember about you, and then I checked the site's own record of it — and the record ` +
+    `does not say what you chose. It may have changed how that notice works. I have stopped ` +
+    `there. I did not create your account, I typed nothing, and the password you typed was not ` +
+    `used. I am not going to tell you the site is set the way you asked when I cannot see that ` +
+    `it is. Someone is looking at it, and I will come back to you.`
   );
 }
 
@@ -2604,7 +2634,7 @@ export class RunDriver {
     });
     const withAccount_: RunState = await this.#withAccountIfCreated(
       withTheSecret,
-      { record: input.record, handover },
+      { record: input.record, handover, entry: input.entry },
       now,
     );
 
@@ -2712,7 +2742,7 @@ export class RunDriver {
 
   async #withAccountIfCreated(
     state: RunState,
-    input: { readonly record: WorkflowRunRecord; readonly handover: HandoverEvidence },
+    input: { readonly record: WorkflowRunRecord; readonly handover: HandoverEvidence; readonly entry: CatalogueEntry },
     now: Date,
   ): Promise<RunState> {
     const runId = input.record.runId;
@@ -2739,12 +2769,28 @@ export class RunDriver {
         found?.completed !== undefined &&
         declared.account === undefined
       ) {
+        // ── The consent notice, before the creation is offered again ────
+        //
+        // ADR-0144. The last creation met the portal's consent notice before
+        // it typed anything, and the student has no choice on record for
+        // THIS portal: their choice comes first. From the ledger's code and
+        // the consent store, never from a runner's memory — the same
+        // derivation the sign-in makes from its session record.
+        const failure = found.completed.failure;
+        const consents = this.#options.consents;
+        const portalHost = portalHostOf(input.entry);
+        const consentChoiceNeeded =
+          failure === "consent_banner_met" && consents !== undefined && portalHost !== null
+            ? (await consents.choiceFor(String(input.record.studentRef), portalHost)) === null
+            : undefined;
         return withAccountCreationFailure(declared, {
           at: found.completed.completedAt,
           attempts: found.attemptsMade,
           ...(found.completed.spentSecretRequestId === undefined
             ? {}
             : { spentSecretRequestId: found.completed.spentSecretRequestId }),
+          ...(failure === undefined ? {} : { failure }),
+          ...(consentChoiceNeeded === undefined ? {} : { consentChoiceNeeded }),
         });
       }
       return declared;
@@ -5315,7 +5361,9 @@ export class RunDriver {
   async #askConsentChoice(conversationId: string, step: RunStep): Promise<void> {
     const consent = consentQuestionOf(step);
     if (consent === null) return;
-    const question = describeConsentChoice(consent.portalHost, consent.banner);
+    // The step's own words (ADR-0144): they say whether the notice stands in
+    // the way of the sign-in or of the account's creation.
+    const question = consent.say;
     const events = await this.#options.conversations.since(conversationId, 0);
     if (events.some((event) => event.kind === "message" && event.content === question)) return;
     await this.#options.conversations.append({
@@ -6431,7 +6479,7 @@ export class RunDriver {
       // ADR-0131: the student's choice on this portal's consent banner, if
       // any, so the runner presses that button and no other.
       const consentChoice =
-        kind === "sign_in"
+        kind === "sign_in" || kind === "create_account"
           ? ((await this.#options.consents?.choiceFor(String(record.studentRef), detail.portalHost))?.choice ?? null)
           : null;
       const payload = workPayloadFor(
@@ -6642,11 +6690,16 @@ export class RunDriver {
     const creationFailed = held.kind === "create_account" && input.report.outcome === "failed";
     const pageFailed = held.kind === "execute" && input.report.outcome === "failed";
     const code = input.report.failure === undefined ? {} : { failure: input.report.failure };
+    // A creation that met the portal's consent notice typed nothing and
+    // spent nothing (ADR-0144): not an attempt, and the handle it was handed
+    // is not recorded as spent — the Secure Plane was never asked for it.
+    const metTheNotice =
+      input.report.failure === "consent_banner_met" || input.report.failure === "consent_not_recorded";
     const detail: IntentCompletionDetail | undefined = creationFailed
       ? {
-          attempted: input.report.failure !== "secret_unavailable",
+          attempted: input.report.failure !== "secret_unavailable" && !metTheNotice,
           ...code,
-          ...(await this.#secretHandedTo(runId)),
+          ...(metTheNotice ? {} : await this.#secretHandedTo(runId)),
         }
       : pageFailed
         ? { attempted: input.report.failure !== "needs_the_student", ...code }
@@ -6808,6 +6861,26 @@ export class RunDriver {
       if (input.spent !== undefined) await say(unusablePasswordMessage(entry));
       return;
     }
+    if (input.failure === "consent_banner_met") {
+      // ADR-0144. Not a failure of the creation and not counted as one: the
+      // runner met the portal's consent notice before it typed anything and
+      // pressed nothing on it. The student is told that, and the question
+      // itself follows as the run's next step.
+      await say(consentMetAtCreationMessage(entry));
+      return;
+    }
+    if (input.failure === "consent_not_recorded") {
+      await this.#stopForConsentNotRecorded({
+        record,
+        conversationId,
+        entry,
+        action: input.action,
+        target: input.target,
+        doing: "account creation",
+        now: input.now,
+      });
+      return;
+    }
 
     const found = await this.#options.stores.runs.findIntent(input.runId, input.key);
     const attempts = found?.attemptsMade ?? 0;
@@ -6839,6 +6912,51 @@ export class RunDriver {
         `tried again, and decides whether this portal is served at all.`,
       say: creationStoppedMessage(entry, input.failure),
       now: input.now,
+    });
+  }
+
+  /**
+   * The student's recorded consent choice was pressed and the portal's own
+   * record does not say what they chose, or could not be read (ADR-0131, P169;
+   * shared with the account creation since ADR-0144). Stops for a person: the
+   * portal did something the reviewed blueprint does not account for, and a
+   * second identical press would record the same thing.
+   */
+  async #stopForConsentNotRecorded(input: {
+    readonly record: WorkflowRunRecord;
+    readonly conversationId: string;
+    readonly entry: CatalogueEntry;
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly doing: "sign-in" | "account creation";
+    readonly now: Date;
+  }): Promise<void> {
+    const { entry } = input;
+    await this.#stopForPerson({
+      record: input.record,
+      conversationId: input.conversationId,
+      entry,
+      action: input.action,
+      target: input.target,
+      // The portal did something the reviewed blueprint does not account
+      // for: its consent control no longer records what the entry says it
+      // records. Not an authentication failure — nothing was authenticated.
+      reason: "new_portal_behaviour",
+      say: input.doing === "sign-in" ? consentNotRecordedMessage(entry) : consentNotRecordedAtCreationMessage(entry),
+      now: input.now,
+      expected:
+        `The portal's own consent record saying what the student chose, read back after the ` +
+        `path the reviewed entry names (ADR-0131, P169).`,
+      encountered:
+        `The student's recorded consent choice for ${portalHostOf(entry)} was pressed at the ` +
+        `${input.doing} and the portal's own record does not say what they chose, or could not be ` +
+        `read (ADR-0131, P169: the third shape checks the record rather than trusting the press). ` +
+        `Controls were pressed on the student's account. ` +
+        (input.doing === "sign-in"
+          ? `Nothing was signed in, no password was spent, `
+          : `Nothing was typed, no account was attempted, no password was spent (ADR-0144), `) +
+        `and nothing is claimed about what the portal recorded. A person reads what the notice now ` +
+        `does on this portal before the entry's consent block is trusted again.`,
     });
   }
 
@@ -6902,28 +7020,14 @@ export class RunDriver {
       // they recorded cannot be stated, so this stops for a person rather
       // than being retried — a second identical press would record the same
       // thing and tell us no more than the first.
-      await this.#stopForPerson({
+      await this.#stopForConsentNotRecorded({
         record,
         conversationId,
         entry,
         action: input.action,
         target: input.target,
-        // The portal did something the reviewed blueprint does not account
-        // for: its consent control no longer records what the entry says it
-        // records. Not an authentication failure — nothing was authenticated.
-        reason: "new_portal_behaviour",
-        say: consentNotRecordedMessage(entry),
+        doing: "sign-in",
         now: input.now,
-        expected:
-          `The portal's own consent record saying what the student chose, read back after the ` +
-          `path the reviewed entry names (ADR-0131, P169).`,
-        encountered:
-          `The student's recorded consent choice for ${portalHostOf(entry)} was pressed and the ` +
-          `portal's own record does not say what they chose, or could not be read (ADR-0131, ` +
-          `P169: the third shape checks the record rather than trusting the press). Controls were ` +
-          `pressed on the student's account. Nothing was signed in, no password was spent, and ` +
-          `nothing is claimed about what the portal recorded. A person reads what the notice now ` +
-          `does on this portal before the entry's consent block is trusted again.`,
       });
       return;
     }
@@ -7794,7 +7898,7 @@ function workPayloadFor(
     readonly page: NextPage | null;
     /** The run's attachments as the preview resolves them (ADR-0069, P73). */
     readonly attachments: readonly PreviewAttachment[];
-    /** ADR-0131: the student's recorded choice on this portal's consent banner, for a sign-in. */
+    /** ADR-0131, ADR-0144: the student's recorded choice on this portal's consent banner, for a sign-in or a creation. */
     readonly consentChoice?: string | null;
   },
   fromBlueprint: string,
@@ -7823,7 +7927,11 @@ function workPayloadFor(
     const registration = registrationFrom(entry);
     if (registration === null) return null;
     if (hostOf(registration.url) !== portalHost) return null;
-    return { portalHost, carries: { registration } };
+    // ADR-0144: the consent notice's buttons, and the student's choice on
+    // this portal when they have made one — exactly as the sign-in carries
+    // them, because on Sheffield it is the same notice over the same page.
+    const consent = consentTargetsFrom(entry, input.consentChoice);
+    return { portalHost, carries: { registration: { ...registration, ...(consent === null ? {} : { consent }) } } };
   }
 
   if (input.kind === "sign_in") {

@@ -216,10 +216,14 @@ describe("filling a fixture portal", () => {
       join(import.meta.dirname, "..", "fixtures", "preparation-form.html"),
       "utf8",
     );
-    // Sheffield's summary.do as captured on 2026-09-14 with one throwaway job
-    // saved (P131) — the real listing, not a fixture in its shape.
+    // Sheffield's summary.do listing in the shape the capture of 2026-09-14
+    // recorded (P131). Until P219 this read the captured page itself; Vahid
+    // removed it on 2026-09-25 (31e8848) because its applicant table carried
+    // a real e-mail in page text, which the scrub did not cover. The fixture
+    // is the listing's markup as the capture's README recorded it, and holds
+    // no person's data.
     const sheffieldSummary = readFileSync(
-      join(import.meta.dirname, "..", "..", "..", "docs", "captures", "sheffield-pgt-2026-09-14-employment", "001.html"),
+      join(import.meta.dirname, "..", "fixtures", "sheffield-summary-listing.html"),
       "utf8",
     );
     server = createServer((req, res) => {
@@ -494,12 +498,14 @@ describe("filling a fixture portal", () => {
     expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:has-text("Previous Education")' })).toBe(3);
   }, 30_000);
 
-  it("counts the employment listing on Sheffield's summary.do AS CAPTURED — the same shape as education's, exact to the number (P131)", async () => {
-    // The page Vahid committed (ebac18d): section F is div.homepageBlock >
+  it("counts the employment listing on Sheffield's summary.do as the capture recorded it — the same shape as education's, exact to the number (P131)", async () => {
+    // The page Vahid committed (ebac18d) and later removed (31e8848, a real
+    // e-mail in its page text): section F is div.homepageBlock >
     // div.homepageInfomation > h5 "Previous Employment 1", the entry's table,
     // its Edit and Delete links — education's shape with the other heading.
     // The locator the curated draft (0.2.20) carries, run by the runner's own
-    // count against the real markup rather than a fixture in its shape.
+    // count against that shape as the capture's README recorded it from the
+    // file; the file itself is gone, and this is the record that stood in.
     const session = await openSession();
     await session.goto(`${baseUrl}/sheffield-summary`);
     expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Employment [0-9]+$")' })).toBe(1);

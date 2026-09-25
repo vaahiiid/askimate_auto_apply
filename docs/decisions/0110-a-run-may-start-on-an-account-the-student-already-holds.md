@@ -2,6 +2,7 @@
 
 **Status:** Accepted · 2026-09-14 · decides item 8 of the distance list and blocker 4 · continues 0101 (§3, the resume path) and 0050
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-14. Built in P122.
+**Amended** by [ADR-0144](./0144-we-create-the-account-the-student-does-not.md) (2026-09-25) for the item-6 run only: that run starts from no account — the system creates it on a dedicated e-mail of his, and it is still his and still the one the approval names. §2's *"the run enters my existing account"* stands for the runs before it.
 
 ## Context
 

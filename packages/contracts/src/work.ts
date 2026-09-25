@@ -129,6 +129,18 @@ export interface RegistrationTargets {
   readonly passwordLocators: readonly FillLocator[];
   /** The control that submits the form. */
   readonly submitLocator: FillLocator;
+  /**
+   * The portal's consent banner, when the reviewed blueprint records one, and
+   * the student's choice on it when they have made one (ADR-0131, ADR-0144).
+   *
+   * The same shape the login carries, for the same reason: on Sheffield the
+   * registration form and the sign-in form are one page, and the notice that
+   * stood over the sign-in button stands over the registration's. The runner
+   * reads it BEFORE it types anything — an unanswered notice met here costs
+   * no password, because none has been asked for yet. Absent `chosen`, the
+   * runner presses nothing and reports `consent_banner_met`.
+   */
+  readonly consent?: LoginConsent;
 }
 
 /**
@@ -459,10 +471,11 @@ export type NO_WORK_FIELD_IS_FREE_TEXT = AssertNever<OpenStrings<ClaimedWork>>;
  * `OpenStrings` lets `registration` through as a whole, so without this a
  * `defaultPassword` or a `portalMessage` added to `RegistrationTargets` would
  * ride in behind the exemption. This closes it: every member must be a URL, a
- * locator, or a list of locators.
+ * locator, a list of locators, or the consent notice's targets (ADR-0144) —
+ * which are themselves closed below to choice keys and locators.
  */
 type NonTargetFields<T> = {
-  [K in keyof T]-?: NonNullable<T[K]> extends FillLocator | readonly FillLocator[]
+  [K in keyof T]-?: NonNullable<T[K]> extends FillLocator | readonly FillLocator[] | LoginConsent
     ? never
     : K extends "url"
       ? never
@@ -1171,7 +1184,11 @@ function parseRegistration(value: unknown): RegistrationTargets | null {
     passwordLocators.push(locator);
   }
 
-  return { url, emailLocator, passwordLocators, submitLocator };
+  // ADR-0144: the consent notice's buttons, exactly as the login carries them.
+  const consent = record["consent"] === undefined ? undefined : parseLoginConsent(record["consent"]);
+  if (consent === null) return null;
+
+  return { url, emailLocator, passwordLocators, submitLocator, ...(consent === undefined ? {} : { consent }) };
 }
 
 /** Bytes from the network to a report, or `null`. The plane's side of the wire. */

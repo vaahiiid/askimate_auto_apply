@@ -112,6 +112,14 @@ export interface IntentRecord {
      * keeps a spent password from being offered to the next attempt.
      */
     readonly spentSecretRequestId?: string;
+    /**
+     * The runner's closed code this completion closed with, whether or not it
+     * counted as an attempt (ADR-0144, P219). `attemptFailures` below keeps
+     * only the attempts MADE; this keeps the one fact the next advance needs
+     * from a completion that made none — an account creation that met the
+     * portal's consent notice before it typed anything. Absent on a success.
+     */
+    readonly failure?: string;
   };
   /**
    * How many attempts were actually made against the world, across every

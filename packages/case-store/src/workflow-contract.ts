@@ -523,6 +523,41 @@ export function runWorkflowStoreContract(
         expect(done?.attemptFailures, "the success adds nothing; the failure before it stays").toEqual(["runner_fault"]);
       });
 
+      it("keeps the code the LAST completion closed with, attempt or not, and a reopen clears it (ADR-0144)", async () => {
+        // P219: an account creation that met the portal's consent notice
+        // before it typed anything is not an attempt — the list and the
+        // count say nothing — and it is the one fact the next advance needs
+        // from this row, so the run's next step is the student's choice on
+        // the notice and not a second hand-out onto it.
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, {
+          attempted: false,
+          failure: "consent_banner_met",
+        });
+        let found = await store.findIntent(id, key(id));
+        expect(found?.attemptsMade, "not an attempt").toBe(0);
+        expect(found?.attemptFailures, "not among the attempts made").toEqual([]);
+        expect(found?.completed?.failure, "and yet the row says why it closed").toBe("consent_banner_met");
+        expect((await store.listIntents(id, "create_portal_account"))[0]?.completed?.failure).toBe("consent_banner_met");
+
+        // In flight again: the code described the completion just closed.
+        await expect(store.reopenIntent(id, key(id), NOW)).resolves.toBe(true);
+        found = await store.findIntent(id, key(id));
+        expect(found?.completed, "in flight").toBeUndefined();
+
+        // An attempt made and failed carries its code in both places.
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, { failure: "portal_refused" });
+        found = await store.findIntent(id, key(id));
+        expect(found?.completed?.failure).toBe("portal_refused");
+        expect(found?.attemptFailures).toEqual(["portal_refused"]);
+
+        // A success closes with no code, whatever it was handed.
+        await expect(store.reopenIntent(id, key(id), NOW)).resolves.toBe(true);
+        await store.completeIntent(id, key(id), "succeeded", NOW, { failure: "portal_refused" });
+        expect((await store.findIntent(id, key(id)))?.completed?.failure).toBeUndefined();
+      });
+
       it("does NOT count a hand-out that never reached the portal (ADR-0114)", async () => {
         // A runner handed a password it could not use has attempted nothing:
         // once is chance, twice is the portal, and this was neither. The

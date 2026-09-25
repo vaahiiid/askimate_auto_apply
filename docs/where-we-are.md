@@ -4906,6 +4906,57 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P219 — item 6, the account: we create it, the student does not
+
+> *"I would rather item 6 be the real thing — a person with nothing, who ends with an account and
+> a filled application."*
+
+## His question, and the answer
+
+Item 6 had him registering the account by hand. That contradicted his decision earlier in the
+week, so he asked whether creation is buildable into item 6 or is a seventh item, what it depends
+on, and what Sheffield's registration does about a verification link. The answer, measured:
+creation was already the default step, the runner's creation was proven on the fixture, and the
+only gap was the consent notice — the sign-in had ADR-0131's branch and the creation did not. On
+Sheffield they are one page under one notice. Built inside item 6; no seventh item. It depends on
+his dedicated e-mail at the run and on nothing else new from him. The verification link: by his own
+observation there is none; if there is, the existing handoff asks him in the chat and the mailbox
+is never read (ADR-0020 §5) — his position, unchanged, now in ADR-0144.
+
+## What was built
+
+The creation reads the notice **before it types**. The submit control is checked for something over
+it with Playwright's own actionability check and nothing pressed; the notice with no choice on record
+stops with `consent_banner_met` — nothing typed, no password spent, the handle not recorded as spent,
+the count untouched. A recorded choice is pressed and read back exactly as the sign-in's is; the
+shared code is `apps/browser-runner/src/consent.ts`, and the sign-in's lines are unchanged. On the
+wire, `RegistrationTargets.consent` is the login's shape, closed by the same compile-time check. In
+the ledger, migration 0008 keeps the code the last completion closed with, attempt or not, because
+ADR-0122's list holds only attempts made and this fact was not one; the driver derives the
+creation's `consentChoiceNeeded` from it and the consent store, and the orchestrator asks the choice
+ahead of a second hand-out, in the creation's words.
+
+## Fail first
+
+The runner's fixture tests, run against the old creation, showed what the fix removes: the notice
+met at the press, with the password already typed and spent, reported `uncertain` — an account that
+may exist, for a person to adjudicate — where nothing had happened. The driver's test failed for
+want of the consent targets on the creation.
+
+## The census, red once
+
+The first census went red on `preparation.test.ts`: it read the employment capture that his own
+commit removed earlier today for carrying a real e-mail in page text. A records-only removal with
+no census after it is the eighth silent failure's shape. The test now counts on a fixture in the
+shape the capture's README recorded, holding no person's data, and the README says the file is gone
+and why.
+
+## Rows
+
+88: the creation's consent step is proven on the fixture; Sheffield's notice at the registration is
+inferred from the page, not measured at a creation. 89: where a created account lands is his one
+observation; the runner reads success by the path changing.
+
 # P218 — item 6, build half: the whole lists, keyed on the parts that decide them
 
 > *"A map with one row passes for the one student who matches it and refuses everyone else, and we

@@ -42,7 +42,7 @@ signed entry and the registry, and the tests each item carries will pin them.
 | ~~3~~ | ~~The award title: the registry does not hold it, so `degree` refuses by design~~ **Closed, P213: 13:42 to 13:49 UTC, about 6 minutes, against 6 h; unsigned until item 6** | ~~6 h~~ | — |
 | 4 | The education page refuses his real degree on four more boxes — **re-shaped in P214:** the shape is read and recorded; the rows for his values move into item 6, where his values will exist | ~2 h, at item 6 | his read (done, `1c13dbd`); a read of his own institution's lists at the real run if it is not Sheffield |
 | ~~5~~ | ~~Part 2 is unread, and `ready_to_submit` today is the end of Part 1~~ **Closed, P217: the taught page is in the entry and fully mapped; the start date is not a question for this course, read from the markup** | ~~8 h~~ | done: three reads, one statement, one decision |
-| 6 | The signature, and the run itself — **build half done, P218:** the education and funding maps are the whole lists read, keyed on two parts where needed; nothing in the entry is one row for one student | ~1 h | the clean account under a dedicated e-mail, its id, one signature, his answers, the run |
+| 6 | The signature, and the run itself — **build done, P219:** the maps are the whole lists (P218); the account is created by the run, not by hand (ADR-0144), and the creation meets the consent notice before it types | ~1 h | the dedicated e-mail, its student id, one signature, his answers, his consent choice, his password, the run |
 | | **Total remaining** | **14 h** (41 h estimated at the start; items 1, 2 and 3 closed in about an hour and a half together) | two reads, one signature, one run |
 
 Forty-one hours of build is about five and a half working days. The items are ordered by when a
@@ -323,18 +323,18 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 
 ## What needs his hand, batched
 
-- **Two reads on his account, read-only:** the education lookups for his own institution (item 4);
-  Part 2 (item 5). Neither is a run, neither fills anything, and neither is made from this
-  environment.
-- **One signature** at the end, covering items 3, 4 and 5 in one hash.
-- **Possibly one decision**, if Part 2's shape strains the one-case-one-course model — his words,
-  not a tool's echo.
-- **His answers**, in the chat, and about an hour for the run.
+- ~~**Two reads on his account, read-only**~~ — both made (items 4 and 5, 2026-09-25).
+- **A dedicated e-mail address**, made by him, for the account the run creates (ADR-0144). He
+  registers nothing by hand.
+- **A fresh `students` row's id** in `approvals.json`, and **one signature** at the end, covering
+  everything in one hash.
+- **His answers** in the chat, **his consent choice** when the run asks it, **his password** in the
+  secure box, and about an hour for the run. The sequence is `docs/run-a/item-6-runbook.md`.
 
 ## The two lines every report carries
 
 - *Declared-but-unreachable: four.*
-- *Distance to the goal: one item, about 3 h of build, four struck; item 4's rows folded into item 6.* — this file's list, by count.
+- *Distance to the goal: one item, its build done, the run his; four struck; item 4's rows folded into item 6.* — this file's list, by count.
   Struck items move to a "What moved" section below as they close; the count in every report is
   the number not yet struck.
 
@@ -349,3 +349,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-09-25 (P216):** item 5 all but one box — the course, the qualification, the study mode and the funding mapped on his three inputs (ADR-0143); `startDate` waits on one read. Rows 83–86. Entry `27f5b6c9…`, unsigned.
 - **2026-09-25 (P217):** item 5 struck — the start date is not a question for this course; the taught page fully mapped; the read exits 0 on both parts. Row 83 closed, row 87. Entry `80d99170…`, unsigned. One item remains: the signature over everything, and the run.
 - **2026-09-25 (P218):** item 6, build half — the education and funding maps as the whole lists read (a `switch` rule for two-part keys; rows 78 closed, 85 widened). Entry `7b46e6fe…`, unsigned. Left for the run: the clean account, its id, one signature, his answers.
+- **2026-09-25 (P219):** item 6, build done — the account is the run's to create (ADR-0144, amending 0110 §2 for this run); the creation meets the consent notice before it types, proven fail-first on the fixture; the ledger keeps the last completion's code (migration 0008). Rows 88, 89. Entry `7b46e6fe…`, unchanged, unsigned. 19:27 to 20:13 utc, about 46 minutes, inside item 6's hour. Left: his acts, in the runbook.

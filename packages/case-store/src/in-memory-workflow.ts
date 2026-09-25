@@ -196,6 +196,8 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
         ...(detail?.spentSecretRequestId === undefined
           ? {}
           : { spentSecretRequestId: detail.spentSecretRequestId }),
+        // The code this completion closed with, attempt or not (ADR-0144).
+        ...(detail?.failure === undefined || outcome === "succeeded" ? {} : { failure: detail.failure }),
       },
       attemptsMade: record.attemptsMade + (detail?.attempted === false ? 0 : 1),
       // The code of an attempt MADE that failed (ADR-0122); nothing otherwise.

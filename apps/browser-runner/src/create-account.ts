@@ -22,6 +22,14 @@
  *   2. The URL is checked against the host the work was bound to, here as well
  *      as in the plane. A registration URL somewhere else would be an
  *      instruction to create an account on a host nobody authorised.
+ *   2½. The portal's consent notice, where the reviewed blueprint records one
+ *      (ADR-0131, ADR-0144): BEFORE a character is typed, the submit control
+ *      is checked for something standing over it, and if that something is
+ *      the notice it is answered with the student's recorded choice or the
+ *      step stops with `consent_banner_met`, having typed nothing and spent
+ *      no password. The sign-in learnt the notice at a failed press with the
+ *      password already typed; the creation reads it first, because here it
+ *      can.
  *   3. The email goes in first — ordinary text, typed by this process.
  *   4. The password goes in via the fill agent, one handle for every box.
  *   5. Only then is the form submitted.
@@ -43,9 +51,11 @@ import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import type { Browser, BrowserContext, Page } from "playwright";
 
+import { consentNoticeOnThePage, consentTargetsOf, pressConsentPath } from "./consent.js";
 import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
 import { openSensitiveContext } from "./sensitive.js";
+import { pressCheckInWords, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
 /** How long to wait for a page or a control. Portals are slow; students wait. */
@@ -77,6 +87,11 @@ export interface CreateAccountDeps {
    * it must be a sensitive one; `fillSecret` refuses anything else, loudly.
    */
   readonly context?: BrowserContext;
+  /**
+   * Where the creation says what it is doing (ADR-0124). Optional, so a test
+   * of the outcome alone passes nothing; the runner passes its own log.
+   */
+  readonly log?: (line: string) => void;
 }
 
 /**
@@ -98,6 +113,7 @@ export async function createPortalAccount(
     return { kind: "failed", failure: "secret_unavailable" };
   }
 
+  const say = deps.log ?? ((): void => undefined);
   const targets = work.registration;
   if (targets === undefined) {
     // An account-creation item with no registration targets is a plane that
@@ -143,6 +159,57 @@ export async function createPortalAccount(
     // was spent, no account was attempted, and the run stops saying which.
     const challenged = await detectChallenge(page);
     if (challenged !== null) return { kind: "failed", failure: challengeFailure(challenged) };
+
+    // ── 2½. The consent notice, before anything is typed (ADR-0144) ──────
+    //
+    // Only where the reviewed blueprint records a notice. The submit control
+    // is the one measured — it is the press the notice would intercept at
+    // step 5 — and `trial` performs Playwright's own actionability checks
+    // without pressing anything. The check that fails names what stands in
+    // the way in Playwright's closed phrases, never in the page's words.
+    if (targets.consent !== undefined) {
+      const submitNow = await resolve(page, targets.submitLocator);
+      if (submitNow === null) return { kind: "failed", failure: "portal_drift" };
+      let overIt: unknown;
+      try {
+        await submitNow.click({ trial: true, timeout: STEP_TIMEOUT_MS });
+        overIt = undefined;
+      } catch (thrown) {
+        overIt = thrown;
+      }
+      if (overIt !== undefined) {
+        const consent = consentTargetsOf(targets.consent);
+        const intercepted = pressCheckInWords(overIt) === "another element intercepts pointer events";
+        if (intercepted && (await consentNoticeOnThePage(page, consent))) {
+          if (consent.chosen === undefined) {
+            say(
+              `run ${work.runId}: account creation stopped — the registration page carries the portal's ` +
+                `consent notice, and no choice of the student's is on record for this portal; nothing was ` +
+                `pressed on it and nothing was typed`,
+            );
+            return { kind: "failed", failure: "consent_banner_met" };
+          }
+          const stopped = await pressConsentPath(page, {
+            runId: work.runId,
+            doing: "account creation",
+            chosen: consent.chosen,
+            pressMs: STEP_TIMEOUT_MS,
+            say,
+          });
+          if (stopped !== null) return stopped;
+        } else {
+          // Something else stands over the control, or it could not be
+          // reached at all. Nothing has been typed, so this is a plain
+          // failure of the attempt and not an uncertainty: a press that was
+          // never made cannot have reached the portal.
+          say(
+            `run ${work.runId}: account creation stopped before typing — the submit control could not be ` +
+              `pressed: ${thrownInWords(overIt)}; pending: ${pressCheckInWords(overIt)}`,
+          );
+          return { kind: "failed", failure: "runner_fault" };
+        }
+      }
+    }
 
     const email = await resolve(page, targets.emailLocator);
     if (email === null) return { kind: "failed", failure: "portal_drift" };

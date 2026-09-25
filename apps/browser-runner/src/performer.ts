@@ -103,6 +103,8 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
         agentBaseUrl: deps.agentBaseUrl,
         ...(deps.agentServiceToken === undefined ? {} : { serviceToken: deps.agentServiceToken }),
         ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
+        // ADR-0124: the attempt says what it is doing, before and after.
+        ...(deps.log === undefined ? {} : { log: deps.log }),
         // Kept open afterwards: the cookie it is about to hold is the run's
         // only session, and the fill needs it.
         context,

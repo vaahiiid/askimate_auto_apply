@@ -171,6 +171,16 @@ export interface RunState {
     readonly at: Date;
     readonly attempts: number;
     readonly spentSecretRequestId?: string;
+    /** The runner's closed code the last completion closed with, attempt or not (ADR-0144). */
+    readonly failure?: string;
+    /**
+     * ADR-0144: the last creation met the portal's consent notice before it
+     * typed anything, and the student has no choice on record for this
+     * portal. The driver derives it from the ledger's code and the consent
+     * store; the step it produces is `consent_choice`, ahead of the creation
+     * and — since nothing was typed — with no password spent.
+     */
+    readonly consentChoiceNeeded?: boolean;
   };
   /**
    * Where the student's password has got to, when the secure channel is in
@@ -697,6 +707,23 @@ function accountStepFor(state: RunState): RunStep | null {
     // `generated_ephemeral` generates its own and must never ask a student for
     // theirs.
     //
+    // ── The consent notice, before the creation is offered again (ADR-0144) ─
+    //
+    // The last creation met the portal's consent notice before it typed
+    // anything, and the student has not chosen on it. Their choice comes
+    // first; handing the creation out again would meet the same notice. Only
+    // where the reviewed blueprint records the banner — elsewhere the
+    // runner's report stopped the run for a person, as any obstacle does.
+    const banner = state.inputs.blueprint.authentication.consent;
+    if (state.accountCreationFailed?.consentChoiceNeeded === true && banner !== undefined) {
+      return {
+        kind: "consent_choice",
+        portalHost,
+        banner,
+        say: describeConsentChoice(portalHost, banner, "create your account"),
+      };
+    }
+
     // This comes BEFORE `create_account` because the automation cannot fill
     // the registration form without it, and asking afterwards would mean a
     // half-created account waiting on a password box.
@@ -911,7 +938,12 @@ function pressesInWords(count: number): string {
   return `${spelled ?? String(count)} presses`;
 }
 
-export function describeConsentChoice(portalHost: string, banner: ConsentBanner): string {
+export function describeConsentChoice(
+  portalHost: string,
+  banner: ConsentBanner,
+  /** What the notice stands in the way of — the sign-in, or the account's creation (ADR-0144). */
+  before: "sign in" | "create your account",
+): string {
   const choices = banner.choices
     .map((choice) => {
       // Every button on the path, quoted, because that is the condition Vahid
@@ -933,8 +965,8 @@ export function describeConsentChoice(portalHost: string, banner: ConsentBanner)
     })
     .join(" ");
   return (
-    `Before I can sign in on ${portalHost}, the site shows a notice and will not let me press ` +
-    `the sign-in button until it is answered. It is about what the site may remember about you ` +
+    `Before I can ${before} on ${portalHost}, the site shows a notice and will not let me press ` +
+    `the ${before === "sign in" ? "sign-in" : "form's"} button until it is answered. It is about what the site may remember about you ` +
     `while you use it, and it is a choice on your account, so it is yours to make and not mine. ` +
     `The notice says: "${banner.words}" ` +
     // In the sentence, not in a note (Vahid, 2026-09-19): a refusal here is
@@ -995,7 +1027,7 @@ function resumeStepFor(state: RunState, account: PortalAccount): RunStep {
       kind: "consent_choice",
       portalHost,
       banner: authentication.consent,
-      say: describeConsentChoice(portalHost, authentication.consent),
+      say: describeConsentChoice(portalHost, authentication.consent, "sign in"),
     };
   }
 
@@ -1669,9 +1701,11 @@ export function browserWorkFor(step: RunStep): "create_account" | "sign_in" | "e
 export function consentQuestionOf(step: RunStep): {
   readonly portalHost: string;
   readonly banner: ConsentBanner;
+  /** The question in words — the step's own, which say what the notice stands in the way of (ADR-0144). */
+  readonly say: string;
 } | null {
   if (step.kind !== "consent_choice") return null;
-  return { portalHost: step.portalHost, banner: step.banner };
+  return { portalHost: step.portalHost, banner: step.banner, say: step.say };
 }
 
 /**

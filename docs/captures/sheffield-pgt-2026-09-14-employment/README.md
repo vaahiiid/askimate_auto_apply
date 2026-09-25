@@ -33,8 +33,13 @@ children are the section's sentence, then one `h5` *Previous Employment 1*, then
 block ends with `div.homepageUpdateLinks` and the *Add new employment details* link. Education's
 section E has exactly that shape with *Previous Education N*. So the locator authored on his
 word stands on the page, and the draft is not corrected. `apps/browser-runner/src/preparation.test.ts`
-serves this file to the runner's own `count` and gets 1 for employment, 2 for education, and 0
-for the numbered heading of a section that has none.
+served this file to the runner's own `count` and got 1 for employment, 2 for education, and 0
+for the numbered heading of a section that has none. **The file was removed on 2026-09-25**
+(31e8848, Vahid): its applicant table carried a real e-mail address in page text, which the
+capture scrub — input values only — did not cover; the check recorded below ("zero matches" for
+his surname and e-mail) did not look for another person's. Since P219 the test counts on
+`apps/browser-runner/fixtures/sheffield-summary-listing.html`, the listing's markup as this
+README records it, holding no person's data.
 
 Three more things the markup carries, none of which he could have seen from the page's text:
 
