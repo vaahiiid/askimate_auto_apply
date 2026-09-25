@@ -1,10 +1,10 @@
 [
   {
-    "contentHash": "sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd",
+    "contentHash": "sha256:7b46e6fe2216fe4fb75116d6bc6083205650679e71655be1f38d18e02fde7a73",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-09-24T16:00:00Z",
-    "ownAccountOnly": { "studentId": "af398e01-c154-469d-a086-3e9c8c60a020" },
-    "note": "One signature (ADR-0118): my own account only. Signed to STOP the run, not to enable it: the degree map read a qualification's level and wrote an award title, so every BA student would have been told to Sheffield as a BSc, silently. It now refuses (not_derivable, blocker 71) and no education page can be filled until the registry holds the award title as the student's own stated field. what-will-be-typed.md is that refusal. I am signing a system that does less and lies less."
+    "approvedAt": "2026-09-25T19:00:00Z",
+    "ownAccountOnly": { "studentId": "5774ff16-ff9c-424a-882f-42d0f304968b" },
+    "note": "One signature (ADR-0118), admitting one account only: a fresh student with no profile, for the item-6 run. This entry carries Part 1 and Part 2, the education and funding maps as whole lists from Sheffield's own selects rather than one row per student, the degree map keyed on the award title the student states (ADR-0142), and account creation with the consent notice answered by the student's own choice (ADR-0144). Niloofar's student af398e01 is no longer admitted; her case stays where it is and is not touched by this run."
   }
 ]
