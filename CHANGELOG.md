@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.210.0] — 2026-09-25
+
+**P214 — item 4 on his read: the shape recorded, the synthetic-chosen rows marked, the rows for his values folded into item 6.**
+
+- **Read** his capture `docs/captures/sheffield-education-lists-2026-09-25/` against the
+  2026-09-10 one and wrote its README: the same institution (so the per-institution
+  grading-system difference is still unread — blocker 77), a second system's grade list of
+  Pass/Fail only whose system the read does not record (blocker 78), identical subject results and
+  titles. Said rather than built around.
+- **Marked**, in the entry and the draft, every education row chosen to match the synthetic
+  profile — *SYNTHETIC-PROFILE VALUE* in its note — so the real run's reader knows which rows
+  change. Mapping set 0.3.37 → 0.3.38, entry `sha256:26aafb1bb198d2a1152f28506c3d9fd83563b30aa01a0b9142405be6979f7b10`, unsigned until item 6.
+- **Re-shaped** item 4: its rows for his values are item 6's, where the values will exist.
+
+---
+
 ## [0.209.0] — 2026-09-25
 
 **P213 — item 3 closed: the award title is the student's stated field (ADR-0142), and `degree` is typed from it.**

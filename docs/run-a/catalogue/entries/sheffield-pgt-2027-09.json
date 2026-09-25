@@ -29098,7 +29098,7 @@
       "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
     ],
     "mappingSetId": "map-sheffield-pgt-2027-09",
-    "version": "0.3.37",
+    "version": "0.3.38",
     "status": "reviewed",
     "blueprintId": "bp-sheffield-pgt-september-direct",
     "blueprintVersion": "0.2.28",
@@ -32538,7 +32538,7 @@
             }
           }
         },
-        "note": "Please select the qualification you studied:* — shown for a UK study at university level. The portal's own list (UG DEGREE, UG MASTERS, SIC PG DIP, GRAD CERT, GRAD DIP, MASTERS, PHD) against the study's free-text qualification: blocker 25's shape, and mapped here the way P149 mapped the institution box — for the synthetic profile's one qualification only, 'BSc Business Management' → UG DEGREE (the entry reading 'Bachelors Degree'), a reviewer's reading recorded, not a rule. No absent rule: a study at this level with no qualification text is a value the student has not given, and blocks. Any other text is a loud blocker on this box. The other four per-level selects stay unmapped; the synthetic profile does not reach them. P150."
+        "note": "Please select the qualification you studied:* — shown for a UK study at university level. The portal's own list (UG DEGREE, UG MASTERS, SIC PG DIP, GRAD CERT, GRAD DIP, MASTERS, PHD) against the study's free-text qualification: blocker 25's shape, and mapped here the way P149 mapped the institution box — for the synthetic profile's one qualification only, 'BSc Business Management' → UG DEGREE (the entry reading 'Bachelors Degree'), a reviewer's reading recorded, not a rule. No absent rule: a study at this level with no qualification text is a value the student has not given, and blocks. Any other text is a loud blocker on this box. The other four per-level selects stay unmapped; the synthetic profile does not reach them. P150. SYNTHETIC-PROFILE VALUE (P214): the one row, Bachelor's degree → UG DEGREE, is the synthetic profile's level, chosen to match it and not read from a student. It changes at the real run."
       },
       {
         "fieldRef": "highestQualificationOther",
@@ -32717,7 +32717,7 @@
             }
           }
         },
-        "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map."
+        "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map. SYNTHETIC-PROFILE VALUE (P214): the forty-one rows are the portal's whole list, not a choice; the value the read shows, BSc, is what the synthetic profile STATES as its title (P213), chosen to match what Run A typed on his account, not read from a student."
       },
       {
         "fieldRef": "institutionCountry-ts-control",
@@ -32983,7 +32983,7 @@
             }
           }
         },
-        "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). Names the VALUE the form submits, SHEFFIELD, for the one institution the synthetic profile holds, keyed on the profile part exactly as written; the blueprint records the text it reads as, 'University of Sheffield', and the runner requires both at the fill (ADR-0109). The eleven recorded entries are one search ('Sheff', United Kingdom, P118): a student whose institution is not among them, or is spelled otherwise, is a loud blocker on this box — never the escape 'Not in list', which the check refuses by value, and never an approximation. The hidden <select name=\"institutionCode\"> is set by the box and mapped by nothing. Per qualification. P149."
+        "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). Names the VALUE the form submits, SHEFFIELD, for the one institution the synthetic profile holds, keyed on the profile part exactly as written; the blueprint records the text it reads as, 'University of Sheffield', and the runner requires both at the fill (ADR-0109). The eleven recorded entries are one search ('Sheff', United Kingdom, P118): a student whose institution is not among them, or is spelled otherwise, is a loud blocker on this box — never the escape 'Not in list', which the check refuses by value, and never an approximation. The hidden <select name=\"institutionCode\"> is set by the box and mapped by nothing. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, University of Sheffield → SHEFFIELD, is the synthetic profile's institution, chosen to match it and not read from a student. It changes at the real run."
       },
       {
         "fieldRef": "subjectSearch",
@@ -33001,7 +33001,7 @@
             }
           }
         },
-        "note": "Search: — the word typed into the subject search before subjectSearchButton is pressed (ADR-0105). The map names, per subject, the SEARCH WORD whose results the reviewer read: the 87 captured options came from 'business' (P132), and 'Business Management' is among them. The subject itself is never typed here as if the portal matched whole names — nobody has observed what a two-word search returns. A subject the map does not name is a loud blocker. Per qualification. P149."
+        "note": "Search: — the word typed into the subject search before subjectSearchButton is pressed (ADR-0105). The map names, per subject, the SEARCH WORD whose results the reviewer read: the 87 captured options came from 'business' (P132), and 'Business Management' is among them. The subject itself is never typed here as if the portal matched whole names — nobody has observed what a two-word search returns. A subject the map does not name is a loud blocker. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, Business Management → 'business', is the synthetic profile's subject and the search word its 87 results came from; chosen to match it, not read from a student. It changes at the real run."
       },
       {
         "fieldRef": "subject",
@@ -33019,7 +33019,7 @@
             }
           }
         },
-        "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). Names the captured value exactly, for the one subject the synthetic profile holds; the runner waits a bounded time for it after the press. Two captured values carry a trailing space the label hides and one is listed twice — a reviewer extending this map copies the VALUE from the blueprint, never the label. Per qualification. P149."
+        "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). Names the captured value exactly, for the one subject the synthetic profile holds; the runner waits a bounded time for it after the press. Two captured values carry a trailing space the label hides and one is listed twice — a reviewer extending this map copies the VALUE from the blueprint, never the label. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, Business Management, is the synthetic profile's subject, chosen to match it and not read from a student. It changes at the real run."
       },
       {
         "fieldRef": "gradingSystemId",
@@ -33037,7 +33037,7 @@
             }
           }
         },
-        "note": "Grading System: — Sheffield's own list, PER INSTITUTION (P132), following the institution box (0.2.24). Mapped from the qualification's LEVEL, not its gradeScale: the portal's systems are 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8, a level-and-country vocabulary, and uk_honours says nothing about which. Only 7 is named: the grade list was read for system 7 alone (nine options), so a Master's entry would set 8 and then wait at the fill for a grade from a list nobody read — refused at plan time instead, as a loud blocker on this box. Per qualification. P149."
+        "note": "Grading System: — Sheffield's own list, PER INSTITUTION (P132), following the institution box (0.2.24). Mapped from the qualification's LEVEL, not its gradeScale: the portal's systems are 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8, a level-and-country vocabulary, and uk_honours says nothing about which. Only 7 is named: the grade list was read for system 7 alone (nine options), so a Master's entry would set 8 and then wait at the fill for a grade from a list nobody read — refused at plan time instead, as a loud blocker on this box. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the one row, Bachelor's degree → 7, is right for the synthetic profile's Sheffield bachelor's and for no other institution — the list is loaded per institution and only Sheffield's has been read (blocker 77). It changes at the real run."
       },
       {
         "fieldRef": "grade",
@@ -33058,7 +33058,7 @@
             }
           }
         },
-        "note": "grade — system 7's nine captured values, following gradingSystemId. The student's grade as awarded (the registry keeps it raw, never normalised on the way in) maps onto the portal's spellings for the four honours classes: '2:1' → '2.1' is the reviewer's reading of the same class in two houses' notation, recorded here, not a conversion between scales. 'Pass', 'Fail' and the two non-grades are not named: the synthetic profile holds a classified degree, and whether a student's 'Pass' is the portal's 'Pass' is a question for a real review. Any other spelling ('2.1', 'Upper second', '17.2') is a loud blocker, never a guess. Per qualification. P149."
+        "note": "grade — system 7's nine captured values, following gradingSystemId. The student's grade as awarded (the registry keeps it raw, never normalised on the way in) maps onto the portal's spellings for the four honours classes: '2:1' → '2.1' is the reviewer's reading of the same class in two houses' notation, recorded here, not a conversion between scales. 'Pass', 'Fail' and the two non-grades are not named: the synthetic profile holds a classified degree, and whether a student's 'Pass' is the portal's 'Pass' is a question for a real review. Any other spelling ('2.1', 'Upper second', '17.2') is a loud blocker, never a guess. Per qualification. P149. SYNTHETIC-PROFILE VALUE (P214): the four rows are system 7's honours classes, of which the synthetic profile uses 2:1 → 2.1; a 2026-09-25 read showed another of Sheffield's systems carries only Pass and Fail, and this map cannot depend on the system (blocker 78). They change at the real run."
       }
     ],
     "reviewedBy": "Vahid Mohammadi",

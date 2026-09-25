@@ -40,7 +40,7 @@ signed entry and the registry, and the tests each item carries will pin them.
 | ~~1~~ | ~~The interview escalates on its first turn~~ **Closed, P211: about a quarter of an hour by the clock, against 18 h estimated** | ~~18 h~~ | — |
 | ~~2~~ | ~~The interview finishes and the plan still blocks on four fields nobody asked~~ **Closed, P212: about 5 minutes by the clock, against 3 h** | ~~3 h~~ | — |
 | ~~3~~ | ~~The award title: the registry does not hold it, so `degree` refuses by design~~ **Closed, P213: 13:42 to 13:49 UTC, about 6 minutes, against 6 h; unsigned until item 6** | ~~6 h~~ | — |
-| 4 | The education page refuses his real degree on four more boxes | 5 h | one read (~1 h) |
+| 4 | The education page refuses his real degree on four more boxes — **re-shaped in P214:** the shape is read and recorded; the rows for his values move into item 6, where his values will exist | ~2 h, at item 6 | his read (done, `1c13dbd`); a read of his own institution's lists at the real run if it is not Sheffield |
 | 5 | Part 2 is unread, and `ready_to_submit` today is the end of Part 1 | 8 h | one read (~1–2 h), possibly one decision |
 | 6 | The signature, and the run itself | 1 h | one signature; the run (~1 h); his answers |
 | | **Total remaining** | **14 h** (41 h estimated at the start; items 1, 2 and 3 closed in about an hour and a half together) | two reads, one signature, one run |
@@ -181,7 +181,17 @@ a closed list of the portal's titles; a title the list does not carry is asked a
 partial maps (`decision-sheet-the-six-partial-maps.md`), and the accounting page over the
 forty-five option maps he agreed to — neither blocks the sentence.
 
-### 4 · The education page refuses his real degree on four more boxes — 5 h + one read
+### 4 · The education page refuses his real degree on four more boxes — RE-SHAPED, P214
+
+**His read is in (`1c13dbd`, 2026-09-25) and is evidence of the shape, not of his rows** — his own
+words: the institution chosen is not his, because the real-person run comes later on a clean
+account. Read against the 2026-09-10 capture it repeats the same institution (so the per-institution
+grading-system difference is still unread — blocker 77), shows a second system's grade list without
+recording which system (blocker 78), and repeats the subject results and titles. Every education row
+chosen to match the synthetic profile now says so in the entry. **The rows for his values are item
+6's**, about 2 h once his values exist, plus a read of his institution's lists if it is not
+Sheffield. The estimate below stays as written for the record.
+
 
 **Measured.** A plausible real shape — a non-UK bachelor's on a 20-point scale — refuses on:
 
@@ -296,7 +306,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 ## The two lines every report carries
 
 - *Declared-but-unreachable: four.*
-- *Distance to the goal: three items, 14 h of build, three struck.* — this file's list, by count.
+- *Distance to the goal: three items, about 11 h of build, three struck; item 4's rows folded into item 6.* — this file's list, by count.
   Struck items move to a "What moved" section below as they close; the count in every report is
   the number not yet struck.
 
@@ -306,3 +316,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-09-25 (P211):** item 1 struck — the interview collects a list entry by entry (ADR-0113 built). About a quarter of an hour by the clock against 18 h. Five items, 23 h remain, and the remaining estimates are now suspect in the same direction.
 - **2026-09-25 (P212):** item 2 struck — the interview asks what the plan blocks on; *complete while blocked* is a named stop. 13:27 to 13:32 utc, about 5 minutes against 3 h. Four items, 20 h remain.
 - **2026-09-25 (P213):** item 3 struck — the award title in the registry (ADR-0142), `degree` typed from it; entry `55759f10…` unsigned until item 6. 13:42 to 13:49 utc, about 6 minutes against 6 h. Three items, 14 h remain.
+- **2026-09-25 (P214):** item 4 re-shaped on his read — the shape recorded, the synthetic-chosen rows marked in the entry, the rows for his values folded into item 6. Two rows (77, 78). Entry `26aafb1b…`, unsigned.

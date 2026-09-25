@@ -376,8 +376,11 @@ describe("the catalogue entry for Run A (P152)", () => {
     //   sha256:e2a10113…  22 September, ADR-0138 and ADR-0139 together
     //   sha256:f13dff6d…  25 September, the country maps (signed, f67ec69)
     //   sha256:be3b0ae0…  25 September, `degree` refuses by design (signed, 36c4145)
-    //   sha256:55759f10…  25 September, THIS one — `degree` is the student's
-    //                     own stated title (ADR-0142), mapping set 0.3.37
+    //   sha256:55759f10…  25 September, `degree` is the student's own stated
+    //                     title (ADR-0142), mapping set 0.3.37 (unsigned)
+    //   sha256:26aafb1b…  25 September, THIS one — every education row chosen to
+    //                     match the synthetic profile says so in its note
+    //                     (P214), mapping set 0.3.38
     //
     // The `degree` mapping reads `awardTitle` — the part the registry now
     // holds, stated by the student and distinct from `level` — onto the
@@ -388,12 +391,12 @@ describe("the catalogue entry for Run A (P152)", () => {
     // every interval. What it protects: the content it refuses to load is
     // content that types a value the student stated; the gate does not care
     // which direction a change goes.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:55759f1002d73d2ad87830e4a36cc4f09446697a4970a0ece52f1259d82517e4");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:26aafb1bb198d2a1152f28506c3d9fd83563b30aa01a0b9142405be6979f7b10");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
     expect(load.ok, "REFUSED until he signs, at item 6 — ADR-0057 working").toBe(false);
     if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
     expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:55759f10",
+      "No approval exists for sha256:26aafb1b",
     );
     // The superseded approval is still the only one on file, and it now
     // approves content that no longer exists. It goes out in the SAME commit
@@ -462,7 +465,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     // that box carrying what was stated, not what a map derived.
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.37, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.38, reviewed by Vahid Mohammadi.");
     expect(output).toContain("Qualification:: BSc");
     expect(output).not.toContain("render_refused");
     expect(output).not.toContain("blocker(s)");

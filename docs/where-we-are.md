@@ -4906,6 +4906,47 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P214 — item 4: his read is the shape, and the one thing it does not show
+
+> *"This capture is evidence of the SHAPE … It is not evidence of which rows a particular student
+> needs."*
+
+## What the read holds, against what was already on file
+
+His read of `education.do?new=true` in place, an institution chosen, a grading system chosen, a
+subject searched. The institution is the University of Sheffield — the same one P132 read — so the
+grading-system list on file is still only Sheffield's four, and what another institution's list
+looks like is still unknown. That is the one thing item 4 wanted measured, and it is not in the
+capture. Said here, not built around: a `gradingSystemId` row for a list nobody has read would
+move a loud refusal at the plan to a lost attempt at the fill.
+
+What the read adds: a second grading system's grade list — five options, *Pass* and *Fail* and the
+non-grades — beside system 7's nine. The read scrubs input values, so which system was chosen is
+not recorded; it is written down as unidentified. And it settles that a grade map is only right
+under one system, which the format language cannot express: row 78.
+
+## Which values are the synthetic profile's
+
+At his instruction, every education row in the entry that names one value now says in its note
+that it is the synthetic profile's, chosen to match it and not read from a student, and that it
+changes at the real run: the institution, the search word and subject, the grading system, the
+grade rows, the UK-study level, and the title the fixture states. Mapping set 0.3.38, entry
+`sha256:26aafb1b…`, unsigned until item 6.
+
+## Item 4, re-shaped
+
+The rows for his values cannot be written until his values exist, and by his word they exist at
+the real run on a clean account. So that half of item 4 is item 6's now, about two hours once the
+values are stated in the chat, plus a read of his own institution's lists if it is not Sheffield.
+
+## The clock
+
+16:48 to 16:53 UTC, about 5 minutes, from his capture commit.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P213 — item 3: the award title is the student's stated field
 
 > *"The award title as its own field, stated by the student, distinct from level."*
