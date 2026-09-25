@@ -395,7 +395,9 @@ function drawPending(): void {
     // choice means — and one button per choice. The student's answer is
     // recorded for this portal and pressed for them from then on.
     const heading = document.createElement("h2");
-    text(heading, `${pending.question.portalHost} shows a notice before I can sign in — this choice is yours`);
+    // ADR-0144: the notice stands over the sign-in or over the registration; the
+    // question below says which, so this heading names neither.
+    text(heading, `${pending.question.portalHost} shows a notice before I can go on — this choice is yours`);
     const words = document.createElement("blockquote");
     text(words, pending.question.words);
     // P169, Vahid's condition: the half that is not true goes IN the question,

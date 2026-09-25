@@ -4906,6 +4906,12 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P220 — the consent heading on the student page names neither step
+
+One line. The heading over the consent buttons said the notice stood before the sign-in; since
+P219 it can stand before the account's creation, and the question beneath it says which. Found
+while writing the item-6 sequence, fixed before he runs it.
+
 # P219 — item 6, the account: we create it, the student does not
 
 > *"I would rather item 6 be the real thing — a person with nothing, who ends with an account and

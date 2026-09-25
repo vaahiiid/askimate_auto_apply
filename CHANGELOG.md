@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.216.0] — 2026-09-25
+
+**P220 — the student page's consent heading named the sign-in; it names neither step now.**
+
+- **Changed** the heading over the consent choice on the student page from *"shows a notice
+  before I can sign in"* to *"before I can go on"*: since ADR-0144 the notice is met at the
+  account's creation too, and the question beneath it says which. A wrong label is worse than
+  none. Found while writing the item-6 sequence; no test named the heading, and none does now —
+  the words the student reads are the driver's, and those are tested.
+
+---
+
 ## [0.215.0] — 2026-09-25
 
 **P219 — item 6, the account: we create it, the student does not (ADR-0144); the creation meets the consent notice before it types.**
