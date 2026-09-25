@@ -20,9 +20,14 @@ And the three rules for the duration:
 > working path than seven times along it. And if I ask you a question that pulls you off this, say
 > so."*
 
-This list was **measured, not read**: three profiles were pushed through the plan, the validator,
-the preview and the interview's first move, against the signed entry (`sha256:be3b0ae0…`), with
-the deterministic model client the service wires. The numbers below are that run's output. The
+**This list was written by running the goal, not by reasoning about it.** Three profiles were pushed
+through the plan, the validator, the preview and the interview's first move, against the signed
+entry (`sha256:be3b0ae0…`), with the deterministic model client the service wires. Vahid, on
+reading it: *"Items 1 and 2 are the sentence not even starting, and neither of us knew. The
+interview escalates before it asks your name, and it says 'complete' while the plan sits on 23
+blockers nobody asked about. Both were found by running it against an empty profile — the same
+method that found every real thing this month."* Neither item is visible from the code's
+description of itself; both are visible from its first move. The numbers below are that run's output. The
 script was temporary and is not in the tree; every number it printed is reproducible from the
 signed entry and the registry, and the tests each item carries will pin them.
 
@@ -32,13 +37,13 @@ signed entry and the registry, and the tests each item carries will pin them.
 
 | # | What stops the sentence | Build | His act |
 |---|---|---|---|
-| 1 | The interview escalates on its first turn | 18 h | — |
+| ~~1~~ | ~~The interview escalates on its first turn~~ **Closed, P211: about a quarter of an hour by the clock, against 18 h estimated** | ~~18 h~~ | — |
 | 2 | The interview finishes and the plan still blocks on four fields nobody asked | 3 h | — |
 | 3 | The award title: the registry does not hold it, so `degree` refuses by design | 6 h | — |
 | 4 | The education page refuses his real degree on four more boxes | 5 h | one read (~1 h) |
 | 5 | Part 2 is unread, and `ready_to_submit` today is the end of Part 1 | 8 h | one read (~1–2 h), possibly one decision |
 | 6 | The signature, and the run itself | 1 h | one signature; the run (~1 h); his answers |
-| | **Total** | **41 h** | two reads, one signature, one run |
+| | **Total remaining** | **23 h** (41 h estimated at the start; item 1 closed in about a quarter of an hour) | two reads, one signature, one run |
 
 Forty-one hours of build is about five and a half working days. The items are ordered by when a
 person meets them, which is also close to the build order: 1 and 2 are independent of everything;
@@ -50,7 +55,17 @@ include.
 
 ---
 
-### 1 · The interview escalates on its first turn — 18 h
+### ~~1 · The interview escalates on its first turn — 18 h~~ CLOSED, P211
+
+**Closed 2026-09-25 (P211), about a quarter of an hour by the clock — the previous commit at 12:52
+UTC, the last edit at 13:05 — against 18 h estimated.** The estimate did not hold, and not by a
+little: ADR-0140's composite machinery carried the walk, a list being a keyed sequence
+of parts with two yes-or-no questions around each entry, and the log needed a key shape widened
+(migration 0025), not a new event. Measured, reversed: on the signed entry's fourteen fields the
+first action is `ask` for the e-mail; through the real driver a job is walked across ten
+requests and one proposal is put for the whole list. The record of what was measured before
+stays below as written.
+
 
 **Measured.** An empty profile, the signed entry, `nextAction` with the deterministic client:
 
@@ -267,10 +282,11 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 ## The two lines every report carries
 
 - *Declared-but-unreachable: four.*
-- *Distance to the goal: six items, 41 h of build, none struck.* — this file's list, by count.
+- *Distance to the goal: five items, 23 h of build, one struck.* — this file's list, by count.
   Struck items move to a "What moved" section below as they close; the count in every report is
   the number not yet struck.
 
 ## What moved
 
 - **2026-09-25 (P210):** the list written, measured against the signed entry. Nothing struck.
+- **2026-09-25 (P211):** item 1 struck — the interview collects a list entry by entry (ADR-0113 built). About a quarter of an hour by the clock against 18 h. Five items, 23 h remain, and the remaining estimates are now suspect in the same direction.

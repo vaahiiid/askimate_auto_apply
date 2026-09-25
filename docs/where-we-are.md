@@ -4906,6 +4906,78 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P211 — item 1: the interview collects a list entry by entry
+
+> *"Start at one and work down."*
+
+## Measured first
+
+The P210 measurement, held as a test now: on the fourteen fields the signed entry hands the
+interview, an empty profile's first action was `escalate` on `employment.history`. Eleven tests
+were written against the interview and went red for exactly that reason before a line of the
+build existed.
+
+## What was built
+
+ADR-0113, as he decided it on 15 September: *"Entry by entry, not a CV block … 'none' is a
+confirmation."* A `ListFieldSpec` holds an item spec — a composite, asked part by part exactly as
+an address is (ADR-0140) — and two questions around it. The walk:
+
+```
+any               is there anything to list?        yes / no
+item0.employer    the first entry's parts, in order
+…
+item0.another     is there another?                 yes / no
+item1.employer    …
+```
+
+It ends at `any = no` (an empty list, confirmed) or the first `another = no`, and the whole list
+is put for one confirmation. The log holds it as `value_part_read` rows with no new event kind;
+migration 0025 widens the part key's shape from one word to `word.word` and no looser, with a test
+for every shape it still refuses. A correction to the whole list is refused for the composite's
+reason — which entry, which part, is not ours to decide — and the list is asked again.
+
+Three specs: employment history (ten parts; *are you still in this job?* is asked, and an end date
+only if not — nothing reads *current* off a blank, ADR-0111), residence history (four), prior
+qualifications (ten; the level, the end kind and the grade scale are read only from the options
+the question lists, because `gradingSystemId` keys on the level's exact text and a free spelling
+confirmed here would refuse to render three pages later). The closed lists are mine, the smallest
+that cover the registry's own examples, and ADR-0113's scope notes say so.
+
+## Measured after
+
+The same fourteen fields: the first action is `ask`, for the e-mail. Through the real driver, in a
+fresh instance per request: *any jobs?* → yes → the employer → *job 1 — the employer's address* …
+→ *another job?* → no → one `value_proposed` for the whole list, the playback naming the job, and
+the confirmed list in `profile_entries`.
+
+## The estimate
+
+Eighteen hours. By the clock it took about a quarter of one: the previous commit landed at 12:52
+UTC and the last edit was at 13:05. The composite machinery carried the walk, and the log needed
+a regex widened rather than a new event. The first draft of this section said *"about two"*,
+written from a feeling of effort rather than a clock; the clock was read before the commit and
+the feeling corrected. The remaining estimates are suspect in the same direction. Said here at
+the point it was known, as he asked, rather than after.
+
+## The census
+
+Green: 2,935 tests, 147 files, zero skipped — sixteen more than P210. The first full run on this
+tree went red twice: a migration list in `event-store.test.ts` I had not found when I found the
+one in `schema.test.ts` (mine, fixed), and one browser-lane test that timed out at twenty seconds
+and has been green on every other run, including the census that is the record. That one is row
+76 rather than a word like "flake", because no cause was found.
+
+## Also, at his instruction
+
+The list document now says on its face that it was written by running the goal, not by reasoning
+about it; and item 2 — the interview that says *complete* while the plan is stuck — stands in
+`what-run-a-proved.md` as the eighth silent failure, beside the seven Run A found.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P210 — the list: what stands between a person and `ready_to_submit`
 
 > *"One goal, and nothing else gets built until it is met … Work backwards from that and tell me

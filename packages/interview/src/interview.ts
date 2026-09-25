@@ -49,8 +49,8 @@ import {
   renderForConfirmation,
 } from "@askimate/aas-profile";
 
-import type { CompositeFieldSpec, FieldPart, FieldSpec, PartAnswers } from "./field-specs.js";
-import { FIELD_SPECS, OMITTED, isComposite, partParser } from "./field-specs.js";
+import type { CompositeFieldSpec, FieldPart, FieldSpec, PartAnswers, ListFieldSpec } from "./field-specs.js";
+import { FIELD_SPECS, OMITTED, isComposite, partParser, isList, yesNo } from "./field-specs.js";
 
 /**
  * What AskiMate Chat should do next.
@@ -228,10 +228,106 @@ function nextPart(
   );
 }
 
-/** A question there is something to ask: the whole field, or one part of it. */
+/**
+ * A question there is something to ask: the whole field, or one part of it.
+ *
+ * `suffix` is what the question is called beside the field's label — `expiry`
+ * for a composite's part, `job 1 — employer` for a list entry's, `another job`
+ * for the question after an entry — so the student is told which thing they
+ * are being asked for, and the log can tell "asked again" from "asked next".
+ */
 type OpenQuestion =
   | { readonly kind: "field"; readonly spec: FieldSpec<unknown> }
-  | { readonly kind: "part"; readonly spec: CompositeFieldSpec<unknown>; readonly part: FieldPart<unknown> };
+  | { readonly kind: "part"; readonly part: FieldPart<unknown>; readonly suffix: string };
+
+// ───────────────────────────────────────────────────────────────────────────
+// Fields whose value is a list (ADR-0113)
+// ───────────────────────────────────────────────────────────────────────────
+//
+// A list's walk is a sequence of parts like a composite's, keyed so the log
+// can hold it with no new event kind (`value_part_read` carries a part key):
+//
+//   any               "is there anything to list?"         yes / no
+//   item0.<partKey>   the first entry's parts, in the item spec's order
+//   item0.another     "is there another?"                  yes / no
+//   item1.<partKey>   …
+//
+// The walk ends at `any = no`, or at the first `itemN.another = no`. Then the
+// whole list is assembled and put for ONE confirmation.
+
+const ANY = "any";
+const ANOTHER = "another";
+
+function itemKey(index: number, partKey: string): string {
+  return `item${String(index)}.${partKey}`;
+}
+
+/** The readings of one entry, with the entry's prefix stripped off. */
+function readingsOfItem(readings: PartReadings, index: number): PartReadings {
+  const prefix = `item${String(index)}.`;
+  return new Map(
+    [...readings]
+      .filter(([partKey]) => partKey.startsWith(prefix) && partKey !== itemKey(index, ANOTHER))
+      .map(([partKey, reading]) => [partKey.slice(prefix.length), reading] as const),
+  );
+}
+
+function yesNoPart(partKey: string, rationale: string): FieldPart<unknown> {
+  return { partKey, rationale, expectedShape: "yes or no", parse: yesNo };
+}
+
+/** The next question of a list's walk, or `undefined` once the list is complete. */
+function nextListQuestion(
+  spec: ListFieldSpec<unknown>,
+  readings: PartReadings,
+): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
+  const values = valuesOf(readings);
+  if (!readings.has(ANY)) {
+    return { part: yesNoPart(ANY, spec.anyRationale), suffix: `any ${spec.itemLabel} to list` };
+  }
+  if (values.get(ANY) !== true) return undefined;
+  for (let index = 0; ; index++) {
+    const part = nextPart(spec.item, readingsOfItem(readings, index));
+    if (part !== undefined) {
+      return {
+        part: { ...part, partKey: itemKey(index, part.partKey) },
+        suffix: `${spec.itemLabel} ${String(index + 1)} — ${part.partKey}`,
+      };
+    }
+    const another = itemKey(index, ANOTHER);
+    if (!readings.has(another)) {
+      return { part: yesNoPart(another, spec.anotherRationale), suffix: `another ${spec.itemLabel}` };
+    }
+    if (values.get(another) !== true) return undefined;
+  }
+}
+
+/**
+ * The whole list from its walk, or `null` when an entry does not assemble —
+ * which, as for a composite, is a defect in the spec and not in the answers.
+ */
+function assembleList(spec: ListFieldSpec<unknown>, readings: PartReadings): readonly unknown[] | null {
+  const values = valuesOf(readings);
+  if (values.get(ANY) !== true) return [];
+  const items: unknown[] = [];
+  for (let index = 0; readings.has(itemKey(index, ANOTHER)); index++) {
+    const item = spec.item.assemble(valuesOf(readingsOfItem(readings, index)));
+    if (item === null) return null;
+    items.push(item);
+    if (values.get(itemKey(index, ANOTHER)) !== true) break;
+  }
+  return items;
+}
+
+/** The open question of a composite or a list, from its readings so far. */
+function nextQuestionOf(
+  spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>,
+  readings: PartReadings,
+): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
+  if (isList(spec)) return nextListQuestion(spec, readings);
+  const part = nextPart(spec, readings);
+  return part === undefined ? undefined : { part, suffix: part.partKey };
+}
 
 /** What a field is currently waiting to be asked. */
 type Question =
@@ -252,10 +348,10 @@ type Question =
 function questionFor(state: InterviewState, fieldKey: ProfileFieldKey): Question {
   const spec = specFor(fieldKey);
   if (spec === undefined) return { kind: "undefined_field" };
-  if (!isComposite(spec)) return { kind: "field", spec };
+  if (!isComposite(spec) && !isList(spec)) return { kind: "field", spec };
 
-  const part = nextPart(spec, state.partial.get(fieldKey) ?? NO_READINGS);
-  return part === undefined ? { kind: "stranded" } : { kind: "part", spec, part };
+  const next = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  return next === undefined ? { kind: "stranded" } : { kind: "part", ...next };
 }
 
 /** Forgets the parts read for one field. */
@@ -344,9 +440,10 @@ export async function nextAction(
     const label = FIELD_LABELS[fieldKey];
     const say = await model.composeQuestion({
       fieldKey: questionKey(fieldKey, partKey),
-      // A part names itself: "Passport — expiry". The student is being asked
-      // for one thing, and the label says which thing, not just which field.
-      label: question.kind === "part" ? `${label} — ${question.part.partKey}` : label,
+      // A part names itself: "Passport — expiry", "Employment history — job 1
+      // — employer". The student is being asked for one thing, and the label
+      // says which thing, not just which field.
+      label: question.kind === "part" ? `${label} — ${question.suffix}` : label,
       rationale: question.kind === "part" ? question.part.rationale : question.spec.rationale,
       conversationContext: state.transcript.slice(-6),
       previousAttempts: state.attempts.get(questionKey(fieldKey, partKey)) ?? 0,
@@ -427,7 +524,7 @@ export async function receiveAnswer(
   const label = FIELD_LABELS[fieldKey];
 
   // ── A field answered in one utterance ──────────────────────────────────
-  if (!isComposite(spec)) {
+  if (!isComposite(spec) && !isList(spec)) {
     const attempts = new Map(state.attempts);
     attempts.set(fieldKey, (attempts.get(fieldKey) ?? 0) + 1);
 
@@ -454,14 +551,15 @@ export async function receiveAnswer(
   // Which part this answers is derived from the state rather than passed in:
   // the caller answers "the question that was just asked", and only the state
   // knows which part that was.
-  const question = nextPart(spec, state.partial.get(fieldKey) ?? NO_READINGS);
-  if (question === undefined) {
+  const open = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  if (open === undefined) {
     return {
       kind: "not_understood",
       state,
       reason: `Every part of "${label}" has already been answered; there is no question open.`,
     };
   }
+  const question = open.part;
 
   const attempts = new Map(state.attempts);
   const asked = questionKey(fieldKey, question.partKey);
@@ -469,7 +567,7 @@ export async function receiveAnswer(
 
   const interpreted: ProposedValue<unknown> | NotUnderstood = await model.interpretAnswer({
     fieldKey: asked,
-    label: `${label} — ${question.partKey}`,
+    label: `${label} — ${open.suffix}`,
     utterance,
     expectedShape: question.expectedShape,
     parse: partParser(question),
@@ -491,13 +589,14 @@ export async function receiveAnswer(
   ]);
 
   // More parts to ask: hold what has been read and carry on. Nothing is put
-  // for confirmation yet, because the student confirms the WHOLE value.
-  if (nextPart(spec, readings) !== undefined) {
+  // for confirmation yet, because the student confirms the WHOLE value — for
+  // a list, the whole list.
+  if (nextQuestionOf(spec, readings) !== undefined) {
     const partial = new Map(state.partial).set(fieldKey, readings);
     return { kind: "understood", state: { ...state, transcript, attempts, partial } };
   }
 
-  const whole = spec.assemble(valuesOf(readings));
+  const whole = isList(spec) ? assembleList(spec, readings) : spec.assemble(valuesOf(readings));
   if (whole === null) {
     // Every part was readable and they still do not make a value. That is a
     // defect in the spec, not in what the student said, and saying so beats
@@ -594,6 +693,18 @@ export function receiveConfirmation(
           `"${label}" is made of several parts, and "${response.correction}" cannot be read as a ` +
           `correction to the whole of it without guessing which part changed. It will be asked ` +
           `for again, part by part.`,
+      };
+    }
+    // The same rule for a list, one level up: which entry, and which part of
+    // it, a correction names is not ours to decide (ADR-0113).
+    if (isList(spec)) {
+      return {
+        kind: "not_understood",
+        state: withoutParts(withoutPending(state), pending.fieldKey),
+        reason:
+          `"${label}" is a list collected entry by entry, and "${response.correction}" cannot be ` +
+          `read as a correction to the whole of it without guessing which entry changed. It will ` +
+          `be asked for again, entry by entry.`,
       };
     }
     corrected = spec.parse(response.correction);

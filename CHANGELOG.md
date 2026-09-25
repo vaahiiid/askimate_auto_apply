@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.207.0] — 2026-09-25
+
+**P211 — item 1 closed: the interview collects a list entry by entry (ADR-0113).**
+
+- **Added** `ListFieldSpec`: a field whose value is a list of entries, each asked part by part as
+  a composite is; *"is there anything to list?"* first, *"is there another?"* after each entry,
+  and ONE confirmation of the whole list. An empty list is confirmed, never inferred. The walk
+  lives on the log as `value_part_read` rows keyed `any`, `item0.<part>`, `item0.another`.
+- **Added** the three specs the Sheffield entry reads: `employment.history` (ten parts, the end
+  stated as *still there?* and never read off a blank), `residence.history` (four),
+  `education.prior_qualifications` (ten — level, end kind and grade scale read only from the
+  options the question lists, because `gradingSystemId` keys on the level's exact text).
+- **Widened** `conversation_events.part_key` (migration 0025) from one word to `word` or
+  `word.word`; a digit-first, double-dotted or punctuated key is still refused, and a test holds
+  both sides.
+- **Rendered** an empty list as *none* and a list numbered, in the confirmation playback.
+- **Measured, reversed:** on the fourteen fields the signed entry hands the interview, the first
+  action is now `ask` for the e-mail address; in P210 it was `escalate` on `employment.history`.
+  Through the real driver, a job is walked across ten requests in ten driver instances and one
+  proposal is put for the whole list.
+- **Estimate:** 18 h; took about a quarter of an hour by the clock (the previous commit at 12:52 UTC,
+  the last edit at 13:05). The composite machinery (ADR-0140) carried nearly all of it.
+
+---
+
 ## [0.206.0] — 2026-09-25
 
 **P210 — the list: what stands between a person and `ready_to_submit`, measured.**

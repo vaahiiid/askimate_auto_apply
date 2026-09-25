@@ -61,3 +61,16 @@ So, when the interview learns to ask for a list:
   ask — otherwise it asks most students what no portal needs. Vahid: *"agreed, Run B, not a shape
   change."* The shape is unchanged; the asking is scoped here.
 
+- **Built, 2026-09-25 (P211), as item 1 of the list to `ready_to_submit`.** The engineering
+  choices, mine and stated so: a list's walk is a keyed sequence of parts — `any`, then
+  `item<N>.<partKey>` in the item spec's order, then `item<N>.another` — so the log holds it as
+  `value_part_read` rows with no new event kind (migration 0025 widens the key's shape to
+  `word.word` and nothing looser). `level`, `gradeScale`, a qualification's end kind and a job's
+  basis are read from **closed lists the question names** and nothing else, for `ukStudyLevel`'s
+  reason: `gradingSystemId` keys on the level's exact text, and a free spelling confirmed here
+  would refuse to render three pages later. The lists: levels *Bachelor's degree, Master's degree,
+  Doctorate, Diploma, Certificate, High school diploma*; scales `uk_honours`, `twenty_point`,
+  `gpa_4`, `percentage`. Neither list is his decision; both are the smallest that cover the
+  registry's own examples, and either widens by a row when a real student needs one. The two visa
+  lists (`immigration.previous_uk_visas`, `immigration.previous_visa_refusals`) are not built —
+  the Sheffield entry does not read them.

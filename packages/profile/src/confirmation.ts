@@ -187,7 +187,13 @@ function countryNameFor(key: ProfileFieldKey, value: unknown): string | null {
 /** Formats a value for display. Deterministic — never model-written. */
 function formatValue(value: unknown): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
-  if (Array.isArray(value)) return value.map((item) => formatValue(item)).join("; ");
+  // A list: "none" when empty — a student confirming an empty employment
+  // history must see the word, not a blank after "as:" (ADR-0113 §3) — and
+  // numbered otherwise, so a playback of three jobs reads as three.
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "none";
+    return value.map((item, index) => `${String(index + 1)}) ${formatValue(item)}`).join("; ");
+  }
   if (value !== null && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
       .map(([field, item]) => `${field}: ${formatValue(item)}`)

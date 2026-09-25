@@ -106,10 +106,44 @@ export interface CompositeFieldSpec<T> {
   readonly assemble: (answered: PartAnswers) => T | null;
 }
 
-export type FieldSpec<T> = ScalarFieldSpec<T> | CompositeFieldSpec<T>;
+/**
+ * A field whose value is a LIST of entries, each with several parts (ADR-0113).
+ *
+ * Vahid, 2026-09-15: *"Entry by entry, not a CV block … one entry at a time,
+ * one part at a time … 'none' is a confirmation."* The interview asks whether
+ * there is anything to list; then each entry's parts exactly as a composite's
+ * are asked; then whether there is another; and the WHOLE list is put for one
+ * confirmation, because the whole list is what enters the profile. A student
+ * with nothing to list confirms an empty list — which fills a repeating page
+ * zero times and says so (ADR-0111) — and a list never asked stays
+ * unavailable.
+ *
+ * Built in P211 as item 1 of the list: measured in P210, the interview's first
+ * action on an empty profile was `escalate` on `employment.history`, before
+ * the student's name, because these three fields had no question at all.
+ */
+export interface ListFieldSpec<T> {
+  readonly rationale: string;
+  /** What one entry is called to the student: `job`, `period`, `qualification`. */
+  readonly itemLabel: string;
+  /** Why the interview asks whether there is anything to list at all. */
+  readonly anyRationale: string;
+  /** The question after an entry is complete: is there another? */
+  readonly anotherRationale: string;
+  /** One entry, asked part by part exactly as a composite is. */
+  readonly item: CompositeFieldSpec<unknown>;
+  /** Phantom: the list type, so `FIELD_SPECS` stays typed per key. */
+  readonly _list?: T;
+}
+
+export type FieldSpec<T> = ScalarFieldSpec<T> | CompositeFieldSpec<T> | ListFieldSpec<T>;
 
 export function isComposite<T>(spec: FieldSpec<T>): spec is CompositeFieldSpec<T> {
   return "parts" in spec;
+}
+
+export function isList<T>(spec: FieldSpec<T>): spec is ListFieldSpec<T> {
+  return "item" in spec;
 }
 
 /**
@@ -207,7 +241,7 @@ const MONTH_NAMES = [
  * model reads the utterance; this decides whether the reading is usable, and a
  * hedge is not a usable reading of a question a student signs.
  */
-const yesNo = (raw: string): boolean | null => {
+export const yesNo = (raw: string): boolean | null => {
   const value = raw.trim().toLowerCase();
   if (["yes", "y", "yeah", "yep", "true"].includes(value)) return true;
   if (["no", "n", "nope", "false"].includes(value)) return false;
@@ -450,6 +484,66 @@ const yearsAndMonths = (raw: string): { years: number; months: number } | null =
 
   return null;
 };
+
+/**
+ * Reads one of the options a question listed, and nothing else.
+ *
+ * The same rule as `ukStudyLevel`: *"a masters"* is asked again rather than
+ * decided to mean `Master's degree`. For a qualification's level it matters
+ * three pages later — `gradingSystemId` keys on the level's exact text, and a
+ * free spelling would refuse to render there, silently, after the student had
+ * confirmed it here.
+ */
+const oneOf =
+  (options: Readonly<Record<string, string>>) =>
+  (raw: string): string | null =>
+    options[raw.trim().toLowerCase().replace(/\s+/g, " ")] ?? null;
+
+/** As the registry's own examples write them (`Qualification.level`). */
+const QUALIFICATION_LEVELS: Readonly<Record<string, string>> = {
+  "bachelor's degree": "Bachelor's degree",
+  "bachelors degree": "Bachelor's degree",
+  "master's degree": "Master's degree",
+  "masters degree": "Master's degree",
+  doctorate: "Doctorate",
+  diploma: "Diploma",
+  certificate: "Certificate",
+  "high school diploma": "High school diploma",
+};
+
+/**
+ * The scale a grade is on (`Qualification.gradeScale`). A closed set, because
+ * a mapping keys on it; a scale nobody listed is asked again, never named
+ * after the student's country.
+ */
+const GRADE_SCALES: Readonly<Record<string, string>> = {
+  "uk honours": "uk_honours",
+  "20-point": "twenty_point",
+  "20 point": "twenty_point",
+  "out of 20": "twenty_point",
+  "gpa out of 4": "gpa_4",
+  "gpa 4": "gpa_4",
+  "gpa": "gpa_4",
+  percentage: "percentage",
+  "out of 100": "percentage",
+};
+
+/** ADR-0112: the student says which, and nothing reads it off a date. */
+const END_KINDS: Readonly<Record<string, string>> = {
+  completed: "completed",
+  expected: "expected",
+  discontinued: "discontinued",
+};
+
+const EMPLOYMENT_BASIS: Readonly<Record<string, string>> = {
+  "full time": "full_time",
+  "full-time": "full_time",
+  "part time": "part_time",
+  "part-time": "part_time",
+};
+
+const isYearMonth = (value: unknown): value is YearMonth =>
+  typeof value === "object" && value !== null && "year" in value && "month" in value;
 
 /** Specs for the fields the first end-to-end run needs. */
 export const FIELD_SPECS: Partial<{
@@ -1008,6 +1102,310 @@ export const FIELD_SPECS: Partial<{
       // Too short is not a personal statement; better to ask for more than to
       // submit two words into a field a human will read.
       return value.length >= 50 ? value : null;
+    },
+  },
+
+  // ── The three lists the Sheffield entry reads (ADR-0113, P211) ──────────
+
+  "employment.history": {
+    rationale:
+      "Universities ask about your work history so they can see what you have done since you " +
+      "studied. I will take one job at a time.",
+    itemLabel: "job",
+    anyRationale:
+      "Have you had any jobs you want to list on this application? If you have not, that is a " +
+      "complete answer and the employment section is left empty. Please answer yes or no.",
+    anotherRationale: "Is there another job to add? Please answer yes or no.",
+    item: {
+      rationale: "One job.",
+      parts: [
+        {
+          partKey: "employer",
+          rationale: "The name of the employer.",
+          expectedShape: "the employer's name",
+          parse: trimmed,
+        },
+        {
+          partKey: "employerAddress",
+          rationale: "The employer's address, as you would write it — one line is fine.",
+          expectedShape: "the employer's address",
+          parse: trimmed,
+        },
+        {
+          partKey: "position",
+          rationale: "Your job title or position there.",
+          expectedShape: "a job title",
+          parse: trimmed,
+        },
+        {
+          partKey: "startDate",
+          rationale: "When you started — the month and the year.",
+          expectedShape: "a month and a year, e.g. September 2019 or 2019-09",
+          parse: yearMonth,
+        },
+        {
+          partKey: "still",
+          rationale:
+            "Whether you are still in this job. I ask rather than assume: a blank end date is " +
+            "not the same as a job that continues.",
+          expectedShape: "yes or no",
+          parse: yesNo,
+        },
+        {
+          partKey: "endDate",
+          rationale: "When it ended — the month and the year.",
+          expectedShape: "a month and a year, e.g. June 2021 or 2021-06",
+          parse: yearMonth,
+          askWhen: (answered) => answered.get("still") === false,
+        },
+        {
+          partKey: "basis",
+          rationale:
+            "Whether it was full time or part time, if you want to say — some universities ask. " +
+            "Say none to leave it out.",
+          expectedShape: "full time, part time, or none",
+          parse: oneOf(EMPLOYMENT_BASIS),
+          optional: true,
+        },
+        {
+          partKey: "duties",
+          rationale:
+            "What the job involved, in your own words. These are sent as you write them, so a " +
+            "sentence or two is right.",
+          expectedShape: "a short description of your duties",
+          parse: trimmed,
+        },
+        {
+          partKey: "refereeName",
+          rationale:
+            "The name of someone there who could give a reference, if you want to give one — " +
+            "only a name and a role are held, nothing more. Say none to leave it out.",
+          expectedShape: "a person's name, or none",
+          parse: name,
+          optional: true,
+        },
+        {
+          partKey: "refereeRole",
+          rationale: "Their role, if you want to say. Say none to leave it out.",
+          expectedShape: "a role or job title, or none",
+          parse: trimmed,
+          optional: true,
+          askWhen: (answered) => typeof answered.get("refereeName") === "string",
+        },
+      ],
+      assemble: (answered) => {
+        const employer = answered.get("employer");
+        const employerAddress = answered.get("employerAddress");
+        const position = answered.get("position");
+        const startDate = answered.get("startDate");
+        const still = answered.get("still");
+        const duties = answered.get("duties");
+        if (
+          typeof employer !== "string" ||
+          typeof employerAddress !== "string" ||
+          typeof position !== "string" ||
+          !isYearMonth(startDate) ||
+          typeof still !== "boolean" ||
+          typeof duties !== "string"
+        ) {
+          return null;
+        }
+        const endDate = answered.get("endDate");
+        if (!still && !isYearMonth(endDate)) return null;
+        const basis = answered.get("basis");
+        const refereeName = answered.get("refereeName");
+        const refereeRole = answered.get("refereeRole");
+        return {
+          employer,
+          employerAddress,
+          position,
+          startDate,
+          end: still ? { kind: "current" } : { kind: "ended", date: endDate as YearMonth },
+          ...(typeof basis === "string" ? { basis } : {}),
+          duties,
+          ...(typeof refereeName === "string"
+            ? { referee: { name: refereeName, ...(typeof refereeRole === "string" ? { role: refereeRole } : {}) } }
+            : {}),
+        };
+      },
+    },
+  },
+
+  "residence.history": {
+    rationale:
+      "Universities ask where you have lived and when, because residence decides fee status " +
+      "and what else the form asks. I will take one period at a time.",
+    itemLabel: "period",
+    anyRationale:
+      "Do you want to list the places you have lived, other than where you live now? If there " +
+      "are none to list, that is a complete answer. Please answer yes or no.",
+    anotherRationale: "Is there another place you lived to add? Please answer yes or no.",
+    item: {
+      rationale: "One period of residence.",
+      parts: [
+        {
+          partKey: "countryCode",
+          rationale: "The country you lived in — its name or its two-letter code.",
+          expectedShape: "a country's name or its two-letter code, e.g. Iran or IR",
+          parse: countryCodeIso2,
+        },
+        {
+          partKey: "from",
+          rationale: "When you moved there — the month and the year.",
+          expectedShape: "a month and a year, e.g. September 2015 or 2015-09",
+          parse: yearMonth,
+        },
+        {
+          partKey: "still",
+          rationale: "Whether you still live there. I ask rather than read it off a blank.",
+          expectedShape: "yes or no",
+          parse: yesNo,
+        },
+        {
+          partKey: "to",
+          rationale: "When you left — the month and the year.",
+          expectedShape: "a month and a year, e.g. August 2022 or 2022-08",
+          parse: yearMonth,
+          askWhen: (answered) => answered.get("still") === false,
+        },
+      ],
+      assemble: (answered) => {
+        const countryCode = answered.get("countryCode");
+        const from = answered.get("from");
+        const still = answered.get("still");
+        if (typeof countryCode !== "string" || !isYearMonth(from) || typeof still !== "boolean") return null;
+        const to = answered.get("to");
+        if (!still && !isYearMonth(to)) return null;
+        return {
+          countryCode,
+          from,
+          to: still ? { kind: "current" } : { kind: "ended", date: to as YearMonth },
+        };
+      },
+    },
+  },
+
+  "education.prior_qualifications": {
+    rationale:
+      "Universities ask for the qualifications you already hold — the degree or school " +
+      "certificate your application rests on. I will take one qualification at a time.",
+    itemLabel: "qualification",
+    anyRationale:
+      "Do you have qualifications to list — a degree, a diploma, a school certificate? Please " +
+      "answer yes or no.",
+    anotherRationale: "Is there another qualification to add? Please answer yes or no.",
+    item: {
+      rationale: "One qualification.",
+      parts: [
+        {
+          partKey: "level",
+          rationale:
+            "What kind of qualification it is. Please choose one of: Bachelor's degree, Master's " +
+            "degree, Doctorate, Diploma, Certificate, High school diploma. I only read those " +
+            "words, because the form's own lists depend on them.",
+          expectedShape:
+            "one of: Bachelor's degree, Master's degree, Doctorate, Diploma, Certificate, High school diploma",
+          parse: oneOf(QUALIFICATION_LEVELS),
+        },
+        {
+          partKey: "subject",
+          rationale: "The subject, as your certificate names it.",
+          expectedShape: "a subject",
+          parse: trimmed,
+        },
+        {
+          partKey: "institution",
+          rationale: "The institution that awarded it, as your certificate names it.",
+          expectedShape: "an institution's name",
+          parse: trimmed,
+        },
+        {
+          partKey: "countryCode",
+          rationale: "The country the institution is in — its name or its two-letter code.",
+          expectedShape: "a country's name or its two-letter code, e.g. Iran or IR",
+          parse: countryCodeIso2,
+        },
+        {
+          partKey: "start",
+          rationale: "When you started — the month and the year.",
+          expectedShape: "a month and a year, e.g. September 2008 or 2008-09",
+          parse: yearMonth,
+        },
+        {
+          partKey: "endKind",
+          rationale:
+            "Whether you completed it, expect to complete it, or discontinued it. You say which; " +
+            "nothing reads it off a date.",
+          expectedShape: "one of: completed, expected, discontinued",
+          parse: oneOf(END_KINDS),
+        },
+        {
+          partKey: "endDate",
+          rationale: "When it ended, or is expected to — the month and the year.",
+          expectedShape: "a month and a year, e.g. June 2012 or 2012-06",
+          parse: yearMonth,
+        },
+        {
+          partKey: "award",
+          rationale:
+            "The date of award on the certificate, if it has one — the month and the year. It is " +
+            "often later than the end date, and I never work it out from the end. Say none if " +
+            "there is no award date.",
+          expectedShape: "a month and a year, e.g. July 2022, or none",
+          parse: yearMonth,
+          optional: true,
+        },
+        {
+          partKey: "grade",
+          rationale: "Your grade, exactly as awarded — 2:1, 17.2, 3.6, 78%.",
+          expectedShape: "a grade as your certificate writes it",
+          parse: trimmed,
+        },
+        {
+          partKey: "gradeScale",
+          rationale:
+            "The scale that grade is on. Please choose one of: UK honours, 20-point, GPA out of " +
+            "4, percentage. Nothing here converts a grade between scales.",
+          expectedShape: "one of: UK honours, 20-point, GPA out of 4, percentage",
+          parse: oneOf(GRADE_SCALES),
+        },
+      ],
+      assemble: (answered) => {
+        const level = answered.get("level");
+        const subject = answered.get("subject");
+        const institution = answered.get("institution");
+        const countryCode = answered.get("countryCode");
+        const start = answered.get("start");
+        const endKind = answered.get("endKind");
+        const endDate = answered.get("endDate");
+        const grade = answered.get("grade");
+        const gradeScale = answered.get("gradeScale");
+        if (
+          typeof level !== "string" ||
+          typeof subject !== "string" ||
+          typeof institution !== "string" ||
+          typeof countryCode !== "string" ||
+          !isYearMonth(start) ||
+          (endKind !== "completed" && endKind !== "expected" && endKind !== "discontinued") ||
+          !isYearMonth(endDate) ||
+          typeof grade !== "string" ||
+          typeof gradeScale !== "string"
+        ) {
+          return null;
+        }
+        const award = answered.get("award");
+        return {
+          level,
+          subject,
+          institution,
+          countryCode,
+          start,
+          end: { kind: endKind, date: endDate },
+          ...(isYearMonth(award) ? { award } : {}),
+          grade,
+          gradeScale,
+        };
+      },
     },
   },
 };

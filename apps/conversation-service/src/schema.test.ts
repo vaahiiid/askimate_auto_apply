@@ -140,6 +140,7 @@ beforeAll(async () => {
     "0022_sign_in_attempt_failures",
     "0023_student_portal_consents",
     "0024_a_part_of_a_value_is_on_the_log",
+    "0025_a_list_entry_s_part_is_on_the_log",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -386,6 +387,34 @@ describeIfDatabase("the database refuses a word it does not know", () => {
       [conversation, `sha256:${"a".repeat(64)}`],
       { code: CHECK_VIOLATION, constraint: "only_a_proposal_carries_a_value" },
     );
+  });
+
+  it("accepts a LIST entry's part key, and still refuses a shape nobody's spec names (ADR-0113, migration 0025)", async () => {
+    // A list's walk keys each part by its entry: `any`, `item0.employer`,
+    // `item0.another`. 0025 widened 0024's one-word shape to `word` or
+    // `word.word` — and no further. Each refusal below is a shape a loosened
+    // regex would let through unnoticed.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T5M");
+    let ordinal = 0;
+    for (const partKey of ["any", "item0.employer", "item0.another", "item12.refereeRole"]) {
+      ordinal += 1;
+      await pool.query(
+        `INSERT INTO conversation_events
+           (conversation_id, ordinal, kind, field_key, part_key, proposal)
+         VALUES ($1, $2, 'value_part_read', 'employment.history', $3, '{"value":"x"}'::jsonb)`,
+        [conversation, ordinal, partKey],
+      );
+    }
+    for (const refused of ["0.employer", "item0.", ".employer", "item0.a.b", "item0.employer-name", "item0 employer"]) {
+      ordinal += 1;
+      await refuses(
+        `INSERT INTO conversation_events
+           (conversation_id, ordinal, kind, field_key, part_key, proposal)
+         VALUES ($1, $2, 'value_part_read', 'employment.history', $3, '{"value":"x"}'::jsonb)`,
+        [conversation, ordinal, refused],
+        { code: CHECK_VIOLATION, constraint: "conversation_events_part_key_check" },
+      );
+    }
   });
 
   it("refuses a proposal with no value at all", async () => {
@@ -1108,6 +1137,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0022_sign_in_attempt_failures",
     "0023_student_portal_consents",
         "0024_a_part_of_a_value_is_on_the_log",
+        "0025_a_list_entry_s_part_is_on_the_log",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1165,6 +1195,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0022_sign_in_attempt_failures",
     "0023_student_portal_consents",
     "0024_a_part_of_a_value_is_on_the_log",
+    "0025_a_list_entry_s_part_is_on_the_log",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

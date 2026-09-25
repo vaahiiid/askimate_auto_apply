@@ -59,7 +59,7 @@ export interface Qualification {
   /** As awarded, e.g. `2:1`, `17/20`, `3.6`. Never normalised on the way in. */
   readonly grade: string;
   /**
-   * The scale the grade is on, e.g. `uk_honours`, `iran_20_point`, `gpa_4`.
+   * The scale the grade is on, e.g. `uk_honours`, `twenty_point`, `gpa_4`.
    *
    * Kept alongside the raw grade because converting between scales is a
    * judgement, and a converted grade stored as if it were the original is

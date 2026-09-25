@@ -104,6 +104,13 @@ costs an attempt, a silent one costs a student something they cannot get back.
 - **The message that told a student we made their account** (blocker 38). The stop's wording took
   one boolean and told a student we had created an account when they had declared their own.
   Still open.
+- **The interview that says "complete" while the plan is stuck** (blocker 72, P210). Found after
+  Run A, by running the goal against an empty profile rather than by reasoning about it: the plan
+  blocks on every set-read field that is absent, the interview asks only fields behind a `required`
+  marker, and four fields fall in the gap. Once the interview has asked its last question it answers
+  `complete`; the plan still holds 23 `value_unavailable` blockers; the driver puts no question for a
+  `complete` and raises nothing. The run sits, and nothing says so. Vahid: *"Item 2 is the same
+  shape as the silent seven and belongs in that count."* Item 2 of the list; open until it closes.
 
 **Loud — an attempt was lost, and the reason was unreadable:**
 
@@ -120,7 +127,7 @@ costs an attempt, a silent one costs a student something they cannot get back.
   Loud only because it stopped the run; the decision it forced — that dismissing it is a choice made
   on the student's account — became ADR-0131.
 
-None of the seven silent ones is the sort of thing a test suite finds, because each is a statement
+None of the eight silent ones is the sort of thing a test suite finds, because each is a statement
 the system makes about the world rather than a behaviour inside it. What found them was a person
 reading the portal's own page, beside a preview, on a real account.
 

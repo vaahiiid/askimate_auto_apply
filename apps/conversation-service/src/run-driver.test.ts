@@ -9628,6 +9628,167 @@ describeIfDatabase("a field with several parts survives the request that asked f
   }, 300_000);
 });
 
+const EMPLOYMENT_REQUIRED: CatalogueEntry = {
+  ...ENTRY,
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.fieldRef === "email"
+        ? {
+            ...mapping,
+            source: {
+              kind: "profile_field" as const,
+              fieldKey: "employment.history" as const,
+              format: { kind: "text" as const },
+            },
+          }
+        : mapping,
+    ),
+  },
+};
+
+describeIfDatabase("a list is collected entry by entry, and the walk survives the request (ADR-0113, P211)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Item 1 of the list to `ready_to_submit`. P210 measured, through this
+  // driver's own machinery, that an empty profile's first interview action was
+  // `escalate` on `employment.history` — *"No question is defined"* — before
+  // the name. The interview now asks; what THIS group proves is the half the
+  // interview package cannot: that a list's walk, keyed `any` / `item0.…` /
+  // `item0.another`, lives on the log between requests and is rebuilt by a
+  // fresh driver instance every time, exactly as a composite's is (P194).
+  // EVERY TURN IS A SEPARATE DRIVER INSTANCE.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX19402";
+  let owner = "";
+  let runId = "";
+
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content
+         FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant'
+        ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function partKeysOnTheLog(): Promise<readonly string[]> {
+    const rows = await pool.query<{ part_key: string }>(
+      `SELECT part_key FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_part_read' ORDER BY ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.part_key);
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("ASKS whether there is anything to list, and the run stays live — P210's escalation reversed", async () => {
+    const said = await assistantSaid();
+    expect(said.join(" ").toLowerCase()).toContain("any jobs");
+    const status = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(status.rows[0]?.status, "no stop: the list has a question now").toBe("running");
+  }, 300_000);
+
+  it("walks the first entry's parts across requests, each in a new driver instance, keyed by the entry", async () => {
+    await say("yes");
+    expect(await partKeysOnTheLog()).toEqual(["any"]);
+    await say("Example Ltd");
+    expect(await partKeysOnTheLog()).toEqual(["any", "item0.employer"]);
+    const said = await assistantSaid();
+    expect(said.at(-1)?.toLowerCase(), "the walk moved on to the address, not the employer again").toContain(
+      "employer's address",
+    );
+    expect(said.at(-1)?.toLowerCase(), "and says which job it is asking about").toContain("job 1");
+  }, 300_000);
+
+  it("asks 'another?' after the entry, takes 'no', and puts ONE confirmation for the whole list", async () => {
+    for (const utterance of ["1 Example Way, Sheffield", "Engineer", "January 2023", "yes", "none", "Designing and testing things.", "none"]) {
+      await say(utterance);
+    }
+    const said = await assistantSaid();
+    expect(said.at(-1)?.toLowerCase(), "the question after an entry").toContain("another job");
+    await say("no");
+    const proposals = await pool.query<{ field_key: string }>(
+      `SELECT field_key FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_proposed'`,
+      [conversation],
+    );
+    expect(proposals.rowCount, "one proposal for the whole list, not one per part or per entry").toBe(1);
+    expect(proposals.rows[0]?.field_key).toBe("employment.history");
+    const playback = (await assistantSaid()).at(-1)?.toLowerCase() ?? "";
+    expect(playback).toContain("example ltd");
+    expect(playback).toContain("engineer");
+  }, 300_000);
+
+  it("writes the CONFIRMED list into the profile when the student agrees", async () => {
+    const hash = await pool.query<{ playback_hash: string }>(
+      `SELECT playback_hash FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_proposed'`,
+      [conversation],
+    );
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      const agreed = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "confirm_value", contentHash: hash.rows[0]!.playback_hash },
+      });
+      expect(agreed, "the confirmation was accepted").toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+    const stored = await pool.query<{ value: unknown }>(
+      "SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = $2",
+      [owner, "employment.history"],
+    );
+    expect(stored.rowCount, "the whole list entered the profile").toBe(1);
+    expect(stored.rows[0]?.value).toEqual([
+      {
+        employer: "Example Ltd",
+        employerAddress: "1 Example Way, Sheffield",
+        position: "Engineer",
+        startDate: { year: 2023, month: 1 },
+        end: { kind: "current" },
+        duties: "Designing and testing things.",
+      },
+    ]);
+  }, 300_000);
+});
+
 describeIfDatabase("stopping is available while a person is looking", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // ADR-0053: "a stop button that only worked at certain steps would not be

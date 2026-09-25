@@ -159,6 +159,33 @@ describe("what the student is shown", () => {
     expect(rendered).toContain("Is that right?");
   });
 
+  it("renders an EMPTY list as 'none', and a list of entries numbered (ADR-0113, P211)", () => {
+    // A student confirming an empty employment history must see the word,
+    // not a blank after "as:". And three jobs must read as three.
+    const none = renderForConfirmation(
+      "employment.history",
+      proposeValue({ value: [], origin: "conversation", verbatim: "any: no", confidence: 0.9 }),
+      "Employment history",
+    );
+    expect(none).toContain("as: none");
+
+    const two = renderForConfirmation(
+      "residence.history",
+      proposeValue({
+        value: [
+          { countryCode: "IR", from: { year: 2015, month: 9 }, to: { kind: "ended", date: { year: 2022, month: 8 } } },
+          { countryCode: "GB", from: { year: 2022, month: 9 }, to: { kind: "current" } },
+        ],
+        origin: "conversation",
+        verbatim: "item0.countryCode: Iran; …",
+        confidence: 0.9,
+      }),
+      "Where you have lived",
+    );
+    expect(two).toContain("1) countryCode: IR");
+    expect(two).toContain("2) countryCode: GB");
+  });
+
   it("renders a date deterministically, not as a model paraphrase", () => {
     const rendered = renderForConfirmation(
       "identity.date_of_birth",

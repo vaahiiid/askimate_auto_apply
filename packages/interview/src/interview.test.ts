@@ -13,7 +13,7 @@ import type { ProfileFieldKey } from "@askimate/aas-profile";
 import { PROFILE_FIELD_KEYS, emptyProfile, resolveField } from "@askimate/aas-profile";
 
 import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
-import { FIELD_SPECS, isComposite } from "./field-specs.js";
+import { FIELD_SPECS, isComposite, isList } from "./field-specs.js";
 import type { InterviewState } from "./interview.js";
 import {
   MAX_ATTEMPTS_PER_FIELD,
@@ -37,6 +37,7 @@ function scalarSpec(key: ProfileFieldKey): ScalarFieldSpec<unknown> {
   const spec: FieldSpec<unknown> | undefined = FIELD_SPECS[key];
   if (spec === undefined) return expect.unreachable(`${key} has no spec`);
   if (isComposite(spec)) return expect.unreachable(`${key} is a composite, not a scalar`);
+  if (isList(spec)) return expect.unreachable(`${key} is a list, not a scalar`);
   return spec;
 }
 const model = new DeterministicModelClient();
@@ -483,18 +484,17 @@ describe("the three remaining composites (P197)", () => {
     }
   });
 
-  it("can now ask for every ordinary field except the five list-valued ones and the held one", () => {
-    // The phase's own arithmetic, counted rather than claimed.
+  it("can now ask for every ordinary field except the two visa lists and the held one (P211)", () => {
+    // The phase's own arithmetic, counted rather than claimed. P211 gave the
+    // three lists the Sheffield entry reads their questions; the two visa
+    // lists it does not read, and the held `highest_qualification`, stay.
     const missing = (PROFILE_FIELD_KEYS as readonly ProfileFieldKey[]).filter(
       (key) => FIELD_SPECS[key] === undefined,
     );
     expect([...missing].sort()).toEqual([
       "education.highest_qualification",
-      "education.prior_qualifications",
-      "employment.history",
       "immigration.previous_uk_visas",
       "immigration.previous_visa_refusals",
-      "residence.history",
     ]);
   });
 });
@@ -615,11 +615,13 @@ describe("what the interview is not allowed to ask for", () => {
     // tripwire reads them too. A rule that covered only the field would have
     // let a `password` part in under a field named something else.
     const offending = allSpecs().filter(([key, spec]) => {
+      const partsText = (parts: readonly { partKey: string; rationale: string; expectedShape: string }[]): string =>
+        parts.map((part) => `${part.partKey} ${part.rationale} ${part.expectedShape}`).join(" ");
       const text = isComposite(spec)
-        ? `${key} ${spec.rationale} ${spec.parts
-            .map((part) => `${part.partKey} ${part.rationale} ${part.expectedShape}`)
-            .join(" ")}`
-        : `${key} ${spec.rationale} ${spec.expectedShape}`;
+        ? `${key} ${spec.rationale} ${partsText(spec.parts)}`
+        : isList(spec)
+          ? `${key} ${spec.rationale} ${spec.anyRationale} ${spec.anotherRationale} ${partsText(spec.item.parts)}`
+          : `${key} ${spec.rationale} ${spec.expectedShape}`;
       return CREDENTIAL_WORDS.some((word) => text.toLowerCase().includes(word));
     });
     expect(offending.map(([key]) => key)).toEqual([]);
@@ -774,7 +776,13 @@ describe("what the interview is not allowed to ask for", () => {
     // must not contain.
     const asked = allSpecs()
       .map(([key, spec]) =>
-        `${key} ${spec.rationale} ${isComposite(spec) ? spec.parts.map((part) => part.rationale).join(" ") : spec.expectedShape}`,
+        `${key} ${spec.rationale} ${
+          isComposite(spec)
+            ? spec.parts.map((part) => part.rationale).join(" ")
+            : isList(spec)
+              ? `${spec.anyRationale} ${spec.item.parts.map((part) => part.rationale).join(" ")}`
+              : spec.expectedShape
+        }`,
       )
       .join(" ")
       .toLowerCase();
@@ -925,6 +933,272 @@ describe("the three country fields read through the reviewed table (P199, blocke
       // student who typed "Iranian" has to go on.
       expect(spec.expectedShape, key).toContain("country");
       expect(spec.expectedShape, key).toMatch(/Iran|e\.g\./);
+    }
+  });
+});
+
+describe("a list is collected entry by entry (ADR-0113, P211)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Item 1 of the list. Measured in P210 on an empty profile against the
+  // signed entry: the interview's FIRST action was `escalate` on
+  // `employment.history` — *"No question is defined"* — before the name was
+  // asked, because three of the fourteen fields it is handed are list-valued
+  // and had no question, and `nextAction` checks for an undefined field before
+  // a question it can ask. Vahid: *"the sentence not even starting, and
+  // neither of us knew."*
+  //
+  // ADR-0113, in his words: *"Entry by entry, not a CV block … one entry at a
+  // time, one part at a time … 'none' is a confirmation."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const SHEFFIELD_REQUIRED: readonly ProfileFieldKey[] = [
+    "contact.email",
+    "identity.given_name",
+    "identity.family_name",
+    "identity.date_of_birth",
+    "contact.address",
+    "employment.history",
+    "education.prior_qualifications",
+    "residence.in_uk_now",
+    "residence.outside_residence_country_last_three_years",
+    "residence.always_in_residence_country",
+    "residence.always_in_eu",
+    "immigration.uk_status",
+    "immigration.uk_study",
+    "identity.passport",
+  ];
+
+  async function walk(
+    state: InterviewState,
+    fieldKey: ProfileFieldKey,
+    answers: readonly (readonly [string, string])[],
+  ): Promise<InterviewState> {
+    for (const [partKey, utterance] of answers) {
+      const action = await nextAction(state, model);
+      expect(action.kind, `before ${partKey}`).toBe("ask");
+      if (action.kind === "ask") expect(action.partKey, "asked in order").toBe(partKey);
+      const outcome = await receiveAnswer(state, fieldKey, utterance, model);
+      expect(outcome.kind, `${partKey}: ${utterance}`).toBe("understood");
+      state = outcome.state;
+    }
+    return state;
+  }
+
+  it("ASKS on its first move for the Sheffield entry's fourteen fields, rather than escalating before the name (P210's measurement, reversed)", async () => {
+    const action = await nextAction(start(SHEFFIELD_REQUIRED), model);
+    expect(action.kind).toBe("ask");
+    if (action.kind === "ask") expect(action.fieldKey).toBe("contact.email");
+  });
+
+  it("takes 'none' as the whole answer: an empty list is put for confirmation and confirmed (ADR-0113 §3)", async () => {
+    let state = start(["employment.history"]);
+    const first = await nextAction(state, model);
+    expect(first.kind).toBe("ask");
+    if (first.kind === "ask") expect(first.partKey).toBe("any");
+    state = (await receiveAnswer(state, "employment.history", "no", model)).state;
+    const next = await nextAction(state, model);
+    expect(next.kind, "nothing to list is an answer, and it is confirmed").toBe("confirm");
+    if (next.kind === "confirm") expect(next.say).toContain("none");
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "employment.history");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual([]);
+  });
+
+  it("walks one job part by part, asks 'another?', and confirms the whole list once", async () => {
+    let state = start(["employment.history"]);
+    state = await walk(state, "employment.history", [
+      ["any", "yes"],
+      ["item0.employer", "Example Ltd"],
+      ["item0.employerAddress", "1 Example Way, Sheffield"],
+      ["item0.position", "Engineer"],
+      ["item0.startDate", "January 2023"],
+      ["item0.still", "yes"],
+      ["item0.basis", "full time"],
+      ["item0.duties", "Designing and testing things."],
+      ["item0.refereeName", "none"],
+      ["item0.another", "no"],
+    ]);
+    const done = await nextAction(state, model);
+    expect(done.kind, "one confirmation, for the whole list").toBe("confirm");
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    expect(confirmed.kind).toBe("confirmed");
+    const held = resolveField(confirmed.state.profile, "employment.history");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual([
+      {
+        employer: "Example Ltd",
+        employerAddress: "1 Example Way, Sheffield",
+        position: "Engineer",
+        startDate: { year: 2023, month: 1 },
+        end: { kind: "current" },
+        basis: "full_time",
+        duties: "Designing and testing things.",
+      },
+    ]);
+  });
+
+  it("asks the end date only of a job that has ended, and never reads 'current' off a blank (ADR-0111)", async () => {
+    let state = start(["employment.history"]);
+    state = await walk(state, "employment.history", [
+      ["any", "yes"],
+      ["item0.employer", "Old Employer"],
+      ["item0.employerAddress", "2 Old Road"],
+      ["item0.position", "Assistant"],
+      ["item0.startDate", "2019-09"],
+      ["item0.still", "no"],
+      ["item0.endDate", "June 2021"],
+      ["item0.basis", "none"],
+      ["item0.duties", "Assisting."],
+      ["item0.refereeName", "Dr Example"],
+      ["item0.refereeRole", "Manager"],
+      ["item0.another", "no"],
+    ]);
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "employment.history");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual([
+      {
+        employer: "Old Employer",
+        employerAddress: "2 Old Road",
+        position: "Assistant",
+        startDate: { year: 2019, month: 9 },
+        end: { kind: "ended", date: { year: 2021, month: 6 } },
+        duties: "Assisting.",
+        referee: { name: "Dr Example", role: "Manager" },
+      },
+    ]);
+  });
+
+  it("collects a second entry when the student says there is another, and stops when they say there is not", async () => {
+    let state = start(["residence.history"]);
+    state = await walk(state, "residence.history", [
+      ["any", "yes"],
+      ["item0.countryCode", "Iran"],
+      ["item0.from", "September 2015"],
+      ["item0.still", "no"],
+      ["item0.to", "August 2022"],
+      ["item0.another", "yes"],
+      ["item1.countryCode", "GB"],
+      ["item1.from", "September 2022"],
+      ["item1.still", "yes"],
+      ["item1.another", "no"],
+    ]);
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "residence.history");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual([
+      { countryCode: "IR", from: { year: 2015, month: 9 }, to: { kind: "ended", date: { year: 2022, month: 8 } } },
+      { countryCode: "GB", from: { year: 2022, month: 9 }, to: { kind: "current" } },
+    ]);
+  });
+
+  it("collects a qualification with its level, end kind and grade scale read from the options the question lists — never a free spelling (ADR-0112)", async () => {
+    let state = start(["education.prior_qualifications"]);
+    // A level the question did not list is asked again, not decided to mean
+    // something: `gradingSystemId` keys on the level's exact text.
+    state = (await receiveAnswer(state, "education.prior_qualifications", "yes", model)).state;
+    const loose = await receiveAnswer(state, "education.prior_qualifications", "a masters", model);
+    expect(loose.kind).toBe("not_understood");
+    state = await walk(state, "education.prior_qualifications", [
+      ["item0.level", "Master's degree"],
+      ["item0.subject", "Industrial Engineering"],
+      ["item0.institution", "Sharif University of Technology"],
+      ["item0.countryCode", "IR"],
+      ["item0.start", "September 2008"],
+      ["item0.endKind", "completed"],
+      ["item0.endDate", "June 2012"],
+      ["item0.award", "none"],
+      ["item0.grade", "17.2"],
+      ["item0.gradeScale", "20-point"],
+      ["item0.another", "no"],
+    ]);
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "education.prior_qualifications");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual([
+      {
+        level: "Master's degree",
+        subject: "Industrial Engineering",
+        institution: "Sharif University of Technology",
+        countryCode: "IR",
+        start: { year: 2008, month: 9 },
+        end: { kind: "completed", date: { year: 2012, month: 6 } },
+        grade: "17.2",
+        gradeScale: "twenty_point",
+      },
+    ]);
+  });
+
+  it("keeps the award date the student gives, and never derives it from the end (ADR-0112)", async () => {
+    let state = start(["education.prior_qualifications"]);
+    state = await walk(state, "education.prior_qualifications", [
+      ["any", "yes"],
+      ["item0.level", "Bachelor's degree"],
+      ["item0.subject", "Business Management"],
+      ["item0.institution", "University of Sheffield"],
+      ["item0.countryCode", "United Kingdom"],
+      ["item0.start", "2019-09"],
+      ["item0.endKind", "completed"],
+      ["item0.endDate", "2022-06"],
+      ["item0.award", "July 2022"],
+      ["item0.grade", "2:1"],
+      ["item0.gradeScale", "UK honours"],
+      ["item0.another", "no"],
+    ]);
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "education.prior_qualifications");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    const [only] = unwrapConfirmed(held);
+    expect(only?.award).toEqual({ year: 2022, month: 7 });
+    expect(only?.end).toEqual({ kind: "completed", date: { year: 2022, month: 6 } });
+    expect(only?.countryCode).toBe("GB");
+  });
+
+  it("refuses a part it cannot read and asks the SAME part again, counting the attempt under the item's key", async () => {
+    let state = start(["employment.history"]);
+    state = (await receiveAnswer(state, "employment.history", "yes", model)).state;
+    state = (await receiveAnswer(state, "employment.history", "Example Ltd", model)).state;
+    state = (await receiveAnswer(state, "employment.history", "1 Example Way", model)).state;
+    state = (await receiveAnswer(state, "employment.history", "Engineer", model)).state;
+    const unreadable = await receiveAnswer(state, "employment.history", "a while ago", model);
+    expect(unreadable.kind).toBe("not_understood");
+    state = unreadable.state;
+    expect(state.attempts.get("employment.history#item0.startDate")).toBe(1);
+    const again = await nextAction(state, model);
+    expect(again.kind).toBe("ask");
+    if (again.kind === "ask") expect(again.partKey).toBe("item0.startDate");
+  });
+
+  it("drops every entry when the student rejects the list, and starts again from 'any' (ADR-0140's rule, for a list)", async () => {
+    let state = start(["residence.history"]);
+    state = await walk(state, "residence.history", [
+      ["any", "yes"],
+      ["item0.countryCode", "GB"],
+      ["item0.from", "2022-09"],
+      ["item0.still", "yes"],
+      ["item0.another", "no"],
+    ]);
+    const rejected = receiveConfirmation(state, { agreed: false }, NOW);
+    expect(rejected.kind).toBe("declined");
+    const again = await nextAction(rejected.state, model);
+    expect(again.kind).toBe("ask");
+    if (again.kind === "ask") expect(again.partKey).toBe("any");
+    // And a correction to the WHOLE list is refused for the composite's
+    // reason: which entry, which part, is not ours to decide.
+    const corrected = receiveConfirmation(state, { agreed: false, correction: "no, 2021" }, NOW);
+    expect(corrected.kind).toBe("not_understood");
+    if (corrected.kind === "not_understood") expect(corrected.reason).toContain("entry by entry");
+  });
+
+  it("names the entry and the part in the question, so the student knows which job is being asked about", async () => {
+    let state = start(["employment.history"]);
+    state = (await receiveAnswer(state, "employment.history", "yes", model)).state;
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("ask");
+    if (action.kind === "ask") {
+      expect(action.partKey).toBe("item0.employer");
+      expect(action.say.toLowerCase()).toContain("job 1");
+      expect(action.say.toLowerCase()).toContain("employer");
     }
   });
 });
