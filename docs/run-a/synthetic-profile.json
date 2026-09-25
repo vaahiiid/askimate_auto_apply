@@ -197,6 +197,14 @@
           "months": 0
         }
       }
+    },
+    {
+      "key": "finance.funding",
+      "value": {
+        "known": true,
+        "source": "self_or_family",
+        "stage": "confirmed"
+      }
     }
   ]
 }

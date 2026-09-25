@@ -1073,6 +1073,25 @@ export class PlaywrightPreparationSession implements FillableSession {
     }
   }
 
+  /**
+   * The one member of a radio group whose <label for=id> reads `text`, when
+   * EVERY member's value is empty; `null` otherwise (P216). Exact text, trimmed,
+   * case kept — the case is the portal's, as it is for values.
+   */
+  async #radioByLabel(members: Locator, text: string): Promise<Locator | null> {
+    const read = await members.evaluateAll((elements) =>
+      elements.map((element) => {
+        const input = element as HTMLInputElement;
+        const label = input.id === "" ? null : input.ownerDocument.querySelector(`label[for="${input.id}"]`);
+        return { id: input.id, value: input.value, label: (label?.textContent ?? "").trim() };
+      }),
+    );
+    if (read.length === 0 || read.some((member) => member.value !== "")) return null;
+    const matching = read.filter((member) => member.label === text && member.id !== "");
+    if (matching.length !== 1) return null;
+    return members.page().locator(`#${cssEscape(matching[0]!.id)}`);
+  }
+
   async #type(locator: FieldLocator, text: string): Promise<void> {
     // The runner's own checks run around the whole of it (P186). An
     // actionability failure — a radio the page hides, a box it disables —
@@ -1129,6 +1148,18 @@ export class PlaywrightPreparationSession implements FillableSession {
       if ((await group.count()) === 0) {
         if ((text === "true" || text === "yes" || text === "on") && (await members.count()) <= 1) {
           await target.check({ timeout: ACTION_TIMEOUT_MS });
+          return;
+        }
+        // P216: a group whose members ALL carry an empty value — Sheffield's
+        // Part 2 funding radios, read by Vahid on 2026-09-25: `value=""` on
+        // both, a script the read did not capture setting whatever the form
+        // submits. The value cannot name a member, so the member is named by
+        // its own <label for=…> text, exactly, and only when every value is
+        // empty: a group that offers values is still set by value and by
+        // nothing else (P110).
+        const byLabel = await this.#radioByLabel(members, text);
+        if (byLabel !== null) {
+          await byLabel.check({ timeout: ACTION_TIMEOUT_MS });
           return;
         }
         const available = await target

@@ -131,6 +131,46 @@ export interface ResidencePeriod {
 }
 
 /**
+ * A CLOSED vocabulary for how the studies are funded (ADR-0143, Vahid,
+ * 2026-09-25: *"the registry gains a CLOSED funding-source vocabulary, the
+ * shape nationality took, and per-portal maps like the countries. Not free
+ * text."*). A portal's own list — Sheffield's five general sources and its
+ * twenty-eight named scholarships — is mapped from this per portal.
+ */
+export type FundingSource = "self_or_family" | "employer" | "sponsor" | "scholarship" | "loan" | "other";
+export const FUNDING_SOURCES: readonly FundingSource[] = [
+  "self_or_family", "employer", "sponsor", "scholarship", "loan", "other",
+];
+
+/**
+ * Where the student is with their funding (ADR-0143). Five stages, the
+ * portal's own; *"that last one is where a student who is unsure goes
+ * honestly, and it should be reachable — a student who has not sorted their
+ * funding is the normal case, not an edge."*
+ */
+export type FundingStage = "confirmed" | "project_studentship" | "applied" | "applying" | "considering";
+export const FUNDING_STAGES: readonly FundingStage[] = [
+  "confirmed", "project_studentship", "applied", "applying", "considering",
+];
+
+/**
+ * How the studies will be funded, as the student states it (ADR-0143).
+ *
+ * `known` is the student's own answer to *"do you know how you will fund
+ * your studies?"* — asked directly, **never derived** from whether a source
+ * happens to be held. A student who does not know has `known: false` and
+ * nothing else, which is a complete and honest statement; no "don't know"
+ * source is invented for them. The rest is asked only of a student who knows.
+ */
+export interface FundingIntent {
+  readonly known: boolean;
+  readonly source?: FundingSource;
+  readonly stage?: FundingStage;
+  /** The sponsor's or scholarship's name, in the student's words, when there is one. */
+  readonly details?: string;
+}
+
+/**
  * Seven claims about the student's standing in the UK (ADR-0115), each stated
  * by them and none derived — not from the passport's issuing country, not from
  * the address. Vahid: *"a wrong yes opens a document slot the student must
@@ -250,8 +290,8 @@ export interface ProfileFieldTypes {
 
   // ── Finance ─────────────────────────────────────────────────────────────
   "finance.available_funds": Money;
-  "finance.funding_source": string;
-  "finance.sponsor_name": string;
+  /** How the studies will be funded, as the student states it (ADR-0143). */
+  "finance.funding": FundingIntent;
 
   // ── Residence (ADR-0115) ────────────────────────────────────────────────
   /** The country of permanent residence — a statement, not the address's country. */
@@ -365,8 +405,7 @@ export const PROFILE_FIELD_KEYS = [
   "study.personal_statement",
   "study.intended_start",
   "finance.available_funds",
-  "finance.funding_source",
-  "finance.sponsor_name",
+  "finance.funding",
   "residence.country",
   "residence.in_uk_now",
   "residence.uk_entry_date",
@@ -393,8 +432,7 @@ export const PROFILE_FIELD_KEYS = [
  */
 export const FINANCIAL_FIELDS = [
   "finance.available_funds",
-  "finance.funding_source",
-  "finance.sponsor_name",
+  "finance.funding",
 ] as const satisfies readonly ProfileFieldKey[];
 
 const FINANCIAL_SET: ReadonlySet<ProfileFieldKey> = new Set<ProfileFieldKey>(FINANCIAL_FIELDS);
@@ -427,8 +465,7 @@ export const FIELD_LABELS: Readonly<Record<ProfileFieldKey, string>> = {
   "study.personal_statement": "Personal statement",
   "study.intended_start": "Intended start",
   "finance.available_funds": "Funds available for your studies",
-  "finance.funding_source": "How your studies will be funded",
-  "finance.sponsor_name": "Sponsor",
+  "finance.funding": "How your studies will be funded",
   "residence.country": "Country of permanent residence",
   "residence.in_uk_now": "Currently living in the UK",
   "residence.uk_entry_date": "When you entered the UK",

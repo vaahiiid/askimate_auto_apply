@@ -38,7 +38,7 @@
   },
   "blueprint": {
     "blueprintId": "bp-sheffield-pgt-september-direct",
-    "version": "0.2.29",
+    "version": "0.2.30",
     "status": "reviewed",
     "institutionName": "University of Sheffield",
     "courseName": "MSc Management and International Business",
@@ -29101,6 +29101,14 @@
                   {
                     "value": "",
                     "label": ""
+                  },
+                  {
+                    "value": "MGT:International Marketing and Management",
+                    "label": "International Marketing and Management"
+                  },
+                  {
+                    "value": "MGT:Management and International Business",
+                    "label": "Management and International Business"
                   }
                 ]
               },
@@ -29133,7 +29141,16 @@
                     "value": "#course-ts-dropdown [role=\"option\"][data-selectable]"
                   }
                 },
-                "options": []
+                "options": [
+                  {
+                    "value": "MGT:International Marketing and Management",
+                    "label": "International Marketing and Management"
+                  },
+                  {
+                    "value": "MGT:Management and International Business",
+                    "label": "Management and International Business"
+                  }
+                ]
               },
               {
                 "fieldRef": "qualification",
@@ -29163,7 +29180,16 @@
                 "optionsAfter": {
                   "fieldRef": "course-ts-control"
                 },
-                "options": []
+                "options": [
+                  {
+                    "value": "Select qualification...",
+                    "label": "Select qualification..."
+                  },
+                  {
+                    "value": "MSC, Master of Science",
+                    "label": "MSC, Master of Science"
+                  }
+                ]
               },
               {
                 "fieldRef": "startDate",
@@ -29660,7 +29686,9 @@
         "AUTH 8 — Can control be handed back cleanly?",
         "PART 2, read 2026-09-25 (581070e): the overview's only two links out of Part 1 are plain <a href> GETs, studyprogrammetaught.do and studyprogrammeresearch.do — no form, no button — so opening Part 2 commits nothing. The taught page's own form POSTs to itself with saveBtn and backBtn, the shape of every Part 1 page, and carries NO submit-the-application control. WHERE THE FINAL SUBMISSION IS remains UNREAD: the overview's HTML was not kept, and nothing read shows what appears once a course choice is saved. Vahid pressed nothing.",
         "PART 2, the research route (studyprogrammeresearch.do): UNREAD by his word — a row, not a phase.",
-        "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next."
+        "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
+        "PART 2, second read 2026-09-25 (526174c), the course typed and chosen in the typeahead, Save NOT pressed: the course box offered two MGT entries for the target's course name and the chosen one submits 'MGT:Management and International Business'; the qualification list loaded with one real entry, 'MSC, Master of Science'; the START-DATE list did NOT load, because it follows the qualification and none was chosen — UNREAD, one more choice in the same read. His note on doing it by hand: the box offered nothing on the first try and found the course on the second — a server search whose entries follow the start window above it, which the markup's handlers confirm (updateCourses on studyTerm and startYear) and the blueprint's order and optionsAfter already hold.",
+        "PART 2, the funding radios: both fundingSourceKnown inputs carry value=\"\" in the markup; the script the read did not capture may set what the form submits. The blueprint records Yes / No as the tool derived them from the labels; the runner chooses such a group by its <label for> text (P216), and what the form actually submits for each is UNREAD."
       ]
     },
     "$comment": [
@@ -29735,10 +29763,10 @@
       "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
     ],
     "mappingSetId": "map-sheffield-pgt-2027-09",
-    "version": "0.3.39",
+    "version": "0.3.40",
     "status": "reviewed",
     "blueprintId": "bp-sheffield-pgt-september-direct",
-    "blueprintVersion": "0.2.29",
+    "blueprintVersion": "0.2.30",
     "authoredBy": "Vahid Mohammadi",
     "authoredAt": "2026-09-11T12:00:00Z",
     "mappings": [
@@ -33705,7 +33733,117 @@
           "classification": "application_metadata",
           "rationale": "The target's intake is 2027-09 (targets/sheffield-pgt-2026-09.json, stated by Vahid 2026-09-10), and the select's window that holds September 2027 is 'August 2027 to July 2028', whose value the form submits is 2027. Application metadata, not the student's data."
         },
-        "note": "Show courses starting between:* — the one Part 2 box derivable today (P215). The rest of the page waits: studyTerm on Vahid stating the study mode in the target file in his own words; the course typeahead, qualification and startDate on his next read with the course chosen in the typeahead (no save); the four funding boxes on the registry decision his reading asked for. Each is a no_mapping blocker at the plan until then — loudly, by design."
+        "note": "Show courses starting between:* — the page's `startYear`, renamed in the blueprint because page 8 holds that ref; the locator carries the real name. A reviewed constant from the target's intake (P215). The course box's entries follow this window (P216)."
+      },
+      {
+        "fieldRef": "studyTerm",
+        "source": {
+          "kind": "constant",
+          "value": "Full Time",
+          "classification": "application_metadata",
+          "rationale": "Vahid, 2026-09-25, in his words for the target file: 'the applicant intends to study full time, on campus.' Application metadata — how this application is made, not a fact about the student — recorded in targets/sheffield-pgt-2026-09.json."
+        },
+        "note": "How do you want to study?* — the select's own value 'Full Time' (P216). Stated by Vahid for this target; a different applicant states their own."
+      },
+      {
+        "fieldRef": "course-ts-control",
+        "source": {
+          "kind": "constant",
+          "value": "MGT:Management and International Business",
+          "classification": "application_metadata",
+          "rationale": "The target's course (targets/sheffield-pgt-2026-09.json: MSc Management and International Business, stated by Vahid 2026-09-10). The value is the entry the typeahead offered for it on his 2026-09-25 read with the start window set — 'MGT:Management and International Business', reading 'Management and International Business'."
+        },
+        "note": "Please search for and select the course you wish to take:* — the Tom Select box whose entries follow the start window and the study mode (updateCourses; optionsAfter courseStartYear). Names the VALUE the form submits; the blueprint's entries say what it reads as, and the runner types that text and chooses the entry carrying this value (ADR-0109). His note from doing it by hand: the box offered nothing on the first try — a server search — so the window is set first, which the blueprint's order holds."
+      },
+      {
+        "fieldRef": "qualification",
+        "source": {
+          "kind": "constant",
+          "value": "MSC, Master of Science",
+          "classification": "application_metadata",
+          "rationale": "The qualification the target's course awards, as the page's own list loaded it once the course was chosen (his 2026-09-25 read): one real entry, 'MSC, Master of Science'."
+        },
+        "note": "Qualification applied for:* — the select loaded after the course is chosen (updateQualifications; optionsAfter course-ts-control). One entry for this course; named by value (P216)."
+      },
+      {
+        "fieldRef": "fundingSourceKnown",
+        "source": {
+          "kind": "profile_field",
+          "fieldKey": "finance.funding",
+          "format": {
+            "kind": "part",
+            "path": "known",
+            "then": {
+              "kind": "option",
+              "options": {
+                "true": "Yes",
+                "false": "No"
+              }
+            }
+          }
+        },
+        "note": "Do you know how you want to fund your studies?* — the student's OWN answer, asked directly and never derived from a source being held (ADR-0143). The two radios carry value=\"\" in the markup; Yes / No are the labels, and the runner chooses such a group by label (P216). What the form submits for each is unread."
+      },
+      {
+        "fieldRef": "fundingSource",
+        "source": {
+          "kind": "profile_field",
+          "fieldKey": "finance.funding",
+          "format": {
+            "kind": "part",
+            "path": "source",
+            "absent": "leave_empty",
+            "then": {
+              "kind": "option",
+              "options": {
+                "self_or_family": "Self or Family",
+                "employer": "Employer",
+                "sponsor": "Sponsor",
+                "other": "Other"
+              }
+            }
+          }
+        },
+        "note": "Please select your likely funding source — from the registry's closed vocabulary (ADR-0143) onto the four general options the list offers. Left EMPTY for a student who does not know (absent part). 'scholarship' and 'loan' have NO row on purpose: the list names twenty-eight scholarships and three loans, and choosing 'Scholarship or studentship (not listed below)' or one loan for a student whose scholarship or loan is not known would be a claim — a second key (the name) is needed, which the format language cannot express (blocker 85). A student on a scholarship or a loan refuses here, loudly, and is asked about."
+      },
+      {
+        "fieldRef": "fundingStage",
+        "source": {
+          "kind": "profile_field",
+          "fieldKey": "finance.funding",
+          "format": {
+            "kind": "part",
+            "path": "stage",
+            "absent": "leave_empty",
+            "then": {
+              "kind": "option",
+              "options": {
+                "confirmed": "The funding has been confirmed",
+                "project_studentship": "I am applying for a project studentship",
+                "applied": "I have applied for funding",
+                "applying": "I am applying for funding",
+                "considering": "I am thinking about funding my studies this way"
+              }
+            }
+          }
+        },
+        "note": "What stage are you at with your funding? — the registry's five stages (ADR-0143) onto the list's own five sentences. Left EMPTY for a student who does not know; the page's script hides this row for No (his expectation, unread — blocker 86 says what happens if it does not)."
+      },
+      {
+        "fieldRef": "fundingDetails",
+        "source": {
+          "kind": "profile_field",
+          "fieldKey": "finance.funding",
+          "format": {
+            "kind": "part",
+            "path": "details",
+            "absent": "leave_empty",
+            "then": {
+              "kind": "text"
+            }
+          }
+        },
+        "note": "Please enter details of your funding source: — the sponsor's, scholarship's or employer's name as the student gave it; empty when there is none."
       }
     ],
     "reviewedBy": "Vahid Mohammadi",

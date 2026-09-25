@@ -27,6 +27,7 @@
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
   "intake": "2027-09",
+  "studyMode": "Full Time",
   "route": "direct_portal",
   "routeNotes": [
     "Direct application through the university's own Postgraduate Online Application Form.",
@@ -40,7 +41,8 @@
     "ANSWERED. Vahid, 2026-09-11, his words: 'Password: student_chosen, confirmed by observation not",
     "inference. I created the account myself and I typed the password I chose. Sheffield did not",
     "email me one.' The PGT form does NOT behave like the sibling form. Course page, from which the",
-    "course name was read: https://sheffield.ac.uk/postgraduate/taught/courses/2026/management-and-international-business-msc"
+    "course name was read: https://sheffield.ac.uk/postgraduate/taught/courses/2026/management-and-international-business-msc",
+    "STUDY MODE, Vahid, 2026-09-25, in his words: 'the applicant intends to study full time, on campus.' Recorded as studyMode 'Full Time' — the value Sheffield's Part 2 select submits — and mapped as a reviewed constant (P216)."
   ],
   "allowedHosts": [
     "sheffield.ac.uk"

@@ -128,8 +128,7 @@ export const FIELD_CATEGORY = {
   "study.personal_statement": "ordinary",
   "study.intended_start": "ordinary",
   "finance.available_funds": "ordinary",
-  "finance.funding_source": "ordinary",
-  "finance.sponsor_name": "ordinary",
+  "finance.funding": "ordinary",
   // ADR-0115: residence and status are claims the student states; nothing
   // here is an Article 9 category. The review pack's judgement flag on
   // refugee status stands as a flag, not a category.

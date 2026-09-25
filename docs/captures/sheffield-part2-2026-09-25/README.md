@@ -67,3 +67,13 @@ advance (Run A's lesson), page 11 continuing to it. One map: `courseStartYear` (
 `2027`, from the target's intake. Everything else on the page is a `no_mapping` blocker at the plan,
 loudly, until: his statement of the study mode in the target file; his next read with the course
 chosen in the typeahead (a client-side choice, not a save); and the funding decision.
+
+## The second read (526174c), and what P216 built from it
+
+`taught-with-course-*`: the course typed into the typeahead and chosen, the qualification left to
+load, Save not pressed. Read from the file: `courseSelection` holds two MGT entries and the chosen
+one submits `MGT:Management and International Business`; `qualification` loaded one real entry,
+*MSC, Master of Science*; `startDate` has no entries — the list follows the qualification and none
+was chosen (row 83). The funding radios carry `value=""` on both (row 84). Built: the course, the
+qualification and the study mode (his words) as reviewed constants; the four funding boxes from
+`finance.funding` (ADR-0143). One box stands: `startDate`.

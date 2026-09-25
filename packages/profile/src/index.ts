@@ -18,6 +18,9 @@ export type {
   UkStatusClaims,
   UkStudy,
   UkStudyLevel,
+  FundingIntent,
+  FundingSource,
+  FundingStage,
 } from "./fields.js";
 export type { ListValuedFieldKey } from "./fields.js";
 export type { CountryFieldKey } from "./fields.js";
@@ -29,6 +32,8 @@ export {
   PROFILE_FIELD_KEYS,
   isCountryField,
   isFinancialField,
+  FUNDING_SOURCES,
+  FUNDING_STAGES,
 } from "./fields.js";
 
 // ── B1 row 2, made structural (ADR-0077) ───────────────────────────────────

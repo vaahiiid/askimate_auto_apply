@@ -4906,6 +4906,54 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P216 — item 5, second half: the course, the qualification, the study mode and the funding
+
+> *"Read it from the file rather than from my grep, and if the list is not there say so."*
+
+## Read from the file
+
+The course box offered two MGT entries for the target's name; the chosen one submits
+`MGT:Management and International Business`. The qualification list **did** load — one real entry,
+*MSC, Master of Science*, under the field named `qualification`, which is why a grep for a word
+would miss it. The start-date list did not load: it follows the qualification, and no qualification
+was chosen. One more choice in the same read, and Save not pressed, is all it needs (row 83).
+
+His note from doing it by hand — nothing offered on the first try, the course on the second — is
+the server search the handlers name: `updateCourses` fires on both the study mode and the start
+window, so the window is set before the box is touched. The blueprint's order and its
+`optionsAfter` already held that; his guess was right and is now checked, not guessed.
+
+## What was built
+
+`finance.funding` (ADR-0143): one composite in place of two free-text fields — *do you know?* as
+the student's own answer, a closed source, a closed stage, optional details; *No* ends the walk
+with `{ known: false }` and nothing invented. Still financial evidence: the gate's list holds it,
+and a test says so.
+
+Seven maps: the study mode in his words, the course entry and the qualification from the read as
+reviewed constants; the four funding boxes from the composite, with `scholarship` and `loan`
+refusing on purpose because the list names twenty-eight scholarships and three loans and the
+format language cannot key on the name as well (row 85).
+
+The funding radios carry no value at all in the markup (row 84). The runner now chooses a group
+whose members all carry an empty value by its `<label for>` text — exactly, case kept — and only
+then; a group that offers any value is still set by value and nothing else. Fixture-tested both
+ways.
+
+## Measured
+
+The page-by-page read names one blocker, `startDate`. Part 1 unchanged. Two hundred and one tests
+across the interview, the profile and the runner green. Blueprint 0.2.30, set 0.3.40, entry
+`sha256:27f5b6c9…`, unsigned until item 6.
+
+## The clock
+
+17:37 to 17:51 utc, about 14 minutes from his second capture commit.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P215 — item 5, first half: Part 2's taught page, and three questions answered from the capture
 
 > *"I would rather hear 'unread' than a guess."*

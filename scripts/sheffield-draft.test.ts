@@ -77,10 +77,10 @@ function load() {
 }
 
 const PART_2_WAITING = [
-  // Page 12's required boxes with no map yet (P215), each waiting on something
-  // named in the entry: his study-mode statement, his read with a course
-  // chosen, the funding decision. Named here so a sixth would be noticed.
-  "fundingSourceKnown", "fundingStage", "qualification", "startDate", "studyTerm",
+  // Page 12's one required box with no map yet (P216): the start-date list
+  // follows the qualification and no qualification was chosen in his second
+  // read, so the list is unread. Named here so a second would be noticed.
+  "startDate",
 ];
 
 describe("the Sheffield drafts, under the real checks", () => {
@@ -136,7 +136,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.29");
+    expect(blueprint.version).toBe("0.2.30");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -414,7 +414,8 @@ describe("the Sheffield drafts, under the real checks", () => {
       "countryOfBirth",
       "degree",
       "duties", "employerDetails", "endDateMonth", "endDateYear",
-      "fundingNationality", "livedOutsideCountry", "permanentResidence",
+      "fundingDetails", "fundingNationality", "fundingSource", "fundingSourceKnown", "fundingStage",
+      "livedOutsideCountry", "permanentResidence",
       "position", "startDateMonth", "startDateYear", "startMonth",
     ]);
     // P149's six chain boxes are mapped per qualification but carry no
@@ -423,8 +424,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.29");
-    expect(mappingSet.version).toBe("0.3.39");
+    expect(blueprint.version).toBe("0.2.30");
+    expect(mappingSet.version).toBe("0.3.40");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -593,7 +594,8 @@ describe("the Sheffield drafts, under the real checks", () => {
       "countryOfBirth",
       "degree",
       "duties", "employerDetails", "endDateMonth", "endDateYear",
-      "fundingNationality", "livedOutsideCountry", "permanentResidence",
+      "fundingDetails", "fundingNationality", "fundingSource", "fundingSourceKnown", "fundingStage",
+      "livedOutsideCountry", "permanentResidence",
       "position", "startDateMonth", "startDateYear", "startMonth",
     ]);
     // The preview says it, inside the yes.

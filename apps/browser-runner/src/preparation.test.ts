@@ -320,6 +320,18 @@ describe("filling a fixture portal", () => {
       // P186: a radio group the page HIDES, the shape attempt 9 met on
       // Sheffield — `certificateStatus` inside a container `endDateChanged`
       // sets to `display:none` for a qualification that has finished.
+      // P216: a radio group whose members carry NO value — Sheffield's Part 2
+      // funding question as Vahid read it on 2026-09-25, `value=""` on both.
+      if (req.method === "GET" && req.url === "/valueless-radios") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(`<!doctype html>
+<html><body>
+  <input type="radio" name="fundingSourceKnown" value="" id="fundingSourceKnownYes"><label for="fundingSourceKnownYes">Yes </label>
+  <input type="radio" name="fundingSourceKnown" value="" id="fundingSourceKnownNo"><label for="fundingSourceKnownNo">No </label>
+  <input type="radio" name="mixed" value="" id="mixedA"><label for="mixedA">A</label>
+  <input type="radio" name="mixed" value="b" id="mixedB"><label for="mixedB">B</label>
+</body></html>`);
+        return;
+      }
       if (req.method === "GET" && req.url === "/hidden-radio") {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(`<!doctype html>
 <html><body>
@@ -436,6 +448,27 @@ describe("filling a fixture portal", () => {
       session.fill({ strategy: "name", value: "lived_outside" }, confirmedText("Yes")),
     ).rejects.toThrow(OptionNotAvailableError);
     expect(await session.readValue({ strategy: "name", value: "lived_outside" })).toBe("");
+  }, 30_000);
+
+  it("chooses a radio by its LABEL only when every member of the group carries an empty value (P216)", async () => {
+    // Sheffield's Part 2: `fundingSourceKnown` is two radios with value="",
+    // labelled Yes and No. By value they are indistinguishable; by label
+    // they are not. Case and text exact, as for values.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/valueless-radios`);
+    await session.fill({ strategy: "name", value: "fundingSourceKnown" }, confirmedText("Yes"));
+    expect(await session.count({ strategy: "css", value: "#fundingSourceKnownYes:checked" })).toBe(1);
+    expect(await session.count({ strategy: "css", value: "#fundingSourceKnownNo:checked" })).toBe(0);
+    await session.fill({ strategy: "name", value: "fundingSourceKnown" }, confirmedText("No"));
+    expect(await session.count({ strategy: "css", value: "#fundingSourceKnownNo:checked" })).toBe(1);
+    expect(await session.count({ strategy: "css", value: "#fundingSourceKnownYes:checked" })).toBe(0);
+    await expect(
+      session.fill({ strategy: "name", value: "fundingSourceKnown" }, confirmedText("yes")),
+    ).rejects.toThrow(OptionNotAvailableError);
+    // A group that offers ANY value is still set by value and by nothing else.
+    await expect(
+      session.fill({ strategy: "name", value: "mixed" }, confirmedText("A")),
+    ).rejects.toThrow(OptionNotAvailableError);
   }, 30_000);
 
   it("still ticks a LONE radio told \"true\" — the boolean shortcut is for a radio that is not a group", async () => {

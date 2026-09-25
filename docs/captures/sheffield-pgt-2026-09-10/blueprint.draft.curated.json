@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.29",
+  "version": "0.2.30",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -29063,6 +29063,14 @@
                 {
                   "value": "",
                   "label": ""
+                },
+                {
+                  "value": "MGT:International Marketing and Management",
+                  "label": "International Marketing and Management"
+                },
+                {
+                  "value": "MGT:Management and International Business",
+                  "label": "Management and International Business"
                 }
               ]
             },
@@ -29095,7 +29103,16 @@
                   "value": "#course-ts-dropdown [role=\"option\"][data-selectable]"
                 }
               },
-              "options": []
+              "options": [
+                {
+                  "value": "MGT:International Marketing and Management",
+                  "label": "International Marketing and Management"
+                },
+                {
+                  "value": "MGT:Management and International Business",
+                  "label": "Management and International Business"
+                }
+              ]
             },
             {
               "fieldRef": "qualification",
@@ -29125,7 +29142,16 @@
               "optionsAfter": {
                 "fieldRef": "course-ts-control"
               },
-              "options": []
+              "options": [
+                {
+                  "value": "Select qualification...",
+                  "label": "Select qualification..."
+                },
+                {
+                  "value": "MSC, Master of Science",
+                  "label": "MSC, Master of Science"
+                }
+              ]
             },
             {
               "fieldRef": "startDate",
@@ -29622,7 +29648,9 @@
       "AUTH 8 — Can control be handed back cleanly?",
       "PART 2, read 2026-09-25 (581070e): the overview's only two links out of Part 1 are plain <a href> GETs, studyprogrammetaught.do and studyprogrammeresearch.do — no form, no button — so opening Part 2 commits nothing. The taught page's own form POSTs to itself with saveBtn and backBtn, the shape of every Part 1 page, and carries NO submit-the-application control. WHERE THE FINAL SUBMISSION IS remains UNREAD: the overview's HTML was not kept, and nothing read shows what appears once a course choice is saved. Vahid pressed nothing.",
       "PART 2, the research route (studyprogrammeresearch.do): UNREAD by his word — a row, not a phase.",
-      "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next."
+      "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
+      "PART 2, second read 2026-09-25 (526174c), the course typed and chosen in the typeahead, Save NOT pressed: the course box offered two MGT entries for the target's course name and the chosen one submits 'MGT:Management and International Business'; the qualification list loaded with one real entry, 'MSC, Master of Science'; the START-DATE list did NOT load, because it follows the qualification and none was chosen — UNREAD, one more choice in the same read. His note on doing it by hand: the box offered nothing on the first try and found the course on the second — a server search whose entries follow the start window above it, which the markup's handlers confirm (updateCourses on studyTerm and startYear) and the blueprint's order and optionsAfter already hold.",
+      "PART 2, the funding radios: both fundingSourceKnown inputs carry value=\"\" in the markup; the script the read did not capture may set what the form submits. The blueprint records Yes / No as the tool derived them from the labels; the runner chooses such a group by its <label for> text (P216), and what the form actually submits for each is UNREAD."
     ]
   },
   "$comment": [

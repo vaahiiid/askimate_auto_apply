@@ -19,6 +19,24 @@ not shipped artefacts.
 
 ---
 
+## [0.212.0] — 2026-09-25
+
+**P216 — item 5, second half: the course, the qualification, the study mode and the funding are mapped; `startDate` stands.**
+
+- **Replaced** `finance.funding_source` and `finance.sponsor_name` with `finance.funding`
+  (ADR-0143): `known` as the student's own yes or no, a closed `source`, a closed `stage`, optional
+  `details`; asked part by part, *No* ending the walk. Still in `FINANCIAL_FIELDS`, held by a test.
+- **Mapped** seven Part 2 boxes: `studyTerm` (his words, in the target file), `course-ts-control`
+  and `qualification` (reviewed constants from his second read), and the four funding boxes from
+  the composite; `scholarship` and `loan` refuse on purpose (row 85). Blueprint 0.2.29 → 0.2.30
+  with the read's entries; set 0.3.39 → 0.3.40; entry `sha256:27f5b6c90b939479cde8407a833c5cf76457a280f98ee4ab6f314629d46d5254`, unsigned.
+- **Taught** the runner to choose a radio group whose members all carry an empty value by its
+  `<label for>` text, exactly, and only then — Sheffield's funding radios (row 84). Fixture-tested.
+- **Named** the one box left: `startDate`, whose list follows the qualification and was not loaded
+  (row 83). Rows 84–86 for what else was found.
+
+---
+
 ## [0.211.0] — 2026-09-25
 
 **P215 — item 5, first half: Part 2's taught page is in the entry; his three questions answered from the capture.**

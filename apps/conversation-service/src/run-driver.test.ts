@@ -5233,8 +5233,8 @@ describeIfDatabase(
         // evidence. Raised from this, never configured.
         await confirmInto(
           profiles,
-          "finance.funding_source",
-          "Family savings",
+          "finance.funding",
+          { known: true, source: "self_or_family", stage: "confirmed" },
           "my family are paying",
           ownerOf(into),
         );
@@ -5248,7 +5248,7 @@ describeIfDatabase(
         expect(
           stored.rows.map((row) => row.field_key),
           "the trigger has a source the run will actually read",
-        ).toContain("finance.funding_source");
+        ).toContain("finance.funding");
 
         // The yes first (ADR-0101): the guard is met at the ask itself.
         const started = await instance.driver.start({
@@ -5272,7 +5272,7 @@ describeIfDatabase(
         expect(
           [...loaded.entries.keys()],
           "the trigger has a source",
-        ).toContain("finance.funding_source");
+        ).toContain("finance.funding");
         return runId;
       } finally {
         await instance.pool.end();

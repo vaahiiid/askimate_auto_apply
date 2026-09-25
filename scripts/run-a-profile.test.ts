@@ -64,7 +64,7 @@ describe("the synthetic profile for Run A (P150)", () => {
     // resident abroad) — everything else the set reads, the fixture holds.
     expect([...read].filter((key) => !held.has(key))).toEqual(["residence.uk_entry_date"]);
     expect([...held].filter((key) => !read.has(key))).toEqual([]);
-    expect(held.size).toBe(18);
+    expect(held.size).toBe(19);
   });
 
   it("plans onto the drafts with nothing blocking on Part 1, the education chain typed by name, and the preview inside the yes", () => {
@@ -101,12 +101,11 @@ describe("the synthetic profile for Run A (P150)", () => {
     const PART_2 = new Set(
       blueprint.pages.find((page) => page.pageRef === "page12")?.sections.flatMap((section) => section.fields.map((field) => field.fieldRef)) ?? [],
     );
+    // P216: his study mode stated, his second read with the course chosen,
+    // the funding decision built — four of the five are mapped. The start-date
+    // list follows the qualification and was not loaded, so ONE stands.
     expect(plan.blockers.map((blocker) => `${blocker.kind}:${blocker.fieldRef}`).sort()).toEqual([
-      "no_mapping:fundingSourceKnown",
-      "no_mapping:fundingStage",
-      "no_mapping:qualification",
       "no_mapping:startDate",
-      "no_mapping:studyTerm",
     ]);
     for (const blocker of plan.blockers) expect(PART_2.has(blocker.fieldRef), `${blocker.fieldRef} is on page 12`).toBe(true);
     const validation = validatePlan(blueprint, plan);
@@ -172,7 +171,7 @@ describe("the synthetic profile for Run A (P150)", () => {
     child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
     expect(code).toBe(0);
-    expect(output).toContain("18 value(s)");
+    expect(output).toContain("19 value(s)");
     expect(output).toContain(renderValues(fixture()));
     expect(output).toContain("Nothing written.");
   });
@@ -221,12 +220,12 @@ describeIfDatabase("the seed, against a real migrated conversation database", ()
     const outcome = await seedProfile(pool, fixture(), "run-a-test", now, "synthetic-profile.json");
     if (!outcome.ok) expect.unreachable(outcome.kind);
     expect(outcome.created).toBe(true);
-    expect(outcome.written).toBe(18);
+    expect(outcome.written).toBe(19);
     const row = await pool.query<{ id: string; email_verified: boolean }>("SELECT id, email_verified FROM students WHERE subject = 'run-a-test'");
     expect(row.rows[0]?.id).toBe(outcome.studentId);
     expect(row.rows[0]?.email_verified).toBe(true);
     const loaded = await new PostgresConfirmedProfileStore(pool).load(outcome.studentId, now);
-    expect(loaded.entries.size).toBe(18);
+    expect(loaded.entries.size).toBe(19);
     const stored = await pool.query<{ field_key: string; provenance: { source: string; sourceExcerpt?: string } }>(
       "SELECT field_key, provenance FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
       [outcome.studentId],
@@ -252,9 +251,9 @@ describeIfDatabase("the seed, against a real migrated conversation database", ()
 
   it("refuses to write a second time: a seed never overwrites what a person has said", async () => {
     const again = await seedProfile(pool, fixture(), "run-a-test", new Date("2026-09-16T13:00:00Z"), "synthetic-profile.json");
-    expect(again).toEqual({ ok: false, kind: "profile_not_empty", studentId: expect.any(String) as string, held: 18 });
+    expect(again).toEqual({ ok: false, kind: "profile_not_empty", studentId: expect.any(String) as string, held: 19 });
     const count = await pool.query<{ n: string }>("SELECT count(*)::text AS n FROM profile_entries");
-    expect(count.rows[0]?.n).toBe("18");
+    expect(count.rows[0]?.n).toBe("19");
   });
 });
 
@@ -417,8 +416,11 @@ describe("the catalogue entry for Run A (P152)", () => {
     //   sha256:26aafb1b…  25 September, every education row chosen to match
     //                     the synthetic profile says so in its note (P214),
     //                     mapping set 0.3.38 (unsigned)
-    //   sha256:34e8e737…  25 September, THIS one — Part 2's taught page is in
-    //                     the blueprint (0.2.29) with one map (0.3.39), P215
+    //   sha256:34e8e737…  25 September, Part 2's taught page in the blueprint
+    //                     (0.2.29) with one map (0.3.39), P215 (unsigned)
+    //   sha256:27f5b6c9…  25 September, THIS one — the course, the qualification,
+    //                     the study mode and the funding mapped (0.2.30 /
+    //                     0.3.40, ADR-0143), P216
     //
     // The `degree` mapping reads `awardTitle` — the part the registry now
     // holds, stated by the student and distinct from `level` — onto the
@@ -429,12 +431,12 @@ describe("the catalogue entry for Run A (P152)", () => {
     // every interval. What it protects: the content it refuses to load is
     // content that types a value the student stated; the gate does not care
     // which direction a change goes.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:34e8e737aadba925718565b50ae5a54b4115ced991510ec5fe1904044af604aa");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:27f5b6c90b939479cde8407a833c5cf76457a280f98ee4ab6f314629d46d5254");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
     expect(load.ok, "REFUSED until he signs, at item 6 — ADR-0057 working").toBe(false);
     if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
     expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:34e8e737",
+      "No approval exists for sha256:27f5b6c9",
     );
     // The superseded approval is still the only one on file, and it now
     // approves content that no longer exists. It goes out in the SAME commit
@@ -505,10 +507,11 @@ describe("the catalogue entry for Run A (P152)", () => {
     // an application ready to go.
     expect(code).toBe(1);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.29, mapping set 0.3.39, reviewed by Vahid Mohammadi.");
-    expect(output).toContain("The plan has 5 blocker(s)");
-    for (const box of ["studyTerm", "qualification", "startDate", "fundingSourceKnown", "fundingStage"]) {
-      expect(output).toContain(`no_mapping: ${box}`);
+    expect(output).toContain("REVIEWED — blueprint 0.2.30, mapping set 0.3.40, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("The plan has 1 blocker(s)");
+    expect(output).toContain("no_mapping: startDate");
+    for (const box of ["studyTerm", "qualification", "fundingSourceKnown", "fundingStage"]) {
+      expect(output, `${box} is mapped since P216`).not.toContain(`no_mapping: ${box}`);
     }
     expect(output).not.toContain("render_refused");
   });

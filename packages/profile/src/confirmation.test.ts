@@ -76,7 +76,7 @@ describe("minting a confirmed value", () => {
     // Declining is a legitimate outcome. The correct next step is to ask
     // differently or escalate — never to fall back on the agent's guess.
     const result = applyConfirmation({
-      key: "finance.sponsor_name" as "identity.given_name",
+      key: "finance.available_funds" as "identity.given_name",
       proposed: heard("My uncle", "I think my uncle might help"),
       confirmation: {
         studentRef: "stu_001",

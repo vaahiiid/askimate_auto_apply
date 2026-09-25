@@ -23,6 +23,8 @@ import type {
   UkStatusClaims,
   UkStudyLevel,
   YearMonth,
+  FundingSource,
+  FundingStage,
 } from "@askimate/aas-profile";
 import { readCountryCode } from "@askimate/aas-profile";
 
@@ -542,6 +544,27 @@ const EMPLOYMENT_BASIS: Readonly<Record<string, string>> = {
   "part-time": "part_time",
 };
 
+/** The words the funding questions list, onto the registry's closed vocabularies (ADR-0143). */
+const FUNDING_SOURCE_WORDS: Readonly<Record<string, FundingSource>> = {
+  "self or family": "self_or_family",
+  self: "self_or_family",
+  family: "self_or_family",
+  employer: "employer",
+  sponsor: "sponsor",
+  scholarship: "scholarship",
+  loan: "loan",
+  other: "other",
+};
+const FUNDING_STAGE_WORDS: Readonly<Record<string, FundingStage>> = {
+  confirmed: "confirmed",
+  "applying for a project studentship": "project_studentship",
+  "project studentship": "project_studentship",
+  applied: "applied",
+  applying: "applying",
+  "thinking about it": "considering",
+  considering: "considering",
+};
+
 const isYearMonth = (value: unknown): value is YearMonth =>
   typeof value === "object" && value !== null && "year" in value && "month" in value;
 
@@ -623,15 +646,69 @@ export const FIELD_SPECS: Partial<{
     parse: trimmed,
   },
 
-  "finance.funding_source": {
-    rationale: "Universities ask how the course will be paid for as part of assessing the application.",
-    expectedShape: "who is paying, e.g. self-funded, family, an employer, a government scholarship",
-    parse: trimmed,
-  },
-  "finance.sponsor_name": {
-    rationale: "If someone other than you is paying, the university asks who.",
-    expectedShape: "the name of the person or organisation paying",
-    parse: trimmed,
+  // ADR-0143 (Vahid, 2026-09-25): funding is a closed vocabulary; "do you
+  // know?" is the student's own answer, asked directly and never derived from
+  // a source being held; the stage is its own question, and "thinking about
+  // it" is reachable because a student who has not sorted their funding is
+  // the normal case.
+  "finance.funding": {
+    rationale:
+      "Universities ask how the course will be paid for as part of assessing the application, " +
+      "and a student who has not sorted this out yet is the normal case — say so and that is a " +
+      "complete answer.",
+    parts: [
+      {
+        partKey: "known",
+        rationale:
+          "Whether you know how you will fund your studies. No is an answer, and I record it " +
+          "rather than guessing a source for you.",
+        expectedShape: "yes or no",
+        parse: yesNo,
+      },
+      {
+        partKey: "source",
+        rationale:
+          "Who is paying. Please choose one of: self or family, employer, sponsor, scholarship, " +
+          "loan, other.",
+        expectedShape: "one of: self or family, employer, sponsor, scholarship, loan, other",
+        parse: oneOf(FUNDING_SOURCE_WORDS),
+        askWhen: (answered) => answered.get("known") === true,
+      },
+      {
+        partKey: "stage",
+        rationale:
+          "Where you are with it. Please choose one of: confirmed, applying for a project " +
+          "studentship, applied, applying, thinking about it.",
+        expectedShape: "one of: confirmed, applying for a project studentship, applied, applying, thinking about it",
+        parse: oneOf(FUNDING_STAGE_WORDS),
+        askWhen: (answered) => answered.get("known") === true,
+      },
+      {
+        partKey: "details",
+        rationale:
+          "The name of the sponsor, scholarship or employer, if there is one. Say none if there " +
+          "is nothing to add.",
+        expectedShape: "a name, or none",
+        parse: trimmed,
+        optional: true,
+        askWhen: (answered) => answered.get("known") === true,
+      },
+    ],
+    assemble: (answered) => {
+      const known = answered.get("known");
+      if (typeof known !== "boolean") return null;
+      if (!known) return { known: false };
+      const source = answered.get("source");
+      const stage = answered.get("stage");
+      if (typeof source !== "string" || typeof stage !== "string") return null;
+      const details = answered.get("details");
+      return {
+        known: true,
+        source: source as FundingSource,
+        stage: stage as FundingStage,
+        ...(typeof details === "string" ? { details } : {}),
+      };
+    },
   },
   "finance.available_funds": {
     rationale:

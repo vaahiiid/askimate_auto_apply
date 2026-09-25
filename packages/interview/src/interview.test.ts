@@ -638,8 +638,6 @@ describe("what the interview is not allowed to ask for", () => {
     "identity.country_of_birth",
     "identity.sex",
     "study.intended_start",
-    "finance.funding_source",
-    "finance.sponsor_name",
     "finance.available_funds",
     "residence.country",
     "residence.in_uk_now",
@@ -705,7 +703,7 @@ describe("what the interview is not allowed to ask for", () => {
     // now wrong — it stores `"Iran"` against an option map keyed `IR`. Their
     // contract is asserted above, in the P199 block; what remains here is the
     // fields that really are the student's own words.
-    for (const key of ["identity.sex", "study.intended_start", "finance.funding_source", "finance.sponsor_name"] as const) {
+    for (const key of ["identity.sex", "study.intended_start"] as const) {
       const spec = scalarSpec(key);
       expect(spec.parse("  Iran  "), key).toBe("Iran");
       expect(spec.parse("   "), key).toBeNull();
@@ -1233,5 +1231,45 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
       expect(action.say.toLowerCase()).toContain("job 1");
       expect(action.say.toLowerCase()).toContain("employer");
     }
+  });
+});
+
+describe("funding is the student's own statement (ADR-0143, P216)", () => {
+  it("takes NO as a complete answer, asks nothing more, and stores { known: false } — never a guessed source", async () => {
+    let state = start(["finance.funding"]);
+    const first = await nextAction(state, model);
+    expect(first.kind).toBe("ask");
+    if (first.kind === "ask") expect(first.partKey).toBe("known");
+    state = (await receiveAnswer(state, "finance.funding", "no", model)).state;
+    const next = await nextAction(state, model);
+    expect(next.kind, "nothing else is asked of a student who does not know").toBe("confirm");
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "finance.funding");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual({ known: false });
+  });
+
+  it("asks the source and the stage from closed lists, and the details as optional, of a student who knows", async () => {
+    let state = start(["finance.funding"]);
+    state = (await receiveAnswer(state, "finance.funding", "yes", model)).state;
+    const loose = await receiveAnswer(state, "finance.funding", "my uncle", model);
+    expect(loose.kind, "a source the question did not list is asked again").toBe("not_understood");
+    for (const [partKey, utterance] of [["source", "self or family"], ["stage", "thinking about it"], ["details", "none"]] as const) {
+      const action = await nextAction(state, model);
+      expect(action.kind).toBe("ask");
+      if (action.kind === "ask") expect(action.partKey).toBe(partKey);
+      state = (await receiveAnswer(state, "finance.funding", utterance, model)).state;
+    }
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "finance.funding");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    // "thinking about it" is reachable: the normal case, not an edge.
+    expect(unwrapConfirmed(held)).toEqual({ known: true, source: "self_or_family", stage: "considering" });
+  });
+
+  it("is financial evidence, so it still routes to the mandatory review (the gate is not weakened by the reshaping)", async () => {
+    const { FINANCIAL_FIELDS } = await import("@askimate/aas-profile");
+    expect(FINANCIAL_FIELDS).toContain("finance.funding");
+    expect(FINANCIAL_FIELDS).toContain("finance.available_funds");
   });
 });
