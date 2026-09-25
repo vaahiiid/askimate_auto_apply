@@ -1,0 +1,703 @@
+{
+  "blueprintId": "bp-sheffield-pgt-september-direct",
+  "version": "0.1.0",
+  "status": "draft",
+  "institutionName": "University of Sheffield",
+  "courseName": "MSc Management and International Business",
+  "intake": "2027-09",
+  "route": "direct_portal",
+  "authentication": {
+    "required": true,
+    "accountCreationRequired": true,
+    "notes": "No authentication signals were observed on the pages visited.\n\nReviewer's note from the run: Observed from a session a person signed in to by hand (attached inspection, P79). The registration and login pages themselves were not observed by this run, and the registration and login boxes are authored by a person from their captures."
+  },
+  "pages": [
+    {
+      "pageRef": "page1",
+      "title": "Postgraduate Online Application Form",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/studyprogrammetaught.do",
+      "sections": [
+        {
+          "sectionRef": "page1.form0",
+          "title": "Form 1",
+          "fields": [
+            {
+              "fieldRef": "query",
+              "label": "Search for",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Search for"
+                },
+                {
+                  "strategy": "name",
+                  "value": "query"
+                },
+                {
+                  "strategy": "id",
+                  "value": "searchterms"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "100",
+                  "source": "dom_attribute"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sectionRef": "page1.form1",
+          "title": "Form 2",
+          "fields": [
+            {
+              "fieldRef": "studyTerm",
+              "label": "How do you want to study?*",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "How do you want to study?*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "studyTerm"
+                },
+                {
+                  "strategy": "id",
+                  "value": "studyTerm"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "Full Time",
+                  "label": "Full Time"
+                },
+                {
+                  "value": "Part Time",
+                  "label": "Part Time"
+                },
+                {
+                  "value": "Part Time Distance Learning",
+                  "label": "Part Time Distance Learning"
+                }
+              ]
+            },
+            {
+              "fieldRef": "startYear",
+              "label": "Show courses starting between:*",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Show courses starting between:*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "startYear"
+                },
+                {
+                  "strategy": "id",
+                  "value": "startYear"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "2026",
+                  "label": "August 2026 to July 2027"
+                },
+                {
+                  "value": "2027",
+                  "label": "August 2027 to July 2028"
+                }
+              ]
+            },
+            {
+              "fieldRef": "courseSelection",
+              "label": "courseSelection",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "courseSelection"
+                },
+                {
+                  "strategy": "id",
+                  "value": "course"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "MGT:International Marketing and Management",
+                  "label": "International Marketing and Management"
+                },
+                {
+                  "value": "MGT:Management and International Business",
+                  "label": "Management and International Business"
+                }
+              ]
+            },
+            {
+              "fieldRef": "course-ts-control",
+              "label": "Please search for and select the course you wish to take:*",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Please search for and select the course you wish to take:*"
+                },
+                {
+                  "strategy": "id",
+                  "value": "course-ts-control"
+                },
+                {
+                  "strategy": "placeholder",
+                  "value": "Search for a course..."
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "qualification",
+              "label": "Qualification applied for:*",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Qualification applied for:*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "qualification"
+                },
+                {
+                  "strategy": "id",
+                  "value": "qualification"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "Select qualification...",
+                  "label": "Select qualification..."
+                },
+                {
+                  "value": "MSC, Master of Science",
+                  "label": "MSC, Master of Science"
+                }
+              ]
+            },
+            {
+              "fieldRef": "startDate",
+              "label": "What date do you want to start:*",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "What date do you want to start:*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "startDate"
+                },
+                {
+                  "strategy": "id",
+                  "value": "startDate"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": []
+            },
+            {
+              "fieldRef": "flexibleStartDateDay",
+              "label": "flexibleStartDateDay",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "flexibleStartDateDay"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "1",
+                  "label": "1"
+                },
+                {
+                  "value": "2",
+                  "label": "2"
+                },
+                {
+                  "value": "3",
+                  "label": "3"
+                },
+                {
+                  "value": "4",
+                  "label": "4"
+                },
+                {
+                  "value": "5",
+                  "label": "5"
+                },
+                {
+                  "value": "6",
+                  "label": "6"
+                },
+                {
+                  "value": "7",
+                  "label": "7"
+                },
+                {
+                  "value": "8",
+                  "label": "8"
+                },
+                {
+                  "value": "9",
+                  "label": "9"
+                },
+                {
+                  "value": "10",
+                  "label": "10"
+                },
+                {
+                  "value": "11",
+                  "label": "11"
+                },
+                {
+                  "value": "12",
+                  "label": "12"
+                },
+                {
+                  "value": "13",
+                  "label": "13"
+                },
+                {
+                  "value": "14",
+                  "label": "14"
+                },
+                {
+                  "value": "15",
+                  "label": "15"
+                },
+                {
+                  "value": "16",
+                  "label": "16"
+                },
+                {
+                  "value": "17",
+                  "label": "17"
+                },
+                {
+                  "value": "18",
+                  "label": "18"
+                },
+                {
+                  "value": "19",
+                  "label": "19"
+                },
+                {
+                  "value": "20",
+                  "label": "20"
+                },
+                {
+                  "value": "21",
+                  "label": "21"
+                },
+                {
+                  "value": "22",
+                  "label": "22"
+                },
+                {
+                  "value": "23",
+                  "label": "23"
+                },
+                {
+                  "value": "24",
+                  "label": "24"
+                },
+                {
+                  "value": "25",
+                  "label": "25"
+                },
+                {
+                  "value": "26",
+                  "label": "26"
+                },
+                {
+                  "value": "27",
+                  "label": "27"
+                },
+                {
+                  "value": "28",
+                  "label": "28"
+                },
+                {
+                  "value": "29",
+                  "label": "29"
+                },
+                {
+                  "value": "30",
+                  "label": "30"
+                },
+                {
+                  "value": "31",
+                  "label": "31"
+                }
+              ]
+            },
+            {
+              "fieldRef": "flexibleStartDateMonth",
+              "label": "flexibleStartDateMonth",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "flexibleStartDateMonth"
+                },
+                {
+                  "strategy": "id",
+                  "value": "flexibleStartDateMonth"
+                }
+              ],
+              "validations": [],
+              "options": []
+            },
+            {
+              "fieldRef": "fundingSourceKnown",
+              "label": "fundingSourceKnown",
+              "inputType": "radio",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "fundingSourceKnown"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "Yes",
+                  "label": "Yes"
+                },
+                {
+                  "value": "No",
+                  "label": "No"
+                }
+              ]
+            },
+            {
+              "fieldRef": "fundingSource",
+              "label": "Please select your likely funding source",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Please select your likely funding source"
+                },
+                {
+                  "strategy": "name",
+                  "value": "fundingSource"
+                },
+                {
+                  "strategy": "id",
+                  "value": "fundingSource"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "Select...",
+                  "label": "Select..."
+                },
+                {
+                  "value": "Employer",
+                  "label": "Employer"
+                },
+                {
+                  "value": "Scholarship or studentship (not listed below)",
+                  "label": "Scholarship or studentship (not listed below)"
+                },
+                {
+                  "value": "Self or Family",
+                  "label": "Self or Family"
+                },
+                {
+                  "value": "Sponsor",
+                  "label": "Sponsor"
+                },
+                {
+                  "value": "Other",
+                  "label": "Other"
+                },
+                {
+                  "value": "-----------",
+                  "label": "-----------"
+                },
+                {
+                  "value": "Allan and Nesta Ferguson Charitable Trust (Scholarship)",
+                  "label": "Allan and Nesta Ferguson Charitable Trust (Scholarship)"
+                },
+                {
+                  "value": "Asylum Seeker Scholarship",
+                  "label": "Asylum Seeker Scholarship"
+                },
+                {
+                  "value": "Aziz Foundation Scholarship",
+                  "label": "Aziz Foundation Scholarship"
+                },
+                {
+                  "value": "Chevening Scholarship",
+                  "label": "Chevening Scholarship"
+                },
+                {
+                  "value": "China Scholarship Council Scholarship",
+                  "label": "China Scholarship Council Scholarship"
+                },
+                {
+                  "value": "COLFUTURO Scholarship",
+                  "label": "COLFUTURO Scholarship"
+                },
+                {
+                  "value": "Commonwealth Scholarship",
+                  "label": "Commonwealth Scholarship"
+                },
+                {
+                  "value": "ELCAS",
+                  "label": "ELCAS"
+                },
+                {
+                  "value": "Fulbright Scholarship",
+                  "label": "Fulbright Scholarship"
+                },
+                {
+                  "value": "Gaza-Palestine Postgraduate Taught Scholarship",
+                  "label": "Gaza-Palestine Postgraduate Taught Scholarship"
+                },
+                {
+                  "value": "Guatefuturo Scholarship",
+                  "label": "Guatefuturo Scholarship"
+                },
+                {
+                  "value": "Islamic Development Bank Scholarship",
+                  "label": "Islamic Development Bank Scholarship"
+                },
+                {
+                  "value": "Jean Monnet Scholarship",
+                  "label": "Jean Monnet Scholarship"
+                },
+                {
+                  "value": "Leverhulme Scholarship",
+                  "label": "Leverhulme Scholarship"
+                },
+                {
+                  "value": "LIFE Lebanon Scholarship",
+                  "label": "LIFE Lebanon Scholarship"
+                },
+                {
+                  "value": "Marshall Scholarship",
+                  "label": "Marshall Scholarship"
+                },
+                {
+                  "value": "NCUK Merit Scholarship",
+                  "label": "NCUK Merit Scholarship"
+                },
+                {
+                  "value": "Pakistan HEC Scholarship",
+                  "label": "Pakistan HEC Scholarship"
+                },
+                {
+                  "value": "Postgraduate Government Loan",
+                  "label": "Postgraduate Government Loan"
+                },
+                {
+                  "value": "PRONABEC Scholarship",
+                  "label": "PRONABEC Scholarship"
+                },
+                {
+                  "value": "SECIHTI Mexican Scholarship",
+                  "label": "SECIHTI Mexican Scholarship"
+                },
+                {
+                  "value": "Turing Institute Scholarship",
+                  "label": "Turing Institute Scholarship"
+                },
+                {
+                  "value": "University of Sheffield International Merit Scholarship PGT",
+                  "label": "University of Sheffield International Merit Scholarship PGT"
+                },
+                {
+                  "value": "US Loan (Federal)",
+                  "label": "US Loan (Federal)"
+                },
+                {
+                  "value": "US Loan (Private)",
+                  "label": "US Loan (Private)"
+                }
+              ]
+            },
+            {
+              "fieldRef": "fundingDetails",
+              "label": "Please enter details of your funding source:",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Please enter details of your funding source:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "fundingDetails"
+                },
+                {
+                  "strategy": "id",
+                  "value": "fundingDetails"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "118",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "fundingStage",
+              "label": "What stage are you at with your funding?",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "What stage are you at with your funding?"
+                },
+                {
+                  "strategy": "name",
+                  "value": "fundingStage"
+                },
+                {
+                  "strategy": "id",
+                  "value": "fundingStage"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "Select...",
+                  "label": "Select..."
+                },
+                {
+                  "value": "The funding has been confirmed",
+                  "label": "The funding has been confirmed"
+                },
+                {
+                  "value": "I am applying for a project studentship",
+                  "label": "I am applying for a project studentship"
+                },
+                {
+                  "value": "I have applied for funding",
+                  "label": "I have applied for funding"
+                },
+                {
+                  "value": "I am applying for funding",
+                  "label": "I am applying for funding"
+                },
+                {
+                  "value": "I am thinking about funding my studies this way",
+                  "label": "I am thinking about funding my studies this way"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": [],
+      "advanceControl": {
+        "strategy": "label",
+        "value": "Save and Continue"
+      }
+    }
+  ],
+  "handoffPoints": [],
+  "provenance": {
+    "discoveryRunId": "attached-sheffield-pgt-september-direct-2026-09-25T18-06-27-456Z",
+    "discoveredAt": "2026-09-25T18:06:27.456Z",
+    "observedUrls": [
+      "https://www.sheffield.ac.uk/postgradapplication/studyprogrammetaught.do"
+    ],
+    "unobservedClaims": [
+      "STATED (https://sheffield.ac.uk/postgraduate/taught/apply/applying, retrieved 2026-09-10): the form is in two parts; Part 1 is personal information, English language ability, previous education and employment, with mandatory fields marked * that must all be completed before Part 2 opens",
+      "STATED (same source, 2026-09-10): Part 2 is course selection — up to three courses per application",
+      "STATED (same source, 2026-09-10): supporting documents — evidence of previous qualifications, a personal statement — are uploaded into the relevant sections of the form",
+      "STATED (same source, 2026-09-10): the application is submitted only when Submit Application is clicked, and incomplete sections are prompted back at that point",
+      "STATED (same source, 2026-09-10): no application fee for PGT master's",
+      "STATED (https://www.sheffield.ac.uk/postgradapplication, retrieved 2026-09-10): this is the entry point to the Postgraduate Online Application Form",
+      "STATED (Vahid, 2026-09-10): all PGT master's start in September; there is no January or February intake",
+      "TO OBSERVE: where the login boundary falls — which pages are reachable without an account, and on which host the form lives",
+      "ANSWERED (Vahid's direct statement, 2026-09-11): student_chosen — he typed the password he chose at registration; Sheffield did not email one. Not portal_issued, whatever the sibling /arpform/login.app form states",
+      "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
+      "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
+      "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
+      "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code? NONE OFFERED on the entry page (signed-out read, 2026-09-11): e-mail and password, and a reset page",
+      "AUTH 4 — Must the email be verified before the form is reachable? NO — observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I entered an email and a password on the New Applicants form, pressed Start Application, and went straight into the form. No email had to be opened, no link clicked.' Sheffield's behaviour, not a property of direct portals",
+      "AUTH 5 — Is MFA or a one-time code required, and where? NO — none on the pages read (2026-09-10, 2026-09-11), and observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.' This entry only",
+      "AUTH 6 — Is a CAPTCHA present, and where? NONE on the three entry pages or the eleven form pages read; caveat: tag manager was refused, so a tag-injected one could not have loaded; Vahid saw none with tags allowed",
+      "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
+      "AUTH 8 — Can control be handed back cleanly?"
+    ]
+  },
+  "observedSignals": [
+    {
+      "kind": "conditional_field",
+      "evidence": "course-ts-control carries a conditional attribute",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/studyprogrammetaught.do"
+    }
+  ]
+}
