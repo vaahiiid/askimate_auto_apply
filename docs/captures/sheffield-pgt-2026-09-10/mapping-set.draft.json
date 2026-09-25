@@ -63,7 +63,7 @@
     "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.36",
+  "version": "0.3.37",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.28",
@@ -3633,14 +3633,56 @@
         "fieldKey": "education.prior_qualifications",
         "format": {
           "kind": "part",
-          "path": "level",
+          "path": "awardTitle",
           "then": {
-            "kind": "not_derivable",
-            "reason": "BLOCKER 71 — do not add rows here. This box asks for the AWARD TITLE the student holds: BA, BEd, BEng, BSc, MSc, one of Sheffield's forty-two. The registry holds a qualification's LEVEL (\"Bachelor's degree\"), and a level does not determine a title: a BA and a BSc are both bachelor's degrees. Any mapping from what the registry holds is therefore a guess that renders, and until 2026-09-25 this field carried one — \"Bachelor's degree\" wrote BSc, so every student holding a BA was told by this system that they hold a BSc, on a university's record of what they studied. Nothing caught it: the plan had no blocker, the validator no violation, the preview built and the read-back passed, because the value landed. The fix is not a wider map. The fix is for the registry to hold the award title as its own field, stated by the student and distinct from level; then this box is the student's recognition of the portal's own list, not our derivation. Until that exists this field refuses, and refusing is correct."
+            "kind": "option",
+            "options": {
+              "BA": "BA",
+              "BEd": "BEd",
+              "BEng": "BEng",
+              "BMedSci": "BMedSci",
+              "BSc": "BSc",
+              "Certificate of Higher Ed": "CERT HE",
+              "DClinPsy": "DClinPsy",
+              "Diploma of Higher Ed": "DIP",
+              "DMedSci": "DMedSci",
+              "EdD": "EdD",
+              "LLB": "LLB",
+              "LLM": "LLM",
+              "MA": "MA",
+              "MD": "MD",
+              "MArch": "MArch",
+              "MB,ChB": "MB,ChB",
+              "MBA": "MBA",
+              "MBBS": "MBBS",
+              "MChem": "MChem",
+              "MClinDent": "MClinDent",
+              "MComp": "MCOMP",
+              "MEd": "MEd",
+              "MEng": "MEng",
+              "MMath": "MMath",
+              "MMedSci": "MMedSci",
+              "MMet": "MMet",
+              "MMus": "MMus",
+              "MPharm (UG)": "MPHARM(UG)",
+              "MPHIL": "MPHIL",
+              "MPHYS": "MPHYS",
+              "MSc": "MSc",
+              "MSc(Eng)": "MSc(Eng)",
+              "MSc(Res)": "MSc(Res)",
+              "MSci (UG)": "MSCI (UG)",
+              "NCUK Grad Dip": "NCUKPGD",
+              "NCUK PMP": "NCUKPMP",
+              "NCUK EAP": "NCUKEAP",
+              "PG Cert": "PG Cert",
+              "PG Diploma": "PG DIP",
+              "PGCE": "PGCE",
+              "PHD": "PHD"
+            }
           }
         }
       },
-      "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. REFUSES BY DESIGN (blocker 71, P209): the box wants an award title and the registry holds a level, so no mapping of what we hold can be right. It carried \"Bachelor's degree\" -> BSc until 2026-09-25, which told every BA student they hold a BSc. The rule's own reason says why and names the blocker; do not replace it with an option map. unlistedDegree is shown only when degree is 'Not in list' (value ''), which nothing here names, so it stays hidden and unmapped. Per qualification (ADR-0112)."
+      "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map."
     },
     {
       "fieldRef": "institutionCountry-ts-control",

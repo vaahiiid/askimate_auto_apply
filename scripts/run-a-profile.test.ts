@@ -79,104 +79,32 @@ describe("the synthetic profile for Run A (P150)", () => {
       entries: fixture().entries.map((e) => ({ ...e, provenance: { source: "seeded", confirmedAt: now }, revision: 1 })),
     });
     const plan = planFill(blueprint, check.mappingSet, profile);
-    // ── ONE blocker now, and it is the point (blocker 71, P209) ─────────
+    // ── NOTHING blocks on Part 1 again — and for the right reason this time ──
     //
-    // `degree` refuses BY DESIGN. The box wants an award title; the registry
-    // holds a level; no mapping of a level can be right. Until 2026-09-25 this
-    // field carried `Bachelor's degree → BSc`, which rendered — so this test
-    // asserted `[]` and was TRUE, and every BA student was being told they
-    // hold a BSc. The assertion was right about the code and the code was
-    // wrong about the world.
-    //
-    // Run A's own profile stops here too. That is not a regression: the system
-    // cannot tell which students it would get wrong, which is the finding.
-    expect(plan.blockers.map((blocker) => blocker.kind)).toEqual(["render_refused"]);
-    const refusedDegree = plan.blockers[0];
-    if (refusedDegree?.kind !== "render_refused") expect.unreachable("checked above");
-    expect(refusedDegree.fieldRef).toBe("degree");
-    expect(refusedDegree.refusal.kind, "not `no_matching_option` — no list would help").toBe(
-      "not_derivable",
-    );
-    // The words the next person meets, which are the whole reason this is a
-    // rule rather than an empty option map.
-    expect(refusedDegree.refusal.detail).toContain("BLOCKER 71 — do not add rows here");
-    expect(refusedDegree.refusal.detail).toContain("a level does not determine a title");
-    expect(refusedDegree.refusal.detail).toContain("the registry to hold the award title");
-    // ── The validator, which never ran on this entry until Run A stopped ──
-    //
-    // Found by Vahid at Run A's step 3, 2026-09-17: this test checked the
-    // plan's blockers and nothing more, so the run was the first thing to
-    // run `validatePlan` on the signed entry with this profile — and it
-    // answered eighteen violations, every one a starred box in the language
-    // section he had saved empty on the live portal (blocker 34, ADR-0123).
-    // The gap is worth its own line: the plan and the validator are two
-    // readings of one page, and only the run compared them.
+    // Until 2026-09-25 this asserted `[]` because `degree` carried
+    // `Bachelor's degree → BSc`, a level rendered as a title (blocker 71): the
+    // assertion was right about the code and the code was wrong about the
+    // world. P209 made it refuse; P213 (ADR-0142) put the award title in the
+    // registry as the student's own stated part, and the fixture states
+    // `BSc` — which is what Run A typed on his account and he checked on
+    // `summary.do`. So `[]` again, from a value the fixture states rather
+    // than one a map derived.
+    expect(plan.blockers).toEqual([]);
     const validation = validatePlan(blueprint, plan);
-    // The validator reads the same page independently and reaches the same
-    // stop from the portal's own required marker — a second refusal that does
-    // not depend on the mapping set being right about anything.
-    expect(validation.violations.map((v) => v.fieldRef)).toEqual(["degree"]);
+    expect(validation.violations).toEqual([]);
     expect(validation.unknownFields).toEqual([]);
     const typed = new Map(plan.instructions.map((i) => [`${i.fieldRef}${i.item === undefined ? "" : `#${String(i.item.index)}`}`, textOf(i.value)]));
     // The education chain, per P149; the UK-study qualification, per P150.
     expect(typed.get("institutionCountry-ts-control#0")).toBe("UNITED KINGDOM");
     expect(typed.get("institution-ts-control#0")).toBe("SHEFFIELD");
-    expect(typed.get("degree#0"), "refuses by design — nothing is typed here").toBeUndefined();
+    expect(typed.get("degree#0"), "the title the fixture STATES, not one derived from its level").toBe("BSc");
     expect(typed.get("subjectSearch#0")).toBe("business");
     expect(typed.get("subject#0")).toBe("Business Management");
     expect(typed.get("gradingSystemId#0")).toBe("7");
     expect(typed.get("grade#0")).toBe("2.1");
     expect(typed.get("qualificationLevel")).toBe("UNIVERSITY_LEVEL");
     expect(typed.get("highestQualification(UNIVERSITY_LEVEL)")).toBe("UG DEGREE");
-    expect(typed.get("previousStudentVisa")).toBe("yes");
-    expect(typed.get("passportNumber")).toBe("no passport");
-    expect(typed.get("livedOutsideCountry")).toBe("no");
-    expect(typed.get("corrCountry")).toBe("IRAN");
-    expect(typed.get("endMonth#0"), "a current job's end is empty").toBe("");
-    // Nothing is handed to the student but the six document slots.
-    expect(plan.handoffs.filter((h) => h.inputType !== "file")).toEqual([]);
-    // ── And the THIRD stop: the student is never shown a yes to give ────
-    //
-    // `buildPreview` refuses an incomplete plan, so the run cannot reach the
-    // authorisation at all. Three independent refusals — plan, validator,
-    // preview — three steps before anything could be sent.
-    const refusedPreview = buildPreview(blueprint, plan, new Map(), { portalHost: "www.sheffield.ac.uk" });
-    expect(refusedPreview.built).toBe(false);
-    if (refusedPreview.built) expect.unreachable("expected the incomplete plan to be refused");
-    expect(refusedPreview.refusal.kind).toBe("plan_incomplete");
-
-    // The rest of this test is what the preview WOULD say once blocker 71 is
-    // closed, so the page's other twelve properties stay held rather than
-    // going dark behind one refusing field. Measured against a plan built with
-    // `degree` removed from the blueprint — never with a value put back into
-    // it, which would be re-creating the bug to make a test pass.
-    const withoutDegree = {
-      ...blueprint,
-      pages: blueprint.pages.map((page) => ({
-        ...page,
-        sections: page.sections.map((section) => ({
-          ...section,
-          // `unlistedDegree` goes with it: it is shown or hidden BY `degree`,
-          // and a condition naming a field the page does not have is itself
-          // refused (ADR-0119). Removing the pair is what "this page without
-          // the refusing box" means.
-          fields: section.fields.filter(
-            (field) => field.fieldRef !== "degree" && field.fieldRef !== "unlistedDegree",
-          ),
-        })),
-      })),
-    };
-    // The mapping goes with the field: `checkUsable` refuses a set that names
-    // a field the blueprint does not have, and rightly.
-    const openSet = {
-      ...asIfReviewed,
-      mappings: asIfReviewed.mappings.filter((mapping) => mapping.fieldRef !== "degree"),
-    };
-    const openCheck = checkUsable(openSet, withoutDegree);
-    if (!openCheck.usable) expect.unreachable(openCheck.refusal.detail);
-    const openPlan = planFill(withoutDegree, openCheck.mappingSet, profile);
-    expect(openPlan.blockers, "nothing else on this page blocks").toEqual([]);
-    const preview = buildPreview(withoutDegree, openPlan, new Map(), { portalHost: "www.sheffield.ac.uk" });
+    const preview = buildPreview(blueprint, plan, new Map(), { portalHost: "www.sheffield.ac.uk" });
     if (!preview.built) expect.unreachable(preview.refusal.kind);
     const text = renderPreview(preview.preview);
     expect(text).toContain("University of Sheffield");
@@ -389,7 +317,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     }
   });
 
-  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — a SEVENTH time, for blocker 71's stop (2026-09-25, commit 36c4145): the directory loads and admits exactly that account", async () => {
+  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — a SEVENTH time (36c4145) — and the entry has moved again for item 3, so the directory REFUSES it until the one signature at item 6", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Five signatures now, each superseding the last:
     //
@@ -439,37 +367,42 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    // ── SIGNED A SEVENTH TIME, 2026-09-25, commit 36c4145 ───────────────
+    // ── THE INTERVAL AGAIN (P213, item 3 of the list): the award title ───
+    //
     //   sha256:baca64a9…  16 September, the entry as first reviewed
     //   sha256:21060fca…  21 September 08:00, the consent notice (ADR-0131)
     //   sha256:3238406a…  21 September 12:00, six save locators by name
     //   sha256:56388e65…  22 September, the education months (ADR-0136)
     //   sha256:e2a10113…  22 September, ADR-0138 and ADR-0139 together
-    //   sha256:f13dff6d…  25 September, the country maps (f67ec69)
-    //   sha256:be3b0ae0…  25 September, THIS one — `degree` refuses by design
+    //   sha256:f13dff6d…  25 September, the country maps (signed, f67ec69)
+    //   sha256:be3b0ae0…  25 September, `degree` refuses by design (signed, 36c4145)
+    //   sha256:55759f10…  25 September, THIS one — `degree` is the student's
+    //                     own stated title (ADR-0142), mapping set 0.3.37
     //
-    // What the seventh covers: the `degree` mapping's option map became a
-    // `not_derivable` rule carrying its own reason, and the mapping set went
-    // 0.3.35 → 0.3.36. Nothing else in the entry moved since `f13dff6d`. His
-    // note on the approval says what he signed and why: *"Signed to STOP the
-    // run, not to enable it … I am signing a system that does less and lies
-    // less."* He computed the hash himself before writing it.
-    //
-    // The interval between the two signatures — the directory refusing to
-    // load `be3b0ae0` until he signed it — was asserted here while it lasted
-    // (P209), as every interval has been. This is the assertion after it.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd");
+    // The `degree` mapping reads `awardTitle` — the part the registry now
+    // holds, stated by the student and distinct from `level` — onto the
+    // select's own forty-one titles. Unsigned, on Vahid's instruction: *"If a
+    // phase needs my signature, batch it — I would rather sign once at the end
+    // of a working path than seven times along it."* So the directory REFUSES
+    // to load until item 6, and this test asserts the refusal, as it has in
+    // every interval. What it protects: the content it refuses to load is
+    // content that types a value the student stated; the gate does not care
+    // which direction a change goes.
+    expect(labelledHash(toCanonical(value))).toBe("sha256:55759f1002d73d2ad87830e4a36cc4f09446697a4970a0ece52f1259d82517e4");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    if (!load.ok) expect.unreachable(load.problems.map((problem) => problem.detail).join("; "));
-    expect(load.catalogue.size).toBe(1);
-    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
-    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
-    // ONE approval on file: the voided one is gone, not merely outvoted.
+    expect(load.ok, "REFUSED until he signs, at item 6 — ADR-0057 working").toBe(false);
+    if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
+    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
+      "No approval exists for sha256:55759f10",
+    );
+    // The superseded approval is still the only one on file, and it now
+    // approves content that no longer exists. It goes out in the SAME commit
+    // as the new one comes in — never left beside it.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as {
       contentHash: string;
     }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
-    expect(approvals[0]?.contentHash).toBe(
+    expect(approvals[0]?.contentHash, "still the degree-stop one, now void").toBe(
       "sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd",
     );
     // The four spellings of Iran, from the entry itself: unchanged by this
@@ -520,27 +453,19 @@ describe("the catalogue entry for Run A (P152)", () => {
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
-    // ── EXIT 1, and the file says why (blocker 71, P209) ────────────────
+    // ── A FILLED PAGE AGAIN, from a value the fixture states (P213) ─────
     //
-    // `degree` refuses by design, so the plan is incomplete and no preview is
-    // built. The command says so and exits non-zero, and the committed file is
-    // that output — because what this file is named for, *what will be typed*,
-    // is now honestly **nothing**: the run stops three steps earlier.
-    //
-    // Keeping a stale page of values here would be the most direct possible
-    // version of the defect this repository keeps finding — a record that says
-    // what was intended rather than what happens. The page-by-page read as it
-    // stood is in git history, and what Run A actually typed is recorded in
-    // `what-run-a-proved.md`.
-    expect(code, "the plan is incomplete, and the command does not pretend otherwise").toBe(1);
+    // From P209 to P213 this file was the refusal and the command exited 1:
+    // `degree` could not be written honestly from a level. The registry now
+    // holds the award title as the student's own part (ADR-0142), the fixture
+    // states `BSc`, and what will be typed is a page of values again — with
+    // that box carrying what was stated, not what a map derived.
+    expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.36, reviewed by Vahid Mohammadi.");
-    expect(output).toContain("The plan has 1 blocker(s)");
-    expect(output).toContain("render_refused: degree");
-    // And it does NOT read as a filled page: nothing that would let someone
-    // skim this and believe the application is ready.
-    expect(output).not.toContain("Please select the qualification you studied:");
-    expect(output).not.toContain("exactly what will be submitted");
+    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.37, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("Qualification:: BSc");
+    expect(output).not.toContain("render_refused");
+    expect(output).not.toContain("blocker(s)");
   });
 });
 
@@ -631,10 +556,9 @@ describe("a country in the absent column, on the current build (P204)", () => {
     const { blueprint } = signed();
     const state = stateFor("IR");
     const plan = planFill(blueprint, (checkUsable(state.inputs.mappingSet, blueprint) as { mappingSet: Parameters<typeof planFill>[1] }).mappingSet, state.profile);
-    // No COUNTRY blocker. `degree` blocks on every plan now, by design.
-    expect(plan.blockers.flatMap((b) => (b.kind === "render_refused" ? [b.fieldRef] : []))).toEqual([
-      "degree",
-    ]);
+    // No COUNTRY blocker — and no other: `degree` is typed from the stated
+    // title since P213.
+    expect(plan.blockers.flatMap((b) => (b.kind === "render_refused" ? [b.fieldRef] : []))).toEqual([]);
   });
 
   for (const [code, country] of [["CW", "Curaçao"], ["AQ", "Antarctica"], ["BQ", "Caribbean Netherlands"]] as const) {
@@ -646,8 +570,8 @@ describe("a country in the absent column, on the current build (P204)", () => {
       const plan = planFill(blueprint, usableSet.mappingSet, state.profile);
 
       // ── The plan refuses ────────────────────────────────────────────────
-      // `degree` refuses on every plan now, by design (blocker 71), so this
-      // names the residence blocker rather than counting them.
+      // Named rather than counted, so a second refusal on the page can never
+      // pass as this one.
       const refused = plan.blockers.find(
         (blocker) => blocker.kind === "render_refused" && blocker.fieldRef === "permanentResidence",
       );

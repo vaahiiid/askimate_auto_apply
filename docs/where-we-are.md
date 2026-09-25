@@ -4906,6 +4906,48 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P213 — item 3: the award title is the student's stated field
+
+> *"The award title as its own field, stated by the student, distinct from level."*
+
+## What was built
+
+ADR-0142, from his words on raising blocker 71. `Qualification.awardTitle` in the registry: the
+title as printed on the certificate, stated by the student, optional because a school certificate
+carries none. The interview's qualification walk asks it as its own part, after the level — *"BSc,
+BA, BEng, MSc — or none"* — and stores nothing when none is said. The Sheffield `degree` map reads
+that part and nothing else: `part awardTitle → option` over the select's own forty-one titles.
+
+## The nine
+
+The select's labels and values are not the same string for nine titles — *PG Diploma* submits
+`PG DIP`, *MComp* submits `MCOMP`, *NCUK Grad Dip* submits `NCUKPGD`. So the map is keyed on the
+label a student would read off the form and mapped to the value the form expects. The first draft
+of the mapping's note said "four"; the assertion that labels equal values failed on the entry
+itself, the nine were counted, and the note says nine. A wrong count in a note is a wrong label.
+
+## Measured
+
+Six tests went red first — the interview walk, the drafts' education chain, Run A's profile —
+each asserting the stated title typed where the refusal stood. Green after: `Qualification:: BSc`
+in the page-by-page read, exit 0, no other box changed; a title the list does not carry refuses
+and is asked about; a diploma with no title refuses with `no_such_part`.
+
+## The interval, by his rule
+
+Entry `sha256:55759f10…`, mapping set 0.3.37. Unsigned: *"batch it — I would rather sign once at
+the end of a working path than seven times along it."* The directory refuses to load until item 6
+and the test asserts the refusal, as it has in every interval. The stale approval for `be3b0ae0`
+stays on file until his signature replaces it in the same commit.
+
+## The estimate
+
+Six hours. By the clock, 13:42 to 13:49 UTC, about 6 minutes.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P212 — item 2: the interview asks what the plan blocks on
 
 > *"Item 2 is the same shape as the silent seven and belongs in that count."*

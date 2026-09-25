@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.209.0] — 2026-09-25
+
+**P213 — item 3 closed: the award title is the student's stated field (ADR-0142), and `degree` is typed from it.**
+
+- **Added** `Qualification.awardTitle` to the registry — the title as printed on the certificate,
+  stated by the student, distinct from `level`, optional because a school certificate carries
+  none. The interview's qualification walk asks for it as its own part, after the level; *none*
+  stores nothing.
+- **Rekeyed** the Sheffield `degree` mapping: `part awardTitle → option` over the select's own
+  forty-one titles, keyed on the label the form prints and mapped to the value it submits (nine
+  differ). A title the list does not carry refuses and is asked about; a qualification with no
+  title refuses with `no_such_part`; the escape is never chosen by the map. Mapping set 0.3.36 →
+  0.3.37, entry **`sha256:55759f1002d73d2ad87830e4a36cc4f09446697a4970a0ece52f1259d82517e4`**,
+  **unsigned until item 6** — the directory refuses to load and the test asserts the refusal.
+- **Stated** `BSc` in the synthetic profile — what Run A typed on his account and he checked —
+  so the page-by-page read is a page of values again (exit 0, `Qualification:: BSc`), and every
+  test that asserted the refusal by design now asserts the stated title typed and no other box
+  changed.
+- **Estimate:** 6 h; by the clock 13:42 to 13:49 UTC, about 6 minutes.
+
+---
+
 ## [0.208.0] — 2026-09-25
 
 **P212 — item 2 closed: the interview asks what the plan blocks on, and never sits "complete" while blocked (blocker 72).**

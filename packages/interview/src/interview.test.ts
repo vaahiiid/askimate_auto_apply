@@ -1101,6 +1101,7 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     expect(loose.kind).toBe("not_understood");
     state = await walk(state, "education.prior_qualifications", [
       ["item0.level", "Master's degree"],
+      ["item0.awardTitle", "MSc"],
       ["item0.subject", "Industrial Engineering"],
       ["item0.institution", "Sharif University of Technology"],
       ["item0.countryCode", "IR"],
@@ -1118,6 +1119,7 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     expect(unwrapConfirmed(held)).toEqual([
       {
         level: "Master's degree",
+        awardTitle: "MSc",
         subject: "Industrial Engineering",
         institution: "Sharif University of Technology",
         countryCode: "IR",
@@ -1134,6 +1136,7 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     state = await walk(state, "education.prior_qualifications", [
       ["any", "yes"],
       ["item0.level", "Bachelor's degree"],
+      ["item0.awardTitle", "BSc"],
       ["item0.subject", "Business Management"],
       ["item0.institution", "University of Sheffield"],
       ["item0.countryCode", "United Kingdom"],
@@ -1152,6 +1155,36 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     expect(only?.award).toEqual({ year: 2022, month: 7 });
     expect(only?.end).toEqual({ kind: "completed", date: { year: 2022, month: 6 } });
     expect(only?.countryCode).toBe("GB");
+    expect(only?.awardTitle, "the title as the student stated it, distinct from the level").toBe("BSc");
+  });
+
+  it("asks for the AWARD TITLE as its own part, stated by the student and never derived from the level (blocker 71, ADR-0142, P213)", async () => {
+    // Blocker 71: the degree map read a level and wrote a title, so every BA
+    // student was told to Sheffield as a BSc. The title is the student's own
+    // statement now — and a qualification that carries none (a school
+    // certificate) is stored without one, never with one invented.
+    let state = start(["education.prior_qualifications"]);
+    state = await walk(state, "education.prior_qualifications", [
+      ["any", "yes"],
+      ["item0.level", "High school diploma"],
+      ["item0.awardTitle", "none"],
+      ["item0.subject", "General"],
+      ["item0.institution", "Example High School"],
+      ["item0.countryCode", "IR"],
+      ["item0.start", "2004-09"],
+      ["item0.endKind", "completed"],
+      ["item0.endDate", "2008-06"],
+      ["item0.award", "none"],
+      ["item0.grade", "18"],
+      ["item0.gradeScale", "20-point"],
+      ["item0.another", "no"],
+    ]);
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "education.prior_qualifications");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    const [only] = unwrapConfirmed(held);
+    expect(only?.level).toBe("High school diploma");
+    expect("awardTitle" in (only ?? {}), "no title stated, no title stored").toBe(false);
   });
 
   it("refuses a part it cannot read and asks the SAME part again, counting the attempt under the item's key", async () => {

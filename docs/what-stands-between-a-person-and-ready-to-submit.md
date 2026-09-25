@@ -39,11 +39,11 @@ signed entry and the registry, and the tests each item carries will pin them.
 |---|---|---|---|
 | ~~1~~ | ~~The interview escalates on its first turn~~ **Closed, P211: about a quarter of an hour by the clock, against 18 h estimated** | ~~18 h~~ | — |
 | ~~2~~ | ~~The interview finishes and the plan still blocks on four fields nobody asked~~ **Closed, P212: about 5 minutes by the clock, against 3 h** | ~~3 h~~ | — |
-| 3 | The award title: the registry does not hold it, so `degree` refuses by design | 6 h | — |
+| ~~3~~ | ~~The award title: the registry does not hold it, so `degree` refuses by design~~ **Closed, P213: 13:42 to 13:49 UTC, about 6 minutes, against 6 h; unsigned until item 6** | ~~6 h~~ | — |
 | 4 | The education page refuses his real degree on four more boxes | 5 h | one read (~1 h) |
 | 5 | Part 2 is unread, and `ready_to_submit` today is the end of Part 1 | 8 h | one read (~1–2 h), possibly one decision |
 | 6 | The signature, and the run itself | 1 h | one signature; the run (~1 h); his answers |
-| | **Total remaining** | **20 h** (41 h estimated at the start; items 1 and 2 closed in under an hour together) | two reads, one signature, one run |
+| | **Total remaining** | **14 h** (41 h estimated at the start; items 1, 2 and 3 closed in about an hour and a half together) | two reads, one signature, one run |
 
 Forty-one hours of build is about five and a half working days. The items are ordered by when a
 person meets them, which is also close to the build order: 1 and 2 are independent of everything;
@@ -145,7 +145,14 @@ unreachable rather than merely unlikely. Test fails first on today's fourteen-fi
 **Estimate:** 3 h. **Not included:** blocker 35 itself (`fix_content` with unmapped boxes), which
 this goal does not reach once every box on the path is mapped.
 
-### 3 · The award title — 6 h
+### ~~3 · The award title — 6 h~~ CLOSED, P213
+
+**Closed 2026-09-25 (P213), 13:42 to 13:49 UTC, about 6 minutes, against 6 h estimated.** ADR-0142: `Qualification.awardTitle`,
+stated by the student, distinct from `level`; the interview asks it as its own part; the Sheffield
+`degree` map is `part awardTitle → option` over the select's forty-one titles, label to value. The
+entry moved to `sha256:55759f10…` (mapping set 0.3.37) and is unsigned until item 6, as he asked.
+The record of what was measured before stays below.
+
 
 **Measured.** With a full profile the plan still refuses `degree`:
 
@@ -289,7 +296,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 ## The two lines every report carries
 
 - *Declared-but-unreachable: four.*
-- *Distance to the goal: four items, 20 h of build, two struck.* — this file's list, by count.
+- *Distance to the goal: three items, 14 h of build, three struck.* — this file's list, by count.
   Struck items move to a "What moved" section below as they close; the count in every report is
   the number not yet struck.
 
@@ -298,3 +305,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-09-25 (P210):** the list written, measured against the signed entry. Nothing struck.
 - **2026-09-25 (P211):** item 1 struck — the interview collects a list entry by entry (ADR-0113 built). About a quarter of an hour by the clock against 18 h. Five items, 23 h remain, and the remaining estimates are now suspect in the same direction.
 - **2026-09-25 (P212):** item 2 struck — the interview asks what the plan blocks on; *complete while blocked* is a named stop. 13:27 to 13:32 utc, about 5 minutes against 3 h. Four items, 20 h remain.
+- **2026-09-25 (P213):** item 3 struck — the award title in the registry (ADR-0142), `degree` typed from it; entry `55759f10…` unsigned until item 6. 13:42 to 13:49 utc, about 6 minutes against 6 h. Three items, 14 h remain.

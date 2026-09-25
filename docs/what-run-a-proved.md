@@ -161,7 +161,7 @@ Stated in the same place, and with the same weight.
 
 ### The education page, stated plainly (added 2026-09-25, P208, at Vahid's instruction)
 
-**Run A filled the education page. The education page is not mapped.** Those are different
+**Run A filled the education page. The education page is not mapped. *(P213: the `degree` box is now mapped from the title the student states — ADR-0142 — and the other four rows below still hold one synthetic value each; item 4 of the list.)*** Those are different
 sentences and until now this file carried only the first.
 
 Six option maps fill that page, and between them they name **ten values**:

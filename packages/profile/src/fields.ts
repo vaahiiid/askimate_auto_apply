@@ -50,6 +50,18 @@ export interface YearMonth {
 export interface Qualification {
   /** e.g. `Bachelor's degree`, `High school diploma`. */
   readonly level: string;
+  /**
+   * The title as awarded, e.g. `BSc`, `BA`, `BEng`, `MSc` — STATED BY THE
+   * STUDENT, and distinct from `level` (ADR-0142, closing blocker 71).
+   *
+   * A level does not determine a title: a BA and a BSc are both bachelor's
+   * degrees, and a map from the level wrote `BSc` for every one of them
+   * until 2026-09-25. A portal that asks for the title reads this part and
+   * nothing else; absent, the box refuses rather than guesses. Optional
+   * because a qualification may carry no title at all — a school
+   * certificate — and an absent title claims nothing.
+   */
+  readonly awardTitle?: string;
   readonly subject: string;
   readonly institution: string;
   readonly countryCode: string;

@@ -1308,6 +1308,17 @@ export const FIELD_SPECS: Partial<{
           parse: oneOf(QUALIFICATION_LEVELS),
         },
         {
+          partKey: "awardTitle",
+          rationale:
+            "The title as printed on your certificate — BSc, BA, BEng, MSc, and so on. The form " +
+            "asks for this separately from the kind of qualification, and I never work one out " +
+            "from the other. Say none if the certificate carries no title, as a school " +
+            "certificate often does not.",
+          expectedShape: "the award title as printed, e.g. BSc, or none",
+          parse: trimmed,
+          optional: true,
+        },
+        {
           partKey: "subject",
           rationale: "The subject, as your certificate names it.",
           expectedShape: "a subject",
@@ -1394,8 +1405,10 @@ export const FIELD_SPECS: Partial<{
           return null;
         }
         const award = answered.get("award");
+        const awardTitle = answered.get("awardTitle");
         return {
           level,
+          ...(typeof awardTitle === "string" ? { awardTitle } : {}),
           subject,
           institution,
           countryCode,

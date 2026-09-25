@@ -204,10 +204,10 @@ describe("the Sheffield drafts, under the real checks", () => {
     // typeahead text as the reviewer recorded it (ADR-0109).
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.detail);
-    const sheffield = (over: Partial<{ level: string; subject: string; institution: string; countryCode: string; grade: string }>) => withConfirmed([
+    const sheffield = (over: Partial<{ level: string; awardTitle: string; subject: string; institution: string; countryCode: string; grade: string }>) => withConfirmed([
       ...PROFILE_ENTRIES,
       ["education.prior_qualifications", [
-        { level: "Bachelor's degree", subject: "Business Management", institution: "University of Sheffield", countryCode: "GB",
+        { level: "Bachelor's degree", awardTitle: "BSc", subject: "Business Management", institution: "University of Sheffield", countryCode: "GB",
           start: { year: 2019, month: 9 }, end: { kind: "completed", date: { year: 2022, month: 6 } }, award: { year: 2022, month: 7 },
           grade: "2:1", gradeScale: "uk_honours", ...over },
       ]],
@@ -233,22 +233,24 @@ describe("the Sheffield drafts, under the real checks", () => {
     // title and the registry holds a level, so nothing is typed here and the
     // page cannot be completed. It read "BSc" until then — which is the bug,
     // not the baseline.
-    expect(valueOf("degree")).toBeUndefined();
-    const refusedDegree = plan.blockers.find((b) => b.fieldRef === "degree");
-    expect(refusedDegree?.kind).toBe("render_refused");
+    // The award title, as the student STATED it (ADR-0142, P213) — never read
+    // off the level. Until 2026-09-25 this box was written from
+    // `Bachelor's degree` (blocker 71); from P209 it refused; now it is the
+    // student's recognition of the portal's own list.
+    expect(valueOf("degree")).toBe("BSc");
+    expect(plan.blockers.find((b) => b.fieldRef === "degree")).toBeUndefined();
     // The hidden selects are neither typed nor blocking: the boxes set them.
     for (const ref of ["institutionCountry", "institutionCode"]) {
       expect(plan.instructions.some((i) => i.fieldRef === ref), ref).toBe(false);
       expect(plan.blockers.some((b) => b.fieldRef === ref), ref).toBe(false);
     }
     const onPage7 = new Set(blueprint.pages.find((p) => p.pageRef === "page7")?.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)) ?? []);
-    // `degree` is the ONE box on this page that blocks, and by design (blocker
-    // 71). Everything else plans cleanly for this profile — `institution` and
+    // Nothing on this page blocks for this profile — `institution` and
     // `subject` included, because the synthetic student's values are the one
-    // row each of those maps holds.
+    // row each of those maps holds, and `degree` because the title is stated.
     expect(
       [...new Set(plan.blockers.filter((b) => onPage7.has(b.fieldRef)).map((b) => b.fieldRef))].sort(),
-    ).toEqual(["degree"]);
+    ).toEqual([]);
     expect(plan.unmapped.map((u) => u.fieldRef)).not.toContain("institutionCountry");
     expect(plan.unmapped.map((u) => u.fieldRef)).not.toContain("institutionCode");
     // What the maps do not name is a loud blocker on that box, never an
@@ -257,25 +259,25 @@ describe("the Sheffield drafts, under the real checks", () => {
     // grade on a Sheffield entry, a subject the one search did not list.
     const refusedOn = (profile: ReturnType<typeof sheffield>) =>
       planFill(blueprint, check.mappingSet, profile).blockers.filter((b) => b.kind === "render_refused").map((b) => b.fieldRef).sort();
-    // `degree` is in EVERY row below, and that is the point of blocker 71: it
-    // refuses for every student, not only the ones a thin map misses. These
-    // four rows are still what they were — each names the box that its own
-    // change makes unmappable — with the one that refuses unconditionally
-    // alongside.
-    expect(refusedOn(sheffield({ institution: "Sharif University of Technology", countryCode: "IR" }))).toEqual(["degree", "institution-ts-control"]);
-    expect(refusedOn(sheffield({ level: "Master's degree" }))).toEqual(["degree", "gradingSystemId"]);
-    expect(refusedOn(sheffield({ grade: "17.2" }))).toEqual(["degree", "grade"]);
-    expect(refusedOn(sheffield({ subject: "Industrial Engineering" }))).toEqual(["degree", "subject", "subjectSearch"]);
+    // Each row names the box that its own change makes unmappable, and
+    // nothing else. `degree` left these rows in P213: with the title stated,
+    // it is a map like the others — and a title the portal's list does not
+    // carry refuses like the others (below).
+    expect(refusedOn(sheffield({ institution: "Sharif University of Technology", countryCode: "IR" }))).toEqual(["institution-ts-control"]);
+    expect(refusedOn(sheffield({ level: "Master's degree" }))).toEqual(["gradingSystemId"]);
+    expect(refusedOn(sheffield({ grade: "17.2" }))).toEqual(["grade"]);
+    expect(refusedOn(sheffield({ subject: "Industrial Engineering" }))).toEqual(["subject", "subjectSearch"]);
+    expect(refusedOn(sheffield({ awardTitle: "Bachelor of Science" })), "a title spelt as the portal does not list it is asked about, not matched").toEqual(["degree"]);
   });
 
   it("fill a qualification's dates once per item — the expected end of one still running, the award boxes empty when there is none (P134, ADR-0112)", () => {
     const withTwo = withConfirmed([
       ...PROFILE_ENTRIES,
       ["education.prior_qualifications", [
-        { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR",
+        { level: "Bachelor's degree", awardTitle: "BSc", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR",
           start: { year: 2018, month: 9 }, end: { kind: "completed", date: { year: 2022, month: 6 } }, award: { year: 2022, month: 11 },
           grade: "17.2", gradeScale: "iran_20_point" },
-        { level: "Master's degree", subject: "Management", institution: "Sharif University of Technology", countryCode: "IR",
+        { level: "Master's degree", awardTitle: "MSc", subject: "Management", institution: "Sharif University of Technology", countryCode: "IR",
           start: { year: 2024, month: 9 }, end: { kind: "expected", date: { year: 2026, month: 6 } },
           grade: "Still waiting for grade", gradeScale: "iran_20_point" },
       ]],
@@ -289,23 +291,18 @@ describe("the Sheffield drafts, under the real checks", () => {
     // P185: "Sep" and "Jun" until attempt 8 met the portal's refusal — this select's
     // own names are Sept and June, as the 2026-09-10 capture recorded (ADR-0136).
     expect(typed(0)).toEqual({ startDateMonth: "Sept", startDateYear: "2018", endDateMonth: "June", endDateYear: "2022", awardDateMonth: "Nov", awardDateYear: "2022" });
-    // P148 (ADR-0119) asserted the degree was typed per qualification, from the
-    // profile's LEVEL onto Sheffield's own award title. That mapping was the
-    // defect (blocker 71): a level does not determine a title. It refuses per
-    // item now, and refusing per item is the property worth holding — the
-    // repeat machinery still reaches every entry, it just has nothing honest
-    // to write in this box for any of them.
+    // The degree is typed per qualification from the title the student STATED
+    // (ADR-0142, P213) — never from the level, which was blocker 71: a level
+    // does not determine a title. The repeat machinery reaches both entries.
     const degrees = plan.instructions.filter((i) => i.fieldRef === "degree").map((i) => [i.item?.index, textOf(i.value)]);
-    expect(degrees).toEqual([]);
-    // Two blockers, one per qualification — the repeat machinery reaches both
-    // entries. They carry no item index, which is how `render_refused` is
-    // built today; the count is what this asserts, and it is enough to show
-    // the refusal is per item rather than once for the page.
-    expect(plan.blockers.filter((b) => b.fieldRef === "degree")).toHaveLength(2);
+    expect(degrees).toEqual([[0, "BSc"], [1, "MSc"]]);
+    expect(plan.blockers.filter((b) => b.fieldRef === "degree")).toHaveLength(0);
     expect(plan.instructions.some((i) => i.fieldRef === "unlistedDegree")).toBe(false);
     expect(plan.hidden.filter((h) => h.fieldRef === "unlistedDegree").map((h) => h.item?.index)).toEqual([0, 1]);
     expect(plan.handoffs.some((h) => h.fieldRef === "degree")).toBe(false);
-    // A level the map does not name is a loud blocker, never an approximation.
+    // A qualification with NO title stated — a diploma — is a loud blocker on
+    // this box, never an approximation: the part is absent and the rule has no
+    // `absent` arm, so it refuses with `no_such_part` rather than choosing.
     const diploma = withConfirmed([
       ...PROFILE_ENTRIES,
       ["education.prior_qualifications", [
@@ -417,7 +414,7 @@ describe("the Sheffield drafts, under the real checks", () => {
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.28");
-    expect(mappingSet.version).toBe("0.3.36");
+    expect(mappingSet.version).toBe("0.3.37");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
