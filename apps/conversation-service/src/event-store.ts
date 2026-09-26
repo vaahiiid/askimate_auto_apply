@@ -287,7 +287,7 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         createdAt,
         fieldKey: row["field_key"] as string,
         // Absent before 0026, and absent reads as the first asking (ADR-0145).
-        ...(attempt === null || attempt === undefined ? {} : { attempt: Number(attempt) }),
+        ...(attempt === null ? {} : { attempt: Number(attempt) }),
       };
     }
     case "value_rejected":
