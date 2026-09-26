@@ -73,7 +73,7 @@ the stack restarted with P221's page.
 9. **The fill.** Pages 3 to 12 in the entry's order, one page per unit of work, in the session the
    creation left open. Each page is saved; nothing is submitted. `ready_to_submit` is the end of
    Part 2 (P217).
-10. **The record.** Rows for anything found that does not block the goal; the phase closes with what
+10. **The record.** CI's conclusion on the pushed commit, read from GitHub, goes in every report from here (row 91). Rows for anything found that does not block the goal; the phase closes with what
     the clock said.
 
 ## What is unmeasured until the run, and named as such
