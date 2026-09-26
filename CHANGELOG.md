@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.218.0] — 2026-09-26
+
+**P222 — the item-6 signature is on file; the interval test asserts the load again.**
+
+- Vahid signed `sha256:7b46e6fe…` on 2026-09-25 (commit 4e05911, *"Item 6: signed for a fresh
+  student, account creation included"*), admitting the fresh student `5774ff16-…` and nobody
+  else; the `be3b0ae0…` approval went out in the same commit. That commit moved `main` under
+  P221's push and was not in the last census.
+- **Flipped** `scripts/run-a-profile.test.ts` from asserting the refusal to asserting the load
+  and the admission: one target, `one_account_only`, that student, signed by him. Red on his
+  commit as it stood, green flipped.
+
+---
+
 ## [0.217.0] — 2026-09-25
 
 **P221 — the item-6 run stopped on its first question: the page lost the "Yes, that's right" button to an older read landing last; and two sentences said what had not happened.**

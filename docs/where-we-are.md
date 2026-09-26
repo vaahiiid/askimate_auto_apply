@@ -4906,6 +4906,13 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P222 — the signature was already on file
+
+He signed `7b46e6fe…` on the evening of the 25th, for the fresh student, in his own commit. It
+reached main beneath P221's push and after its census, so the interval test that pinned the
+refusal sat red overnight, and I reported the file as unsigned twice from memory. The test now
+asserts the load and the one account the signature admits. The record is the record.
+
 # P221 — the run's first question, and the button that was not there
 
 > *"So the page asks a yes/no question with nothing to answer it, and a typed yes is read as a

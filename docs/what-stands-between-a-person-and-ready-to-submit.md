@@ -326,8 +326,8 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - ~~**Two reads on his account, read-only**~~ — both made (items 4 and 5, 2026-09-25).
 - **A dedicated e-mail address**, made by him, for the account the run creates (ADR-0144). He
   registers nothing by hand.
-- **A fresh `students` row's id** in `approvals.json`, and **one signature** at the end, covering
-  everything in one hash.
+- ~~**A fresh `students` row's id** in `approvals.json`, and **one signature** at the end~~ — given
+  2026-09-25 (4e05911): `7b46e6fe…`, admitting `5774ff16-…` only.
 - **His answers** in the chat, **his consent choice** when the run asks it, **his password** in the
   secure box, and about an hour for the run. The sequence is `docs/run-a/item-6-runbook.md`.
 
@@ -351,3 +351,4 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-09-25 (P218):** item 6, build half — the education and funding maps as the whole lists read (a `switch` rule for two-part keys; rows 78 closed, 85 widened). Entry `7b46e6fe…`, unsigned. Left for the run: the clean account, its id, one signature, his answers.
 - **2026-09-25 (P219):** item 6, build done — the account is the run's to create (ADR-0144, amending 0110 §2 for this run); the creation meets the consent notice before it types, proven fail-first on the fixture; the ledger keeps the last completion's code (migration 0008). Rows 88, 89. Entry `7b46e6fe…`, unchanged, unsigned. 19:27 to 20:13 utc, about 46 minutes, inside item 6's hour. Left: his acts, in the runbook.
 - **2026-09-25 (P221):** the run started and stopped on its first question — the page lost the confirmation button to an older read landing last (reproduced fail-first, fixed); two sentences corrected. Row 90. The run continues from the same conversation.
+- **2026-09-26 (P222):** his signature over `7b46e6fe…` was on file since the evening of the 25th (4e05911); the interval test flipped to assert the load and the one account it admits.

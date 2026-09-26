@@ -416,30 +416,37 @@ describe("the catalogue entry for Run A (P152)", () => {
     //
     // The `degree` mapping reads `awardTitle` — the part the registry now
     // holds, stated by the student and distinct from `level` — onto the
-    // select's own forty-one titles. Unsigned, on Vahid's instruction: *"If a
-    // phase needs my signature, batch it — I would rather sign once at the end
-    // of a working path than seven times along it."* So the directory REFUSES
-    // to load until item 6, and this test asserts the refusal, as it has in
-    // every interval. What it protects: the content it refuses to load is
-    // content that types a value the student stated; the gate does not care
-    // which direction a change goes.
+    // select's own forty-one titles. SIGNED by Vahid on 2026-09-25 (commit
+    // 4e05911, *"Item 6: signed for a fresh student, account creation
+    // included"*), after six unsigned moves batched at his instruction: *"If
+    // a phase needs my signature, batch it — I would rather sign once at the
+    // end of a working path than seven times along it."* So the directory
+    // loads again, and this test asserts the load and the admission, as it
+    // did in every signed interval before (P222). What it protects: the
+    // content that loads is content that types values the student stated,
+    // and the one account it is served to is the one his signature names.
     expect(labelledHash(toCanonical(value))).toBe("sha256:7b46e6fe2216fe4fb75116d6bc6083205650679e71655be1f38d18e02fde7a73");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    expect(load.ok, "REFUSED until he signs, at item 6 — ADR-0057 working").toBe(false);
-    if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
-    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:7b46e6fe",
-    );
-    // The superseded approval is still the only one on file, and it now
-    // approves content that no longer exists. It goes out in the SAME commit
-    // as the new one comes in — never left beside it.
+    expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
+    if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
+    // ADR-0118, still true: one signature, one account. The fresh student of
+    // the item-6 run, and nobody else — Niloofar's `af398e01-…` is not
+    // admitted by this approval, and her case is not touched by this run.
+    expect(load.catalogue.targets()).toHaveLength(1);
+    expect(load.catalogue.targets()[0]?.admits).toEqual({
+      kind: "one_account_only",
+      studentId: "5774ff16-ff9c-424a-882f-42d0f304968b",
+      signedBy: "Vahid Mohammadi",
+    });
+    // The superseded approval went out in the SAME commit as this one came
+    // in — never left beside it.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as {
       contentHash: string;
+      ownAccountOnly?: { studentId: string };
     }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
-    expect(approvals[0]?.contentHash, "still the degree-stop one, now void").toBe(
-      "sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd",
-    );
+    expect(approvals[0]?.contentHash).toBe("sha256:7b46e6fe2216fe4fb75116d6bc6083205650679e71655be1f38d18e02fde7a73");
+    expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
     // The four spellings of Iran, from the entry itself: unchanged by this
     // edit, and the reason the countries' signature was spent.
     const iranIn = (fieldRef: string): string => {

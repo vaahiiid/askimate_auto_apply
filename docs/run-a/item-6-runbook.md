@@ -10,6 +10,12 @@ actually did goes in `what-run-a-proved.md`, not here.
 
 ## Before the run — his acts, once
 
+**Done on 2026-09-25:** steps 1, 3 and 4 below. The fresh student is `5774ff16-…`; the signature
+over `sha256:7b46e6fe…` names it (commit 4e05911); the stack was started on the registry and the
+run began in conversation `01M3D473G7EWJDKZ50BTSVEDW7`. What remains is the run, from step 5, on
+the stack restarted with P221's page.
+
+
 1. **A dedicated e-mail address**, made by him, for this account only. Nothing here reads that
    mailbox (ADR-0020 §5). He tells the chat the address when the interview asks for `contact.email`.
 2. **The local stack on the catalogue** — the conversation service, the run driver, the runner and
