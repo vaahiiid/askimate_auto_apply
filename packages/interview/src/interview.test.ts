@@ -99,6 +99,63 @@ describe("one question at a time", () => {
     }
   });
 
+  it("reads a date with a short month name, and a numeric date with only one reading (P223)", async () => {
+    // Vahid typed "11 Aug 1989" on his own run and was refused for an
+    // abbreviation. "25/08/1989" has one reading: the first number cannot
+    // be a month.
+    const short = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "11 Aug 1989", model);
+    expect(short.kind).toBe("understood");
+    if (short.kind === "understood") {
+      const proposed = short.state.pending?.proposed as { value: Date } | undefined;
+      expect(proposed?.value.toISOString()).toBe("1989-08-11T00:00:00.000Z");
+    }
+    const dayFirst = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "25/08/1989", model);
+    expect(dayFirst.kind).toBe("understood");
+    if (dayFirst.kind === "understood") {
+      const proposed = dayFirst.state.pending?.proposed as { value: Date } | undefined;
+      expect(proposed?.value.toISOString()).toBe("1989-08-25T00:00:00.000Z");
+    }
+    // A day the calendar does not have is refused either way round.
+    const impossible = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "30/02/1989", model);
+    expect(impossible.kind).toBe("not_understood");
+  });
+
+  it("refuses a date that reads two ways, says so in the next question, and never repeats the question verbatim (P223)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, on "11/08/1989" answered with the same question, twice: *"A
+    // person here has no idea whether they typed it wrong, whether the
+    // system is broken, or what shape it wants — and there is nothing on the
+    // screen to tell them."* And: *"Do not tell me the format to type."*
+    // ═══════════════════════════════════════════════════════════════════
+    const first = await nextAction(start(["identity.date_of_birth"]), model);
+    const answered = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "11/08/1989", model);
+    expect(answered.kind).toBe("not_understood");
+    if (answered.kind !== "not_understood") return;
+    expect(answered.reason).toBe(
+      '"11/08/1989" could be 11 August 1989 or 8 November 1989, and I do not guess which.',
+    );
+    expect(answered.state.attempts.get("identity.date_of_birth"), "the attempt counts").toBe(1);
+    const again = await nextAction(answered.state, model);
+    expect(again.kind).toBe("ask");
+    if (first.kind === "ask" && again.kind === "ask") {
+      expect(again.say.startsWith('"11/08/1989" could be 11 August 1989 or 8 November 1989')).toBe(true);
+      expect(again.say).not.toBe(first.say);
+      expect(again.say).not.toContain("didn't quite catch");
+      expect(again.say).toContain("What's your date of birth?");
+    }
+    // A two-digit year, and a reading that could not be read at all, each say what happened.
+    const century = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "11/08/89", model);
+    if (century.kind === "not_understood") expect(century.reason).toContain("two-digit year");
+    const nonsense = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "soon", model);
+    if (nonsense.kind === "not_understood") {
+      expect(nonsense.reason).toBe('I could not read a date of birth, e.g. 1999-04-02 or 2 April 1999 from "soon".');
+    }
+    // A reading that IS understood clears the record of the unread one.
+    const then = await receiveAnswer(answered.state, "identity.date_of_birth", "11 August 1989", model);
+    expect(then.kind).toBe("understood");
+    if (then.kind === "understood") expect(then.state.unread).toBeUndefined();
+  });
+
   it("rephrases on a second attempt rather than repeating verbatim", async () => {
     const first = await nextAction(start(), model);
     const afterFailure = await receiveAnswer(start(), "identity.given_name", "12345", model);
@@ -108,7 +165,10 @@ describe("one question at a time", () => {
     expect(second.kind).toBe("ask");
     if (first.kind === "ask" && second.kind === "ask") {
       expect(second.say).not.toBe(first.say);
-      expect(second.say).toContain("didn't quite catch");
+      // P223: the second question opens with what happened to the answer,
+      // never with "I didn't quite catch that" — it was caught, and refused.
+      expect(second.say.startsWith('I could not read a person\'s first name from "12345".')).toBe(true);
+      expect(second.say).not.toContain("didn't quite catch");
     }
   });
 });

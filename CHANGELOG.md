@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.219.0] — 2026-09-26
+
+**P223 — the date of birth stopped the item-6 run: two dates refused, and the question repeated verbatim with the reason thrown away.**
+
+- **Fixed** the date reader: a short month name reads (`11 Aug 1989`); a numeric date with only one
+  calendar reading reads (`25/08/1989`); a two-way one (`11/08/1989`) is refused with a sentence
+  that says both readings and that nothing is guessed; a two-digit year and an impossible day
+  each say what they are. A day the calendar lacks no longer rolls over into the next month.
+- **Fixed** the silence: an unreadable answer's reason now opens the next question, in the
+  student's terms, never as a shape to type (`ScalarFieldSpec.explainRefusal`, the interview's
+  `unread`, `QuestionRequest.previousAnswerUnread`, worded for the deterministic client and the
+  Bedrock prompt); a decline keeps the model's own words.
+- **Fixed** the loop: the driver composes the re-ask from the state the answer produced, so the
+  attempt counts, and `attemptsFrom` reads a re-ask off the log (a second `value_asked` for a
+  field with no reading between). Three failed attempts of either kind stop for a person; before,
+  an unreadable answer counted for nothing and the question could repeat for ever — a limitation
+  the code had "stated rather than hidden", and Vahid met.
+- Tests: the reader's four shapes, the wording, and the driver's real message path from the
+  two-way date to the stop; the driver test made to fail first.
+
+---
+
 ## [0.218.0] — 2026-09-26
 
 **P222 — the item-6 signature is on file; the interval test asserts the load again.**

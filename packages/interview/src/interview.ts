@@ -154,6 +154,15 @@ export interface InterviewState {
    * that". Derived from the log by the driver; absent in a fresh interview.
    */
   readonly rejected?: ReadonlySet<ProfileFieldKey>;
+  /**
+   * The answer just given that could not be read, and why, in the student's
+   * terms (P223). Set by `receiveAnswer` for the request it happens in and
+   * cleared by the next reading; the question composed next opens with it.
+   * Vahid, on a date-of-birth question that repeated verbatim twice: *"A
+   * person here has no idea whether they typed it wrong, whether the system
+   * is broken, or what shape it wants."*
+   */
+  readonly unread?: { readonly fieldKey: ProfileFieldKey; readonly reason: string };
 }
 
 /**
@@ -455,6 +464,7 @@ export async function nextAction(
       conversationContext: state.transcript.slice(-6),
       previousAttempts: state.attempts.get(questionKey(fieldKey, partKey)) ?? 0,
       ...(state.rejected?.has(fieldKey) === true ? { previousReadingRejected: true } : {}),
+      ...(state.unread?.fieldKey === fieldKey ? { previousAnswerUnread: state.unread.reason } : {}),
     });
 
     return { kind: "ask", say, fieldKey, ...(partKey === undefined ? {} : { partKey }) };
@@ -546,12 +556,27 @@ export async function receiveAnswer(
 
     // The attempt still counts. Otherwise a student who keeps answering
     // unusably would be asked forever, and the escalation would never fire.
-    return isNotUnderstood(read)
-      ? { kind: "not_understood", state: { ...state, transcript, attempts }, reason: read.reason }
-      : {
-          kind: "understood",
-          state: { ...state, transcript, attempts, pending: { fieldKey, proposed: read } },
-        };
+    if (isNotUnderstood(read)) {
+      // What the student reads next: the spec's own account of why THIS
+      // utterance was refused where it has one, else what could not be read
+      // from what they wrote. Never a shape to type instead (P223).
+      // A decline ("I don't know") is not a parse failure: the model's own
+      // reason stands, and its clarification is what the student reads.
+      const opening =
+        read.clarification !== undefined
+          ? `${read.clarification}`
+          : (spec.explainRefusal?.(utterance) ?? `I could not read ${spec.expectedShape} from "${utterance}".`);
+      return {
+        kind: "not_understood",
+        state: { ...state, transcript, attempts, unread: { fieldKey, reason: opening } },
+        reason: read.clarification !== undefined ? read.reason : opening,
+      };
+    }
+    const { unread: _cleared, ...rest } = state;
+    return {
+      kind: "understood",
+      state: { ...rest, transcript, attempts, pending: { fieldKey, proposed: read } },
+    };
   }
 
   // ── A field answered part by part ──────────────────────────────────────

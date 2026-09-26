@@ -35,6 +35,12 @@ export class DeterministicModelClient implements ModelClient {
     // as a correction and could not be read as one. Said as what happened —
     // "I didn't catch that" would be untrue, and a student told so retypes
     // the same value.
+    // P223: what happened to what they typed, first; then the question.
+    if (request.previousAnswerUnread !== undefined) {
+      return Promise.resolve(
+        modelText(`${request.previousAnswerUnread} ${request.rationale} What's your ${label}?`),
+      );
+    }
     if (request.previousReadingRejected === true) {
       return Promise.resolve(
         modelText(

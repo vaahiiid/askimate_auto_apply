@@ -39,6 +39,13 @@ export interface ScalarFieldSpec<T> {
   /** Describes the shape wanted, for the model to target. */
   readonly expectedShape: string;
   readonly parse: (raw: string) => T | null;
+  /**
+   * Why `parse` refused THIS utterance, in the student's own terms, when the
+   * spec can say — a date that reads two ways, a year with two digits. `null`
+   * where it cannot. P223: the sentence the student reads next names what
+   * happened to what they typed, never a shape to type instead.
+   */
+  readonly explainRefusal?: (raw: string) => string | null;
 }
 
 /**
@@ -192,31 +199,100 @@ const name = (raw: string): string | null => {
  * student meant. Date of birth drives minor detection (ADR-0011), so a wrong
  * reading here has legal consequences. Ambiguity resolves to "ask again".
  */
+const FULL_MONTHS = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+] as const;
+
+/** A month by its full name or its usual short form (`aug`, `sept`); -1 otherwise. */
+const monthIndexOf = (name: string): number => {
+  const lower = name.toLowerCase();
+  const full = FULL_MONTHS.indexOf(lower as (typeof FULL_MONTHS)[number]);
+  if (full !== -1) return full;
+  if (lower === "sept") return 8;
+  if (lower.length === 3) return FULL_MONTHS.findIndex((month) => month.startsWith(lower));
+  return -1;
+};
+
+/** A calendar date at UTC midnight, or `null` for a day the calendar does not have. */
+const calendarDate = (year: number, monthIndex: number, day: number): Date | null => {
+  const parsed = new Date(Date.UTC(year, monthIndex, day));
+  if (Number.isNaN(parsed.getTime())) return null;
+  // `new Date(Date.UTC(1989, 1, 30))` is March 2nd: JavaScript rolls over
+  // rather than refusing, so the parts are read back and compared.
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === monthIndex && parsed.getUTCDate() === day
+    ? parsed
+    : null;
+};
+
+/** `11/08/1989`, `11.8.1989`, `11-08-1989`: two numbers and a year, in some order. */
+const NUMERIC_DATE = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/;
+
 const isoDate = (raw: string): Date | null => {
   const value = raw.trim();
 
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (iso !== null) {
-    const parsed = new Date(`${value}T00:00:00Z`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    return calendarDate(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
   }
 
-  // "2 April 1999" / "2nd April 1999" — unambiguous because the month is named.
-  const written = /^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})$/.exec(value);
+  // "2 April 1999" / "2nd April 1999" / "11 Aug 1989" — unambiguous because
+  // the month is named. P223: the short form reads too; Vahid typed "11 Aug
+  // 1989" and was refused for an abbreviation.
+  const written = /^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+),?\s+(\d{4})$/.exec(value);
   if (written !== null) {
     const [, day, monthName, year] = written;
-    const months = [
-      "january", "february", "march", "april", "may", "june",
-      "july", "august", "september", "october", "november", "december",
-    ];
-    const monthIndex = months.indexOf((monthName ?? "").toLowerCase());
+    const monthIndex = monthIndexOf(monthName ?? "");
     if (monthIndex === -1) return null;
-    const parsed = new Date(
-      Date.UTC(Number(year), monthIndex, Number(day)),
-    );
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    return calendarDate(Number(year), monthIndex, Number(day));
   }
 
+  // "25/08/1989": two numbers and a four-digit year. Read ONLY when exactly
+  // one order is a date — a first number above 12 can only be the day. When
+  // both orders are dates (`11/08/1989`) nothing is guessed; `explainDateRefusal`
+  // says why, and the student is asked, not silently re-asked.
+  const numeric = NUMERIC_DATE.exec(value);
+  if (numeric !== null) {
+    const [, first, second, year] = numeric;
+    if ((year ?? "").length !== 4) return null;
+    const dayFirst = calendarDate(Number(year), Number(second) - 1, Number(first));
+    const monthFirst = calendarDate(Number(year), Number(first) - 1, Number(second));
+    if (dayFirst !== null && monthFirst === null) return dayFirst;
+    if (monthFirst !== null && dayFirst === null) return monthFirst;
+    return null;
+  }
+
+  return null;
+};
+
+/**
+ * Why a date could not be read, for the student (P223). Vahid: *"11/08/1989
+ * is ambiguous between the UK and US readings and I would expect a refusal
+ * or a question, not silence."* This is the question's first sentence.
+ */
+export const explainDateRefusal = (raw: string): string | null => {
+  const value = raw.trim();
+  const numeric = NUMERIC_DATE.exec(value);
+  if (numeric === null) return null;
+  const [, first, second, year] = numeric;
+  if ((year ?? "").length !== 4) {
+    return `"${value}" has a two-digit year, and I do not guess which century it is in.`;
+  }
+  const dayFirst = calendarDate(Number(year), Number(second) - 1, Number(first));
+  const monthFirst = calendarDate(Number(year), Number(first) - 1, Number(second));
+  if (dayFirst !== null && monthFirst !== null) {
+    const name = (index: number): string => {
+      const month = FULL_MONTHS[index] ?? "";
+      return `${month.charAt(0).toUpperCase()}${month.slice(1)}`;
+    };
+    return (
+      `"${value}" could be ${Number(first)} ${name(Number(second) - 1)} ${year ?? ""} or ` +
+      `${Number(second)} ${name(Number(first) - 1)} ${year ?? ""}, and I do not guess which.`
+    );
+  }
+  if (dayFirst === null && monthFirst === null) {
+    return `"${value}" is not a day the calendar has, read either way round.`;
+  }
   return null;
 };
 
@@ -586,6 +662,7 @@ export const FIELD_SPECS: Partial<{
     rationale: "The university needs your date of birth to confirm your identity.",
     expectedShape: "a date of birth, e.g. 1999-04-02 or 2 April 1999",
     parse: isoDate,
+    explainRefusal: explainDateRefusal,
   },
   // ── P199, blocker 64: the three country fields read through the table ────
   //

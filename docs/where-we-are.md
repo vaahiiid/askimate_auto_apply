@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P223 — the date that was refused twice, and the question that said nothing
+
+> *"Two formats, no playback, no error, no hint. The question just repeats verbatim."*
+
+Two defects, kept apart as he asked. The reader accepted two shapes and refused `11 Aug 1989` for
+an abbreviation; it refused `11/08/1989` on purpose, because it reads two ways and the date of
+birth decides whether a student is a minor, and that refusal stands — with its reason now said.
+The silence was the worse one: the reader's reason was dropped, the re-ask was composed from the
+step computed before the answer, and the attempt count that step held did not count an unreadable
+answer — a limitation the code stated in a comment and nobody had met until a person typed a
+date. So the first question came back verbatim, for ever. The re-ask now opens with what happened
+to what they typed, the attempt counts from the log's own re-ask, and the third failed attempt
+stops for a person.
+
 # P222 — the signature was already on file
 
 He signed `7b46e6fe…` on the evening of the 25th, for the fresh student, in his own commit. It

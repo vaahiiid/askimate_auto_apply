@@ -66,6 +66,14 @@ export interface QuestionRequest {
    * catch that" retypes the same value, and Vahid did, twice.
    */
   readonly previousReadingRejected?: boolean;
+  /**
+   * The answer just given could not be read, and this is why, in the
+   * student's terms (P223) — e.g. *"11/08/1989" could be 11 August 1989 or 8
+   * November 1989, and I do not guess which.* The question that follows opens
+   * with it: a question repeated verbatim tells a student nothing about what
+   * happened to what they typed.
+   */
+  readonly previousAnswerUnread?: string;
 }
 
 /** What the agent needs interpreted. */

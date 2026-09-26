@@ -5896,9 +5896,11 @@ describeIfDatabase("the interview loop, closed", () => {
     // true and was the defect: the re-ask the comment above described existed
     // only inside the orchestrator.
     //
-    // The honest limitation stands: an unreadable answer produces no
-    // proposal, so it does NOT count towards `MAX_ATTEMPTS_PER_FIELD`
-    // (ADR-0051 §2, ADR-0062).
+    // Since P223 the re-ask is on the log and COUNTS towards
+    // `MAX_ATTEMPTS_PER_FIELD` (`attemptsFrom` reads a second `value_asked`
+    // for a field with no reading between as a re-ask), and its words open
+    // with why the answer could not be read. The describe "an unreadable
+    // answer is answered" walks that.
     // ═══════════════════════════════════════════════════════════════════
     const before = await events();
     await say("I don't know");
@@ -6233,6 +6235,125 @@ const DOCUMENT_CATALOGUE: TestCatalogue = {
   ],
   find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? DOCUMENT_ENTRY : null),
 };
+
+describeIfDatabase("an unreadable answer is answered with why, counts, and stops at three (P223)", () => {
+  // ═══════════════════════════════════════════════════════════════════
+  // Vahid's item-6 run, 2026-09-26: date of birth typed as "11/08/1989" and
+  // "11 Aug 1989", and the question repeated verbatim both times — no
+  // playback, no error, no hint. From the code: the reader refused the
+  // first as two-way and the second for a short month; the driver re-asked
+  // from the step computed BEFORE the answer, so the attempt never counted
+  // and the reason was thrown away. *"Do not tell me the format to type. If
+  // the only way through is knowing the magic shape, that is the defect."*
+  //
+  // Driven through `say()`, the real message path. Five of six fields are
+  // confirmed and the date of birth is the one left, so the escalation is
+  // reachable in three exchanges.
+  // ═══════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPESC003";
+  let student = "";
+  let runId = "";
+
+  async function events(): Promise<{ kind: string; content: string | null; field: string | null }[]> {
+    const rows = await pool.query<{ kind: string; content: string | null; field: string | null }>(
+      `SELECT e.kind, b.content, e.field_key AS field
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function lastSaid(): Promise<string> {
+    const said = (await events()).filter((event) => event.kind === "message" && event.content !== null);
+    return said.at(-1)?.content ?? "";
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p223-dob', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
+      await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian", student);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(started.position.step).toBe("interview");
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("answers a two-way date with why it was not read, twice, and never repeats the question verbatim", async () => {
+    const first = await lastSaid();
+    expect(first).toContain("What's your date of birth?");
+    await say("11/08/1989");
+    const again = await lastSaid();
+    expect(again.startsWith('"11/08/1989" could be 11 August 1989 or 8 November 1989, and I do not guess which.')).toBe(true);
+    expect(again).not.toBe(first);
+    await say("8/11/1989");
+    const third = await lastSaid();
+    expect(third.startsWith('"8/11/1989" could be 8 November 1989 or 11 August 1989, and I do not guess which.')).toBe(true);
+    const log = await events();
+    expect(log.filter((event) => event.kind === "value_proposed"), "no reading was made").toHaveLength(0);
+    expect(log.filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth"), "asked, then asked again twice — the count the log carries").toHaveLength(3);
+  }, 300_000);
+
+  it("reads the same date written with a short month name, and plays it back", async () => {
+    await say("11 Aug 1989");
+    const log = await events();
+    const proposed = log.filter((event) => event.kind === "value_proposed");
+    expect(proposed, "one reading, put once").toHaveLength(1);
+    expect(proposed[0]?.field).toBe("identity.date_of_birth");
+    expect(await lastSaid()).toContain("Is that right?");
+  }, 300_000);
+
+  it("STOPS for a person at the third failed attempt — two unreadable answers and one rejected reading", async () => {
+    // Two re-asks are on the count already. A reading refused in words
+    // nobody can read as a date is the third, and the interview stops rather
+    // than asking a fourth time (`MAX_ATTEMPTS_PER_FIELD`).
+    await say("no, that is wrong");
+    expect((await events()).filter((event) => event.kind === "value_rejected")).toHaveLength(1);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const seen = await instance.driver.advance({ runId, conversationId: conversation });
+      expect(seen.ok ? seen.position.status : `refused:${seen.refusal.kind}`, "the run stops rather than asking a fourth time").toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+    const raised = await pool.query<{ reason: string; target: string }>(
+      `SELECT reason, checkpoint->>'target' AS target FROM interventions WHERE run_id = $1`,
+      [runId],
+    );
+    expect(raised.rowCount).toBe(1);
+    expect(raised.rows[0]?.reason).toBe("information_unobtainable");
+    expect(raised.rows[0]?.target).toBe("interview:identity.date_of_birth");
+  }, 300_000);
+});
 
 describeIfDatabase("the interview stops rather than stranding", () => {
   // ═══════════════════════════════════════════════════════════════════════

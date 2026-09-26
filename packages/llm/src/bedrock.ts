@@ -184,7 +184,13 @@ export class BedrockModelClient implements ModelClient {
 
   public async composeQuestion(request: QuestionRequest): Promise<ModelText> {
     const rephrase =
-      request.previousReadingRejected === true
+      request.previousAnswerUnread !== undefined
+        ? // P223: the student's last answer could not be read; say why, in
+          // these words, before asking again. Never tell them a shape to type.
+          `\n\nThe student's last answer could not be read, and the reason is: ${request.previousAnswerUnread} ` +
+          `Open with that, in those terms, so they know what happened to what they typed; then ask ` +
+          `again. Do not say you did not catch or understand them.`
+        : request.previousReadingRejected === true
         ? // P221: what happened is that their message was read as a correction
           // to a value already played back. Say that; never say nothing was caught.
           `\n\nThe student's last message was taken as a correction to a value you had already ` +

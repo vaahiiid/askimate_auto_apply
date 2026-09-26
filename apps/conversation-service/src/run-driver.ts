@@ -1464,18 +1464,19 @@ export function openQuestion(events: readonly ConversationEvent[]): { fieldKey: 
 }
 
 /**
- * How many times each field has been read and not accepted.
+ * How many times each field has been read and not accepted, or asked and
+ * not answered readably.
  *
- * ── What this counts, and what it does not ────────────────────────────────
+ * ── What this counts ──────────────────────────────────────────────────────
  *
- * A proposal that was superseded or rejected is a failed attempt. An answer
- * the model could not read AT ALL leaves no event, so it does not count —
- * which makes the escalation less eager than `MAX_ATTEMPTS_PER_FIELD` intends.
- *
- * Stated rather than hidden. Recording an unreadable answer would need a
- * fourth event kind whose only purpose is a counter, and the escalation now
- * fires on the case that matters — three readings a student kept saying no to
- * — where before it fired on nothing at all.
+ * A proposal that was superseded or rejected is a failed attempt. So, since
+ * P223, is a question asked AGAIN for a field with no reading in between: an
+ * answer nobody could read leaves no reading on the log, but it leaves the
+ * re-ask, and the re-ask is on the log (ADR-0062). Before P223 this counted
+ * readings only, said so, and the consequence was measured on Vahid's own
+ * run: a date of birth typed two ways, the question repeated verbatim twice,
+ * the escalation never nearer. Nothing new is written; the log already held
+ * the count.
  */
 function attemptsFrom(events: readonly ConversationEvent[]): ReadonlyMap<ProfileFieldKey, number> {
   const attempts = new Map<ProfileFieldKey, number>();
@@ -1484,20 +1485,32 @@ function attemptsFrom(events: readonly ConversationEvent[]): ReadonlyMap<Profile
     attempts.set(field, (attempts.get(field) ?? 0) + 1);
   };
   let outstanding: string | null = null;
+  /** Fields with a question asked and no reading since: a second ask is a re-ask. */
+  const asked = new Set<string>();
   for (const event of events) {
+    if (event.kind === "value_asked") {
+      if (asked.has(event.fieldKey)) bump(event.fieldKey);
+      asked.add(event.fieldKey);
+      continue;
+    }
     if (event.kind === "value_proposed") {
       // A second proposal for a field replaces the first: the first was read
       // and did not become a confirmed value.
       if (outstanding !== null) bump(outstanding);
       outstanding = event.fieldKey;
+      asked.delete(event.fieldKey);
       continue;
     }
     if (event.kind === "value_rejected") {
       bump(event.fieldKey);
       outstanding = null;
+      asked.delete(event.fieldKey);
       continue;
     }
-    if (event.kind === "value_confirmed") outstanding = null;
+    if (event.kind === "value_confirmed") {
+      outstanding = null;
+      asked.delete(event.fieldKey);
+    }
   }
   return attempts;
 }
@@ -4402,10 +4415,27 @@ export class RunDriver {
     );
     if (outcome.kind !== "understood") {
       // Not read at all. Nothing is written about the ANSWER, because nothing
-      // was understood — but the student is owed the question again, composed
-      // fresh with the attempt count `nextAction` can see. Their message closed
-      // the outstanding one (ADR-0062), so this asks rather than no-ops.
-      await this.#askTheStudent(input.conversationId, situated.step);
+      // was understood — but the student is owed the question again, and the
+      // question is owed the reason. Their message closed the outstanding one
+      // (ADR-0062), so this asks rather than no-ops.
+      //
+      // P223. Composed from the state the answer PRODUCED, not from the step
+      // this request was situated on: that step was computed before the
+      // answer, with the attempt count the log held then, and it carried no
+      // word of what could not be read. Composing from it repeated the first
+      // question verbatim, for ever — measured on Vahid's own run. From the
+      // answered state the attempt counts, the reason opens the question, and
+      // at the third unreadable answer the interview stops for a person rather
+      // than asking a fourth time.
+      const answered: RunState = { ...situated.state, interview: outcome.state };
+      const step = await nextStep(answered, this.#options.model);
+      const stopped = await this.#stopIfTheInterviewGaveUp(
+        { entry: situated.entry, record: situated.record, conversationId: input.conversationId, caseId: situated.record.caseId },
+        step,
+        now,
+      );
+      if (stopped) return;
+      await this.#askTheStudent(input.conversationId, step);
       return;
     }
     // A part of a composite, or the whole value. `#putToTheStudent` is a
