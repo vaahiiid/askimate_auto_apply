@@ -1438,3 +1438,103 @@ describe("funding is the student's own statement (ADR-0143, P216)", () => {
     expect(FINANCIAL_FIELDS).toContain("finance.available_funds");
   });
 });
+
+describe("every part is asked for by the name a person uses, never by its key (P228, row 92, ADR-0147 §5)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, on his own interview: *"'What's your home address — line1?',
+  // '— postalcode?', '— countrycode?' … Those are internal words on a
+  // student's screen by the same rule."* His rule: *"Every field a person is
+  // asked for needs the name a person uses — street, town, county, postcode,
+  // country — and the playback reads as those names."*
+  // ═══════════════════════════════════════════════════════════════════════
+  // A key a person cannot read: a capital in the middle, an underscore, a
+  // digit. "level", "subject" and "employer" are keys AND words, and stay.
+  const camelCase = /[a-z][A-Z]/;
+  const snakeCase = /[a-z]_[a-z]/;
+  const digits = /\d/;
+
+  it("names every part of every field with parts in a person's words, and never with its key", () => {
+    let parts = 0;
+    for (const key of PROFILE_FIELD_KEYS) {
+      const spec = FIELD_SPECS[key] as FieldSpec<unknown> | undefined;
+      if (spec === undefined) continue;
+      const list = isList(spec) ? spec.item.parts : isComposite(spec) ? spec.parts : [];
+      for (const part of list) {
+        parts += 1;
+        expect(part.label, `${key}.${part.partKey} has a name`).toBeTruthy();
+        expect(part.label, `${key}.${part.partKey} is words`).not.toMatch(camelCase);
+        expect(part.label, `${key}.${part.partKey} is words`).not.toMatch(snakeCase);
+        expect(part.label, `${key}.${part.partKey} is words`).not.toMatch(digits);
+      }
+    }
+    expect(parts, "the walk found the parts").toBeGreaterThan(40);
+  });
+
+  it("asks for the address by street, town, county, postcode and country, and the question carries no key", async () => {
+    let state = start(["contact.address"]);
+    const asked: string[] = [];
+    for (const utterance of ["12 Valiasr Street", "-", "Tehran", "-", "1966733411", "IR"]) {
+      const action = await nextAction(state, model);
+      expect(action.kind).toBe("ask");
+      if (action.kind !== "ask") return;
+      asked.push(action.say);
+      const outcome = await receiveAnswer(state, "contact.address", utterance, model);
+      expect(outcome.kind, utterance).toBe("understood");
+      state = outcome.state;
+    }
+    expect(asked.map((say) => say.slice(say.indexOf("What's your")))).toEqual([
+      "What's your home address — street?",
+      "What's your home address — second line of the address?",
+      "What's your home address — town?",
+      "What's your home address — county?",
+      "What's your home address — postcode?",
+      "What's your home address — country?",
+    ]);
+    // The keys that are not plain words — a digit, a capital in the middle —
+    // are the ones a person cannot read; "city" and "region" are words.
+    for (const say of asked) {
+      for (const key of ["line1", "line2", "postalCode", "countryCode"]) {
+        expect(say, `no "${key}" in "${say}"`).not.toContain(key);
+      }
+    }
+    // The playback of the whole value reads by the same names.
+    const playback = await nextAction(state, model);
+    expect(playback.kind).toBe("confirm");
+    if (playback.kind !== "confirm") return;
+    expect(playback.say).toContain("Street: 12 Valiasr Street");
+    expect(playback.say).toContain("Town: Tehran");
+    expect(playback.say).toContain("Postcode: 1966733411");
+    expect(playback.say).toContain("Country: Iran (IR)");
+    expect(playback.say).not.toMatch(/line1|postalCode|countryCode/);
+  });
+
+  it("names a list entry's part the same way — 'job 1 — employer', never a key", async () => {
+    let state = start(["employment.history"]);
+    const any = await receiveAnswer(state, "employment.history", "yes", model);
+    expect(any.kind).toBe("understood");
+    state = any.state;
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("ask");
+    if (action.kind === "ask") {
+      expect(action.say).toContain("job 1 — employer");
+      expect(action.say).not.toMatch(camelCase);
+    }
+  });
+
+  it("stops on an exhausted part by its name, not its key", async () => {
+    let state = start(["identity.passport"]);
+    const held = await receiveAnswer(state, "identity.passport", "yes I have one", model);
+    state = held.state;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const refused = await receiveAnswer(state, "identity.passport", "?", model);
+      expect(refused.kind).toBe("not_understood");
+      state = refused.state;
+    }
+    const stop = await nextAction(state, model);
+    expect(stop.kind).toBe("escalate");
+    if (stop.kind === "escalate") {
+      expect(stop.reason).toContain('Asked for "Passport — passport number"');
+      expect(stop.reason).not.toContain("— number");
+    }
+  });
+});

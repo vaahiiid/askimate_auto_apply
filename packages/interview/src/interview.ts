@@ -294,8 +294,8 @@ function readingsOfItem(readings: PartReadings, index: number): PartReadings {
   );
 }
 
-function yesNoPart(partKey: string, rationale: string): FieldPart<unknown> {
-  return { partKey, rationale, expectedShape: "yes or no", parse: yesNo };
+function yesNoPart(partKey: string, label: string, rationale: string): FieldPart<unknown> {
+  return { partKey, label, rationale, expectedShape: "yes or no", parse: yesNo };
 }
 
 /** The next question of a list's walk, or `undefined` once the list is complete. */
@@ -305,7 +305,8 @@ function nextListQuestion(
 ): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
   const values = valuesOf(readings);
   if (!readings.has(ANY)) {
-    return { part: yesNoPart(ANY, spec.anyRationale), suffix: `any ${spec.itemLabel} to list` };
+    const label = `any ${spec.itemLabel} to list`;
+    return { part: yesNoPart(ANY, label, spec.anyRationale), suffix: label };
   }
   if (values.get(ANY) !== true) return undefined;
   for (let index = 0; ; index++) {
@@ -313,12 +314,14 @@ function nextListQuestion(
     if (part !== undefined) {
       return {
         part: { ...part, partKey: itemKey(index, part.partKey) },
-        suffix: `${spec.itemLabel} ${String(index + 1)} — ${part.partKey}`,
+        // The part's NAME, never its key (P228, row 92): "job 1 — employer".
+        suffix: `${spec.itemLabel} ${String(index + 1)} — ${part.label}`,
       };
     }
     const another = itemKey(index, ANOTHER);
     if (!readings.has(another)) {
-      return { part: yesNoPart(another, spec.anotherRationale), suffix: `another ${spec.itemLabel}` };
+      const label = `another ${spec.itemLabel}`;
+      return { part: yesNoPart(another, label, spec.anotherRationale), suffix: label };
     }
     if (values.get(another) !== true) return undefined;
   }
@@ -348,7 +351,8 @@ function nextQuestionOf(
 ): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
   if (isList(spec)) return nextListQuestion(spec, readings);
   const part = nextPart(spec, readings);
-  return part === undefined ? undefined : { part, suffix: part.partKey };
+  // The part's NAME, never its key (P228, row 92): "Home address — street".
+  return part === undefined ? undefined : { part, suffix: part.label };
 }
 
 /** What a field is currently waiting to be asked. */
@@ -471,13 +475,13 @@ export async function nextAction(
     const attemptsSoFar = state.attempts.get(questionKey(first.fieldKey, partKeyOf(first.question))) ?? 0;
     if (attemptsSoFar >= MAX_ATTEMPTS_PER_FIELD) {
       const label = FIELD_LABELS[first.fieldKey];
-      const partKey = partKeyOf(first.question);
+      const asked = first.question.kind === "part" ? `${label} — ${first.question.suffix}` : label;
       return {
         kind: "escalate",
         fieldKey: first.fieldKey,
         attempts: attemptsSoFar,
         reason:
-          `Asked for "${partKey === undefined ? label : `${label} — ${partKey}`}" ` +
+          `Asked for "${asked}" ` +
           `${String(attemptsSoFar)} times without obtaining a usable answer. The interview ` +
           `stops here rather than skipping a required field: a specialist should look at this ` +
           `rather than the application proceeding without it.`,
@@ -758,9 +762,26 @@ function withPartRead(
       ...withoutParts(state, fieldKey),
       transcript,
       attempts,
-      pending: { fieldKey, proposed: wholeOf(whole, readings) },
+      pending: { fieldKey, proposed: wholeOf(spec, whole, readings) },
     },
   };
+}
+
+/** The name a part was asked for by — the same words the question carried. */
+function partName(spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>, partKey: string): string {
+  if (isList(spec)) {
+    if (partKey === ANY) return `any ${spec.itemLabel} to list`;
+    const item = /^item(\d+)\.(.+)$/.exec(partKey);
+    if (item !== null) {
+      const index = Number(item[1]) + 1;
+      const key = item[2] ?? "";
+      if (key === ANOTHER) return `another ${spec.itemLabel}`;
+      const named = spec.item.parts.find((part) => part.partKey === key)?.label ?? key;
+      return `${spec.itemLabel} ${String(index)} — ${named}`;
+    }
+    return partKey;
+  }
+  return spec.parts.find((part) => part.partKey === partKey)?.label ?? partKey;
 }
 
 /**
@@ -775,14 +796,22 @@ function withPartRead(
  * doubtful one — which is the direction that ends with a wrong passport number
  * nobody looked at.
  */
-function wholeOf(value: unknown, readings: PartReadings): ProposedValue<unknown> {
+function wholeOf(
+  spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>,
+  value: unknown,
+  readings: PartReadings,
+): ProposedValue<unknown> {
   const parts = [...readings].map(([partKey, reading]) => ({ partKey, ...unwrapProposed(reading) }));
   return proposeValue({
     value,
     origin: "conversation",
+    // Each part under the NAME it was asked for by, never its key (P228,
+    // row 92): "street: 12 Valiasr Street; town: Tehran", and for a list
+    // "period 1 — country: Iran". `item0.countryCode: Iran` was the shape
+    // Vahid read in his own "You said:" line.
     verbatim: parts
       .filter((part) => part.value !== OMITTED)
-      .map((part) => `${part.partKey}: ${part.verbatim}`)
+      .map((part) => `${partName(spec, part.partKey)}: ${part.verbatim}`)
       .join("; "),
     confidence: parts.reduce((lowest, part) => Math.min(lowest, part.confidence), 1),
   });

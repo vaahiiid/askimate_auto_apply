@@ -30,7 +30,7 @@ import type { ConfirmationProvenance, ConfirmedValue, ProposedValue } from "@ask
 import { unwrapProposed } from "@askimate/aas-domain";
 
 import type { ProfileFieldKey, ProfileFieldType } from "./fields.js";
-import { isCountryField } from "./fields.js";
+import { isCountryField, partLabel } from "./fields.js";
 import { readCountry } from "./countries.js";
 
 /**
@@ -163,7 +163,7 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
   // already renders it (`Nationality: Iran  (sent as "IR")`) — and the value
   // being stored is still exactly what is displayed inside the brackets.
   // Faithful and readable, rather than faithful alone.
-  const rendered = countryNameFor(key, proposal.value) ?? formatValue(proposal.value);
+  const rendered = countryNameFor(key, proposal.value) ?? formatValue(proposal.value, key);
   const heard =
     proposal.origin === "conversation"
       ? `You said: "${proposal.verbatim}"`
@@ -184,20 +184,47 @@ function countryNameFor(key: ProfileFieldKey, value: unknown): string | null {
   return country === null ? null : `${country.name} (${country.code})`;
 }
 
-/** Formats a value for display. Deterministic — never model-written. */
-function formatValue(value: unknown): string {
+/**
+ * Formats a value for display. Deterministic — never model-written.
+ *
+ * A value with parts is read by the parts' NAMES (P228, row 92): *Street: 12
+ * Valiasr Street, Town: Tehran, Postcode: 1966733411, Country: Iran (IR)*,
+ * never `line1: …, countryCode: IR`. The names are `PART_LABELS`', the same
+ * table the interview asks with, so a student confirms the thing they were
+ * asked for under the name they were asked for it by. A part that holds a
+ * country code is shown as the country, as a country field is (P199). A
+ * nested object with no table of names — the months and years of a visa, the
+ * components of a test score — reads its own keys as words.
+ */
+function formatValue(value: unknown, key?: ProfileFieldKey): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   // A list: "none" when empty — a student confirming an empty employment
   // history must see the word, not a blank after "as:" (ADR-0113 §3) — and
   // numbered otherwise, so a playback of three jobs reads as three.
   if (Array.isArray(value)) {
     if (value.length === 0) return "none";
-    return value.map((item, index) => `${String(index + 1)}) ${formatValue(item)}`).join("; ");
+    return value.map((item, index) => `${String(index + 1)}) ${formatValue(item, key)}`).join("; ");
   }
   if (value !== null && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([field, item]) => `${field}: ${formatValue(item)}`)
+      .map(([field, item]) => {
+        const named = key === undefined ? null : partLabel(key, field);
+        const label = named ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+        const shown = named !== null && isCountryPart(field) && typeof item === "string"
+          ? (countryNamed(item) ?? formatValue(item))
+          : formatValue(item);
+        return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${shown}`;
+      })
       .join(", ");
   }
   return String(value);
+}
+
+function isCountryPart(partKey: string): boolean {
+  return partKey === "countryCode" || partKey === "issuingCountry";
+}
+
+function countryNamed(code: string): string | null {
+  const country = readCountry(code);
+  return country === null ? null : `${country.name} (${country.code})`;
 }

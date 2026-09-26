@@ -483,3 +483,105 @@ export const FIELD_LABELS: Readonly<Record<ProfileFieldKey, string>> = {
   "guardian.email": "Parent or guardian email",
   "guardian.mobile": "Parent or guardian mobile",
 };
+
+/**
+ * The name a person uses for each PART of a field that has several (row 92,
+ * ADR-0147 §5, P228).
+ *
+ * Vahid, 2026-09-26, on his own interview: *"'What's your home address —
+ * line1?', '— postalcode?', '— countrycode?', and the playback reading
+ * 'line1: …; postalCode: …; countryCode: IR'. Those are internal words on a
+ * student's screen by the same rule."* So: *"Every field a person is asked
+ * for needs the name a person uses — street, town, county, postcode, country
+ * — and the playback reads as those names."*
+ *
+ * One table, used twice: the interview's part specs take their `label` from
+ * it at COMPILE time (`PART_LABELS["contact.address"].line1` — a part key
+ * that is not here does not build), and the confirmation playback reads it
+ * at run time through `partLabel`, so the question and the playback cannot
+ * name the same thing two ways. The keys are the parts' own keys, which are
+ * the value's own property names; the values are what the student reads.
+ */
+export const PART_LABELS = {
+  "finance.funding": {
+    known: "whether you know yet how your studies will be funded",
+    source: "source of funding",
+    stage: "how far the funding is arranged",
+    details: "who is funding you",
+  },
+  "identity.passport": {
+    kind: "whether you have a passport",
+    number: "passport number",
+    expiry: "expiry date",
+    issuingCountry: "country that issued it",
+  },
+  "contact.address": {
+    line1: "street",
+    line2: "second line of the address",
+    city: "town",
+    region: "county",
+    postalCode: "postcode",
+    countryCode: "country",
+  },
+  "education.english_language_test": {
+    test: "test",
+    overallScore: "overall score",
+    componentScores: "component scores",
+    testDate: "test date",
+    certificateNumber: "certificate number",
+  },
+  "immigration.uk_study": {
+    kind: "whether you have studied in the UK before",
+    onStudentVisa: "whether it was on a student visa",
+    highestLevel: "highest level studied",
+    qualification: "qualification",
+    timeOnVisa: "time spent on the visa",
+    currentVisaExpiry: "expiry of your current visa",
+  },
+  "immigration.uk_status": {
+    british_passport: "whether you hold a British passport",
+    indefinite_leave: "whether you have indefinite leave to remain or enter",
+    refugee_status: "whether you have refugee status in the UK",
+    migrant_worker: "whether you are in the UK as a migrant worker",
+    spouse_of_uk_citizen: "whether you are the spouse or civil partner of a UK citizen",
+    eu_passport: "whether you hold an EU passport",
+    spouse_of_eu_citizen: "whether you are the spouse or civil partner of an EU citizen",
+  },
+  "employment.history": {
+    employer: "employer",
+    employerAddress: "employer's address",
+    position: "job title",
+    startDate: "start date",
+    still: "whether you still work there",
+    endDate: "end date",
+    basis: "full-time or part-time",
+    duties: "main duties",
+    refereeName: "referee's name",
+    refereeRole: "referee's role",
+  },
+  "residence.history": {
+    countryCode: "country",
+    from: "when you moved there",
+    still: "whether you still live there",
+    to: "when you left",
+  },
+  "education.prior_qualifications": {
+    level: "level",
+    awardTitle: "award title",
+    subject: "subject",
+    institution: "institution",
+    countryCode: "country",
+    start: "start date",
+    endKind: "whether it is finished",
+    endDate: "end date",
+    award: "award",
+    grade: "grade",
+    gradeScale: "grade scale",
+  },
+} as const satisfies Partial<Record<ProfileFieldKey, Readonly<Record<string, string>>>>;
+
+/** The person's name for a part, or `null` where the field has no table of them. */
+export function partLabel(fieldKey: ProfileFieldKey, partKey: string): string | null {
+  const table: Readonly<Record<string, string>> | undefined = (PART_LABELS as Partial<Record<ProfileFieldKey, Readonly<Record<string, string>>>>)[fieldKey];
+  return table?.[partKey] ?? null;
+}

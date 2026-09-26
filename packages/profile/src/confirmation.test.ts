@@ -182,8 +182,9 @@ describe("what the student is shown", () => {
       }),
       "Where you have lived",
     );
-    expect(two).toContain("1) countryCode: IR");
-    expect(two).toContain("2) countryCode: GB");
+    // By the parts' names, and the country as a country (P228, row 92).
+    expect(two).toContain("1) Country: Iran (IR)");
+    expect(two).toContain("2) Country: United Kingdom (GB)");
   });
 
   it("renders a date deterministically, not as a model paraphrase", () => {
@@ -279,5 +280,33 @@ describe("a confirmation shows BOTH what was said and what will be stored (P201,
     );
     expect(playback).toContain("I'm Iranian, living in Tehran");
     expect(playback).toContain("Iran (IR)");
+  });
+});
+
+describe("a value with parts is played back by the parts' names (P228, row 92)", () => {
+  // Vahid read `line1: …; postalCode: …; countryCode: IR` on his own page.
+  // The names are PART_LABELS', the table the interview asks with.
+  it("reads an address as street, town, postcode and country, with the country as a country", () => {
+    const address = proposeValue({
+      value: { line1: "12 Valiasr Street", city: "Tehran", postalCode: "1966733411", countryCode: "IR" },
+      origin: "conversation" as const,
+      verbatim: "IR",
+      confidence: 1,
+    });
+    const playback = renderForConfirmation("contact.address", address, "Home address");
+    expect(playback).toContain("Street: 12 Valiasr Street, Town: Tehran, Postcode: 1966733411, Country: Iran (IR)");
+    expect(playback).not.toMatch(/line1|postalCode|countryCode/);
+  });
+
+  it("reads a list of entries by the same names, and a nested object it has no names for as words", () => {
+    const history = proposeValue({
+      value: [{ countryCode: "IR", from: { year: 2010, month: 9 }, to: { kind: "current" as const } }],
+      origin: "conversation" as const,
+      verbatim: "yes",
+      confidence: 1,
+    });
+    const playback = renderForConfirmation("residence.history", history, "Where you have lived");
+    expect(playback).toContain("1) Country: Iran (IR), When you moved there: Year: 2010, Month: 9, When you left: Kind: current");
+    expect(playback).not.toMatch(/countryCode/);
   });
 });

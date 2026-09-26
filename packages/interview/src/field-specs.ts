@@ -26,7 +26,7 @@ import type {
   FundingSource,
   FundingStage,
 } from "@askimate/aas-profile";
-import { readCountryCode } from "@askimate/aas-profile";
+import { PART_LABELS, readCountryCode } from "@askimate/aas-profile";
 
 /**
  * A field the student answers in one utterance.
@@ -82,6 +82,13 @@ export interface OfferedReading<T> {
 export interface FieldPart<P> {
   /** Names this part within the field. Matches the key `assemble` reads. */
   readonly partKey: string;
+  /**
+   * The name a person uses for this part — "street", "postcode", "employer"
+   * — from `PART_LABELS`, so it is the playback's name too (P228, row 92).
+   * Required: a part without one does not build, and the question would
+   * otherwise fall back to the key, which is the internal word Vahid read.
+   */
+  readonly label: string;
   /** Why the application needs this part specifically. */
   readonly rationale: string;
   readonly expectedShape: string;
@@ -779,6 +786,7 @@ export const FIELD_SPECS: Partial<{
     parts: [
       {
         partKey: "known",
+        label: PART_LABELS["finance.funding"].known,
         rationale:
           "Whether you know how you will fund your studies. No is an answer, and I record it " +
           "rather than guessing a source for you.",
@@ -787,6 +795,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "source",
+        label: PART_LABELS["finance.funding"].source,
         rationale:
           "Who is paying. Please choose one of: self or family, employer, sponsor, scholarship, " +
           "loan, other.",
@@ -796,6 +805,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "stage",
+        label: PART_LABELS["finance.funding"].stage,
         rationale:
           "Where you are with it. Please choose one of: confirmed, applying for a project " +
           "studentship, applied, applying, thinking about it.",
@@ -805,6 +815,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "details",
+        label: PART_LABELS["finance.funding"].details,
         rationale:
           "The name of the sponsor, scholarship or employer, if there is one. Say none if there " +
           "is nothing to add.",
@@ -894,12 +905,14 @@ export const FIELD_SPECS: Partial<{
     parts: [
       {
         partKey: "kind",
+        label: PART_LABELS["identity.passport"].kind,
         rationale: "Whether you have a passport at all decides what else the form asks you.",
         expectedShape: "yes or no",
         parse: heldOrNone,
       },
       {
         partKey: "number",
+        label: PART_LABELS["identity.passport"].number,
         rationale: "The number as printed on your passport.",
         expectedShape: "a passport number, exactly as printed",
         parse: passportNumber,
@@ -907,6 +920,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "expiry",
+        label: PART_LABELS["identity.passport"].expiry,
         rationale:
           "Universities and the visa route both check that your passport is valid for the whole " +
           "of your course, so they ask when it expires.",
@@ -917,6 +931,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "issuingCountry",
+        label: PART_LABELS["identity.passport"].issuingCountry,
         rationale:
           "The form asks which country issued the passport. It is often the same as your " +
           "nationality, but I do not assume that — I take it from the passport.",
@@ -950,12 +965,14 @@ export const FIELD_SPECS: Partial<{
     parts: [
       {
         partKey: "line1",
+        label: PART_LABELS["contact.address"].line1,
         rationale: "The first line of your address — the number and street.",
         expectedShape: "the first line of an address",
         parse: addressLine,
       },
       {
         partKey: "line2",
+        label: PART_LABELS["contact.address"].line2,
         rationale: "A second line, if your address has one.",
         expectedShape: "a second address line, or none if there isn't one",
         parse: addressLine,
@@ -963,12 +980,14 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "city",
+        label: PART_LABELS["contact.address"].city,
         rationale: "The town or city.",
         expectedShape: "a town or city",
         parse: addressLine,
       },
       {
         partKey: "region",
+        label: PART_LABELS["contact.address"].region,
         rationale: "The county, state or province, if your address uses one.",
         expectedShape: "a county, state or province, or none if your address has none",
         parse: addressLine,
@@ -976,6 +995,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "postalCode",
+        label: PART_LABELS["contact.address"].postalCode,
         // The registry makes this REQUIRED, and a good many countries do not
         // issue postcodes. Raised rather than worked around: see
         // `docs/where-we-are.md` — a student in one of those countries cannot
@@ -986,6 +1006,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "countryCode",
+        label: PART_LABELS["contact.address"].countryCode,
         rationale:
           "The country. Its name or its two-letter code both work — Iran or IR, the United " +
           "Kingdom or GB. If I do not recognise what you tell me I will say so and ask again, " +
@@ -1107,18 +1128,21 @@ export const FIELD_SPECS: Partial<{
     parts: [
       {
         partKey: "test",
+        label: PART_LABELS["education.english_language_test"].test,
         rationale: "Which test you took, as the certificate names it.",
         expectedShape: "the test's name, e.g. IELTS Academic, TOEFL iBT, PTE Academic",
         parse: trimmed,
       },
       {
         partKey: "overallScore",
+        label: PART_LABELS["education.english_language_test"].overallScore,
         rationale: "Your overall result, exactly as the certificate prints it.",
         expectedShape: "an overall score, e.g. 7.5 or 102 or B2",
         parse: score,
       },
       {
         partKey: "componentScores",
+        label: PART_LABELS["education.english_language_test"].componentScores,
         // The rule's hardest case: an overall is a mean, and a dozen component
         // sets produce the same one. Nothing here is derived from it.
         rationale:
@@ -1130,6 +1154,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "testDate",
+        label: PART_LABELS["education.english_language_test"].testDate,
         rationale:
           "Most universities only accept a test taken within the last two years, so they ask when " +
           "you sat it.",
@@ -1139,6 +1164,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "certificateNumber",
+        label: PART_LABELS["education.english_language_test"].certificateNumber,
         rationale:
           "Some universities use this to verify the result with the test provider. If your " +
           "certificate does not show one, say none.",
@@ -1194,6 +1220,7 @@ export const FIELD_SPECS: Partial<{
       ] as const
     ).map(([partKey, asks]) => ({
       partKey,
+      label: PART_LABELS["immigration.uk_status"][partKey],
       rationale: `The form asks ${asks}. This is your own answer to that question.`,
       expectedShape: "yes or no",
       parse: yesNo,
@@ -1219,12 +1246,14 @@ export const FIELD_SPECS: Partial<{
     parts: [
       {
         partKey: "kind",
+        label: PART_LABELS["immigration.uk_study"].kind,
         rationale: "Whether you have studied in the UK before at all.",
         expectedShape: "yes or no",
         parse: heldOrNone,
       },
       {
         partKey: "onStudentVisa",
+        label: PART_LABELS["immigration.uk_study"].onStudentVisa,
         rationale:
           "Whether that study was on a student visa. The visa route counts time already spent " +
           "studying here, so it is asked separately from the study itself.",
@@ -1234,6 +1263,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "highestLevel",
+        label: PART_LABELS["immigration.uk_study"].highestLevel,
         rationale: "The highest level you studied at here.",
         expectedShape:
           "one of: English language, school, foundation, study abroad or exchange, university, other",
@@ -1242,6 +1272,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "qualification",
+        label: PART_LABELS["immigration.uk_study"].qualification,
         rationale: "What the qualification was called, if it had a name. If it did not, say none.",
         expectedShape: "the qualification's name, or none",
         parse: trimmed,
@@ -1250,6 +1281,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "timeOnVisa",
+        label: PART_LABELS["immigration.uk_study"].timeOnVisa,
         rationale:
           "How long you spent here on that visa. The visa route counts it exactly, so tell me the " +
           "years and months rather than a rough figure — if you are not sure, say none and a " +
@@ -1261,6 +1293,7 @@ export const FIELD_SPECS: Partial<{
       },
       {
         partKey: "currentVisaExpiry",
+        label: PART_LABELS["immigration.uk_study"].currentVisaExpiry,
         rationale: "When your current UK visa expires, if you hold one now. If you do not, say none.",
         expectedShape: "a date, e.g. 2028-09-30, or none",
         parse: isoDate,
@@ -1321,30 +1354,35 @@ export const FIELD_SPECS: Partial<{
       parts: [
         {
           partKey: "employer",
+          label: PART_LABELS["employment.history"].employer,
           rationale: "The name of the employer.",
           expectedShape: "the employer's name",
           parse: trimmed,
         },
         {
           partKey: "employerAddress",
+          label: PART_LABELS["employment.history"].employerAddress,
           rationale: "The employer's address, as you would write it — one line is fine.",
           expectedShape: "the employer's address",
           parse: trimmed,
         },
         {
           partKey: "position",
+          label: PART_LABELS["employment.history"].position,
           rationale: "Your job title or position there.",
           expectedShape: "a job title",
           parse: trimmed,
         },
         {
           partKey: "startDate",
+          label: PART_LABELS["employment.history"].startDate,
           rationale: "When you started — the month and the year.",
           expectedShape: "a month and a year, e.g. September 2019 or 2019-09",
           parse: yearMonth,
         },
         {
           partKey: "still",
+          label: PART_LABELS["employment.history"].still,
           rationale:
             "Whether you are still in this job. I ask rather than assume: a blank end date is " +
             "not the same as a job that continues.",
@@ -1353,6 +1391,7 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "endDate",
+          label: PART_LABELS["employment.history"].endDate,
           rationale: "When it ended — the month and the year.",
           expectedShape: "a month and a year, e.g. June 2021 or 2021-06",
           parse: yearMonth,
@@ -1360,6 +1399,7 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "basis",
+          label: PART_LABELS["employment.history"].basis,
           rationale:
             "Whether it was full time or part time, if you want to say — some universities ask. " +
             "Say none to leave it out.",
@@ -1369,6 +1409,7 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "duties",
+          label: PART_LABELS["employment.history"].duties,
           rationale:
             "What the job involved, in your own words. These are sent as you write them, so a " +
             "sentence or two is right.",
@@ -1377,6 +1418,7 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "refereeName",
+          label: PART_LABELS["employment.history"].refereeName,
           rationale:
             "The name of someone there who could give a reference, if you want to give one — " +
             "only a name and a role are held, nothing more. Say none to leave it out.",
@@ -1386,6 +1428,7 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "refereeRole",
+          label: PART_LABELS["employment.history"].refereeRole,
           rationale: "Their role, if you want to say. Say none to leave it out.",
           expectedShape: "a role or job title, or none",
           parse: trimmed,
@@ -1445,24 +1488,28 @@ export const FIELD_SPECS: Partial<{
       parts: [
         {
           partKey: "countryCode",
+          label: PART_LABELS["residence.history"].countryCode,
           rationale: "The country you lived in — its name or its two-letter code.",
           expectedShape: "a country's name or its two-letter code, e.g. Iran or IR",
           parse: countryCodeIso2,
         },
         {
           partKey: "from",
+          label: PART_LABELS["residence.history"].from,
           rationale: "When you moved there — the month and the year.",
           expectedShape: "a month and a year, e.g. September 2015 or 2015-09",
           parse: yearMonth,
         },
         {
           partKey: "still",
+          label: PART_LABELS["residence.history"].still,
           rationale: "Whether you still live there. I ask rather than read it off a blank.",
           expectedShape: "yes or no",
           parse: yesNo,
         },
         {
           partKey: "to",
+          label: PART_LABELS["residence.history"].to,
           rationale: "When you left — the month and the year.",
           expectedShape: "a month and a year, e.g. August 2022 or 2022-08",
           parse: yearMonth,
@@ -1499,6 +1546,7 @@ export const FIELD_SPECS: Partial<{
       parts: [
         {
           partKey: "level",
+          label: PART_LABELS["education.prior_qualifications"].level,
           rationale:
             "What kind of qualification it is. Please choose one of: Bachelor's degree, Master's " +
             "degree, Doctorate, Diploma, Certificate, High school diploma. I only read those " +
@@ -1509,6 +1557,7 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "awardTitle",
+          label: PART_LABELS["education.prior_qualifications"].awardTitle,
           rationale:
             "The title as printed on your certificate — BSc, BA, BEng, MSc, and so on. The form " +
             "asks for this separately from the kind of qualification, and I never work one out " +
@@ -1520,30 +1569,35 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "subject",
+          label: PART_LABELS["education.prior_qualifications"].subject,
           rationale: "The subject, as your certificate names it.",
           expectedShape: "a subject",
           parse: trimmed,
         },
         {
           partKey: "institution",
+          label: PART_LABELS["education.prior_qualifications"].institution,
           rationale: "The institution that awarded it, as your certificate names it.",
           expectedShape: "an institution's name",
           parse: trimmed,
         },
         {
           partKey: "countryCode",
+          label: PART_LABELS["education.prior_qualifications"].countryCode,
           rationale: "The country the institution is in — its name or its two-letter code.",
           expectedShape: "a country's name or its two-letter code, e.g. Iran or IR",
           parse: countryCodeIso2,
         },
         {
           partKey: "start",
+          label: PART_LABELS["education.prior_qualifications"].start,
           rationale: "When you started — the month and the year.",
           expectedShape: "a month and a year, e.g. September 2008 or 2008-09",
           parse: yearMonth,
         },
         {
           partKey: "endKind",
+          label: PART_LABELS["education.prior_qualifications"].endKind,
           rationale:
             "Whether you completed it, expect to complete it, or discontinued it. You say which; " +
             "nothing reads it off a date.",
@@ -1552,12 +1606,14 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "endDate",
+          label: PART_LABELS["education.prior_qualifications"].endDate,
           rationale: "When it ended, or is expected to — the month and the year.",
           expectedShape: "a month and a year, e.g. June 2012 or 2012-06",
           parse: yearMonth,
         },
         {
           partKey: "award",
+          label: PART_LABELS["education.prior_qualifications"].award,
           rationale:
             "The date of award on the certificate, if it has one — the month and the year. It is " +
             "often later than the end date, and I never work it out from the end. Say none if " +
@@ -1568,12 +1624,14 @@ export const FIELD_SPECS: Partial<{
         },
         {
           partKey: "grade",
+          label: PART_LABELS["education.prior_qualifications"].grade,
           rationale: "Your grade, exactly as awarded — 2:1, 17.2, 3.6, 78%.",
           expectedShape: "a grade as your certificate writes it",
           parse: trimmed,
         },
         {
           partKey: "gradeScale",
+          label: PART_LABELS["education.prior_qualifications"].gradeScale,
           rationale:
             "The scale that grade is on. Please choose one of: UK honours, 20-point, GPA out of " +
             "4, percentage. Nothing here converts a grade between scales.",

@@ -4906,6 +4906,29 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P228 — the names of the parts, and the question answered
+
+> *"Every field a person is asked for needs the name a person uses — street, town, county,
+> postcode, country — and the playback reads as those names."*
+
+His message crossed with P227's build: the position line was done, and the field keys were
+still on the screen — *home address — line1*, *— postalcode*, and a playback reading
+`line1: …; countryCode: IR`. Checked every question in the interview, not the three he had
+reached: nine fields have parts, fifty-one parts between them, and one table now names them
+all. The specs take their names from it at compile time, which found three unnamed parts on the
+first build; the playback reads by the same names with a country shown as a country; the *You
+said:* line of an assembled value names each part; the stop names the part it stopped on.
+
+His question — how many phases were reported green on a run that matched nothing — is answered
+in row 93 from the one transcript this machine holds: forty-three name-filtered runs since
+P204, one that ran nothing and went unnoticed, in P215. Before P204 it is not knowable; what is
+knowable for every phase is that CI runs the whole suite unfiltered and ran all 2,992 tests
+today with none skipped. What a full re-run would take is written down and not done.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P227 — a person's words on a person's screen
 
 > *"No internal word ever reaches a student's screen. Not specialist, not escalated, not

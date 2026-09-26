@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.224.0] — 2026-09-26
+
+**P228 — the parts of a field by the name a person uses (row 92, ADR-0147 §5).**
+
+- **Added** `PART_LABELS` to the profile package: the person's name for every part of every
+  field that has parts, fifty-one across nine fields. A part spec takes its `label` from it at
+  compile time; a part without a name does not build.
+- **Changed** the interview: a part is asked for by its name (*home address — street*, *job 1 —
+  employer*), the *You said:* line of an assembled value names each part, and the stop on an
+  exhausted part names it by name. **Changed** the playback: a value's parts read by the same
+  names, and a country part reads as the country.
+- **Recorded** row 93's answer: how many phases were reported green on a run that matched
+  nothing, what is knowable and from where, and what a full re-run would take.
+
+---
+
 ## [0.223.0] — 2026-09-26
 
 **P227 — no internal word ever reaches a student's screen (ADR-0147).**

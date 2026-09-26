@@ -51,6 +51,23 @@ nothing to the person reading it. His decision:
    four for the word *interview* — the internal word itself, as the thing to wait for. They
    wait on the line existing, or on the sentence, now.
 
+5. **The parts of a field are asked for, and played back, by the name a person uses** (added
+   in P228, on his message that crossed with the build): *"'What's your home address — line1?',
+   '— postalcode?', '— countrycode?', and the playback reading 'line1: …; postalCode: …;
+   countryCode: IR'. Those are internal words on a student's screen by the same rule … Every
+   field a person is asked for needs the name a person uses — street, town, county, postcode,
+   country — and the playback reads as those names."* One table in the profile package,
+   `PART_LABELS`, names every part of every field that has parts — fifty-one, across nine
+   fields, checked against every question in the interview and not only the three he reached.
+   The interview's part specs take their `label` from it at compile time, so a part without a
+   name does not build and no question can fall back to a key; the playback reads a value's
+   parts through the same table, with a country part shown as the country; the *You said:* line
+   of an assembled value names each part the same way; the stop on an exhausted part names it
+   by name. The keys stay where they belong — on the log and in the profile's values. The
+   limit, again: a nested object with no table of names (the months and years of a visa, the
+   components of a test score) reads its own keys as words, and a `kind` part's value —
+   *held*, *current*, *ended* — is shown as the word it is.
+
 ## What this does not decide
 
 The wording of any one sentence, which is the student's to find wanting and his to change. What

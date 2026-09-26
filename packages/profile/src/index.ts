@@ -27,6 +27,8 @@ export type { CountryFieldKey } from "./fields.js";
 export {
   COUNTRY_FIELD_KEYS,
   FIELD_LABELS,
+  PART_LABELS,
+  partLabel,
   FINANCIAL_FIELDS,
   LIST_VALUED_FIELD_KEYS,
   PROFILE_FIELD_KEYS,
