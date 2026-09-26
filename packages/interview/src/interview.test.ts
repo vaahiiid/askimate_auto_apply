@@ -277,6 +277,32 @@ describe("evaluating whether an answer is sufficient", () => {
 });
 
 describe("asking, and then escalating rather than guessing", () => {
+  it("NEVER skips a required field: whatever the counts, the action is about the first outstanding field (P224)", async () => {
+    // Vahid: *"Nothing required may ever be skipped, by any path, for any
+    // reason … Make that a structural property."* `nextAction` has one
+    // selection and no predicate over attempts: the first outstanding
+    // field is asked, or is the field stopped on. Walked over every count
+    // the first two fields could hold.
+    const fields: ProfileFieldKey[] = ["contact.email", "identity.given_name", "identity.family_name"];
+    for (let first = 0; first <= MAX_ATTEMPTS_PER_FIELD + 1; first += 1) {
+      for (let second = 0; second <= MAX_ATTEMPTS_PER_FIELD + 1; second += 1) {
+        const state: InterviewState = {
+          ...start(fields),
+          attempts: new Map([["contact.email", first], ["identity.given_name", second]]),
+        };
+        const action = await nextAction(state, model);
+        expect(action.kind === "ask" || action.kind === "escalate").toBe(true);
+        if (action.kind === "ask" || action.kind === "escalate") {
+          expect(action.fieldKey, `first=${String(first)} second=${String(second)}`).toBe("contact.email");
+        }
+        if (action.kind === "escalate") {
+          expect(first).toBeGreaterThanOrEqual(MAX_ATTEMPTS_PER_FIELD);
+          expect(action.attempts).toBe(first);
+        }
+      }
+    }
+  });
+
   it("escalates after the attempt limit", async () => {
     // ADR-0007: "never make the student fill in a form" does not become "so
     // fill it in for them". When asking fails, a specialist looks at it.

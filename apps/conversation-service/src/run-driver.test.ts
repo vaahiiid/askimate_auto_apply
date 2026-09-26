@@ -110,7 +110,7 @@ import { S3DocumentVault } from "./s3-document-vault.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { previewDocumentsOf, rejectedFrom } from "./run-driver.js";
+import { answeredQuestion, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
@@ -6236,6 +6236,132 @@ const DOCUMENT_CATALOGUE: TestCatalogue = {
   find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? DOCUMENT_ENTRY : null),
 };
 
+describeIfDatabase("the count is what the asking wrote, the answer is read against the log's question, and nothing required is skipped (P224, ADR-0145)", () => {
+  // ═══════════════════════════════════════════════════════════════════
+  // Vahid's run, 2026-09-26, second morning: his log carried two silent
+  // re-asks of the date of birth from the day before (P221's loop, the
+  // system's fault). P223's counting rule counted them retroactively, his
+  // third answer exhausted the field, and the interview asked for his
+  // address instead — a required field abandoned without a word. Then his
+  // address was read as a date, because the answer was read against the
+  // derived step and not the question the log held open.
+  //
+  // In his words: *"My two silent re-asks yesterday were the system's fault,
+  // not mine, and they spent my attempts."* — *"Nothing required may ever be
+  // skipped, by any path, for any reason."*
+  // ═══════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPESC004";
+  let student = "";
+  let runId = "";
+
+  async function events(): Promise<{ kind: string; content: string | null; field: string | null; attempt: number | null }[]> {
+    const rows = await pool.query<{ kind: string; content: string | null; field: string | null; attempt: number | null }>(
+      `SELECT e.kind, b.content, e.field_key AS field, e.attempt
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function lastSaid(): Promise<string> {
+    const said = (await events()).filter((event) => event.kind === "message" && event.content !== null);
+    return said.at(-1)?.content ?? "";
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p224-dob', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
+      await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian", student);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      // His log as it stood: two more askings of the same field, written
+      // before 0026 and carrying no count — the old loop's silent re-asks.
+      const store = new ConversationEventStore(instance.pool);
+      for (let silent = 0; silent < 2; silent += 1) {
+        await store.append({ conversationId: conversation, event: { kind: "message", actor: "student", content: "11/08/1989" } });
+        await store.append({ conversationId: conversation, event: { kind: "value_asked", fieldKey: "identity.date_of_birth" } });
+        await store.append({
+          conversationId: conversation,
+          event: { kind: "message", actor: "assistant", content: "The university needs your date of birth to confirm your identity. What's your date of birth?" },
+        });
+      }
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("does not count the silent askings: the next asking writes attempt 2, and the field is NOT skipped", async () => {
+    const log = await events();
+    expect(log.filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth"), "three askings on the log").toHaveLength(3);
+    await say("11/08/1989");
+    const after = await events();
+    const askings = after.filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth");
+    expect(askings, "asked again — the same field, not the next one").toHaveLength(4);
+    expect(askings.at(-1)?.attempt, "the asking wrote its count: the silent ones read as 1, this is the second").toBe(2);
+    expect(after.filter((event) => event.kind === "value_asked" && event.field !== "identity.date_of_birth"), "no other field was asked").toHaveLength(0);
+    expect(await lastSaid()).toContain('"11/08/1989" could be 11 August 1989 or 8 November 1989');
+  }, 300_000);
+
+  it("reads an answer against the question the LOG holds open, whatever a derived step would say", async () => {
+    // The unit half: the open question is the last asking with no reading
+    // after it, and a student message does not close it for this purpose.
+    const log = (await events()).map((event) => ({ ...event, fieldKey: event.field ?? "" })) as unknown as ConversationEvent[];
+    expect(answeredQuestion(log)?.fieldKey).toBe("identity.date_of_birth");
+    // And the walking half: the next answer is read as a date, and read.
+    await say("11 August 1989");
+    const proposed = (await events()).filter((event) => event.kind === "value_proposed");
+    expect(proposed).toHaveLength(1);
+    expect(proposed[0]?.field).toBe("identity.date_of_birth");
+    await say("no, that is not right");
+    expect((await events()).filter((event) => event.kind === "value_rejected")).toHaveLength(1);
+    // The re-ask after the rejection wrote 3: attempt 2 was the last written.
+    expect((await events()).filter((event) => event.kind === "value_asked").at(-1)?.attempt).toBe(3);
+  }, 300_000);
+
+  it("stops at the third asking with words that name the field, the count and what happened", async () => {
+    await say("soon");
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const seen = await instance.driver.advance({ runId, conversationId: conversation });
+      expect(seen.ok ? seen.position.status : `refused:${seen.refusal.kind}`).toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+    const last = await lastSaid();
+    expect(last).toContain("I asked for your date of birth three times and one of your answers you told me I had read wrongly, and the rest I could not read, so I have stopped rather than carry on without it.");
+    const raised = await pool.query<{ target: string }>(`SELECT checkpoint->>'target' AS target FROM interventions WHERE run_id = $1`, [runId]);
+    expect(raised.rows[0]?.target).toBe("interview:identity.date_of_birth");
+  }, 300_000);
+});
+
 describeIfDatabase("an unreadable answer is answered with why, counts, and stops at three (P223)", () => {
   // ═══════════════════════════════════════════════════════════════════
   // Vahid's item-6 run, 2026-09-26: date of birth typed as "11/08/1989" and
@@ -6661,9 +6787,15 @@ describeIfDatabase("the interview stops rather than stranding", () => {
       stranded = started.position.runId;
 
       // Three refused readings written STRAIGHT to the log — the driver never
-      // gets to re-derive, which is the crash this guards.
+      // gets to re-derive, which is the crash this guards. Each asking
+      // carries its count, as a real log does since 0026 (ADR-0145): the
+      // crash window is between the third rejection and its re-ask.
       const store = new ConversationEventStore(setup.pool);
       for (let attempt = 0; attempt < 3; attempt += 1) {
+        await store.append({
+          conversationId: crashed,
+          event: { kind: "value_asked", fieldKey: "contact.email", attempt: attempt + 1 },
+        });
         await store.append({
           conversationId: crashed,
           event: {

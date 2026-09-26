@@ -4906,6 +4906,21 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P224 — one fault in two places
+
+> *"That is the same shape as the stale-read race in P221 — a later state overwritten by an
+> earlier one — and if it is the same cause in a second place, say so."*
+
+It is. P223 counted re-asks off the log and thereby counted two silent askings from the day
+before — the system's fault — against his date of birth; his third answer exhausted the field;
+the interview skipped it and asked for his address; his address was read against a step derived
+from a count the log did not hold, as a date, and thrown away; and the worker's advance put the
+date question back. Nothing was stored, which he confirmed on his machine. ADR-0145, in his
+words: the asking writes its own count and nothing derives one; an answer is read against the
+question the log holds open; the first outstanding field is the only selection, asked or stopped
+on; the stop names the field, the count and what happened. The third place — two paths deriving
+one step from one log — is named, and its guard.
+
 # P223 — the date that was refused twice, and the question that said nothing
 
 > *"Two formats, no playback, no error, no hint. The question just repeats verbatim."*

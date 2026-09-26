@@ -88,7 +88,7 @@ export type AppendableEvent =
   // `value_asked` names the field a question was put about. The question's
   // words are the assistant message beside it; this carries no prose, because
   // its job is to let the log answer "is one outstanding?" without reading any.
-  | { readonly kind: "value_asked"; readonly fieldKey: string }
+  | { readonly kind: "value_asked"; readonly fieldKey: string; readonly attempt?: number }
   | { readonly kind: "value_proposed"; readonly fieldKey: string;
       readonly proposal: unknown; readonly playbackHash: string }
   // One PART of a field whose value has several (ADR-0140, blocker 60). No
@@ -279,7 +279,17 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         fieldKey: row["field_key"] as string,
         playbackHash: row["playback_hash"] as string,
       };
-    case "value_asked":
+    case "value_asked": {
+      const attempt = row["attempt"] as number | null;
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        fieldKey: row["field_key"] as string,
+        // Absent before 0026, and absent reads as the first asking (ADR-0145).
+        ...(attempt === null || attempt === undefined ? {} : { attempt: Number(attempt) }),
+      };
+    }
     case "value_rejected":
       return { kind, ordinal, createdAt, fieldKey: row["field_key"] as string };
     case "reapplication_advised": {
@@ -302,7 +312,7 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
 const SELECT_EVENT = `
   SELECT e.ordinal, e.created_at, e.kind, e.actor, e.request_id, e.handle,
          e.reason_code, e.channel, e.expires_at, e.field_key, e.part_key, e.proposal,
-         e.playback_hash, e.offer_hash, e.target_blueprint_id,
+         e.playback_hash, e.offer_hash, e.target_blueprint_id, e.attempt,
          e.target_content_hash, e.prior_case_id, e.prior_outcome, e.advice,
          e.suggested_intake, b.content, b.redacted_at
     FROM conversation_events e
@@ -509,13 +519,13 @@ export class ConversationEventStore {
          (conversation_id, ordinal, kind, actor, body_id, request_id, handle,
           reason_code, channel, expires_at, field_key, part_key, proposal, playback_hash,
           offer_hash, target_blueprint_id, target_content_hash,
-          prior_case_id, prior_outcome, advice, suggested_intake)
+          prior_case_id, prior_outcome, advice, suggested_intake, attempt)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14,
-               $15, $16, $17, $18, $19, $20, $21)
+               $15, $16, $17, $18, $19, $20, $21, $22)
        RETURNING ordinal, created_at, kind, actor, request_id, handle, reason_code,
                  channel, expires_at, field_key, part_key, proposal, playback_hash,
                  offer_hash, target_blueprint_id, target_content_hash,
-                 prior_case_id, prior_outcome, advice, suggested_intake`,
+                 prior_case_id, prior_outcome, advice, suggested_intake, attempt`,
       [
         conversationId,
         ordinal,
@@ -551,6 +561,9 @@ export class ConversationEventStore {
         isReapplicationEvent(event) ? event.priorOutcome : null,
         isReapplicationEvent(event) ? event.advice : null,
         event.kind === "reapplication_advised" ? (event.suggestedIntake ?? null) : null,
+        // Which asking this is (ADR-0145). `only_an_asking_carries_an_attempt`
+        // enforces the same partition in the schema.
+        event.kind === "value_asked" ? (event.attempt ?? null) : null,
       ],
     );
 

@@ -986,3 +986,15 @@ describe("what shows a page was saved crosses the wire as locators and a URL, an
     expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", transmissions: [] })).toBeNull();
   });
 });
+
+describe("an asking carries its own count on the wire (ADR-0145)", () => {
+  const base = { ordinal: 7, createdAt: "2026-09-26T08:00:00.000Z" };
+  it("reads a positive integer attempt, treats its absence as absent, and refuses anything else", () => {
+    expect(parseConversationEvent({ ...base, kind: "value_asked", fieldKey: "identity.date_of_birth", attempt: 2 })).toMatchObject({ kind: "value_asked", attempt: 2 });
+    const legacy = parseConversationEvent({ ...base, kind: "value_asked", fieldKey: "identity.date_of_birth" });
+    expect(legacy !== null && legacy.kind === "value_asked" && legacy.attempt).toBeUndefined();
+    for (const bad of [0, -1, 1.5, "2", null]) {
+      expect(parseConversationEvent({ ...base, kind: "value_asked", fieldKey: "identity.date_of_birth", attempt: bad }), String(bad)).toBeNull();
+    }
+  });
+});

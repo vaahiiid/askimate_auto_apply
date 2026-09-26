@@ -100,7 +100,13 @@ export type InterviewAction =
    * NOT a licence to guess (ADR-0007). It becomes an `information_unobtainable`
    * escalation and a specialist looks at it.
    */
-  | { readonly kind: "escalate"; readonly reason: string; readonly fieldKey?: ProfileFieldKey };
+  | {
+      readonly kind: "escalate";
+      readonly reason: string;
+      readonly fieldKey?: ProfileFieldKey;
+      /** How many times the field was asked before this stop (P224), for the words the student reads. */
+      readonly attempts?: number;
+    };
 
 /** A reading awaiting the student's yes or no. */
 interface PendingConfirmation {
@@ -445,13 +451,39 @@ export async function nextAction(
   const partKeyOf = (question: OpenQuestion): string | undefined =>
     question.kind === "part" ? question.part.partKey : undefined;
 
-  const next = askable.find(
-    ({ fieldKey, question }) =>
-      (state.attempts.get(questionKey(fieldKey, partKeyOf(question))) ?? 0) < MAX_ATTEMPTS_PER_FIELD,
-  );
-
-  if (next !== undefined) {
-    const { fieldKey, question } = next;
+  // ═══════════════════════════════════════════════════════════════════════
+  // ONE selection, and it is the first outstanding field (P224, ADR-0145).
+  //
+  // Until P224 this was `askable.find(attempts < MAX)`: a field at the limit
+  // was SKIPPED and the next one asked, so a required field could be left
+  // behind without a word and the interview escalated only once every field
+  // was exhausted. Vahid met it on his own date of birth. His condition:
+  // *"Nothing required may ever be skipped, by any path, for any reason …
+  // Make that a structural property rather than a branch someone could add
+  // an exception to later."* So there is no predicate over attempts here at
+  // all: the first outstanding field is the one asked, or the one stopped
+  // on, and nothing else is consulted. The run itself was never able to
+  // pass an unfilled required field — the plan refuses to build with a
+  // blocker — but the interview could walk past one, and now cannot.
+  // ═══════════════════════════════════════════════════════════════════════
+  const first = askable[0];
+  if (first !== undefined) {
+    const attemptsSoFar = state.attempts.get(questionKey(first.fieldKey, partKeyOf(first.question))) ?? 0;
+    if (attemptsSoFar >= MAX_ATTEMPTS_PER_FIELD) {
+      const label = FIELD_LABELS[first.fieldKey];
+      const partKey = partKeyOf(first.question);
+      return {
+        kind: "escalate",
+        fieldKey: first.fieldKey,
+        attempts: attemptsSoFar,
+        reason:
+          `Asked for "${partKey === undefined ? label : `${label} — ${partKey}`}" ` +
+          `${String(attemptsSoFar)} times without obtaining a usable answer. The interview ` +
+          `stops here rather than skipping a required field: a specialist should look at this ` +
+          `rather than the application proceeding without it.`,
+      };
+    }
+    const { fieldKey, question } = first;
     const partKey = partKeyOf(question);
     const label = FIELD_LABELS[fieldKey];
     const say = await model.composeQuestion({
@@ -468,22 +500,6 @@ export async function nextAction(
     });
 
     return { kind: "ask", say, fieldKey, ...(partKey === undefined ? {} : { partKey }) };
-  }
-
-  // A question that ran out of attempts blocks the case.
-  const exhausted = askable[0];
-  if (exhausted !== undefined) {
-    const partKey = partKeyOf(exhausted.question);
-    const label = FIELD_LABELS[exhausted.fieldKey];
-    return {
-      kind: "escalate",
-      fieldKey: exhausted.fieldKey,
-      reason:
-        `Asked for "${partKey === undefined ? label : `${label} — ${partKey}`}" ` +
-        `${String(MAX_ATTEMPTS_PER_FIELD)} times without ` +
-        `obtaining a usable answer. A specialist should look at this rather than the application ` +
-        `proceeding without it.`,
-    };
   }
 
   const missingDocument = state.requiredDocuments.find(

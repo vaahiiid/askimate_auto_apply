@@ -1217,13 +1217,40 @@ function contentRejectedMessage(entry: CatalogueEntry): string {
  * still could not read an answer. Saying so is the honest thing, and it is also
  * what stops the student answering into a void.
  */
-function unobtainableMessage(entry: CatalogueEntry, what: string): string {
+function unobtainableMessage(entry: CatalogueEntry, what: string, attempts: number | undefined, rejections: number): string {
+  // P224, in Vahid's words for the shape: *"I asked for your date of birth
+  // three times and could not read any of your answers, so I have stopped
+  // rather than carry on without it."* Which field, how many times, and what
+  // happened — said, not summarised. A reading the student refused is not an
+  // answer nobody could read, so the two are told apart from the log.
+  const times = attempts === undefined ? "as many times as I should" : `${numberInWords(attempts)} times`;
+  const happened =
+    rejections === 0
+      ? `could not read any of your answers`
+      : rejections >= (attempts ?? 0)
+        ? `each time you told me my reading was wrong`
+        : `${numberInWords(rejections)} of your answers you told me I had read wrongly, and the rest I could not read`;
   return (
-    `I have not been able to get your ${what} from our conversation, and I have asked as many ` +
-    `times as I should. Rather than guess at something your ${entry.blueprint.institutionName} ` +
-    `application depends on, I have passed this to a member of the team to sort out with you. ` +
-    `Nothing you have already given me is lost, and your application has not been submitted.`
+    `I asked for your ${what} ${times} and ${happened}, so I have stopped rather than carry on ` +
+    `without it. Rather than guess at something your ${entry.blueprint.institutionName} application ` +
+    `depends on, I have passed this to a member of the team to sort out with you. Nothing you have ` +
+    `already given me is lost, and your application has not been submitted.`
   );
+}
+
+/** A small count a person reads: "three", not "3". */
+function numberInWords(count: number): string {
+  return ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"][count] ?? String(count);
+}
+
+/** Readings of this field the student refused since it was last confirmed (P224). */
+function rejectionsSinceConfirmed(events: readonly ConversationEvent[], fieldKey: string): number {
+  let count = 0;
+  for (const event of events) {
+    if (event.kind === "value_rejected" && event.fieldKey === fieldKey) count += 1;
+    else if (event.kind === "value_confirmed" && event.fieldKey === fieldKey) count = 0;
+  }
+  return count;
 }
 
 /**
@@ -1258,24 +1285,6 @@ function documentNeededMessage(entry: CatalogueEntry, documentType: string): str
  */
 const NEVER_MIND_THE_CLOCK_MS = 100 * 365 * 24 * 60 * 60 * 1000;
 
-/**
- * The field an `interview` step is asking about, or `null`.
- *
- * A NARROWING, for the reason `requiresSecureRequest` and `handoffFor` are:
- * the step vocabulary is the orchestrator's, and a coordinator matching on
- * `step.kind` would keep its own copy of it. This one reaches one level
- * further in, to the `InterviewAction` the step carries, because only an `ask`
- * has a field for the student to answer — `confirm`, `complete` and `escalate`
- * are not questions about a value.
- */
-function interviewAsk(step: RunStep): ProfileFieldKey | null {
-  const action = interviewActionOf(step);
-  // A question about ONE PART of a field is an ask like any other (ADR-0140).
-  // P192 had to answer `null` here, because the answer could not be kept
-  // between requests; `value_part_read` is what changed that — see
-  // `partsReadFrom`.
-  return action !== null && action.kind === "ask" ? action.fieldKey : null;
-}
 
 /**
  * The parts of each composite field this log is mid-walk on (ADR-0140).
@@ -1464,55 +1473,60 @@ export function openQuestion(events: readonly ConversationEvent[]): { fieldKey: 
 }
 
 /**
- * How many times each field has been read and not accepted, or asked and
- * not answered readably.
+ * How many times each field has been ASKED, since it was last confirmed —
+ * read off what the askings themselves wrote (ADR-0145, P224).
  *
- * ── What this counts ──────────────────────────────────────────────────────
+ * ── The count is the record, not a rule ───────────────────────────────────
  *
- * A proposal that was superseded or rejected is a failed attempt. So, since
- * P223, is a question asked AGAIN for a field with no reading in between: an
- * answer nobody could read leaves no reading on the log, but it leaves the
- * re-ask, and the re-ask is on the log (ADR-0062). Before P223 this counted
- * readings only, said so, and the consequence was measured on Vahid's own
- * run: a date of birth typed two ways, the question repeated verbatim twice,
- * the escalation never nearer. Nothing new is written; the log already held
- * the count.
+ * Each `value_asked` carries the `attempt` its asker wrote, from the last
+ * written attempt plus one. This reads the latest one back and derives
+ * nothing: not readings superseded, not readings rejected, not re-asks
+ * inferred from adjacency. Every one of those was a rule that could change
+ * under a running conversation, and one did — P223 counted re-asks and
+ * thereby counted two silent askings from the day before, which were the
+ * system's fault, against Vahid's date of birth. A row written before 0026
+ * carries no attempt and reads as 1.
  */
 function attemptsFrom(events: readonly ConversationEvent[]): ReadonlyMap<ProfileFieldKey, number> {
   const attempts = new Map<ProfileFieldKey, number>();
-  const bump = (key: string): void => {
-    const field = key as ProfileFieldKey;
-    attempts.set(field, (attempts.get(field) ?? 0) + 1);
-  };
-  let outstanding: string | null = null;
-  /** Fields with a question asked and no reading since: a second ask is a re-ask. */
-  const asked = new Set<string>();
   for (const event of events) {
     if (event.kind === "value_asked") {
-      if (asked.has(event.fieldKey)) bump(event.fieldKey);
-      asked.add(event.fieldKey);
-      continue;
-    }
-    if (event.kind === "value_proposed") {
-      // A second proposal for a field replaces the first: the first was read
-      // and did not become a confirmed value.
-      if (outstanding !== null) bump(outstanding);
-      outstanding = event.fieldKey;
-      asked.delete(event.fieldKey);
-      continue;
-    }
-    if (event.kind === "value_rejected") {
-      bump(event.fieldKey);
-      outstanding = null;
-      asked.delete(event.fieldKey);
-      continue;
-    }
-    if (event.kind === "value_confirmed") {
-      outstanding = null;
-      asked.delete(event.fieldKey);
+      attempts.set(event.fieldKey as ProfileFieldKey, event.attempt ?? 1);
+    } else if (event.kind === "value_confirmed") {
+      attempts.delete(event.fieldKey as ProfileFieldKey);
     }
   }
   return attempts;
+}
+
+/**
+ * The attempt the NEXT asking of this field writes: the last written one plus
+ * one, or 1 when the field has not been asked since it was last confirmed.
+ */
+function nextAttemptFor(events: readonly ConversationEvent[], fieldKey: string): number {
+  return (attemptsFrom(events).get(fieldKey as ProfileFieldKey) ?? 0) + 1;
+}
+
+/**
+ * The question a student's message ANSWERS: the last `value_asked` with no
+ * reading after it (P224, ADR-0145).
+ *
+ * Not the step derived for this request. The step is a function of the log
+ * and of counts, and on Vahid's run it named a different field from the one
+ * the log held open, so his address was read as a date of birth and thrown
+ * away. The record says which question stands; the answer is read against
+ * that. A student message does not close it here — this is asked while
+ * their message is the newest thing on the log.
+ */
+export function answeredQuestion(events: readonly ConversationEvent[]): { fieldKey: string } | null {
+  let open: { fieldKey: string } | null = null;
+  for (const event of events) {
+    if (event.kind === "value_asked") open = { fieldKey: event.fieldKey };
+    else if (event.kind === "value_proposed" || event.kind === "value_confirmed" || event.kind === "value_rejected") {
+      open = null;
+    }
+  }
+  return open;
 }
 
 /**
@@ -4404,8 +4418,17 @@ export class RunDriver {
       return;
     }
 
-    const asking = interviewAsk(situated.step);
-    if (asking === null) return;
+    // ── The question this message answers is the one the LOG holds open ──
+    //
+    // P224. Not the step derived for this request: on Vahid's run the
+    // derived step named the date of birth while the log held the address
+    // open, and his address was read as a date and discarded. The step is
+    // still required to be an interview step — that is what `situated`
+    // says — but WHICH question is answered is the record's to say.
+    if (interviewActionOf(situated.step) === null) return;
+    const answering = answeredQuestion(await this.#options.conversations.since(input.conversationId, 0));
+    if (answering === null) return;
+    const asking = answering.fieldKey as ProfileFieldKey;
 
     const outcome = await receiveAnswer(
       situated.state.interview,
@@ -4427,7 +4450,13 @@ export class RunDriver {
       // answered state the attempt counts, the reason opens the question, and
       // at the third unreadable answer the interview stops for a person rather
       // than asking a fourth time.
-      const answered: RunState = { ...situated.state, interview: outcome.state };
+      // The count is the log's (ADR-0145): the in-memory bump `receiveAnswer`
+      // makes for the harness is not written anywhere and is not read here.
+      // The re-ask that follows writes attempt + 1, and that is the count.
+      const answered: RunState = {
+        ...situated.state,
+        interview: { ...outcome.state, attempts: situated.state.interview.attempts },
+      };
       const step = await nextStep(answered, this.#options.model);
       const stopped = await this.#stopIfTheInterviewGaveUp(
         { entry: situated.entry, record: situated.record, conversationId: input.conversationId, caseId: situated.record.caseId },
@@ -4627,9 +4656,11 @@ export class RunDriver {
       // and asking again would be the service talking over itself.
       if (openQuestion(events) !== null || openProposal(events) !== null) return null;
 
+      // The asking writes its own count (ADR-0145): the last written attempt
+      // for this field plus one. Nothing else counts an asking.
       await this.#options.conversations.append({
         conversationId,
-        event: { kind: "value_asked", fieldKey: action.fieldKey },
+        event: { kind: "value_asked", fieldKey: action.fieldKey, attempt: nextAttemptFor(events, action.fieldKey) },
       });
       await this.#options.conversations.append({
         conversationId,
@@ -5063,6 +5094,8 @@ export class RunDriver {
           : unobtainableMessage(
               input.entry,
               field === undefined ? "some of what I need" : FIELD_LABELS[field].toLowerCase(),
+              action.attempts,
+              field === undefined ? 0 : rejectionsSinceConfirmed(await this.#options.conversations.since(input.conversationId, 0), field),
             ),
       now,
     });

@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.220.0] — 2026-09-26
+
+**P224 — the record is the count and the question (ADR-0145): P223 made it worse, and the fault is P221's in a second place.**
+
+- **Added** `attempt` to `value_asked` (migration 0026, contract, store): the asking writes its
+  own 1-based count since the field was last confirmed; the service reads it back and derives
+  nothing. Rows from before 0026 read as 1, so the old loop's silent askings do not spend a
+  student's attempts.
+- **Changed** the driver: an answer is read against the question the log holds open, not the
+  derived step; the re-ask is composed with the log's count only; the asking writes the count.
+- **Changed** the interview: one selection, the first outstanding field, asked or stopped on —
+  no predicate over attempts, so no field can be skipped; the stop carries the count.
+- **Changed** the stop's words: which field, how many times, and what happened, from the log.
+- Tests: the property that no count skips the first field; the store's round-trip and the
+  schema's partition; the contract's parse; the driver walking his exact log — two legacy
+  askings, the two-way date, the next asking writing 2, no skip, the answer read against the
+  open question, the stop's words. All four made to fail first.
+- **Recorded** ADR-0145: one fault in two places, the third place and its guard.
+
+---
+
 ## [0.219.0] — 2026-09-26
 
 **P223 — the date of birth stopped the item-6 run: two dates refused, and the question repeated verbatim with the reason thrown away.**

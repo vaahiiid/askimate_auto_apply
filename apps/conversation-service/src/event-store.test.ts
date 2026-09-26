@@ -125,6 +125,7 @@ beforeAll(async () => {
     "0023_student_portal_consents",
     "0024_a_part_of_a_value_is_on_the_log",
     "0025_a_list_entry_s_part_is_on_the_log",
+    "0026_the_asking_carries_its_own_count",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
@@ -235,6 +236,41 @@ describeIfDatabase(
 // ───────────────────────────────────────────────────────────────────────────
 // 2 & 3. The counter cannot get ahead of the log
 // ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("an asking carries its own count (0026, ADR-0145)", () => {
+  it("writes the attempt on a value_asked, reads it back, and reads a row without one as absent", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE0026A";
+    const owner = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-0026-a', true) RETURNING id",
+    );
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, owner.rows[0]!.id]);
+    const store = new ConversationEventStore(pool);
+    await store.append({ conversationId: conversation, event: { kind: "value_asked", fieldKey: "contact.email" } });
+    await store.append({ conversationId: conversation, event: { kind: "value_asked", fieldKey: "contact.email", attempt: 2 } });
+    const log = await store.since(conversation, 0);
+    expect(log.map((event) => (event.kind === "value_asked" ? event.attempt : "-"))).toEqual([undefined, 2]);
+  });
+
+  it("refuses a count on anything but an asking, and a count below one", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE0026B";
+    const owner = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-0026-b', true) RETURNING id",
+    );
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, owner.rows[0]!.id]);
+    await expect(
+      pool.query(
+        `INSERT INTO conversation_events (conversation_id, ordinal, kind, field_key, attempt) VALUES ($1, 1, 'value_rejected', 'contact.email', 1)`,
+        [conversation],
+      ),
+    ).rejects.toThrow(/only_an_asking_carries_an_attempt/);
+    await expect(
+      pool.query(
+        `INSERT INTO conversation_events (conversation_id, ordinal, kind, field_key, attempt) VALUES ($1, 1, 'value_asked', 'contact.email', 0)`,
+        [conversation],
+      ),
+    ).rejects.toThrow(/only_an_asking_carries_an_attempt/);
+  });
+});
 
 describeIfDatabase("last_ordinal and the log cannot diverge", () => {
   it("advances the counter and writes the event in ONE transaction", async () => {

@@ -127,6 +127,16 @@ export interface SecretRejectedEvent extends EventBase {
 export interface ValueAskedEvent extends EventBase {
   readonly kind: "value_asked";
   readonly fieldKey: string;
+  /**
+   * Which asking of this field this is, 1-based, since the field was last
+   * confirmed (P224, ADR-0145). Written by the asker at the moment of asking
+   * and read back as THE count: no derivation over the log decides how many
+   * times a student was asked, so a change to any counting rule cannot
+   * retroactively exhaust a field. Absent on rows written before P224, which
+   * read as 1 — those askings were the system's fault, and they do not spend
+   * the student's attempts.
+   */
+  readonly attempt?: number;
 }
 
 /**
@@ -437,7 +447,9 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
     case "value_asked": {
       const fieldKey = readString(source, "fieldKey");
       if (fieldKey === null) return null;
-      return { ...base, kind: "value_asked", fieldKey };
+      const attempt = source["attempt"];
+      if (attempt !== undefined && (typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1)) return null;
+      return { ...base, kind: "value_asked", fieldKey, ...(attempt === undefined ? {} : { attempt }) };
     }
     case "value_rejected": {
       const fieldKey = readString(source, "fieldKey");
