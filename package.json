@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.221.0",
+  "version": "0.222.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,6 +12,7 @@
     "typecheck": "tsc --build --verbose",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:named": "tsx scripts/named-tests.ts",
     "test:watch": "vitest",
     "boundaries": "tsx scripts/check-boundaries.ts",
     "reachability": "tsx scripts/check-reachability.ts",

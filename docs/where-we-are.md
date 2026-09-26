@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P226 — the instruments that lied
+
+> *"That is twice this week that our own instruments lied."*
+
+Both were found by accident. The red CI (row 91) because a census happened to go red an hour
+after his push and I went looking; the census that counted a run with 633 tests skipped because
+its total happened to come out lower than the phase before, after a phase that added tests.
+Neither instrument said a word, and nothing in the repository would have. The third, measured:
+a vitest name filter that matches no test skips the whole file and exits 0 — the very command
+every phase uses to run its new tests. Its guard was a person reading the passed count. Now
+`pnpm run test:named` reads vitest's own report and refuses a run in which nothing ran. The
+rest of the audit is in row 93: every self-skipping file is on the database or Redis, and CI's
+integration job turns those skips into failures; a wrong lane or a missing path already exits 1.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P225 — the readings are offered, and the word on the page
 
 > *"Not guessing was right. Not offering is the defect."*

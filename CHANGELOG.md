@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.222.0] — 2026-09-26
+
+**P226 — the instruments that lied, and the third that could (row 93).**
+
+- **Added** `pnpm run test:named`: the same vitest run, with vitest's own JSON report read
+  afterwards; when no test passed and none failed it refuses in its own words, exit 1, report
+  kept. A name filter that matches nothing was a green run of zero tests, exit 0, measured.
+- **Recorded** row 93: the red CI nobody saw and the census that counted a skipped run were
+  both found by accident; the audit of what else skips itself, and what cannot lie.
+
+---
+
 ## [0.221.0] — 2026-09-26
 
 **P225 — a reading with more than one meaning is offered, never guessed and never refused (ADR-0146); the Date the log turned into a string.**
