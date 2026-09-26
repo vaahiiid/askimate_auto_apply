@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.225.0] — 2026-09-26
+
+**P229 — the nested shapes noted, and three more internal words out of the playback (row 92).**
+
+- **Added** `VOCABULARY_WORDS` to the profile package: the words a person reads for a closed
+  vocabulary's token, keyed by field and part. The playback said `self_or_family` and
+  `full_time`; it says *yourself or your family* and *full-time*.
+- **Changed** the playback: money reads as an amount and a currency, a month as *September
+  2015*, an end as *ended, August 2022*, a time on a visa as *3 years, 2 months*.
+- **Noted** at every nested shape in the profile's types that it is shown to a student by its
+  keys unless the playback names it.
+- **Recorded** row 93 as knowable in part and not pursued, in Vahid's words, with P215 named.
+
+---
+
 ## [0.224.0] — 2026-09-26
 
 **P228 — the parts of a field by the name a person uses (row 92, ADR-0147 §5).**

@@ -306,7 +306,54 @@ describe("a value with parts is played back by the parts' names (P228, row 92)",
       confidence: 1,
     });
     const playback = renderForConfirmation("residence.history", history, "Where you have lived");
-    expect(playback).toContain("1) Country: Iran (IR), When you moved there: Year: 2010, Month: 9, When you left: Kind: current");
+    expect(playback).toContain("1) Country: Iran (IR), When you moved there: September 2010, When you left: current");
     expect(playback).not.toMatch(/countryCode/);
+  });
+});
+
+describe("a closed vocabulary, an amount of money and a month are played back as a person says them (P229, row 92)", () => {
+  // Found while checking every question: the funding playback read
+  // `self_or_family`, the funds read `amountMinorUnits: 1200000`, and a
+  // month read `Year: 2015, Month: 9`. Internal words by the same rule.
+  it("reads funding by the words the interview accepted, not the token it stored", () => {
+    const funding = proposeValue({
+      value: { known: true, source: "self_or_family" as const, stage: "project_studentship" as const },
+      origin: "conversation" as const,
+      verbatim: "self or family",
+      confidence: 1,
+    });
+    const playback = renderForConfirmation("finance.funding", funding, "How your studies will be funded");
+    expect(playback).toContain("Source of funding: yourself or your family");
+    expect(playback).toContain("How far the funding is arranged: applying for a project studentship");
+    expect(playback).not.toMatch(/self_or_family|project_studentship/);
+  });
+
+  it("reads money as an amount and a currency, never as minor units", () => {
+    const funds = proposeValue({
+      value: { amountMinorUnits: 1200050, currency: "GBP" },
+      origin: "conversation" as const,
+      verbatim: "£12,000.50",
+      confidence: 1,
+    });
+    const playback = renderForConfirmation("finance.available_funds", funds, "Funds available");
+    expect(playback).toContain("as: 12,000.50 GBP");
+    expect(playback).not.toMatch(/amountMinorUnits|minor units/i);
+  });
+
+  it("reads a job's dates as months, its end as a kind and a month, and its basis as a person says it", () => {
+    const jobs = proposeValue({
+      value: [{
+        employer: "Example Ltd", employerAddress: "1 Example Road", position: "Analyst", duties: "Analysis",
+        startDate: { year: 2019, month: 3 }, end: { kind: "ended" as const, date: { year: 2022, month: 8 } }, basis: "full_time" as const,
+      }],
+      origin: "conversation" as const,
+      verbatim: "yes",
+      confidence: 1,
+    });
+    const playback = renderForConfirmation("employment.history", jobs, "Employment history");
+    expect(playback).toContain("Start date: March 2019");
+    expect(playback).toContain("End: ended, August 2022");
+    expect(playback).toContain("Full-time or part-time: full-time");
+    expect(playback).not.toMatch(/full_time|Year: |Month: /);
   });
 });

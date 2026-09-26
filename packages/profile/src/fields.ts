@@ -14,6 +14,8 @@
 /** Structured value types used by more than one field. */
 
 export interface Money {
+  // Played back as an amount and a currency — "12,000.00 GBP" — never as its
+  // minor units (`formatValue`; ADR-0147 §5, row 92).
   readonly amountMinorUnits: number;
   /** ISO 4217, e.g. `GBP`. */
   readonly currency: string;
@@ -21,6 +23,8 @@ export interface Money {
 
 /** A month of a year, for a date that has no day — a job's or a qualification's start, end or award. */
 export interface YearMonth {
+  // Played back as "September 2015", never as `Year: 2015, Month: 9`
+  // (`formatValue`; ADR-0147 §5, row 92).
   readonly year: number;
   /** 1 to 12. */
   readonly month: number;
@@ -66,6 +70,9 @@ export interface Qualification {
   readonly institution: string;
   readonly countryCode: string;
   readonly start: YearMonth;
+  // Shown to a student by its keys read as words unless the playback names it
+  // (`formatValue`, `PART_LABELS`; ADR-0147 §5, row 92). A new nested shape
+  // meets that requirement here, not on a student's screen.
   readonly end: { readonly kind: "completed" | "expected" | "discontinued"; readonly date: YearMonth };
   readonly award?: YearMonth;
   /** As awarded, e.g. `2:1`, `17/20`, `3.6`. Never normalised on the way in. */
@@ -85,6 +92,8 @@ export interface LanguageTestResult {
   /** e.g. `IELTS Academic`, `TOEFL iBT`, `PTE Academic`. */
   readonly test: string;
   readonly overallScore: string;
+  // The keys are the certificate's own component names, so the playback reads
+  // them as they are — "Listening: 7.0" (ADR-0147 §5, row 92).
   readonly componentScores: Readonly<Record<string, string>>;
   readonly testDate: Date;
   readonly certificateNumber?: string;
@@ -112,6 +121,9 @@ export interface EmploymentEntry {
   readonly employerAddress: string;
   readonly position: string;
   readonly startDate: YearMonth;
+  // Shown to a student by its keys read as words unless the playback names it
+  // (`formatValue`, `PART_LABELS`; ADR-0147 §5, row 92). A new nested shape
+  // meets that requirement here, not on a student's screen.
   readonly end: { readonly kind: "ended"; readonly date: YearMonth } | { readonly kind: "current" };
   readonly basis?: "full_time" | "part_time";
   /** The student's own words, confirmed verbatim; a portal's cap is the field's `maxlength`, never a trim here. */
@@ -127,6 +139,9 @@ export interface EmploymentEntry {
 export interface ResidencePeriod {
   readonly countryCode: string;
   readonly from: YearMonth;
+  // Shown to a student by its keys read as words unless the playback names it
+  // (`formatValue`, `PART_LABELS`; ADR-0147 §5, row 92). A new nested shape
+  // meets that requirement here, not on a student's screen.
   readonly to: { readonly kind: "ended"; readonly date: YearMonth } | { readonly kind: "current" };
 }
 
@@ -213,6 +228,7 @@ export type UkStudy =
       readonly onStudentVisa: boolean;
       readonly highestLevel: UkStudyLevel;
       readonly qualification?: string;
+      // Played back as "3 years, 2 months" (`formatValue`; ADR-0147 §5, row 92).
       readonly timeOnVisa?: { readonly years: number; readonly months: number };
       readonly currentVisaExpiry?: Date;
     };
@@ -584,4 +600,52 @@ export const PART_LABELS = {
 export function partLabel(fieldKey: ProfileFieldKey, partKey: string): string | null {
   const table: Readonly<Record<string, string>> | undefined = (PART_LABELS as Partial<Record<ProfileFieldKey, Readonly<Record<string, string>>>>)[fieldKey];
   return table?.[partKey] ?? null;
+}
+
+/**
+ * The words a person reads for a closed vocabulary's value (ADR-0147 §5,
+ * row 92, P229). The interview ACCEPTS these words — "self or family",
+ * "applying for a project studentship", "full-time" — and stores the token;
+ * the playback showed the token, `self_or_family`, an internal word by the
+ * same rule as the part keys. Keyed by field and part so the table can never
+ * rewrite a student's free text: only the parts that hold a vocabulary are
+ * read through it.
+ */
+export const VOCABULARY_WORDS = {
+  "finance.funding": {
+    source: {
+      self_or_family: "yourself or your family",
+      employer: "your employer",
+      sponsor: "a sponsor",
+      scholarship: "a scholarship",
+      loan: "a loan",
+      other: "another source",
+    },
+    stage: {
+      confirmed: "confirmed",
+      project_studentship: "applying for a project studentship",
+      applied: "applied",
+      applying: "applying",
+      considering: "thinking about it",
+    },
+  },
+  "employment.history": {
+    basis: { full_time: "full-time", part_time: "part-time" },
+  },
+  "immigration.uk_study": {
+    highestLevel: {
+      english_language: "English language",
+      school: "school",
+      foundation: "foundation",
+      study_abroad_or_exchange: "study abroad or exchange",
+      university: "university",
+      other: "other",
+    },
+  },
+} as const satisfies Partial<Record<ProfileFieldKey, Readonly<Record<string, Readonly<Record<string, string>>>>>>;
+
+/** The words for a vocabulary token in this field's part, or `null` where the part holds none. */
+export function vocabularyWords(fieldKey: ProfileFieldKey, partKey: string, token: string): string | null {
+  const field = (VOCABULARY_WORDS as Partial<Record<ProfileFieldKey, Readonly<Record<string, Readonly<Record<string, string>>>>>>)[fieldKey];
+  return field?.[partKey]?.[token] ?? null;
 }

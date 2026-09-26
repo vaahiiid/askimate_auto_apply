@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P229 — the note where the shapes live, and what it found
+
+> *"Put a note wherever those objects are defined, so the next person adding one meets the
+> requirement rather than discovering it on a student's screen."*
+
+Every nested shape in the profile's types carries the note now. Reading them to place it found
+three more internal words already on the screen: a funding source played back as its stored
+token, `self_or_family`; an amount of money as its minor units; a month as a year and a number.
+The playback says the words the interview accepted, keyed by field and part so a student's own
+text is never rewritten; money reads as an amount and a currency; a month as *September 2015*.
+Row 93 is left as he decided — knowable in part, not pursued, his reasoning quoted — with the
+one real instance, P215, on a line of its own.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P228 — the names of the parts, and the question answered
 
 > *"Every field a person is asked for needs the name a person uses — street, town, county,

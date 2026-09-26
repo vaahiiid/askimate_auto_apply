@@ -30,7 +30,7 @@ import type { ConfirmationProvenance, ConfirmedValue, ProposedValue } from "@ask
 import { unwrapProposed } from "@askimate/aas-domain";
 
 import type { ProfileFieldKey, ProfileFieldType } from "./fields.js";
-import { isCountryField, partLabel } from "./fields.js";
+import { isCountryField, partLabel, vocabularyWords } from "./fields.js";
 import { readCountry } from "./countries.js";
 
 /**
@@ -198,6 +198,13 @@ function countryNameFor(key: ProfileFieldKey, value: unknown): string | null {
  */
 function formatValue(value: unknown, key?: ProfileFieldKey): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  // The shapes with no table of names, read the way a person says them
+  // (P229): an amount of money, a month of a year, an end that is a kind and
+  // maybe a date, a time in years and months.
+  if (isMoney(value)) return money(value);
+  if (isYearMonth(value)) return yearMonth(value);
+  if (isKindAndDate(value)) return value.date === undefined ? value.kind : `${value.kind}, ${formatValue(value.date)}`;
+  if (isYearsAndMonths(value)) return `${String(value.years)} years, ${String(value.months)} months`;
   // A list: "none" when empty — a student confirming an empty employment
   // history must see the word, not a blank after "as:" (ADR-0113 §3) — and
   // numbered otherwise, so a playback of three jobs reads as three.
@@ -210,14 +217,56 @@ function formatValue(value: unknown, key?: ProfileFieldKey): string {
       .map(([field, item]) => {
         const named = key === undefined ? null : partLabel(key, field);
         const label = named ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
-        const shown = named !== null && isCountryPart(field) && typeof item === "string"
+        const spoken = key !== undefined && typeof item === "string" ? vocabularyWords(key, field, item) : null;
+        const shown = spoken ?? (named !== null && isCountryPart(field) && typeof item === "string"
           ? (countryNamed(item) ?? formatValue(item))
-          : formatValue(item);
+          : formatValue(item));
         return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${shown}`;
       })
       .join(", ");
   }
   return String(value);
+}
+
+function isMoney(value: unknown): value is { amountMinorUnits: number; currency: string } {
+  return typeof value === "object" && value !== null && "amountMinorUnits" in value && "currency" in value
+    && typeof (value as { amountMinorUnits: unknown }).amountMinorUnits === "number"
+    && typeof (value as { currency: unknown }).currency === "string";
+}
+
+/** "12,000.00 GBP": the amount as typed back, in the major unit, two places. */
+function money(value: { amountMinorUnits: number; currency: string }): string {
+  const major = Math.trunc(value.amountMinorUnits / 100);
+  const minor = Math.abs(value.amountMinorUnits % 100);
+  const grouped = major.toLocaleString("en-GB");
+  return `${grouped}.${String(minor).padStart(2, "0")} ${value.currency}`;
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function isYearMonth(value: unknown): value is { year: number; month: number } {
+  if (typeof value !== "object" || value === null) return false;
+  const keys = Object.keys(value);
+  return keys.length === 2 && keys.includes("year") && keys.includes("month")
+    && typeof (value as { year: unknown }).year === "number" && typeof (value as { month: unknown }).month === "number";
+}
+
+function yearMonth(value: { year: number; month: number }): string {
+  return `${MONTHS[value.month - 1] ?? String(value.month)} ${String(value.year)}`;
+}
+
+function isKindAndDate(value: unknown): value is { kind: string; date?: unknown } {
+  if (typeof value !== "object" || value === null) return false;
+  const keys = Object.keys(value);
+  return typeof (value as { kind: unknown }).kind === "string"
+    && (keys.length === 1 || (keys.length === 2 && keys.includes("date")));
+}
+
+function isYearsAndMonths(value: unknown): value is { years: number; months: number } {
+  if (typeof value !== "object" || value === null) return false;
+  const keys = Object.keys(value);
+  return keys.length === 2 && keys.includes("years") && keys.includes("months")
+    && typeof (value as { years: unknown }).years === "number" && typeof (value as { months: unknown }).months === "number";
 }
 
 function isCountryPart(partKey: string): boolean {
