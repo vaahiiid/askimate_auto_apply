@@ -1,6 +1,6 @@
 # ADR-0113 — The interview collects a list entry by entry; a pasted CV is never the source of a profile value
 
-**Status:** Accepted · 2026-09-15 · decides how the interview's coverage (Run B) is to be built when it is built · continues 0007 (agent-led intake), 0111 and 0112
+**Status:** Accepted · 2026-09-15 · decides how the interview's coverage (Run B) is to be built when it is built · continues 0007 (agent-led intake), 0111 and 0112 · §4 superseded by ADR-0148 (2026-09-26): a CV may be read by a process of its own, as the separate decision this ADR said it would need; §1–§3 stand for the by-hand path
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-15. **Not built**, at his word; recorded so whoever builds it starts from it rather than re-opening it.
 
 ## Context

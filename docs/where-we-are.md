@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P230 — the interview's shape decided, and a list corrected one entry at a time
+
+> *"The thing asking is an AI and it should behave like one: ask intelligently, read
+> intelligently, and do the work rather than making the student do it."*
+
+ADR-0148 holds his eight points and the two decisions the CV path waited on: a reading process
+of its own, named in ADR-0092 beside the runner rather than carried as an exception; one year's
+retention, deleted by asking in the chat, with the three conditions that matter more than the
+year. He set the order — confirm and correct first, then the by-hand questions from the
+portal's own fields, then the CV — and the first is built: a list is played back with its
+entries on offer, *job 2 is wrong* is a decision bound to the playback's hash, the other jobs'
+parts are carried forward as the student's own readings, job 2 alone is asked again, and the
+whole list is played back for a new yes. No new event kind: the log says what happened in the
+kinds it has. What deleting confirmed values would take is sized in the ADR and not decided.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P229 — the note where the shapes live, and what it found
 
 > *"Put a note wherever those objects are defined, so the next person adding one meets the

@@ -72,6 +72,8 @@ export type PendingDecision =
   | {
       readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
       readonly contentHash: string;
+      /** P230: on a list's playback, the entries a student can say are wrong. */
+      readonly entries?: readonly { readonly index: number; readonly label: string }[];
     }
   /**
    * ADR-0131. The sign-in met the portal's consent banner and the student has
@@ -261,9 +263,19 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
         }
         pending = { decision: "choose_reading", contentHash: raw["contentHash"], readings };
       } else {
+        const list = raw["entries"];
+        const entries: { index: number; label: string }[] = [];
+        if (Array.isArray(list)) {
+          for (const item of list as readonly unknown[]) {
+            const entry = asRecord(item);
+            if (entry === null || typeof entry["index"] !== "number" || typeof entry["label"] !== "string") return null;
+            entries.push({ index: entry["index"], label: entry["label"] });
+          }
+        }
         pending = {
           decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" | "choose_reading" }>["decision"],
           contentHash: String(raw["contentHash"]),
+          ...(entries.length === 0 ? {} : { entries }),
         };
       }
     }
@@ -457,7 +469,7 @@ export function reapply(
 export function decide(
   conversationId: string,
   runId: string,
-  decision: { readonly kind: string; readonly contentHash?: string; readonly item?: string; readonly choice?: string },
+  decision: { readonly kind: string; readonly contentHash?: string; readonly item?: string; readonly choice?: string; readonly entry?: number },
 ): Promise<Outcome<unknown>> {
   return send(
     `/v1/conversations/${conversationId}/runs/${runId}/decision`,

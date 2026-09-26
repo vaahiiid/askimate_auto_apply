@@ -1,6 +1,6 @@
 # ADR-0092 — The document never enters a process we run
 
-**Status:** **Accepted** — decided by Vahid Mohammadi, 2026-09-09, **on two conditions** (§4), neither
+**Status:** **Accepted** — decided by Vahid Mohammadi, 2026-09-09, **on two conditions** (§4), neither · amended by ADR-0148 §9 (2026-09-26): a second process that fetches a document after the gates, the CV reader, is named beside the runner; the rule is unchanged
 yet met. The port is not reshaped until the first is.
 **Continues:** [ADR-0090](./0090-the-gates-run-before-a-byte-is-accepted.md), whose transport this
 keeps and whose store this replaces.

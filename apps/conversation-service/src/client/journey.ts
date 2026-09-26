@@ -480,6 +480,17 @@ function drawPending(): void {
         void answer(hashed.decision, hashed.contentHash);
       }),
     );
+    // P230, ADR-0148 §6–7: a list's playback offers each entry as the thing
+    // that might be wrong. A press corrects THAT entry; the rest stay.
+    if (hashed.decision === "confirm_value" && hashed.entries !== undefined) {
+      for (const entry of hashed.entries) {
+        panel.append(
+          button(`${entry.label} is wrong`, () => {
+            void answerEntry(hashed.contentHash, entry.index);
+          }, "quiet"),
+        );
+      }
+    }
   }
 
   // ADR-0131: the student's choice on this portal's consent notice, where one
@@ -1148,6 +1159,17 @@ async function answerReading(contentHash: string, choice: string): Promise<void>
   if (id === null || runId === undefined) return;
   view.notice = "";
   const recorded = await api.decide(id, runId, { kind: "choose_reading", contentHash, choice });
+  if (!recorded.ok) report(recorded.code);
+  await refresh();
+}
+
+/** One entry of a played-back list is wrong (P230): a `correct_entry` with the playback's hash. */
+async function answerEntry(contentHash: string, entry: number): Promise<void> {
+  const id = view.conversationId;
+  const runId = view.run.run?.runId;
+  if (id === null || runId === undefined) return;
+  view.notice = "";
+  const recorded = await api.decide(id, runId, { kind: "correct_entry", contentHash, entry });
   if (!recorded.ok) report(recorded.code);
   await refresh();
 }

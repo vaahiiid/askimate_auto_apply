@@ -1024,5 +1024,10 @@ describe("a two-way answer's offer, and the pick (ADR-0146)", () => {
     expect(parseStudentDecision({ kind: "choose_reading", contentHash: "sha256:0", choice: "r2" })).toEqual({ kind: "choose_reading", contentHash: "sha256:0", choice: "r2" });
     expect(parseStudentDecision({ kind: "choose_reading", contentHash: "sha256:0" })).toBeNull();
     expect(parseStudentDecision({ kind: "choose_reading", choice: "r2" })).toBeNull();
+    // P230: an entry of a list is corrected by its position, with the playback's hash.
+    expect(parseStudentDecision({ kind: "correct_entry", contentHash: "sha256:0", entry: 2 })).toEqual({ kind: "correct_entry", contentHash: "sha256:0", entry: 2 });
+    expect(parseStudentDecision({ kind: "correct_entry", contentHash: "sha256:0", entry: 0 })).toBeNull();
+    expect(parseStudentDecision({ kind: "correct_entry", contentHash: "sha256:0", entry: "2" })).toBeNull();
+    expect(parseStudentDecision({ kind: "correct_entry", entry: 2 })).toBeNull();
   });
 });

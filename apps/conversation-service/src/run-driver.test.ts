@@ -10940,6 +10940,163 @@ describeIfDatabase("which declaration actually decides", () => {
 // P36 · A stopped run reaches a person (ADR-0071)
 // ───────────────────────────────────────────────────────────────────────────
 
+describeIfDatabase("one entry of a played-back list is corrected and the rest stay (P230, ADR-0148 §6–7)", () => {
+  // ═══════════════════════════════════════════════════════════════════
+  // Vahid: *"If they say something in the list is wrong, we correct that
+  // item and confirm again. We do not throw the whole list away and start
+  // over."* Two jobs are walked through `say()`, the list is played back,
+  // the student presses "job 2 is wrong", job 2 alone is asked again, the
+  // list is played back again, and the confirmation stores both jobs with
+  // the corrected one. EVERY TURN IS A SEPARATE DRIVER INSTANCE.
+  // ═══════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX23001";
+  let owner = "";
+  let runId = "";
+
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function kinds(): Promise<readonly { kind: string; part: string | null; field: string | null }[]> {
+    const rows = await pool.query<{ kind: string; part_key: string | null; field_key: string | null }>(
+      "SELECT kind, part_key, field_key FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal ASC",
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ kind: row.kind, part: row.part_key, field: row.field_key }));
+  }
+  async function pendingNow(): Promise<{ contentHash: string; entries: readonly { index: number; label: string }[] } | null> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      const pending = reading?.pending;
+      if (pending?.decision !== "confirm_value") return null;
+      return { contentHash: pending.contentHash, entries: pending.entries ?? [] };
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+    // Two jobs, entry by entry, then "that is all".
+    await say("yes");
+    for (const utterance of ["Example Ltd", "1 Example Way, Sheffield", "Engineer", "January 2023", "yes", "none", "Designing and testing things.", "none"]) await say(utterance);
+    await say("yes");
+    for (const utterance of ["Other Co", "2 Other Road, Leeds", "Analyst", "March 2020", "no", "December 2022", "none", "Analysing things.", "none"]) await say(utterance);
+    await say("no");
+  }, 600_000);
+
+  it("plays the list back with an entry the student can say is wrong, by its number and the spec's own word", async () => {
+    const pending = await pendingNow();
+    expect(pending, "one confirmation for the whole list").not.toBeNull();
+    expect(pending?.entries).toEqual([
+      { index: 1, label: "job 1" },
+      { index: 2, label: "job 2" },
+    ]);
+    const playback = (await assistantSaid()).at(-1) ?? "";
+    expect(playback).toContain("Other Co");
+    expect(playback).toContain("Is that right?");
+  }, 300_000);
+
+  it("does not throw the list away on a typed no: it says which button to press and keeps the reading open", async () => {
+    const before = await pendingNow();
+    await say("no, the second one is wrong");
+    expect((await assistantSaid()).at(-1)).toContain("press that job below");
+    expect(await pendingNow(), "the same playback, still open").toEqual(before);
+    expect((await kinds()).filter((event) => event.kind === "value_rejected")).toHaveLength(0);
+  }, 300_000);
+
+  it("refuses a stale hash and an entry the list does not have", async () => {
+    const pending = await pendingNow();
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "correct_entry", contentHash: `sha256:${"0".repeat(64)}`, entry: 2 } })).toEqual({ ok: false, reason: "content_changed" });
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "correct_entry", contentHash: pending?.contentHash ?? "", entry: 3 } })).toEqual({ ok: false, reason: "refused" });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("asks job 2 again from its first part, keeps job 1 as it was, and spends no attempt", async () => {
+    const pending = await pendingNow();
+    const askedBefore = (await kinds()).filter((event) => event.kind === "value_asked").length;
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "correct_entry", contentHash: pending?.contentHash ?? "", entry: 2 } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+    const log = await kinds();
+    const rejected = log.map((event) => event.kind).lastIndexOf("value_rejected");
+    expect(rejected, "the reading was closed").toBeGreaterThan(-1);
+    const after = log.slice(rejected + 1);
+    const carried = after.filter((event) => event.kind === "value_part_read").map((event) => event.part);
+    // Job 2's "another?" was the "no" that closed the list, carried inside the
+    // proposal and never a row of its own — so it is not here, and the walk
+    // will ask it once more after job 2 is put right.
+    expect(carried, "job 1's parts and its 'another', carried forward as they were").toEqual([
+      "any", "item0.employer", "item0.employerAddress", "item0.position", "item0.startDate", "item0.still", "item0.basis", "item0.duties", "item0.refereeName", "item0.another",
+    ]);
+    const asked = after.filter((event) => event.kind === "value_asked");
+    expect(asked, "one question, for job 2's first part").toHaveLength(1);
+    const said = await assistantSaid();
+    expect(said.at(-1)?.toLowerCase(), "job 2's first part, the employer").toContain("employer");
+    expect(said.at(-2)).toBe("Job 2, then. I will ask you about it again, and then read the whole list back to you.");
+    expect(said.at(-1)?.toLowerCase()).toContain("job 2");
+    expect(said.at(-1), "asked plainly, not as a set-aside reading").not.toContain("set that reading aside");
+    expect((await kinds()).filter((event) => event.kind === "value_asked")).toHaveLength(askedBefore + 1);
+  }, 300_000);
+
+  it("walks job 2 again, plays the whole list back, and the confirmation stores both with the corrected one", async () => {
+    for (const utterance of ["Better Co", "3 Better Street, York", "Senior analyst", "March 2020", "no", "December 2022", "none", "Analysing better things.", "none"]) await say(utterance);
+    expect((await assistantSaid()).at(-1)?.toLowerCase(), "the last entry's 'another?' is asked once more, truthfully").toContain("another job");
+    await say("no");
+    const said = await assistantSaid();
+    expect(said.at(-1), "the whole list, played back again").toContain("Example Ltd");
+    expect(said.at(-1)).toContain("Better Co");
+    expect(said.at(-1)).not.toContain("Other Co");
+    const pending = await pendingNow();
+    expect(pending?.entries).toHaveLength(2);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: pending?.contentHash ?? "" } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+    const stored = await pool.query<{ value: { employer: string }[] }>(
+      "SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = 'employment.history'",
+      [owner],
+    );
+    expect(stored.rows[0]?.value.map((job) => job.employer)).toEqual(["Example Ltd", "Better Co"]);
+  }, 300_000);
+});
+
 describeIfDatabase("telling a specialist that a run stopped", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Every part of the recovery design was built and tested before this: stop

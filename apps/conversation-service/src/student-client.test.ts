@@ -1225,6 +1225,45 @@ describeIfDatabase("the student's page", () => {
     await page.unroute("**/v1/conversations/*/runs");
   }, 180_000);
 
+  it("offers each entry of a played-back list as the thing that might be wrong, and a press names that entry (P230, ADR-0148 §6–7)", async () => {
+    // Vahid: *"We do not throw the whole list away and start over."* The run
+    // is served at the network boundary, as the corrupted-body test serves
+    // its: a confirm_value pending with two entries, as the driver puts one
+    // for a list. The press is captured at the same boundary.
+    await visitAs(student);
+    const mine = await pool.query<{ id: string }>("SELECT id FROM conversations WHERE student_id = $1", [student]);
+    const conversationId = mine.rows[0]!.id;
+    const hash = `sha256:${"d4".repeat(32)}`;
+    await page.route("**/v1/conversations/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          run: { runId: "run_p230", caseId: "case_p230", conversationId, status: "running", phase: "interviewing", step: "interview", revision: 1, resumed: true },
+          pending: { decision: "confirm_value", contentHash: hash, entries: [{ index: 1, label: "job 1" }, { index: 2, label: "job 2" }] },
+        }),
+      });
+    });
+    const sent: unknown[] = [];
+    await page.route("**/v1/conversations/*/runs/*/decision", async (route) => {
+      sent.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").includes("job 2 is wrong"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    expect(await page.locator("#pending button", { hasText: "Yes, that's right" }).count(), "the confirmation stays").toBe(1);
+    expect(await page.locator("#pending button", { hasText: "job 1 is wrong" }).count()).toBe(1);
+    await page.locator("#pending button", { hasText: "job 2 is wrong" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("#pending button").length >= 0, undefined, { timeout: 5_000 });
+    expect(sent.at(-1), "the press names the entry, with the server's own hash").toEqual({ kind: "correct_entry", contentHash: hash, entry: 2 });
+    await page.unroute("**/v1/conversations/*/runs/*/decision");
+    await page.unroute("**/v1/conversations/*/runs");
+  }, 180_000);
+
   it("shows a RUNNING run whose next step is a person in a person's words, with no state name (P227, ADR-0147)", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Vahid's page, 2026-09-26: "Your application: specialist (running)"

@@ -1706,6 +1706,22 @@ components:
             For `authorise` this is the same value `GET .../runs/{runId}/preview`
             returns; the preview route is how the student reads WHAT they are
             authorising, and this is how a client knows that it must.
+        entries:
+          type: array
+          minItems: 1
+          description: >-
+            ADR-0148 §6–7. Present on a `confirm_value` whose reading is a LIST:
+            the entries as played back, each with its position and the words a
+            student reads for it ("job 1"), so a client can offer "this one is
+            wrong" per entry — answered by a `correct_entry` decision naming the
+            position, with this same hash.
+          items:
+            type: object
+            additionalProperties: false
+            required: [index, label]
+            properties:
+              index: { type: integer, minimum: 1 }
+              label: { type: string, maxLength: 200 }
 
     ConsentQuestion:
       type: object
@@ -1807,6 +1823,30 @@ components:
         - $ref: "#/components/schemas/ExistingAccountDecision"
         - $ref: "#/components/schemas/ConsentChoiceDecision"
         - $ref: "#/components/schemas/ChooseReadingDecision"
+        - $ref: "#/components/schemas/CorrectEntryDecision"
+
+    CorrectEntryDecision:
+      type: object
+      additionalProperties: false
+      required: [kind, contentHash, entry]
+      description: >-
+        ADR-0148 §6–7. The student says one entry of a list they were played
+        back is wrong, by its position in the list as shown, carrying the
+        playback's hash. Vahid: "If they say something in the list is wrong,
+        we correct that item and confirm again. We do not throw the whole list
+        away and start over." The other entries are kept; the named one is
+        asked for again, and the whole list is played back again for a new
+        confirmation.
+      properties:
+        kind:
+          type: string
+          enum: [correct_entry]
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        entry:
+          type: integer
+          minimum: 1
 
     ChooseReadingDecision:
       type: object

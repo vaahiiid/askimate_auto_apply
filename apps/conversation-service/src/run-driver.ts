@@ -114,9 +114,11 @@ import type {
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
-import type { InterviewAction, InterviewState, ReplyOutcome } from "@askimate/aas-interview";
+import type { FieldSpec, InterviewAction, InterviewState, ReplyOutcome } from "@askimate/aas-interview";
 import {
+  FIELD_SPECS,
   chooseReading,
+  isList,
   newInterview,
   nextAction,
   receiveAnswer,
@@ -462,6 +464,12 @@ export type PendingDecision =
       readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
       /** `sha256:<hex>`, from the same source the decision route compares against. */
       readonly contentHash: string;
+      /**
+       * P230, ADR-0148 §6–7. On a `confirm_value` whose reading is a list:
+       * the entries as played back, so a client can offer "this one is wrong"
+       * per entry, answered by `correct_entry` with the same hash.
+       */
+      readonly entries?: readonly { readonly index: number; readonly label: string }[];
     }
   /**
    * P225, ADR-0146. The student's answer read more than one way and the
@@ -1450,11 +1458,53 @@ export function rejectedFrom(events: readonly ConversationEvent[]): ReadonlySet<
   const rejected = new Set<ProfileFieldKey>();
   for (const event of events) {
     if (event.kind === "value_rejected") rejected.add(event.fieldKey as ProfileFieldKey);
-    else if (event.kind === "value_proposed" || event.kind === "value_confirmed") {
+    // A part read after the rejection means the rejection became a walk — an
+    // entry of a list being asked for again (P230). The field is not "set
+    // aside": the next question is the entry's, asked plainly.
+    else if (event.kind === "value_proposed" || event.kind === "value_confirmed" || event.kind === "value_part_read") {
       rejected.delete(event.fieldKey as ProfileFieldKey);
     }
   }
   return rejected;
+}
+
+/**
+ * The part rows that produced the field's LAST proposal (P230).
+ *
+ * `partsReadFrom` forgets a walk at its `value_proposed`, because from then
+ * on the whole value carries it. Correcting one entry of a list needs that
+ * walk back: the other entries' parts are the student's own readings and are
+ * carried forward as they were, so only the named entry is asked again.
+ */
+export function walkBehindProposal(
+  events: readonly ConversationEvent[],
+  fieldKey: string,
+): ReadonlyMap<string, unknown> {
+  let walk = new Map<string, unknown>();
+  let behind = new Map<string, unknown>();
+  for (const event of events) {
+    if (event.kind === "value_part_read" && event.fieldKey === fieldKey) walk.set(event.partKey, event.proposal);
+    else if (event.kind === "value_proposed" && event.fieldKey === fieldKey) {
+      behind = walk;
+      walk = new Map();
+    } else if ((event.kind === "value_confirmed" || event.kind === "value_rejected") && event.fieldKey === fieldKey) {
+      walk = new Map();
+    }
+  }
+  return behind;
+}
+
+/**
+ * The entries of a list reading as the student will see them numbered, or
+ * `null` when the reading is not a list (P230). The words are the spec's own
+ * item label — "job 1", "qualification 2" — never a key.
+ */
+function entriesOf(open: { fieldKey: string; proposal: unknown }): readonly { index: number; label: string }[] | null {
+  const spec = FIELD_SPECS[open.fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
+  if (spec === undefined || !isList(spec)) return null;
+  const items = unwrapProposed(decodeValue(open.proposal) as ProposedValue<unknown>).value;
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return items.map((_, index) => ({ index: index + 1, label: `${spec.itemLabel} ${String(index + 1)}` }));
 }
 
 /**
@@ -3513,9 +3563,9 @@ export class RunDriver {
       };
     }
     const open = openProposal(events);
-    return open === null
-      ? null
-      : { decision: "confirm_value", contentHash: open.playbackHash };
+    if (open === null) return null;
+    const entries = entriesOf(open);
+    return { decision: "confirm_value", contentHash: open.playbackHash, ...(entries === null ? {} : { entries }) };
   }
 
   /**
@@ -3882,6 +3932,9 @@ export class RunDriver {
     }
     if (input.decision.kind === "choose_reading") {
       return await this.#chooseReading(input.conversationId, situation.state, input.decision);
+    }
+    if (input.decision.kind === "correct_entry") {
+      return await this.#correctEntry(input.conversationId, input.decision);
     }
 
     // ── A stop is answered wherever the run happens to be ────────────────
@@ -4562,6 +4615,23 @@ export class RunDriver {
     // confirmation of something else.
     const open = openProposal(await this.#options.conversations.since(input.conversationId, 0));
     if (open !== null) {
+      // A LIST is not thrown away on a typed "no" (P230, ADR-0148 §7): which
+      // entry a sentence names is not ours to guess, so the entries stay on
+      // offer as buttons and the student presses the one that is wrong.
+      const spec = FIELD_SPECS[open.fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
+      if (spec !== undefined && isList(spec) && entriesOf(open) !== null) {
+        await this.#options.conversations.append({
+          conversationId: input.conversationId,
+          event: {
+            kind: "message",
+            actor: "assistant",
+            content:
+              `If one of them is wrong, press that ${spec.itemLabel} below and I will ask you about it again. ` +
+              `If the list is right, press "Yes, that's right".`,
+          },
+        });
+        return;
+      }
       await this.#correct(input.conversationId, situated.state.interview, said.content, now);
       return;
     }
@@ -4859,6 +4929,62 @@ export class RunDriver {
     );
     if (stopped) return;
     await this.#askTheStudent(conversationId, situated.step);
+  }
+
+  /**
+   * The student said one entry of a played-back list is wrong (P230, ADR-0148
+   * §6–7). Vahid: *"we correct that item and confirm again. We do not throw
+   * the whole list away and start over."*
+   *
+   * Bound to the playback as a confirmation is. The reading is closed with a
+   * `value_rejected`, then every OTHER entry's parts — the student's own
+   * readings, as they were — are carried forward as fresh part rows, along
+   * with the named entry's "another?" where the log holds it, so the walk
+   * asks nothing extra after it; the named entry's parts are left out, so
+   * the walk asks for that entry again from its first part and then plays
+   * the whole list back for a new confirmation. The LAST entry's "another?"
+   * is never a row of its own (the proposal carried it), so correcting the
+   * last entry asks "another?" once more — one true question, rather than a
+   * "no" written for the student. No attempt is spent: nothing is asked twice.
+   */
+  async #correctEntry(
+    conversationId: string,
+    decision: Extract<StudentDecision, { kind: "correct_entry" }>,
+  ): Promise<
+    { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
+  > {
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const open = openProposal(events);
+    if (open === null) return { ok: false, reason: "not_asked" };
+    if (open.playbackHash !== decision.contentHash) return { ok: false, reason: "content_changed" };
+    const fieldKey = open.fieldKey as ProfileFieldKey;
+    const spec = FIELD_SPECS[fieldKey] as FieldSpec<unknown> | undefined;
+    const entries = entriesOf(open);
+    if (spec === undefined || !isList(spec) || entries === null) return { ok: false, reason: "refused" };
+    if (decision.entry < 1 || decision.entry > entries.length) return { ok: false, reason: "refused" };
+
+    const named = `item${String(decision.entry - 1)}.`;
+    const kept = [...walkBehindProposal(events, fieldKey)].filter(
+      ([partKey]) => !partKey.startsWith(named) || partKey === `${named}another`,
+    );
+    await this.#options.conversations.append({ conversationId, event: { kind: "value_rejected", fieldKey } });
+    for (const [partKey, proposal] of kept) {
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "value_part_read", fieldKey, partKey, proposal },
+      });
+    }
+    const label = `${spec.itemLabel} ${String(decision.entry)}`;
+    await this.#options.conversations.append({
+      conversationId,
+      event: {
+        kind: "message",
+        actor: "assistant",
+        content: `${label.charAt(0).toUpperCase()}${label.slice(1)}, then. I will ask you about it again, and then read the whole list back to you.`,
+      },
+    });
+    await this.#askAfterWriting(conversationId);
+    return { ok: true };
   }
 
   /** The student said the reading was wrong. Their words are the correction. */

@@ -63,6 +63,7 @@ export const STUDENT_DECISIONS = [
   "existing_account",
   "consent_choice",
   "choose_reading",
+  "correct_entry",
 ] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
@@ -168,6 +169,19 @@ export type StudentDecision =
       readonly kind: "choose_reading";
       readonly contentHash: string;
       readonly choice: string;
+    }
+  /**
+   * P230, ADR-0148 §6–7. The student says ONE entry of a list they were
+   * played back is wrong. Bound to the playback's hash, as a confirmation is;
+   * names the entry by its 1-based position in the list as shown. The list is
+   * not thrown away: that entry is asked for again and the list played back
+   * again. Which field, and how many entries it has, come from the open
+   * proposal on the log — never from the client.
+   */
+  | {
+      readonly kind: "correct_entry";
+      readonly contentHash: string;
+      readonly entry: number;
     };
 
 function readString(body: unknown, field: string): string | null {
@@ -204,6 +218,10 @@ export function parseStudentDecision(body: unknown): StudentDecision | null {
   if (kind === "choose_reading") {
     const choice = readString(body, "choice");
     return choice === null ? null : { kind, contentHash, choice };
+  }
+  if (kind === "correct_entry") {
+    const entry = (body as Record<string, unknown>)["entry"];
+    return typeof entry === "number" && Number.isInteger(entry) && entry >= 1 ? { kind, contentHash, entry } : null;
   }
   return { kind, contentHash };
 }

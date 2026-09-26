@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.226.0] — 2026-09-26
+
+**P230 — ADR-0148, the interview's shape; a list confirmed as a whole and corrected one entry at a time (§6–§7).**
+
+- **Added** the `correct_entry` student decision (contract, OpenAPI): one entry of a played-back
+  list is wrong, by its position, with the playback's hash. **Added** `entries` on a list's
+  `confirm_value` pending, so a client can offer *job 2 is wrong* beside *Yes, that's right*.
+- **Changed** the driver: on a correction the reading is closed, the other entries' parts are
+  carried forward as fresh part rows, the named entry is asked again from its first part and
+  the whole list played back for a new confirmation; a typed "no" on a list keeps the reading
+  open and names the button; a rejection followed by part reads is read as a walk.
+- **Changed** the page: a button per entry under a list's playback.
+- **Recorded** ADR-0148 in Vahid's words, including the two CV decisions; ADR-0113 §4
+  superseded and ADR-0092 amended by it.
+
+---
+
 ## [0.225.0] — 2026-09-26
 
 **P229 — the nested shapes noted, and three more internal words out of the playback (row 92).**
