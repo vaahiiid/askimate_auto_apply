@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P227 — a person's words on a person's screen
+
+> *"No internal word ever reaches a student's screen. Not specialist, not escalated, not
+> uncertain. If the run is with a person, it says so in words a person would use."*
+
+The position line no longer joins the orchestrator's next step to the run's status. A module
+of the client holds a sentence for every step kind and every status, typed exhaustively over
+the contract's vocabularies so a new state without words fails the build, and minted as a
+branded string that the position element accepts and nothing else. A test walks every status
+against every step and finds no state name in any sentence. The step he saw and the two
+statuses that mean a person has it all say the same thing, in the same words. The limit is
+told as he asked: the type holds the line and any element made to take it; it does not hold
+free text written elsewhere. Ten page tests were found waiting on state names — four on the
+word *interview* itself — and wait on the sentence now.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P226 — the instruments that lied
 
 > *"That is twice this week that our own instruments lied."*

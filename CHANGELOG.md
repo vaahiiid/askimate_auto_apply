@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.223.0] — 2026-09-26
+
+**P227 — no internal word ever reaches a student's screen (ADR-0147).**
+
+- **Added** `words.ts` to the student client: one sentence per run step kind and one per
+  status, typed exhaustively over the contract's closed vocabularies, minted as a branded
+  `StudentWords` the position element accepts and nothing else. The step and the two statuses
+  that mean a person has it all read *Your application is with a member of the team*.
+- **Changed** the position line: composed from those sentences; the run's step and status are
+  never interpolated. It read *specialist (running)* at a student on 2026-09-26.
+- Tests: every status against every step contains no status, step or phase name; the page shows
+  a running run whose next step is a person in a person's words; ten page tests that waited on
+  state names wait on the sentence now. Fail-first on the source test and the page test.
+- **Recorded** ADR-0147; row 92 closed.
+
+---
+
 ## [0.222.0] — 2026-09-26
 
 **P226 — the instruments that lied, and the third that could (row 93).**

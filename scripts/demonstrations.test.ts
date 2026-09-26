@@ -278,6 +278,12 @@ describe("the published demonstrations", () => {
       "preinstall", "typecheck", "lint", "test", "test:watch", "verify", "verify:integration",
       "clean", "census", "boundaries", "reachability", "version:check", "version:set",
       "version:bump",
+      // P226 — the guard on a vitest run in which nothing ran. `named-tests.test.ts`
+      // checks the verdict it reads from vitest's report; the command itself was made
+      // to fail on purpose (74 skipped, refused) and to pass on named tests. Pushed
+      // without this line, and the census caught it on the next phase: main was red
+      // at 2e6df52 for this test alone.
+      "test:named",
     ];
 
     const published = Object.keys(manifest.scripts)

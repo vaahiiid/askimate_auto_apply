@@ -58,6 +58,7 @@ import {
 } from "@askimate/aas-conversation";
 
 import * as api from "./transport.js";
+import { positionLine, type StudentWords } from "./words.js";
 
 /** Everything drawn, in one object, replaced whole on every read. */
 interface View {
@@ -368,13 +369,12 @@ function drawOffer(): void {
  * server gave. There is no fourth branch that guesses.
  */
 /**
- * True for the statuses the run driver says wait for a person (ADR-0048).
- *
- * Named here rather than inlined so the two places that must agree — this line
- * and the composer's hint — cannot drift apart.
+ * The position line takes a student's sentence and nothing else (ADR-0147).
+ * `StudentWords` is minted only in `words.ts`, from tables typed over the
+ * closed vocabularies, so a raw step or status cannot reach this element.
  */
-function waitsOnAPerson(status: string): boolean {
-  return status === "escalated" || status === "uncertain";
+function position(node: HTMLElement, words: StudentWords): void {
+  node.textContent = words;
 }
 
 function drawPending(): void {
@@ -393,23 +393,13 @@ function drawPending(): void {
   // ADR-0064. This line used to say `interview (escalated)` whatever had
   // happened, so a student whose run had been handed to a specialist saw the
   // step they were last asked about and a composer inviting them to answer it.
-  // The escalation message was in the transcript above, contradicted by the
-  // line beneath it.
   //
-  // `uncertain` and `escalated` are the two the driver names as waiting for a
-  // person; the step is not mentioned for either, because which step it
-  // stopped on is not the student's business and reading it as a prompt is
-  // exactly the mistake.
-  text(
-    where,
-    waitsOnAPerson(run.status)
-      ? "Your application is with a member of the team. I will come back to you."
-      : // ADR-0116: the student closed the password box. Stopped where it
-        // was, by their choice, and read as such — not as a step to answer.
-        run.status === "stopped_by_student"
-        ? "You closed the password box, so this is stopped where it was. Ask me to apply again when you want to carry on."
-        : `Your application: ${run.step.replace(/_/g, " ")} (${run.status})`,
-  );
+  // ADR-0147. Then it said `specialist (running)` — the orchestrator's own
+  // name for its next step, printed at a student while the interview was
+  // asking them questions. No internal word reaches this line now: the
+  // sentence comes from `words.ts`, typed over the closed vocabularies, and
+  // this element accepts nothing else.
+  position(where, positionLine(run));
   panel.append(where);
 
   if (pending !== null && pending.decision === "consent_choice") {

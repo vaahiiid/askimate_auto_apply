@@ -626,11 +626,10 @@ describeIfDatabase("the student's page", () => {
     // sentence the student typed.
     await page.locator("#statement").fill("Please apply to the MSc for me.");
     await page.locator("#offer button").first().click();
+    // The position line (ADR-0147): a sentence, never a state name, so the
+    // wait is for the line to exist rather than for any word in it.
     await page.waitForFunction(
-      () =>
-        (document.querySelector("#pending")?.textContent ?? "").includes(
-          "Your application",
-        ),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").length > 0,
       undefined,
       { timeout: 15_000 },
     );
@@ -735,11 +734,10 @@ describeIfDatabase("the student's page", () => {
     // about how a request reaches the Secure Plane.
     // ═══════════════════════════════════════════════════════════════════
     await visitAs(student);
+    // The position line (ADR-0147): a sentence, never a state name, so the
+    // wait is for the line to exist rather than for any word in it.
     await page.waitForFunction(
-      () =>
-        (document.querySelector("#pending")?.textContent ?? "").includes(
-          "Your application",
-        ),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").length > 0,
       undefined,
       { timeout: 15_000 },
     );
@@ -917,11 +915,10 @@ describeIfDatabase("the student's page", () => {
     // the page had a position to render and nothing to answer. ADR-0062 put it
     // in the log, so the assertion is now on the transcript — the thing a
     // student actually reads.
+    // The interview step, in the student's words (ADR-0147) — these used to
+    // wait on the word "interview", the state name itself.
     await page.waitForFunction(
-      () =>
-        (document.querySelector("#pending")?.textContent ?? "").includes(
-          "interview",
-        ),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").includes("asking you a few questions"),
       undefined,
       { timeout: 20_000 },
     );
@@ -1014,8 +1011,10 @@ describeIfDatabase("the student's page", () => {
     await textOf("#offer pre");
     await page.locator("#statement").fill("Please apply to this one for me.");
     await page.locator("#offer button").first().click();
+    // The interview step, in the student's words (ADR-0147) — these used to
+    // wait on the word "interview", the state name itself.
     await page.waitForFunction(
-      () => (document.querySelector("#pending")?.textContent ?? "").includes("interview"),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").includes("asking you a few questions"),
       undefined,
       { timeout: 20_000 },
     );
@@ -1071,8 +1070,10 @@ describeIfDatabase("the student's page", () => {
     await textOf("#offer pre");
     await page.locator("#statement").fill("Please apply to this one for me.");
     await page.locator("#offer button").first().click();
+    // The interview step, in the student's words (ADR-0147) — these used to
+    // wait on the word "interview", the state name itself.
     await page.waitForFunction(
-      () => (document.querySelector("#pending")?.textContent ?? "").includes("interview"),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").includes("asking you a few questions"),
       undefined,
       { timeout: 20_000 },
     );
@@ -1116,11 +1117,10 @@ describeIfDatabase("the student's page", () => {
 
   it("offers a stop at every step, and it needs no hash", async () => {
     await visitAs(student);
+    // The position line (ADR-0147): a sentence, never a state name, so the
+    // wait is for the line to exist rather than for any word in it.
     await page.waitForFunction(
-      () =>
-        (document.querySelector("#pending")?.textContent ?? "").includes(
-          "Your application",
-        ),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").length > 0,
       undefined,
       { timeout: 15_000 },
     );
@@ -1142,10 +1142,7 @@ describeIfDatabase("the student's page", () => {
       undefined,
       { timeout: 15_000 },
     );
-    const pending = (await page.locator("#pending").textContent()) ?? "";
-    expect(pending, "no application of anybody else's").not.toContain(
-      "Your application",
-    );
+    expect(await page.locator("#pending .position").count(), "no application of anybody else's").toBe(0);
 
     const theirs = await pool.query(
       "SELECT 1 FROM conversations WHERE student_id = $1",
@@ -1176,11 +1173,10 @@ describeIfDatabase("the student's page", () => {
     //      from holding.
     // ═══════════════════════════════════════════════════════════════════
     await visitAs(student);
+    // The position line (ADR-0147): a sentence, never a state name, so the
+    // wait is for the line to exist rather than for any word in it.
     await page.waitForFunction(
-      () =>
-        (document.querySelector("#pending")?.textContent ?? "").includes(
-          "Your application",
-        ),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").length > 0,
       undefined,
       { timeout: 15_000 },
     );
@@ -1221,12 +1217,60 @@ describeIfDatabase("the student's page", () => {
       { timeout: 20_000 },
     );
 
-    const pending = (await page.locator("#pending").textContent()) ?? "";
     expect(
-      pending,
+      await page.locator("#pending .position").count(),
       "and it stopped showing a run the server did not just confirm",
-    ).not.toContain("Your application");
+    ).toBe(0);
 
+    await page.unroute("**/v1/conversations/*/runs");
+  }, 180_000);
+
+  it("shows a RUNNING run whose next step is a person in a person's words, with no state name (P227, ADR-0147)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid's page, 2026-09-26: "Your application: specialist (running)"
+    // while the interview was asking him questions — the orchestrator's own
+    // name for its next step, printed at a student. Decided, in his words:
+    // *"no internal word ever reaches a student's screen. Not specialist,
+    // not escalated, not uncertain. If the run is with a person, it says so
+    // in words a person would use."*
+    //
+    // The run is served at the network boundary, as the corrupted-body test
+    // above serves its: a valid run, status running, step specialist, which
+    // the driver produces when the plan cannot render a map (row 92).
+    // ═══════════════════════════════════════════════════════════════════
+    await visitAs(student);
+    const mine = await pool.query<{ id: string }>("SELECT id FROM conversations WHERE student_id = $1", [student]);
+    const conversationId = mine.rows[0]!.id;
+    await page.route("**/v1/conversations/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          run: {
+            runId: "run_p227",
+            caseId: "case_p227",
+            conversationId,
+            status: "running",
+            phase: "interviewing",
+            step: "specialist",
+            revision: 1,
+            resumed: true,
+          },
+          pending: null,
+        }),
+      });
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(
+      () => (document.querySelector("#pending .position")?.textContent ?? "").includes("member of the team"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    const position = (await page.locator("#pending .position").textContent()) ?? "";
+    expect(position).toBe("Your application is with a member of the team. I will come back to you.");
+    for (const internal of ["specialist", "running", "interviewing", "escalated", "uncertain"]) {
+      expect(position, `never "${internal}"`).not.toContain(internal);
+    }
     await page.unroute("**/v1/conversations/*/runs");
   }, 180_000);
 
@@ -1295,11 +1339,10 @@ describeIfDatabase("the student's page", () => {
     await textOf("#offer pre");
     await page.locator("#statement").fill("Please apply to this one for me.");
     await page.locator("#offer button").first().click();
+    // The interview step, in the student's words (ADR-0147) — these used to
+    // wait on the word "interview", the state name itself.
     await page.waitForFunction(
-      () =>
-        (document.querySelector("#pending")?.textContent ?? "").includes(
-          "interview",
-        ),
+      () => (document.querySelector("#pending .position")?.textContent ?? "").includes("asking you a few questions"),
       undefined,
       { timeout: 20_000 },
     );
