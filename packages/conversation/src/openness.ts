@@ -46,6 +46,7 @@ export function openSecretRequest(events: readonly UnpositionedEvent[]): string 
       // the next kind added settle a live secure request by accident.
       case "value_asked":
 case "value_proposed":
+    case "value_offered":
       case "value_part_read":
       case "value_confirmed":
       case "value_rejected":
@@ -116,6 +117,7 @@ export function latestSecretRequest(events: readonly UnpositionedEvent[]): {
     switch (event.kind) {
       case "value_asked":
 case "value_proposed":
+    case "value_offered":
       case "value_part_read":
       case "value_confirmed":
       case "value_rejected":

@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.221.0] — 2026-09-26
+
+**P225 — a reading with more than one meaning is offered, never guessed and never refused (ADR-0146); the Date the log turned into a string.**
+
+- **Added** `readings` to a scalar field's spec and a composite's part: when the parse refuses
+  and the reader can see two or more valid readings, the answer is `ambiguous` and the readings
+  are offered — no attempt spent, the question still open. The numeric date reader carries it
+  in its four places.
+- **Added** `value_offered` to the log (migration 0027, contract, store, OpenAPI): the readings
+  with their ids, labels and proposals, and the hash of the offer as put. **Added** the
+  `choose_reading` pending decision and student decision, bound to that hash; the page shows
+  the readings as buttons under *Which did you mean?*.
+- **Changed** the driver: a scalar pick is proposed and confirmed in one act; a part's pick is
+  read as that part; neither writes an asking, so the next field's asking writes 1.
+- **Fixed** the log boundary: every proposal, part and offer is encoded on the way in and
+  decoded on the way out, so a Date is a Date on the other side. Confirmed straight from the
+  log's JSON it was a string, the plan refused the date-of-birth maps, and the page read
+  *specialist (running)*. **Added** migration 0028, which re-tags the date rows written before
+  the fix, in the four places a date lives in a profile.
+- Tests: the interview's offer for a scalar and for a part; the contract's parse of the offer
+  and the pick; the store's round-trip; the schema's partition and 0028 on a database standing
+  at 0027; the driver's offer, the stale hash, the unknown id, the pick reaching the profile in
+  the tagged shape, the next asking at 1; the page's buttons. All made to fail first.
+- **Changed** `scripts/end-to-end.ts`: its own interview loop offers the readings and the scripted
+  student picks, where before it met `ambiguous` and re-asked in silence.
+- **Changed** `scripts/census.ts`: a run that skipped any test is not a census — the table is not
+  written, the exit is 1, and the message names the database variables to set. Twice today it
+  counted a run with 633 tests skipped and said nothing.
+- **Recorded** ADR-0146; row 92 (the word *specialist* on a running run's page).
+
+---
+
 ## [0.220.0] — 2026-09-26
 
 **P224 — the record is the count and the question (ADR-0145): P223 made it worse, and the fault is P221's in a second place.**

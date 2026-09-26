@@ -49,7 +49,7 @@ import {
   renderForConfirmation,
 } from "@askimate/aas-profile";
 
-import type { CompositeFieldSpec, FieldPart, FieldSpec, PartAnswers, ListFieldSpec } from "./field-specs.js";
+import type { CompositeFieldSpec, FieldPart, FieldSpec, OfferedReading, PartAnswers, ListFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, OMITTED, isComposite, partParser, isList, yesNo } from "./field-specs.js";
 
 /**
@@ -524,10 +524,33 @@ export async function nextAction(
   return { kind: "complete" };
 }
 
+/** One of the readings an answer could have, offered to the student (P225, ADR-0146). */
+export interface ReadingOnOffer {
+  /** `r1`, `r2`, …: what the pick names. */
+  readonly id: string;
+  /** The reading in the student's terms. */
+  readonly label: string;
+  /** The reading as it would be proposed if picked — the student's own words carried with it. */
+  readonly proposed: ProposedValue<unknown>;
+}
+
 /** What happened to a student's reply. */
 export type ReplyOutcome =
   | { readonly kind: "understood"; readonly state: InterviewState }
   | { readonly kind: "not_understood"; readonly state: InterviewState; readonly reason: string }
+  /**
+   * The answer reads more than one way and the student is offered the
+   * readings to pick from (P225). Not an attempt: the count belongs to the
+   * asking, and nothing was asked again. Vahid: *"The pick is an answer to
+   * the open question, not a new question."*
+   */
+  | {
+      readonly kind: "ambiguous";
+      readonly state: InterviewState;
+      readonly fieldKey: ProfileFieldKey;
+      readonly partKey?: string;
+      readonly readings: readonly ReadingOnOffer[];
+    }
   | { readonly kind: "confirmed"; readonly state: InterviewState }
   | { readonly kind: "corrected"; readonly state: InterviewState }
   | { readonly kind: "declined"; readonly state: InterviewState; readonly reason: string };
@@ -573,6 +596,11 @@ export async function receiveAnswer(
     // The attempt still counts. Otherwise a student who keeps answering
     // unusably would be asked forever, and the escalation would never fire.
     if (isNotUnderstood(read)) {
+      // More than one reading: offer them, spend nothing (P225).
+      const offered = read.clarification === undefined ? readingsOf(spec.readings, utterance) : [];
+      if (offered.length >= 2) {
+        return { kind: "ambiguous", state: { ...state, transcript }, fieldKey, readings: offered };
+      }
       // What the student reads next: the spec's own account of why THIS
       // utterance was refused where it has one, else what could not be read
       // from what they wrote. Never a shape to type instead (P223).
@@ -623,6 +651,11 @@ export async function receiveAnswer(
   });
 
   if (isNotUnderstood(interpreted)) {
+    // More than one reading of this part: offer them, spend nothing (P225).
+    const offered = interpreted.clarification === undefined ? readingsOf(question.readings, utterance) : [];
+    if (offered.length >= 2) {
+      return { kind: "ambiguous", state: { ...state, transcript }, fieldKey, partKey: question.partKey, readings: offered };
+    }
     // The part stays unanswered, so the SAME part is asked again: an
     // unreadable expiry is not a reason to move on with the expiry left blank.
     return {
@@ -632,9 +665,69 @@ export async function receiveAnswer(
     };
   }
 
+  return withPartRead(state, spec, fieldKey, question.partKey, interpreted, transcript, attempts);
+}
+
+/**
+ * The readings an utterance has, as proposals in the student's own words —
+ * empty unless there are at least two, which is the only case that is offered.
+ */
+function readingsOf(
+  readings: ((raw: string) => readonly OfferedReading<unknown>[]) | undefined,
+  utterance: string,
+): readonly ReadingOnOffer[] {
+  const found = readings?.(utterance) ?? [];
+  if (found.length < 2) return [];
+  return found.map((reading, index) => ({
+    id: `r${String(index + 1)}`,
+    label: reading.label,
+    proposed: proposeValue({ value: reading.value, origin: "conversation", verbatim: utterance, confidence: 0.9 }),
+  }));
+}
+
+/**
+ * The student picked one of the readings offered (P225): the pick is their
+ * own statement of the value, so it goes where an understood answer goes —
+ * pending for a scalar, or read as the part it answers.
+ */
+export function chooseReading(
+  state: InterviewState,
+  fieldKey: ProfileFieldKey,
+  partKey: string | undefined,
+  proposed: ProposedValue<unknown>,
+): ReplyOutcome {
+  const spec = specFor(fieldKey);
+  if (spec === undefined) {
+    return { kind: "not_understood", state, reason: `No field specification for "${fieldKey}".` };
+  }
+  if (partKey === undefined) {
+    const { unread: _cleared, ...rest } = state;
+    return { kind: "understood", state: { ...rest, pending: { fieldKey, proposed } } };
+  }
+  if (!isComposite(spec) && !isList(spec)) {
+    return { kind: "not_understood", state, reason: `"${fieldKey}" has no part "${partKey}".` };
+  }
+  const open = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  if (open === undefined || open.part.partKey !== partKey) {
+    return { kind: "not_understood", state, reason: `"${fieldKey}" is not waiting on part "${partKey}".` };
+  }
+  return withPartRead(state, spec, fieldKey, partKey, proposed, state.transcript, state.attempts);
+}
+
+/** A part read: held with the others, or, when it was the last, the whole put for confirmation. */
+function withPartRead(
+  state: InterviewState,
+  spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>,
+  fieldKey: ProfileFieldKey,
+  partKey: string,
+  interpreted: ProposedValue<unknown>,
+  transcript: readonly string[],
+  attempts: ReadonlyMap<string, number>,
+): ReplyOutcome {
+  const label = FIELD_LABELS[fieldKey];
   const readings: PartReadings = new Map([
     ...(state.partial.get(fieldKey) ?? NO_READINGS),
-    [question.partKey, interpreted],
+    [partKey, interpreted],
   ]);
 
   // More parts to ask: hold what has been read and carry on. Nothing is put

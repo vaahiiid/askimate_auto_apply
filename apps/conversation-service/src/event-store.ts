@@ -91,6 +91,10 @@ export type AppendableEvent =
   | { readonly kind: "value_asked"; readonly fieldKey: string; readonly attempt?: number }
   | { readonly kind: "value_proposed"; readonly fieldKey: string;
       readonly proposal: unknown; readonly playbackHash: string }
+  // P225: the readings a two-way answer was offered as, and the offer's hash.
+  | { readonly kind: "value_offered"; readonly fieldKey: string; readonly partKey?: string;
+      readonly readings: readonly { readonly id: string; readonly label: string; readonly proposal: unknown }[];
+      readonly offerHash: string }
   // One PART of a field whose value has several (ADR-0140, blocker 60). No
   // playback hash: nothing was shown and nothing is agreed. The confirmation
   // comes once, on the `value_proposed` that follows the last part.
@@ -260,6 +264,18 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         partKey: row["part_key"] as string,
         proposal: row["proposal"],
       };
+    case "value_offered": {
+      const partKey = row["part_key"] as string | null;
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        fieldKey: row["field_key"] as string,
+        readings: row["proposal"] as { id: string; label: string; proposal: unknown }[],
+        offerHash: row["playback_hash"] as string,
+        ...(partKey === null ? {} : { partKey }),
+      };
+    }
     case "target_offered":
       return {
         kind,
@@ -541,14 +557,18 @@ export class ConversationEventStore {
         event.kind === "secret_requested" ? event.channel : null,
         event.kind === "secret_requested" ? event.expiresAt : null,
         isProposalEvent(event) ? event.fieldKey : null,
-        // Only a part read names a part, per `only_a_part_read_names_a_part`.
-        event.kind === "value_part_read" ? event.partKey : null,
+        // A part read names a part, and an offer may (`only_a_part_read_names_a_part`, 0027).
+        event.kind === "value_part_read" ? event.partKey : event.kind === "value_offered" ? (event.partKey ?? null) : null,
         event.kind === "value_proposed" || event.kind === "value_part_read"
           ? JSON.stringify(event.proposal)
-          : null,
+          : event.kind === "value_offered"
+            ? JSON.stringify(event.readings)
+            : null,
         event.kind === "value_proposed" || event.kind === "value_confirmed"
           ? event.playbackHash
-          : null,
+          : event.kind === "value_offered"
+            ? event.offerHash
+            : null,
         // The target exchange (ADR-0058). Both halves name the offer;
         // `a_target_exchange_names_an_offer` enforces that in the schema.
         isTargetEvent(event) ? event.offerHash : null,

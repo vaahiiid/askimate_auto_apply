@@ -62,6 +62,7 @@ export const STUDENT_DECISIONS = [
   "attached_myself",
   "existing_account",
   "consent_choice",
+  "choose_reading",
 ] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
@@ -155,6 +156,18 @@ export type StudentDecision =
   | {
       readonly kind: "consent_choice";
       readonly choice: string;
+    }
+  /**
+   * P225, ADR-0146. The student picked one of the readings their answer was
+   * offered as. Agreement to something shown, so it carries the hash of the
+   * offer, as a confirmation carries its playback's; and it names the reading
+   * by the `id` the offer gave it. Which field, and which readings, come from
+   * the open offer on the log — never from the client.
+   */
+  | {
+      readonly kind: "choose_reading";
+      readonly contentHash: string;
+      readonly choice: string;
     };
 
 function readString(body: unknown, field: string): string | null {
@@ -188,6 +201,10 @@ export function parseStudentDecision(body: unknown): StudentDecision | null {
   }
   const contentHash = readString(body, "contentHash");
   if (contentHash === null) return null;
+  if (kind === "choose_reading") {
+    const choice = readString(body, "choice");
+    return choice === null ? null : { kind, contentHash, choice };
+  }
   return { kind, contentHash };
 }
 

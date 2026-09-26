@@ -196,6 +196,25 @@ export interface ValueProposedEvent extends EventBase {
  * yet. The confirmation comes once, against the whole assembled value, and it
  * is the `value_proposed` that follows the last part which carries the hash.
  */
+/**
+ * The student's answer read more than one way, and the readings were put to
+ * them to pick from (P225, ADR-0146).
+ *
+ * Nothing is proposed by this: a proposal follows the pick, and the pick names
+ * one of these `id`s and the `offerHash` of what was shown — the same binding
+ * a confirmation has to its playback. Not an asking: it writes no attempt.
+ */
+export interface ValueOfferedEvent extends EventBase {
+  readonly kind: "value_offered";
+  readonly fieldKey: string;
+  /** The part the readings are of, when the field is answered part by part. */
+  readonly partKey?: string;
+  /** Each reading: its `id`, the words the student picks it by, and the proposal a pick becomes. */
+  readonly readings: readonly { readonly id: string; readonly label: string; readonly proposal: unknown }[];
+  /** `sha256:` of the offer the student was shown. */
+  readonly offerHash: string;
+}
+
 export interface ValuePartReadEvent extends EventBase {
   readonly kind: "value_part_read";
   /** The composite field, e.g. `contact.address`. */
@@ -285,6 +304,7 @@ export type ConversationEvent =
   | SecretRejectedEvent
   | ValueAskedEvent
   | ValueProposedEvent
+  | ValueOfferedEvent
   | ValuePartReadEvent
   | ValueConfirmedEvent
   | ValueRejectedEvent
@@ -437,6 +457,23 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const proposal = source["proposal"];
       if (fieldKey === null || partKey === null || proposal === undefined) return null;
       return { ...base, kind: "value_part_read", fieldKey, partKey, proposal };
+    }
+    case "value_offered": {
+      const fieldKey = readString(source, "fieldKey");
+      const offerHash = readString(source, "offerHash");
+      const partKey = source["partKey"] === undefined ? undefined : readString(source, "partKey");
+      const raw = source["readings"];
+      if (fieldKey === null || offerHash === null || partKey === null || !Array.isArray(raw) || raw.length < 2) return null;
+      const readings: { id: string; label: string; proposal: unknown }[] = [];
+      for (const entry of raw as readonly unknown[]) {
+        if (typeof entry !== "object" || entry === null) return null;
+        const reading = entry as Record<string, unknown>;
+        const id = readString(reading, "id");
+        const label = readString(reading, "label");
+        if (id === null || label === null || reading["proposal"] === undefined) return null;
+        readings.push({ id, label, proposal: reading["proposal"] });
+      }
+      return { ...base, kind: "value_offered", fieldKey, readings, offerHash, ...(partKey === undefined ? {} : { partKey }) };
     }
     case "value_confirmed": {
       const fieldKey = readString(source, "fieldKey");

@@ -46,6 +46,21 @@ export interface ScalarFieldSpec<T> {
    * happened to what they typed, never a shape to type instead.
    */
   readonly explainRefusal?: (raw: string) => string | null;
+  /**
+   * Every reading this utterance validly has, when it has MORE than one
+   * (P225, ADR-0146). The interview offers them to the student and the
+   * student picks; nothing is guessed and nothing is refused. Vahid: *"Not
+   * guessing was right. Not offering is the defect."* Empty or absent where
+   * the utterance has one reading or none — `parse` has said which.
+   */
+  readonly readings?: (raw: string) => readonly OfferedReading<T>[];
+}
+
+/** One reading an utterance could have, with the words the student picks it by. */
+export interface OfferedReading<T> {
+  readonly value: T;
+  /** The reading in the student's terms — for a date, `11 August 1989`. */
+  readonly label: string;
 }
 
 /**
@@ -70,6 +85,8 @@ export interface FieldPart<P> {
   /** Why the application needs this part specifically. */
   readonly rationale: string;
   readonly expectedShape: string;
+  /** As `ScalarFieldSpec.readings`: the readings a two-way answer to this part has (P225). */
+  readonly readings?: (raw: string) => readonly OfferedReading<P>[];
   readonly parse: (raw: string) => P | null;
   /**
    * Asked only when the parts already answered make it applicable.
@@ -263,6 +280,31 @@ const isoDate = (raw: string): Date | null => {
   }
 
   return null;
+};
+
+/** `11 August 1989`: a date in the words a student picks it by. */
+const dateInWords = (date: Date): string => {
+  const month = FULL_MONTHS[date.getUTCMonth()] ?? "";
+  return `${String(date.getUTCDate())} ${month.charAt(0).toUpperCase()}${month.slice(1)} ${String(date.getUTCFullYear())}`;
+};
+
+/**
+ * The readings a two-way numeric date has — `11/08/1989` is 11 August 1989
+ * and 8 November 1989 — offered to the student to pick from (P225). Empty
+ * where the date reads one way or none: `isoDate` has decided those.
+ */
+export const dateReadings = (raw: string): readonly OfferedReading<Date>[] => {
+  const numeric = NUMERIC_DATE.exec(raw.trim());
+  if (numeric === null) return [];
+  const [, first, second, year] = numeric;
+  if ((year ?? "").length !== 4) return [];
+  const dayFirst = calendarDate(Number(year), Number(second) - 1, Number(first));
+  const monthFirst = calendarDate(Number(year), Number(first) - 1, Number(second));
+  if (dayFirst === null || monthFirst === null) return [];
+  return [
+    { value: dayFirst, label: dateInWords(dayFirst) },
+    { value: monthFirst, label: dateInWords(monthFirst) },
+  ];
 };
 
 /**
@@ -663,6 +705,7 @@ export const FIELD_SPECS: Partial<{
     expectedShape: "a date of birth, e.g. 1999-04-02 or 2 April 1999",
     parse: isoDate,
     explainRefusal: explainDateRefusal,
+    readings: dateReadings,
   },
   // ── P199, blocker 64: the three country fields read through the table ────
   //
@@ -869,6 +912,7 @@ export const FIELD_SPECS: Partial<{
           "of your course, so they ask when it expires.",
         expectedShape: "a date, e.g. 2031-04-02 or 2 April 2031",
         parse: isoDate,
+        readings: dateReadings,
         askWhen: (answered) => answered.get("kind") === "held",
       },
       {
@@ -1091,6 +1135,7 @@ export const FIELD_SPECS: Partial<{
           "you sat it.",
         expectedShape: "a date, e.g. 2025-06-14 or 14 June 2025",
         parse: isoDate,
+        readings: dateReadings,
       },
       {
         partKey: "certificateNumber",
@@ -1219,6 +1264,7 @@ export const FIELD_SPECS: Partial<{
         rationale: "When your current UK visa expires, if you hold one now. If you do not, say none.",
         expectedShape: "a date, e.g. 2028-09-30, or none",
         parse: isoDate,
+        readings: dateReadings,
         optional: true,
         askWhen: (answered) => answered.get("kind") === "held",
       },

@@ -31,7 +31,11 @@ the stack restarted with P221's page.
 
 5. **The interview.** Each answer is played back with "Is that right?" and a "Yes, that's right"
    button in the panel below the chat; a typed *yes* is a correction, not a confirmation, and is
-   refused as one. If the button is not there while a playback is open (P221, row 90), the same
+   refused as one. An answer that reads two ways — `11/08/1989` — comes back as its two readings
+   under *Which did you mean?* with a button for each (ADR-0146); the press is the answer, spends
+   no attempt, and for a date of birth is held at once. Before the next answer after 0.221.0 the
+   service's start applies migration 0028, which re-tags the date of birth confirmed on the 26th
+   (row 92); nothing is retyped. If the button is not there while a playback is open (P221, row 90), the same
    act from the console on the page, with the hash the server itself names:
 
    ```js

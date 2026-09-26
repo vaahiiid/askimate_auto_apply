@@ -65,6 +65,7 @@ export function buildModelRequest(input: {
       // candidate itself, which has no business in a prompt.
       case "value_asked":
       case "value_proposed":
+    case "value_offered":
       case "value_part_read":
       case "value_confirmed":
       case "value_rejected":

@@ -16,6 +16,7 @@ import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, isComposite, isList } from "./field-specs.js";
 import type { InterviewState } from "./interview.js";
 import {
+  chooseReading,
   MAX_ATTEMPTS_PER_FIELD,
   newInterview,
   nextAction,
@@ -120,7 +121,7 @@ describe("one question at a time", () => {
     expect(impossible.kind).toBe("not_understood");
   });
 
-  it("refuses a date that reads two ways, says so in the next question, and never repeats the question verbatim (P223)", async () => {
+  it("refuses a date the calendar does not have, says so in the next question, and never repeats the question verbatim (P223)", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Vahid, on "11/08/1989" answered with the same question, twice: *"A
     // person here has no idea whether they typed it wrong, whether the
@@ -128,17 +129,17 @@ describe("one question at a time", () => {
     // screen to tell them."* And: *"Do not tell me the format to type."*
     // ═══════════════════════════════════════════════════════════════════
     const first = await nextAction(start(["identity.date_of_birth"]), model);
-    const answered = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "11/08/1989", model);
+    // (P225: a two-way date is offered now, so the refusal under test is
+    // the one that remains — a day the calendar does not have.)
+    const answered = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "30/02/1989", model);
     expect(answered.kind).toBe("not_understood");
     if (answered.kind !== "not_understood") return;
-    expect(answered.reason).toBe(
-      '"11/08/1989" could be 11 August 1989 or 8 November 1989, and I do not guess which.',
-    );
+    expect(answered.reason).toBe('"30/02/1989" is not a day the calendar has, read either way round.');
     expect(answered.state.attempts.get("identity.date_of_birth"), "the attempt counts").toBe(1);
     const again = await nextAction(answered.state, model);
     expect(again.kind).toBe("ask");
     if (first.kind === "ask" && again.kind === "ask") {
-      expect(again.say.startsWith('"11/08/1989" could be 11 August 1989 or 8 November 1989')).toBe(true);
+      expect(again.say.startsWith('"30/02/1989" is not a day the calendar has')).toBe(true);
       expect(again.say).not.toBe(first.say);
       expect(again.say).not.toContain("didn't quite catch");
       expect(again.say).toContain("What's your date of birth?");
@@ -154,6 +155,62 @@ describe("one question at a time", () => {
     const then = await receiveAnswer(answered.state, "identity.date_of_birth", "11 August 1989", model);
     expect(then.kind).toBe("understood");
     if (then.kind === "understood") expect(then.state.unread).toBeUndefined();
+  });
+
+  it("OFFERS the readings a two-way date has, spends no attempt, and the pick becomes the reading to confirm (P225)", async () => {
+    // Vahid: *"Not guessing was right. Not offering is the defect."* — *"The
+    // pick is an answer to the open question, not a new question — so it
+    // should not spend an attempt."*
+    const before = start(["identity.date_of_birth"]);
+    const outcome = await receiveAnswer(before, "identity.date_of_birth", "11/08/1989", model);
+    expect(outcome.kind).toBe("ambiguous");
+    if (outcome.kind !== "ambiguous") return;
+    expect(outcome.fieldKey).toBe("identity.date_of_birth");
+    expect(outcome.partKey).toBeUndefined();
+    expect(outcome.readings.map((reading) => [reading.id, reading.label])).toEqual([
+      ["r1", "11 August 1989"],
+      ["r2", "8 November 1989"],
+    ]);
+    expect(outcome.state.attempts.get("identity.date_of_birth"), "no attempt spent").toBeUndefined();
+    expect(outcome.state.unread, "nothing was refused").toBeUndefined();
+    // The pick: their own statement of the value, pending as a reading is.
+    const picked = chooseReading(outcome.state, "identity.date_of_birth", undefined, outcome.readings[1]!.proposed);
+    expect(picked.kind).toBe("understood");
+    if (picked.kind === "understood") {
+      const proposed = picked.state.pending?.proposed as { value: Date; verbatim: string } | undefined;
+      expect(proposed?.value.toISOString()).toBe("1989-11-08T00:00:00.000Z");
+      expect(proposed?.verbatim, "their words travel with it").toBe("11/08/1989");
+    }
+    // One reading is not an offer: the date reads, or it is refused with why.
+    expect((await receiveAnswer(before, "identity.date_of_birth", "25/08/1989", model)).kind).toBe("understood");
+    expect((await receiveAnswer(before, "identity.date_of_birth", "30/02/1989", model)).kind).toBe("not_understood");
+  });
+
+  it("offers the readings of a two-way date given for a PART, and the pick is read as that part (P225)", async () => {
+    // The mechanism is the field's, not the date of birth's: a passport's
+    // expiry reads two ways just the same.
+    let state = start(["identity.passport"]);
+    for (const utterance of ["yes I have one", "X12345678"]) {
+      const step = await receiveAnswer(state, "identity.passport", utterance, model);
+      expect(step.kind).toBe("understood");
+      state = step.state;
+    }
+    const outcome = await receiveAnswer(state, "identity.passport", "03/04/2031", model);
+    expect(outcome.kind).toBe("ambiguous");
+    if (outcome.kind !== "ambiguous") return;
+    expect(outcome.partKey).toBe("expiry");
+    expect(outcome.readings.map((reading) => reading.label)).toEqual(["3 April 2031", "4 March 2031"]);
+    const picked = chooseReading(state, "identity.passport", "expiry", outcome.readings[0]!.proposed);
+    expect(picked.kind).toBe("understood");
+    if (picked.kind === "understood") {
+      expect(picked.state.pending, "the walk is not finished: the issuing country is still to ask").toBeUndefined();
+      const read = picked.state.partial.get("identity.passport")?.get("expiry") as { value: Date } | undefined;
+      expect(read?.value.toISOString()).toBe("2031-04-03T00:00:00.000Z");
+      const next = await nextAction(picked.state, model);
+      expect(next.kind === "ask" && next.partKey).toBe("issuingCountry");
+    }
+    // A pick for a part the walk is not on is refused, not applied.
+    expect(chooseReading(state, "identity.passport", "issuingCountry", outcome.readings[0]!.proposed).kind).toBe("not_understood");
   });
 
   it("rephrases on a second attempt rather than repeating verbatim", async () => {
@@ -256,11 +313,13 @@ describe("evaluating whether an answer is sufficient", () => {
     }
   });
 
-  it("REFUSES an ambiguous date rather than guessing", async () => {
+  it("never GUESSES an ambiguous date: both readings are offered, neither is taken", async () => {
     // 02/04/1999 is April 2nd in Britain and February 4th in America. Date of
     // birth drives minor detection, so a wrong reading has legal consequences.
+    // Refused until P225; offered since (ADR-0146). Still never guessed.
     const outcome = await receiveAnswer(start(), "identity.date_of_birth", "02/04/1999", model);
-    expect(outcome.kind).toBe("not_understood");
+    expect(outcome.kind).toBe("ambiguous");
+    expect(outcome.state.pending, "nothing proposed on its own").toBeUndefined();
   });
 
   it("accepts unambiguous date forms", async () => {

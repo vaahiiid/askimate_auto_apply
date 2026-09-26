@@ -55,6 +55,7 @@ import {
 } from "@askimate/aas-disclosure";
 import { describeRedacted, isFieldUnavailable, studentId } from "@askimate/aas-domain";
 import {
+  chooseReading,
   newInterview,
   receiveAnswer,
   receiveConfirmation,
@@ -153,8 +154,9 @@ function passportDisclosure(portalHost: string): DisclosureAuthorisation {
 const SCRIPT: Partial<Record<ProfileFieldKey, string[]>> = {
   "identity.given_name": ["Niloofar"],
   "identity.family_name": ["Hosseini"],
-  // Refused first — 02/04 is April 2nd here and February 4th in America.
-  "identity.date_of_birth": ["02/04/1999", "2 April 1999"],
+  // Offered first — 02/04 is April 2nd here and February 4th in America, and
+  // since P225 both readings are put to the student to pick from (ADR-0146).
+  "identity.date_of_birth": ["02/04/1999"],
   // Refused first, like the date above, and for a reason worth seeing in the
   // transcript: *Iranian* is a nationality, and the registry field is the
   // COUNTRY the reviewed mapping set is keyed by (P199, blocker 64). ICU
@@ -416,6 +418,18 @@ async function main(): Promise<void> {
         interview = outcome.state;
         if (outcome.kind === "not_understood") {
           console.log(`  ${AMBER}·${RESET} ${DIM}${outcome.reason}${RESET}`);
+        }
+        if (outcome.kind === "ambiguous") {
+          // The readings are offered, and the scripted student picks the
+          // first — no attempt spent, the pick is the answer (ADR-0146).
+          const labels = outcome.readings.map((reading) => reading.label);
+          console.log(`  ${BLUE}AskiMate${RESET}  "${said}" could be ${labels.slice(0, -1).join(", ")} or ${labels.at(-1) ?? ""}. Which did you mean?`);
+          const picked = outcome.readings[0];
+          if (picked === undefined) throw new Error("an offer with no readings");
+          console.log(`  ${BLUE}Student ${RESET}  ${picked.label}`);
+          const chosen = chooseReading(interview, action.fieldKey, outcome.partKey, picked.proposed);
+          if (chosen.kind !== "understood") throw new Error(`the pick was not read: ${chosen.kind}`);
+          interview = chosen.state;
         }
         state = withProfile(state, profile, interview);
         continue;

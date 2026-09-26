@@ -1628,11 +1628,47 @@ components:
       oneOf:
         - $ref: "#/components/schemas/HashedPendingDecision"
         - $ref: "#/components/schemas/ConsentQuestion"
+        - $ref: "#/components/schemas/ReadingChoice"
       description: >-
         ADR-0061. What the run is waiting for the student to do. Three carry
         the hash that decision must carry; the fourth (ADR-0131) carries the
         consent banner's question instead, because the answer is a choice of
-        the student's own and not agreement to something shown.
+        the student's own and not agreement to something shown. The fifth
+        (ADR-0146) carries the readings of an answer the reader read more than
+        one way, with the hash of that offer, and waits for the student to say
+        which they meant.
+
+    ReadingChoice:
+      type: object
+      additionalProperties: false
+      required: [decision, contentHash, readings]
+      description: >-
+        ADR-0146. The student's last answer read more than one way and the
+        run waits for them to pick. Vahid: "It should put them to the student
+        and let them pick, the same way it plays back a reading for
+        confirmation today." The hash is the offer's, as a proposal's is its
+        playback's: the pick is bound to the readings as put, and a pick over
+        an offer the student can no longer see is refused. The pick is an
+        answer to the question already open, not a new question, so it spends
+        no attempt. The answer is a `choose_reading` decision naming one
+        reading's `id` with this hash.
+      properties:
+        decision:
+          type: string
+          enum: [choose_reading]
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        readings:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, label]
+            properties:
+              id: { type: string, minLength: 1, maxLength: 64 }
+              label: { type: string, maxLength: 200 }
 
     HashedPendingDecision:
       type: object
@@ -1761,15 +1797,38 @@ components:
       description: >-
         ADR-0049 §5. What only the student can decide, and about exactly what.
 
-        A discriminated union rather than one object with optional fields: three
-        of the four members REQUIRE the hash of what was shown, and an optional
-        field would let a caller omit it.
+        A discriminated union rather than one object with optional fields: the
+        members that answer something shown REQUIRE the hash of it, and an
+        optional field would let a caller omit it.
       oneOf:
         - $ref: "#/components/schemas/HashedStudentDecision"
         - $ref: "#/components/schemas/CancelDecision"
         - $ref: "#/components/schemas/AttachedMyselfDecision"
         - $ref: "#/components/schemas/ExistingAccountDecision"
         - $ref: "#/components/schemas/ConsentChoiceDecision"
+        - $ref: "#/components/schemas/ChooseReadingDecision"
+
+    ChooseReadingDecision:
+      type: object
+      additionalProperties: false
+      required: [kind, contentHash, choice]
+      description: >-
+        ADR-0146. The student says which of the readings offered they meant,
+        by the reading's `id`, carrying the offer's hash so the pick is over
+        the readings as shown. Not agreement to a proposal: it PRODUCES the
+        proposal (or the part read) that the pick stands for, and the
+        confirmation, where one is due, follows on that.
+      properties:
+        kind:
+          type: string
+          enum: [choose_reading]
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        choice:
+          type: string
+          minLength: 1
+          maxLength: 64
 
     HashedStudentDecision:
       type: object
@@ -1935,6 +1994,7 @@ components:
         - { $ref: "#/components/schemas/ValueAskedEvent" }
         - { $ref: "#/components/schemas/ValueProposedEvent" }
         - { $ref: "#/components/schemas/ValuePartReadEvent" }
+        - { $ref: "#/components/schemas/ValueOfferedEvent" }
         - { $ref: "#/components/schemas/ValueConfirmedEvent" }
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
         - { $ref: "#/components/schemas/TargetOfferedEvent" }
@@ -1953,6 +2013,7 @@ components:
           value_asked: "#/components/schemas/ValueAskedEvent"
           value_proposed: "#/components/schemas/ValueProposedEvent"
           value_part_read: "#/components/schemas/ValuePartReadEvent"
+          value_offered: "#/components/schemas/ValueOfferedEvent"
           value_confirmed: "#/components/schemas/ValueConfirmedEvent"
           value_rejected: "#/components/schemas/ValueRejectedEvent"
           target_offered: "#/components/schemas/TargetOfferedEvent"
@@ -2078,6 +2139,55 @@ components:
             The structured reading of this part alone. Its shape belongs to the
             profile package and is deliberately not described here, for
             ValueProposedEvent's reason.
+
+    ValueOfferedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey, readings, offerHash]
+      description: >
+        An answer the reader can read more than one way, put back to the
+        student as its readings so they pick (ADR-0146). Vahid, on a date of
+        birth typed 11/08/1989 and refused as two-way: "Not guessing was
+        right. Not offering is the defect."
+
+        Not a proposal: nothing is agreed and no single reading is pending.
+        Not an asking: the pick is an answer to the question already open, so
+        it spends no attempt and the value_asked count is untouched. The
+        student's decision is choose_reading, bound to this offerHash the way
+        a confirmation is bound to a playbackHash, and it produces the
+        value_proposed (or value_part_read) that the pick stands for.
+
+        The mechanism is the field's, not the date's: any field or part whose
+        reader can return several valid readings is offered in this shape.
+      properties:
+        kind: { type: string, enum: [value_offered] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
+        partKey:
+          type: string
+          description: Present when the two-way answer was to one part of a field.
+        readings:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, label, proposal]
+            properties:
+              id: { type: string }
+              label:
+                type: string
+                description: The reading in words, as shown to the student.
+              proposal:
+                description: >
+                  The structured reading, as a value_proposed would carry it.
+                  Its shape belongs to the profile package and is deliberately
+                  not described here, for ValueProposedEvent's reason.
+        offerHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+          description: The hash of the offer as put; a choose_reading decision must carry it.
 
     ValueConfirmedEvent:
       type: object

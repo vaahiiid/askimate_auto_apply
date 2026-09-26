@@ -74,26 +74,41 @@ function areaOf(file: string): string {
 export function countsFrom(report: string): {
   readonly areas: readonly AreaCount[];
   readonly total: number;
+  /**
+   * Tests the run did not execute — skipped, pending or todo. A census is a
+   * count of tests that RAN; one taken over a run that skipped a fifth of the
+   * suite is a count of nothing, and it happened silently twice on 2026-09-26
+   * (P225): the census run without the database variables in its
+   * environment, 633 tests skipped, a table written, exit 0.
+   */
+  readonly skipped: number;
 } {
   const parsed: unknown = JSON.parse(report);
-  const results = (parsed as { testResults?: { name: string; assertionResults: unknown[] }[] })
-    .testResults;
+  const results = (
+    parsed as {
+      testResults?: { name: string; assertionResults: { status?: string }[] }[];
+    }
+  ).testResults;
   if (results === undefined) throw new Error("the report has no testResults");
 
   const tally = new Map<string, number>();
   let total = 0;
+  let skipped = 0;
   for (const file of results) {
     const area = areaOf(file.name);
     const n = file.assertionResults.length;
     tally.set(area, (tally.get(area) ?? 0) + n);
     total += n;
+    for (const test of file.assertionResults) {
+      if (test.status !== "passed" && test.status !== "failed") skipped += 1;
+    }
   }
 
   const areas = [...tally.entries()]
     .map(([area, tests]) => ({ area, tests }))
     .sort((a, b) => b.tests - a.tests || a.area.localeCompare(b.area));
 
-  return { areas, total };
+  return { areas, total, skipped };
 }
 
 export function tableFrom(areas: readonly AreaCount[], total: number): string {
@@ -218,7 +233,18 @@ function failingFiles(report: string): readonly string[] {
 function main(): void {
   console.log("Running the suite to count it…\n");
   const { report, passed } = runSuite();
-  const { areas, total } = countsFrom(report);
+  const { areas, total, skipped } = countsFrom(report);
+
+  if (skipped > 0) {
+    console.error(
+      `\nTHE SUITE SKIPPED ${String(skipped)} TESTS — a census of a run that did not run them counts nothing, ` +
+        `and the table is NOT written. The database-backed suites skip themselves when ` +
+        `AAS_TEST_DATABASE_URL and AAS_TEST_REDIS_URL are unset; set them, with ` +
+        `AAS_REQUIRE_DATABASE=1 and AAS_REQUIRE_REDIS=1 so a missing service fails instead.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   const document = readFileSync(DOCUMENT, "utf8");
   const start = document.indexOf(CENSUS_BEGIN);

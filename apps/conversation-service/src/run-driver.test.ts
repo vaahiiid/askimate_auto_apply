@@ -6236,6 +6236,128 @@ const DOCUMENT_CATALOGUE: TestCatalogue = {
   find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? DOCUMENT_ENTRY : null),
 };
 
+describeIfDatabase("a two-way answer is offered, the pick is the student's own, and no attempt is spent (P225, ADR-0146)", () => {
+  // ═══════════════════════════════════════════════════════════════════
+  // Vahid, on the refusal P223 built: *"honest and it is also unhelpful …
+  // Not guessing was right. Not offering is the defect."* — *"The pick is an
+  // answer to the open question, not a new question — so it should not
+  // spend an attempt."*
+  // ═══════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPESC005";
+  let student = "";
+  let runId = "";
+
+  async function events(): Promise<{ kind: string; content: string | null; field: string | null; attempt: number | null; hash: string | null }[]> {
+    const rows = await pool.query<{ kind: string; content: string | null; field: string | null; attempt: number | null; hash: string | null }>(
+      `SELECT e.kind, b.content, e.field_key AS field, e.attempt, e.playback_hash AS hash
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function lastSaid(): Promise<string> {
+    const said = (await events()).filter((event) => event.kind === "message" && event.content !== null);
+    return said.at(-1)?.content ?? "";
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p225-dob', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
+      // Nationality is left unconfirmed on purpose: it is the field asked
+      // after the date of birth, so the interview has somewhere to move on to.
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("puts both readings to the student, writes no asking, and the run waits on a pick bound to the offer", async () => {
+    await say("11/08/1989");
+    const log = await events();
+    expect(await lastSaid()).toBe('"11/08/1989" could be 11 August 1989 or 8 November 1989. Which did you mean?');
+    expect(log.filter((event) => event.kind === "value_offered")).toHaveLength(1);
+    expect(log.filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth"), "no attempt spent").toHaveLength(1);
+    expect(log.filter((event) => event.kind === "value_proposed"), "nothing proposed yet").toHaveLength(0);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.pending).toEqual({
+        decision: "choose_reading",
+        contentHash: log.find((event) => event.kind === "value_offered")?.hash,
+        readings: [
+          { id: "r1", label: "11 August 1989" },
+          { id: "r2", label: "8 November 1989" },
+        ],
+      });
+      // Bound to the offer: a stale hash and an unknown reading are refused.
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_reading", contentHash: "sha256:stale", choice: "r1" } })).toEqual({ ok: false, reason: "content_changed" });
+      const hash = reading?.pending?.decision === "choose_reading" ? reading.pending.contentHash : "";
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_reading", contentHash: hash, choice: "r9" } })).toEqual({ ok: false, reason: "refused" });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("the pick is proposed and confirmed in one act, reaches the profile, and the interview moves on", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      const hash = reading?.pending?.decision === "choose_reading" ? reading.pending.contentHash : "";
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_reading", contentHash: hash, choice: "r1" } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+    const log = await events();
+    expect(log.filter((event) => event.kind === "value_proposed" && event.field === "identity.date_of_birth")).toHaveLength(1);
+    expect(log.filter((event) => event.kind === "value_confirmed" && event.field === "identity.date_of_birth")).toHaveLength(1);
+    const stored = await pool.query<{ field_key: string; value: unknown }>(
+      "SELECT field_key, value FROM profile_entries WHERE student_id = $1 AND field_key = 'identity.date_of_birth'",
+      [student],
+    );
+    expect(stored.rowCount).toBe(1);
+    expect(JSON.stringify(stored.rows[0]?.value)).toContain("1989-08-11");
+    // The Date survived the log as a Date, not as the string JSON makes of
+    // one: this is what "specialist (running)" on Vahid's page came from.
+    expect(stored.rows[0]?.value).toEqual({ $date: "1989-08-11T00:00:00.000Z" });
+    // And the next question is on the log, about the next field, on its
+    // first attempt: the pick spent nothing and the count started afresh.
+    const next = log.filter((event) => event.kind === "value_asked").at(-1);
+    expect(next?.field).toBe("identity.nationality");
+    expect(next?.attempt).toBe(1);
+    expect(await lastSaid()).not.toContain("Which did you mean?");
+  }, 300_000);
+});
+
 describeIfDatabase("the count is what the asking wrote, the answer is read against the log's question, and nothing required is skipped (P224, ADR-0145)", () => {
   // ═══════════════════════════════════════════════════════════════════
   // Vahid's run, 2026-09-26, second morning: his log carried two silent
@@ -6321,13 +6443,13 @@ describeIfDatabase("the count is what the asking wrote, the answer is read again
   it("does not count the silent askings: the next asking writes attempt 2, and the field is NOT skipped", async () => {
     const log = await events();
     expect(log.filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth"), "three askings on the log").toHaveLength(3);
-    await say("11/08/1989");
+    await say("30/02/1989");
     const after = await events();
     const askings = after.filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth");
     expect(askings, "asked again — the same field, not the next one").toHaveLength(4);
     expect(askings.at(-1)?.attempt, "the asking wrote its count: the silent ones read as 1, this is the second").toBe(2);
     expect(after.filter((event) => event.kind === "value_asked" && event.field !== "identity.date_of_birth"), "no other field was asked").toHaveLength(0);
-    expect(await lastSaid()).toContain('"11/08/1989" could be 11 August 1989 or 8 November 1989');
+    expect(await lastSaid()).toContain('"30/02/1989" is not a day the calendar has, read either way round.');
   }, 300_000);
 
   it("reads an answer against the question the LOG holds open, whatever a derived step would say", async () => {
@@ -6434,16 +6556,18 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
     }
   }, 300_000);
 
-  it("answers a two-way date with why it was not read, twice, and never repeats the question verbatim", async () => {
+  it("answers an impossible date with why it was not read, twice, and never repeats the question verbatim", async () => {
+    // Since P225 a two-way date is offered, not refused; what is still
+    // refused is a date the calendar does not have, read either way round.
     const first = await lastSaid();
     expect(first).toContain("What's your date of birth?");
-    await say("11/08/1989");
+    await say("30/02/1989");
     const again = await lastSaid();
-    expect(again.startsWith('"11/08/1989" could be 11 August 1989 or 8 November 1989, and I do not guess which.')).toBe(true);
+    expect(again.startsWith('"30/02/1989" is not a day the calendar has, read either way round.')).toBe(true);
     expect(again).not.toBe(first);
-    await say("8/11/1989");
+    await say("31/11/1989");
     const third = await lastSaid();
-    expect(third.startsWith('"8/11/1989" could be 8 November 1989 or 11 August 1989, and I do not guess which.')).toBe(true);
+    expect(third.startsWith('"31/11/1989" is not a day the calendar has, read either way round.')).toBe(true);
     const log = await events();
     expect(log.filter((event) => event.kind === "value_proposed"), "no reading was made").toHaveLength(0);
     expect(log.filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth"), "asked, then asked again twice — the count the log carries").toHaveLength(3);

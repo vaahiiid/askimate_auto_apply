@@ -453,6 +453,21 @@ function drawPending(): void {
       );
       panel.append(line);
     }
+  } else if (pending !== null && pending.decision === "choose_reading") {
+    // P225. Their answer read more than one way; the sentence in the chat
+    // names the readings, and here is one button per reading. The pick sends
+    // the offer's hash and the reading's id, and nothing else.
+    const heading = document.createElement("h2");
+    text(heading, "Which did you mean?");
+    panel.append(heading);
+    for (const reading of pending.readings) {
+      const { contentHash } = pending;
+      panel.append(
+        button(reading.label, () => {
+          void answerReading(contentHash, reading.id);
+        }),
+      );
+    }
   } else if (pending !== null) {
     if (pending.decision === "authorise" && view.preview !== null) {
       const heading = document.createElement("h2");
@@ -464,7 +479,7 @@ function drawPending(): void {
       panel.append(heading, body);
     }
 
-    const labels: Readonly<Record<Exclude<api.PendingDecision, { decision: "consent_choice" }>["decision"], string>> = {
+    const labels: Readonly<Record<Exclude<api.PendingDecision, { decision: "consent_choice" | "choose_reading" }>["decision"], string>> = {
       authorise: "Yes — this is right, fill it in",
       confirm_value: "Yes, that's right",
       confirm_handoff: "Done — I have completed that",
@@ -1132,6 +1147,17 @@ async function answerOwnAct(item: string): Promise<void> {
   if (id === null || runId === undefined) return;
   view.notice = "";
   const recorded = await api.decide(id, runId, { kind: "attached_myself", item });
+  if (!recorded.ok) report(recorded.code);
+  await refresh();
+}
+
+/** The student's pick among the readings their answer was offered as (P225). */
+async function answerReading(contentHash: string, choice: string): Promise<void> {
+  const id = view.conversationId;
+  const runId = view.run.run?.runId;
+  if (id === null || runId === undefined) return;
+  view.notice = "";
+  const recorded = await api.decide(id, runId, { kind: "choose_reading", contentHash, choice });
   if (!recorded.ok) report(recorded.code);
   await refresh();
 }

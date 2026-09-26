@@ -114,8 +114,9 @@ import type {
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
-import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
+import type { InterviewAction, InterviewState, ReplyOutcome } from "@askimate/aas-interview";
 import {
+  chooseReading,
   newInterview,
   nextAction,
   receiveAnswer,
@@ -185,7 +186,7 @@ import type {
   ConfirmedProfileStore,
   ProfileFieldKey,
 } from "@askimate/aas-profile";
-import { toStoredEntry } from "@askimate/aas-profile";
+import { decodeValue, encodeValue, toStoredEntry } from "@askimate/aas-profile";
 
 import { latestSecretRequest } from "@askimate/aas-conversation";
 
@@ -208,6 +209,7 @@ import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-con
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
 import type { ProposedValue } from "@askimate/aas-domain";
+import { unwrapProposed } from "@askimate/aas-domain";
 
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
@@ -460,6 +462,17 @@ export type PendingDecision =
       readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
       /** `sha256:<hex>`, from the same source the decision route compares against. */
       readonly contentHash: string;
+    }
+  /**
+   * P225, ADR-0146. The student's answer read more than one way and the
+   * readings are on offer; the answer is a `choose_reading` naming one `id`
+   * and carrying the offer's hash. The readings' words are here; the values
+   * are on the log.
+   */
+  | {
+      readonly decision: "choose_reading";
+      readonly contentHash: string;
+      readonly readings: readonly { readonly id: string; readonly label: string }[];
     }
   /**
    * ADR-0131. The sign-in met the portal's consent notice and the student has
@@ -1316,7 +1329,9 @@ function partsReadFrom(
     if (event.kind === "value_part_read") {
       const field = event.fieldKey as ProfileFieldKey;
       const walk = walks.get(field) ?? new Map<string, ProposedValue<unknown>>();
-      walk.set(event.partKey, event.proposal as ProposedValue<unknown>);
+      // Decoded at the log boundary: JSON turned every Date into a string on
+      // the way in, and a string is not a value the plan can render (P225).
+      walk.set(event.partKey, decodeValue(event.proposal) as ProposedValue<unknown>);
       walks.set(field, walk);
       continue;
     }
@@ -1382,10 +1397,41 @@ function interviewFrom(input: {
       : {
           pending: {
             fieldKey: open.fieldKey as ProfileFieldKey,
-            proposed: open.proposal as ProposedValue<unknown>,
+            proposed: decodeValue(open.proposal) as ProposedValue<unknown>,
           },
         }),
   };
+}
+
+/**
+ * The readings on offer for the question that stands, or `null` (P225).
+ *
+ * The last `value_offered` with nothing after it that answers, supersedes or
+ * closes it: a reading proposed or confirmed, a reading rejected, the field
+ * asked again, or the student writing instead of picking — a message is an
+ * answer to the open question, and the offer it passes over is spent.
+ */
+export function openOffer(
+  events: readonly ConversationEvent[],
+): { fieldKey: string; partKey?: string; readings: readonly { id: string; label: string; proposal: unknown }[]; offerHash: string } | null {
+  let open: ReturnType<typeof openOffer> = null;
+  for (const event of events) {
+    if (event.kind === "value_offered") {
+      open = { fieldKey: event.fieldKey, readings: event.readings, offerHash: event.offerHash, ...(event.partKey === undefined ? {} : { partKey: event.partKey }) };
+      continue;
+    }
+    if (
+      event.kind === "value_proposed" ||
+      event.kind === "value_confirmed" ||
+      event.kind === "value_rejected" ||
+      event.kind === "value_asked" ||
+      event.kind === "value_part_read" ||
+      (event.kind === "message" && event.actor === "student")
+    ) {
+      open = null;
+    }
+  }
+  return open;
 }
 
 /**
@@ -3454,8 +3500,19 @@ export class RunDriver {
     }
 
     // An open reading outranks nothing else: it can only exist while the run
-    // is interviewing, and the two above are later steps.
-    const open = openProposal(await this.#options.conversations.since(conversationId, 0));
+    // is interviewing, and the two above are later steps. An offer of
+    // readings (P225) is the same exchange one step earlier: it stands only
+    // while no reading has been proposed from it.
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const offer = openOffer(events);
+    if (offer !== null) {
+      return {
+        decision: "choose_reading",
+        contentHash: offer.offerHash,
+        readings: offer.readings.map((reading) => ({ id: reading.id, label: reading.label })),
+      };
+    }
+    const open = openProposal(events);
     return open === null
       ? null
       : { decision: "confirm_value", contentHash: open.playbackHash };
@@ -3822,6 +3879,9 @@ export class RunDriver {
 
     if (input.decision.kind === "confirm_value") {
       return await this.#confirmValue(input.conversationId, situation.state, input.decision);
+    }
+    if (input.decision.kind === "choose_reading") {
+      return await this.#chooseReading(input.conversationId, situation.state, input.decision);
     }
 
     // ── A stop is answered wherever the run happens to be ────────────────
@@ -4207,6 +4267,94 @@ export class RunDriver {
     return { ok: true };
   }
 
+  /**
+   * Puts the readings an answer could have to the student (P225, ADR-0146).
+   *
+   * Two writes, in `#putToTheStudent`'s order: the structured offer, so the
+   * pick applies exactly the reading it names, then the words. The message is
+   * rendered deterministically from the readings' own labels — the student
+   * picks between sentences they can check against what they typed.
+   */
+  async #offerReadings(
+    conversationId: string,
+    outcome: Extract<ReplyOutcome, { kind: "ambiguous" }>,
+  ): Promise<void> {
+    const first = outcome.readings[0];
+    if (first === undefined) return;
+    const said = unwrapProposed(first.proposed).verbatim;
+    const labels = outcome.readings.map((reading) => reading.label);
+    const words = `"${said}" could be ${labels.slice(0, -1).join(", ")} or ${labels.at(-1) ?? ""}. Which did you mean?`;
+    const offerHash = hashOfText(words);
+    await this.#options.conversations.append({
+      conversationId,
+      event: {
+        kind: "value_offered",
+        fieldKey: outcome.fieldKey,
+        readings: outcome.readings.map((reading) => ({ id: reading.id, label: reading.label, proposal: encodeValue(reading.proposed) })),
+        offerHash,
+        ...(outcome.partKey === undefined ? {} : { partKey: outcome.partKey }),
+      },
+    });
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: words },
+    });
+  }
+
+  /**
+   * The student picked one of the readings offered (P225, ADR-0146).
+   *
+   * Bound to the offer as a confirmation is bound to its playback: the hash
+   * must be the open offer's, and the id one of its readings'. The pick is
+   * the student's own statement of the value. For a field answered in one
+   * utterance it is proposed AND confirmed in one act — they chose the exact
+   * value they saw — and written to the profile through the sanctioned
+   * store; for a part it is read as that part and the walk goes on. No
+   * attempt is spent: nothing was asked again.
+   */
+  async #chooseReading(
+    conversationId: string,
+    state: RunState,
+    decision: Extract<StudentDecision, { kind: "choose_reading" }>,
+  ): Promise<
+    { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
+  > {
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const offer = openOffer(events);
+    if (offer === null) return { ok: false, reason: "not_asked" };
+    if (offer.offerHash !== decision.contentHash) return { ok: false, reason: "content_changed" };
+    const picked = offer.readings.find((reading) => reading.id === decision.choice);
+    if (picked === undefined) return { ok: false, reason: "refused" };
+
+    const fieldKey = offer.fieldKey as ProfileFieldKey;
+    const before = state.interview;
+    const chosen = chooseReading(before, fieldKey, offer.partKey, decodeValue(picked.proposal) as ProposedValue<unknown>);
+    if (chosen.kind !== "understood") return { ok: false, reason: "refused" };
+
+    if (offer.partKey === undefined) {
+      // One act: the reading they picked is the reading they confirm.
+      const confirmed = receiveConfirmation(chosen.state, { agreed: true }, this.#options.now());
+      if (confirmed.kind !== "confirmed") return { ok: false, reason: "refused" };
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "value_proposed", fieldKey, proposal: picked.proposal, playbackHash: offer.offerHash },
+      });
+      await this.#persist(confirmed.state, fieldKey);
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "value_confirmed", fieldKey, playbackHash: offer.offerHash },
+      });
+      await this.#askAfterWriting(conversationId);
+      return { ok: true };
+    }
+
+    // A part: held with the others, or the whole put for confirmation.
+    await this.#recordThePart(conversationId, fieldKey, before, chosen.state);
+    await this.#putToTheStudent(conversationId, chosen.state);
+    if (chosen.state.pending === undefined) await this.#askAfterWriting(conversationId);
+    return { ok: true };
+  }
+
   async #confirmValue(
     conversationId: string,
     state: RunState,
@@ -4436,6 +4584,13 @@ export class RunDriver {
       said.content,
       this.#options.model,
     );
+    if (outcome.kind === "ambiguous") {
+      // P225. The answer reads more than one way: the readings are put to the
+      // student to pick from. Nothing is asked again and nothing is counted —
+      // the pick is an answer to the question that stands.
+      await this.#offerReadings(input.conversationId, outcome);
+      return;
+    }
     if (outcome.kind !== "understood") {
       // Not read at all. Nothing is written about the ANSWER, because nothing
       // was understood — but the student is owed the question again, and the
@@ -4568,7 +4723,7 @@ export class RunDriver {
 
     await this.#options.conversations.append({
       conversationId,
-      event: { kind: "value_part_read", fieldKey, partKey, proposal },
+      event: { kind: "value_part_read", fieldKey, partKey, proposal: encodeValue(proposal) },
     });
   }
 
@@ -4591,7 +4746,10 @@ export class RunDriver {
       event: {
         kind: "value_proposed",
         fieldKey: pending.fieldKey,
-        proposal: pending.proposed,
+        // Encoded, so a Date survives the log (P225): confirmed straight
+        // from JSON it was a string, the plan refused dobDay/dobMonth/dobYear,
+        // and the page read "specialist (running)".
+        proposal: encodeValue(pending.proposed),
         playbackHash: hashOfText(action.say),
       },
     });

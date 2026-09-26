@@ -6,13 +6,15 @@
  * student is already having.
  */
 
-export type { InterviewAction, InterviewState, ReplyOutcome } from "./interview.js";
+export type { InterviewAction, InterviewState, ReplyOutcome,
+  ReadingOnOffer } from "./interview.js";
 export {
   MAX_ATTEMPTS_PER_FIELD,
   newInterview,
   nextAction,
   receiveAnswer,
   receiveConfirmation,
+  chooseReading,
   receiveExtractedValue,
   recordDocument,
 } from "./interview.js";

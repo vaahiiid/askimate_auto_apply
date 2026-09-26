@@ -148,6 +148,7 @@ export function projectEvent(event: UnpositionedEvent, position: Position): Tran
     // it at all, because the reading is not shown until the whole value is.
     case "value_asked":
     case "value_proposed":
+    case "value_offered":
     case "value_part_read":
     case "value_confirmed":
     case "value_rejected":

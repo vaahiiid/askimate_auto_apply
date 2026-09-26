@@ -189,6 +189,37 @@ describe("the test census", () => {
   });
 });
 
+describe("a run that skipped tests is not a census (P225)", () => {
+  // Twice on 2026-09-26 the census ran without the database variables in its
+  // environment: 633 tests skipped, a table written, exit 0. A count of tests
+  // that did not run is a count of nothing, and a check that says nothing
+  // about it is indistinguishable from one that found nothing.
+  it("counts the tests a run skipped", () => {
+    const report = JSON.stringify({
+      testResults: [
+        {
+          name: `${process.cwd()}/packages/interview/src/interview.test.ts`,
+          assertionResults: [{ status: "passed" }, { status: "failed" }, { status: "skipped" }, { status: "pending" }, { status: "todo" }],
+        },
+      ],
+    });
+    const counts = countsFrom(report);
+    expect(counts.total).toBe(5);
+    expect(counts.skipped).toBe(3);
+  });
+
+  it("refuses to write the table over a run that skipped tests, and says which variables to set", () => {
+    const raw = readFileSync(join(import.meta.dirname, "census.ts"), "utf8");
+    const source = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const guard = source.indexOf("if (skipped > 0) {");
+    const write = source.indexOf("writeFileSync(DOCUMENT");
+    expect(guard, "the guard exists").toBeGreaterThan(-1);
+    expect(guard, "and stands before the write").toBeLessThan(write);
+    expect(source.slice(guard, write)).toContain("return;");
+    expect(source.slice(guard, write)).toContain("AAS_TEST_DATABASE_URL");
+  });
+});
+
 describe("a red run keeps its report (P209)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // `runSuite` used to end in `finally { rmSync(directory) }`, so the one

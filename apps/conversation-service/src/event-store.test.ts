@@ -126,6 +126,8 @@ beforeAll(async () => {
     "0024_a_part_of_a_value_is_on_the_log",
     "0025_a_list_entry_s_part_is_on_the_log",
     "0026_the_asking_carries_its_own_count",
+    "0027_a_two_way_answer_is_offered",
+    "0028_a_date_confirmed_through_the_log_is_a_date",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
@@ -269,6 +271,29 @@ describeIfDatabase("an asking carries its own count (0026, ADR-0145)", () => {
         [conversation],
       ),
     ).rejects.toThrow(/only_an_asking_carries_an_attempt/);
+  });
+});
+
+describeIfDatabase("an offer of readings is on the log (0027, ADR-0146)", () => {
+  it("writes the readings, the offer's hash and the part, and reads them back", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE0027A";
+    const owner = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-0027-a', true) RETURNING id",
+    );
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, owner.rows[0]!.id]);
+    const store = new ConversationEventStore(pool);
+    const readings = [
+      { id: "r1", label: "11 August 1989", proposal: { value: "1989-08-11" } },
+      { id: "r2", label: "8 November 1989", proposal: { value: "1989-11-08" } },
+    ];
+    await store.append({ conversationId: conversation, event: { kind: "value_offered", fieldKey: "identity.date_of_birth", readings, offerHash: "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1" } });
+    await store.append({ conversationId: conversation, event: { kind: "value_offered", fieldKey: "identity.passport", partKey: "expiry", readings, offerHash: "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2" } });
+    const log = await store.since(conversation, 0);
+    expect(log).toMatchObject([
+      { kind: "value_offered", fieldKey: "identity.date_of_birth", readings, offerHash: "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1" },
+      { kind: "value_offered", fieldKey: "identity.passport", partKey: "expiry", readings, offerHash: "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2" },
+    ]);
+    expect(log[0] !== undefined && log[0].kind === "value_offered" && log[0].partKey).toBeUndefined();
   });
 });
 

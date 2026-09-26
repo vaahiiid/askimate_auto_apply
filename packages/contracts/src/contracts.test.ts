@@ -655,6 +655,15 @@ describe("bytes from the network to a target event", () => {
       // ADR-0140. No playbackHash: a part is not put to the student, so there
       // is nothing for one to bind.
       value_part_read: { fieldKey: "contact.address", partKey: "line1", proposal: { value: "x" } },
+      // ADR-0146. Two readings put to the student; the offerHash binds the pick.
+      value_offered: {
+        fieldKey: "identity.date_of_birth",
+        readings: [
+          { id: "r1", label: "11 August 1989", proposal: { value: "x" } },
+          { id: "r2", label: "8 November 1989", proposal: { value: "y" } },
+        ],
+        offerHash: OFFER,
+      },
       value_confirmed: { fieldKey: "contact.email", playbackHash: OFFER },
       value_rejected: { fieldKey: "contact.email" },
       target_offered: { offerHash: OFFER, targetBlueprintId: "bp-x", targetContentHash: CONTENT },
@@ -996,5 +1005,24 @@ describe("an asking carries its own count on the wire (ADR-0145)", () => {
     for (const bad of [0, -1, 1.5, "2", null]) {
       expect(parseConversationEvent({ ...base, kind: "value_asked", fieldKey: "identity.date_of_birth", attempt: bad }), String(bad)).toBeNull();
     }
+  });
+});
+
+describe("a two-way answer's offer, and the pick (ADR-0146)", () => {
+  const base = { ordinal: 8, createdAt: "2026-09-26T09:00:00.000Z" };
+  const readings = [
+    { id: "r1", label: "11 August 1989", proposal: { value: "1989-08-11" } },
+    { id: "r2", label: "8 November 1989", proposal: { value: "1989-11-08" } },
+  ];
+  it("parses an offer with at least two readings and its hash, with or without a part, and refuses less", () => {
+    expect(parseConversationEvent({ ...base, kind: "value_offered", fieldKey: "identity.date_of_birth", readings, offerHash: "sha256:0" })).toMatchObject({ kind: "value_offered", readings, offerHash: "sha256:0" });
+    expect(parseConversationEvent({ ...base, kind: "value_offered", fieldKey: "identity.passport", partKey: "expiry", readings, offerHash: "sha256:0" })).toMatchObject({ partKey: "expiry" });
+    expect(parseConversationEvent({ ...base, kind: "value_offered", fieldKey: "identity.date_of_birth", readings: readings.slice(0, 1), offerHash: "sha256:0" })).toBeNull();
+    expect(parseConversationEvent({ ...base, kind: "value_offered", fieldKey: "identity.date_of_birth", readings })).toBeNull();
+  });
+  it("parses the pick as a hash and a reading id, and nothing less", () => {
+    expect(parseStudentDecision({ kind: "choose_reading", contentHash: "sha256:0", choice: "r2" })).toEqual({ kind: "choose_reading", contentHash: "sha256:0", choice: "r2" });
+    expect(parseStudentDecision({ kind: "choose_reading", contentHash: "sha256:0" })).toBeNull();
+    expect(parseStudentDecision({ kind: "choose_reading", choice: "r2" })).toBeNull();
   });
 });

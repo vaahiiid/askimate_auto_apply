@@ -4906,6 +4906,32 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P225 — the readings are offered, and the word on the page
+
+> *"Not guessing was right. Not offering is the defect."*
+
+The reader that refused `11/08/1989` already knew both dates it could be. Now it puts them to
+him — *11 August 1989* and *8 November 1989*, under *Which did you mean?*, a button each, the way
+the consent question offers its two — and the press is the answer to the question that stands:
+no attempt spent, nothing marked unread, the date held at once because the label pressed is the
+playback's own words. The offer is on the log with its hash, and a press over an offer no longer
+shown is refused as a stale confirmation is. The mechanism sits on the field's spec, not on the
+date: any reader that can see two valid readings offers them. Measured, only the numeric date
+reader can, in four places, and all four carry it. ADR-0146.
+
+The position line he asked about — *specialist (running)* while the interview was asking him
+questions — is a real state in an internal word. A proposal crossed the log as plain JSON, the
+Date inside became a string, and the confirmation read back from the log stored the string; the
+plan could not render the three date-of-birth maps, so the run's next step was a person while
+its status was running, and the page printed both. Fixed at the log boundary — encode on every
+write, decode on every read — with the driver's test asserting the stored shape, and migration
+0028 re-tagging the rows written before, his own date of birth among them. What the page should
+say when a running run's next step is a person is row 92, his to decide.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P224 — one fault in two places
 
 > *"That is the same shape as the stale-read race in P221 — a later state overwritten by an

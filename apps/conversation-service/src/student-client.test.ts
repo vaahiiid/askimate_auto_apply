@@ -1057,6 +1057,63 @@ describeIfDatabase("the student's page", () => {
     await page.unroute(/\/v1\/conversations\/[^/]+\/runs$/);
   }, 300_000);
 
+  it("shows the readings a two-way answer has as buttons, and a press picks one (P225)", async () => {
+    const chooser = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('p225-reader', true) RETURNING id",
+    );
+    await visitAs(chooser.rows[0]!.id);
+    await page.waitForFunction(
+      () => document.querySelectorAll("#targets .target").length > 0,
+      undefined,
+      { timeout: 15_000 },
+    );
+    await chooseCourse("MSc Example Studies");
+    await textOf("#offer pre");
+    await page.locator("#statement").fill("Please apply to this one for me.");
+    await page.locator("#offer button").first().click();
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").includes("interview"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    // The offer, written as the driver writes one: two readings of the
+    // first question's answer, and the words beside it.
+    const conversation = await pool.query<{ id: string }>(
+      "SELECT id FROM conversations WHERE student_id = $1",
+      [chooser.rows[0]!.id],
+    );
+    const store = new ConversationEventStore(pool);
+    const readings = [
+      { id: "r1", label: "niloofar@example.test", proposal: proposeValue({ value: "niloofar@example.test", origin: "conversation", verbatim: "niloofar", confidence: 0.9 }) },
+      { id: "r2", label: "niloofar@example.org", proposal: proposeValue({ value: "niloofar@example.org", origin: "conversation", verbatim: "niloofar", confidence: 0.9 }) },
+    ];
+    await store.append({ conversationId: conversation.rows[0]!.id, event: { kind: "message", actor: "student", content: "niloofar" } });
+    await store.append({ conversationId: conversation.rows[0]!.id, event: { kind: "value_offered", fieldKey: "contact.email", readings, offerHash: "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3" } });
+    await store.append({ conversationId: conversation.rows[0]!.id, event: { kind: "message", actor: "assistant", content: '"niloofar" could be niloofar@example.test or niloofar@example.org. Which did you mean?' } });
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").includes("Which did you mean?"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    expect(await page.locator("#pending button", { hasText: "niloofar@example.org" }).count()).toBe(1);
+    await page.locator("#pending button", { hasText: "niloofar@example.org" }).click();
+    await page.waitForFunction(
+      () => !(document.querySelector("#pending")?.textContent ?? "").includes("Which did you mean?"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    const confirmed = await pool.query<{ playback_hash: string }>(
+      `SELECT e.playback_hash FROM conversation_events e WHERE e.conversation_id = $1 AND e.kind = 'value_confirmed'`,
+      [conversation.rows[0]!.id],
+    );
+    expect(confirmed.rows[0]?.playback_hash, "the pick sent the offer's hash").toBe("sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3");
+    const stored = await pool.query<{ value: unknown }>(
+      "SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = 'contact.email'",
+      [chooser.rows[0]!.id],
+    );
+    expect(JSON.stringify(stored.rows[0]?.value)).toContain("niloofar@example.org");
+  }, 300_000);
+
   it("offers a stop at every step, and it needs no hash", async () => {
     await visitAs(student);
     await page.waitForFunction(

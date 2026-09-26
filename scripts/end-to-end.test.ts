@@ -60,11 +60,12 @@ describe("the end-to-end run, executed for real", () => {
     // The blueprint had to be reviewed before anything used it.
     expect(stdout).toContain("blueprint status now reviewed");
 
-    // The conversation happened, and the ambiguous date was refused first —
-    // with both readings named and nothing guessed (P223), never with "Could
-    // not read a" and never with a shape to type.
+    // The conversation happened, and the ambiguous date was OFFERED first —
+    // both readings named, nothing guessed, the student picking one (P225,
+    // ADR-0146) — never with "Could not read a" and never with a shape to type.
     expect(stdout).toContain("Student   02/04/1999");
-    expect(stdout).toContain('"02/04/1999" could be 2 April 1999 or 4 February 1999, and I do not guess which.');
+    expect(stdout).toContain('"02/04/1999" could be 2 April 1999 or 4 February 1999. Which did you mean?');
+    expect(stdout).not.toContain("I do not guess which");
     expect(stdout).not.toContain("Could not read a");
     expect(stdout).toContain("Student   2 April 1999");
 

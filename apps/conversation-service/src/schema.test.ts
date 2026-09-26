@@ -15,6 +15,10 @@
  * refuses it, by SQLSTATE and by constraint name where one exists.
  */
 
+import { copyFileSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
@@ -28,6 +32,7 @@ import {
   EVENT_KINDS,
   REJECTION_REASONS,
 } from "@askimate/aas-contracts";
+import { decodeValue } from "@askimate/aas-profile";
 
 import {
   MIGRATIONS_DIR,
@@ -142,6 +147,8 @@ beforeAll(async () => {
     "0024_a_part_of_a_value_is_on_the_log",
     "0025_a_list_entry_s_part_is_on_the_log",
     "0026_the_asking_carries_its_own_count",
+    "0027_a_two_way_answer_is_offered",
+    "0028_a_date_confirmed_through_the_log_is_a_date",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -308,6 +315,27 @@ describeIfDatabase("the database refuses a word it does not know", () => {
              (conversation_id, ordinal, kind, field_key, part_key, proposal)
            VALUES ($1, $2, $3, 'contact.address', 'line1', $4::jsonb)`,
           [conversation, ordinal, kind, JSON.stringify({ value: "12 Valiasr Street" })],
+        );
+        continue;
+      }
+      // An offer carries a field, the readings (in the proposal column) and
+      // the offer's hash (in the playback column), and no part unless the
+      // two-way answer was to one (ADR-0146, migration 0027).
+      if (kind === "value_offered") {
+        await pool.query(
+          `INSERT INTO conversation_events
+             (conversation_id, ordinal, kind, field_key, proposal, playback_hash)
+           VALUES ($1, $2, $3, 'identity.date_of_birth', $4::jsonb, $5)`,
+          [
+            conversation,
+            ordinal,
+            kind,
+            JSON.stringify([
+              { id: "r1", label: "11 August 1989", proposal: { value: "x" } },
+              { id: "r2", label: "8 November 1989", proposal: { value: "y" } },
+            ]),
+            `sha256:${"f".repeat(64)}`,
+          ],
         );
         continue;
       }
@@ -1140,10 +1168,76 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0024_a_part_of_a_value_is_on_the_log",
         "0025_a_list_entry_s_part_is_on_the_log",
         "0026_the_asking_carries_its_own_count",
+        "0027_a_two_way_answer_is_offered",
+        "0028_a_date_confirmed_through_the_log_is_a_date",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
       await fresh.end();
+    }
+  }, 60_000);
+
+  it("0028 re-tags a date the log turned into a string, in each of the four places a date lives, and touches nothing else", async () => {
+    // P225. A confirmation read back from the log stored the ISO string JSON
+    // made of the Date; the plan refused the date-of-birth maps and the page
+    // read "specialist (running)". Rows written before the service encoded
+    // at the log boundary are put right here — Vahid's own date of birth,
+    // confirmed on 2026-09-26, is one. Applied to a database that stands at
+    // 0027 with such rows in it, which is the case that matters.
+    const fresh = await ownDatabase("aas_conversation_0028");
+    const upTo0027 = mkdtempSync(join(tmpdir(), "aas-0027-"));
+    try {
+      for (const name of readdirSync(MIGRATIONS_DIR)) {
+        if (name.endsWith(".sql") && name < "0028") copyFileSync(join(MIGRATIONS_DIR, name), join(upTo0027, name));
+      }
+      const applied = await migrate(fresh, upTo0027);
+      expect(applied.at(-1)).toBe("0027_a_two_way_answer_is_offered");
+      const student = await fresh.query<{ id: string }>(
+        "INSERT INTO students (subject, email_verified) VALUES ('oidc-0028', true) RETURNING id",
+      );
+      const id = student.rows[0]!.id;
+      const provenance = JSON.stringify({ source: "student_entered", confirmedAt: { $date: "2026-09-26T09:00:00.000Z" } });
+      const rows: [string, unknown][] = [
+        ["identity.date_of_birth", "1989-08-11T00:00:00.000Z"],
+        ["identity.passport", { kind: "held", number: "X12345678", expiry: "2031-04-03T00:00:00.000Z" }],
+        ["education.english_language_test", { test: "IELTS Academic", overallScore: "7.5", componentScores: {}, testDate: "2025-01-15T00:00:00.000Z" }],
+        ["immigration.uk_study", { kind: "studied", onStudentVisa: true, highestLevel: "university", currentVisaExpiry: "2027-09-30T00:00:00.000Z" }],
+        // Left alone: already tagged, a statement of none, and a plain string that is not a date.
+        ["contact.email", "niloofar@example.test"],
+        ["identity.given_name", "Niloofar"],
+      ];
+      for (const [fieldKey, value] of rows) {
+        await fresh.query(
+          "INSERT INTO profile_entries (student_id, field_key, value, provenance, revision) VALUES ($1, $2, $3::jsonb, $4::jsonb, 1)",
+          [id, fieldKey, JSON.stringify(value), provenance],
+        );
+      }
+      const tagged = await fresh.query<{ field_key: string; value: unknown }>(
+        "INSERT INTO profile_entries (student_id, field_key, value, provenance, revision) VALUES ($1, 'identity.country_of_birth', '\"IR\"'::jsonb, $2::jsonb, 1) RETURNING field_key, value",
+        [id, provenance],
+      );
+      expect(tagged.rowCount).toBe(1);
+
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date"]);
+      const after = await fresh.query<{ field_key: string; value: unknown }>(
+        "SELECT field_key, value FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
+        [id],
+      );
+      expect(Object.fromEntries(after.rows.map((row) => [row.field_key, row.value]))).toEqual({
+        "identity.date_of_birth": { $date: "1989-08-11T00:00:00.000Z" },
+        "identity.passport": { kind: "held", number: "X12345678", expiry: { $date: "2031-04-03T00:00:00.000Z" } },
+        "education.english_language_test": { test: "IELTS Academic", overallScore: "7.5", componentScores: {}, testDate: { $date: "2025-01-15T00:00:00.000Z" } },
+        "immigration.uk_study": { kind: "studied", onStudentVisa: true, highestLevel: "university", currentVisaExpiry: { $date: "2027-09-30T00:00:00.000Z" } },
+        "contact.email": "niloofar@example.test",
+        "identity.given_name": "Niloofar",
+        "identity.country_of_birth": "IR",
+      });
+      // What it re-tagged now rehydrates as a Date, which is the whole point.
+      const dob = after.rows.find((row) => row.field_key === "identity.date_of_birth")?.value;
+      expect(decodeValue(dob)).toBeInstanceOf(Date);
+    } finally {
+      await fresh.end();
+      rmSync(upTo0027, { recursive: true, force: true });
     }
   }, 60_000);
 
@@ -1199,6 +1293,8 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0024_a_part_of_a_value_is_on_the_log",
     "0025_a_list_entry_s_part_is_on_the_log",
     "0026_the_asking_carries_its_own_count",
+    "0027_a_two_way_answer_is_offered",
+    "0028_a_date_confirmed_through_the_log_is_a_date",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

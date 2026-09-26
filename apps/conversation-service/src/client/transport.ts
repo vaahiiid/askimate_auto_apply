@@ -81,6 +81,12 @@ export type PendingDecision =
   | {
       readonly decision: "consent_choice";
       readonly question: ConsentBannerReading;
+    }
+  /** P225. The student's answer read more than one way; they pick one by its `id`, sending the offer's hash. */
+  | {
+      readonly decision: "choose_reading";
+      readonly contentHash: string;
+      readonly readings: readonly { readonly id: string; readonly label: string }[];
     };
 
 /** A portal's consent banner as the reviewed blueprint records it (ADR-0131). */
@@ -244,9 +250,19 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
         const question = parseConsentBanner(raw["question"]);
         if (question === null) return null;
         pending = { decision: "consent_choice", question };
+      } else if (raw["decision"] === "choose_reading") {
+        const list = raw["readings"];
+        if (!Array.isArray(list) || typeof raw["contentHash"] !== "string") return null;
+        const readings: { id: string; label: string }[] = [];
+        for (const entry of list as readonly unknown[]) {
+          const reading = asRecord(entry);
+          if (reading === null || typeof reading["id"] !== "string" || typeof reading["label"] !== "string") return null;
+          readings.push({ id: reading["id"], label: reading["label"] });
+        }
+        pending = { decision: "choose_reading", contentHash: raw["contentHash"], readings };
       } else {
         pending = {
-          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" }>["decision"],
+          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" | "choose_reading" }>["decision"],
           contentHash: String(raw["contentHash"]),
         };
       }
