@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.230.0] — 2026-09-27
+
+**P234 — his three answers on P233: the amendment narrowed to the read-back's observation, the student's words played back, the attempt count measured (row 96).**
+
+- **Changed** the seed of a demanded walk: a part taken from a confirmed entry is shown back in
+  the student's own words, from the entry's provenance excerpt, not as its stored code.
+- **Recorded** ADR-0106's amendment in Vahid's words — the driver relays the read-back's
+  observation and never judges; without a read-back the stop stands — and row 96: a demand spends
+  the page's first attempt before the student was asked anything.
+
+---
+
 ## [0.229.0] — 2026-09-27
 
 **P233 — a page the portal would not save without a part becomes our sentence, one question and a resumed run (ADR-0148 §11).**

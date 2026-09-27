@@ -214,7 +214,7 @@ import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-con
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
 import type { ProposedValue } from "@askimate/aas-domain";
-import { proposeValue, unwrapProposed } from "@askimate/aas-domain";
+import { proposeValue, provenanceOf, unwrapProposed } from "@askimate/aas-domain";
 
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
@@ -1371,8 +1371,8 @@ function partsReadFrom(
  * A part row written after the demand — the answer — joins the seed; a
  * proposal written after the demand ends the seeding, as it ends any walk.
  * The words shown back for a part taken from a value rather than a row are
- * the part's rendered value: that is what the student confirmed, and nothing
- * else about it is on record.
+ * the student's own, from the proposal's verbatim or the confirmed entry's
+ * provenance excerpt; only where neither holds the part is it rendered.
  */
 function seededWithDemands(
   walks: ReadonlyMap<ProfileFieldKey, ReadonlyMap<string, ProposedValue<unknown>>>,
@@ -1398,7 +1398,12 @@ function seededWithDemands(
         ? unwrapProposed(decodeValue(lastProposed.proposal) as ProposedValue<unknown>)
         : (() => {
             const entry = confirmed?.entries.get(fieldKey);
-            return entry === undefined ? undefined : { value: unwrapConfirmed(entry.value), verbatim: "", confidence: 1 };
+            // The student's own words for the value, kept as the entry's
+            // provenance excerpt at confirmation: "country: Iran", not our
+            // code for it. Vahid, 2026-09-27: "They said Iran. Play back Iran."
+            return entry === undefined
+              ? undefined
+              : { value: unwrapConfirmed(entry.value), verbatim: provenanceOf(entry.value).sourceExcerpt ?? "", confidence: 1 };
           })();
     if (whole !== undefined) {
       for (const [partKey, reading] of partReadingsOf(spec, whole)) {

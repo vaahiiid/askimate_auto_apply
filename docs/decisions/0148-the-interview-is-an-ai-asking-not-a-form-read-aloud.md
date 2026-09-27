@@ -183,19 +183,27 @@ again.
 the student's page reads *"I'm asking you a few questions so I can fill in your application"*
 — the words the step already had. Nothing was added to the client.
 
-**The one consequence that touches an older decision, flagged rather than buried.** ADR-0106
-and ADR-0008 hold that `uncertain` completes nothing, because a clean failure is a claim that
-nothing happened on the university's system. On this path the intent is completed
-`failed_cleanly` on the read-back's evidence — the page was reopened and the value was not
-there — so that the page is filled again once the answer is confirmed. The runner still reports
-`uncertain`; the driver makes the claim, only where a demand is derivable, and only from what
-the read-back saw. That refill is the page's second attempt under ADR-0122's cap of two.
+**The one consequence that touches an older decision, in his narrow words (P234).** ADR-0106
+and ADR-0008 hold that `uncertain` completes nothing. On this path the intent is completed
+`failed_cleanly`, and the reasoning is his: *"The runner says uncertain because it cannot see;
+the driver says failed cleanly because it can — the page was reopened and the value was absent.
+That is evidence, not inference, and it is the only kind that should ever overturn an
+uncertain."* The claim is the read-back's observation, relayed, never the driver's judgement;
+where a report has no read-back behind it the claim is unavailable and the stop stands.
+ADR-0106 carries the amendment in those words.
 
-**Limits, stated.** A part seeded from a value rather than a row is shown back as its rendered
-value — *country: IR* where the student had said *Iran* — because nothing else about it is on
-record. A repeating page names no box, so on Sheffield's employment page the not-knowing shape
-is the one the student will read. Nothing here touches the transmission gate, the authorisation
-content hash, or the mandatory-review categories.
+**Limits, stated.** A repeating page names no box, so on Sheffield's employment page the
+not-knowing shape is the one the student will read. The refill after the answer is the page's
+second attempt under ADR-0122's cap, the first having been spent on the fill that failed before
+the student was asked anything — row 96, his to decide. Nothing here touches the transmission
+gate, the authorisation content hash, or the mandatory-review categories.
+
+**Their words, not ours (P234).** P233 had shown a part seeded from a confirmed value as its
+rendered value — *country: IR* where the student had said *Iran*. Vahid, 2026-09-27: *"That is
+us showing them our word for their answer, and it is the same defect as the field keys — one
+level deeper. They said Iran. Play back Iran."* The student's own words were already kept: a
+confirmed entry carries the proposal's verbatim as its provenance excerpt (ADR-0004). The seed
+now reads it, so the playback says *country: Iran*. The cost was one line and a test.
 
 ## Deleting the confirmed values, sized and not decided
 

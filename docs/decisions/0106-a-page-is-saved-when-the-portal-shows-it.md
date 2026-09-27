@@ -111,7 +111,7 @@ of a saved entry (`employment.do?update=N`, `education.do?update=N`), so a value
 possible there in principle; it is not built, and building it is a decision that has not been
 made. The summary's own listing could never serve: it omits a job's duties.
 
-## Amended 2026-09-27 — what the read-back saw reaches the driver (ADR-0148 §11, P233)
+## Amended 2026-09-27 — the read-back's observation may overturn an uncertain, and the driver only relays it (ADR-0148 §11, P233)
 
 The second limit above is closed: the fill's outcome carries `unseen`, the blueprint's own
 names for what the reopened page did not hold, and the driver reads it. Where the refused page
@@ -119,11 +119,21 @@ had a box typed empty because the student left the part out, the refusal becomes
 demand for that part and a question in the interview (ADR-0148 §11); where it had none, the
 uncertainty stands and a person looks, as this decision says.
 
-One thing that path does that this decision did not: it completes the page's intent
-`failed_cleanly` on the read-back's evidence, so the page is filled again after the answer.
-The runner's report stays `uncertain` — a runner is not entitled to the claim (ADR-0008) — and
-the driver makes it only where the reopened page was read and the value was not there, and only
-where a demand is derivable. Row 22's "left for a later phase" is that phase.
+On that path the page's intent is completed `failed_cleanly`, so the page is filled again after
+the answer. The reasoning is narrow, and it is Vahid's (2026-09-27):
+
+> *"The runner says uncertain because it cannot see; the driver says failed cleanly because it
+> can — the page was reopened and the value was absent. That is evidence, not inference, and it
+> is the only kind that should ever overturn an uncertain."*
+
+So the claim is not the driver's judgement. It is the read-back's observation — the page
+reopened, the value absent — and the driver may only relay it. The report carries that
+observation as `not_recorded` with `unseen`, which nothing but the read-back produces; the
+runner still says `uncertain`, because a runner is not entitled to the claim (ADR-0008). A
+report with no read-back behind it — a runner fault, a page that could not be reopened, any
+other failure — carries no such observation: the claim is unavailable and the stop stands. The
+driver's condition is exactly that (`uncertain` + `not_recorded` + a page held), and the
+demand's derivation is the second gate. Row 22's "left for a later phase" is that phase.
 
 ## What was deliberately not done
 

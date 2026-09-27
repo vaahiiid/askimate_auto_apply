@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P234 — his three answers, and the CV path sized
+
+> *"They said Iran. Play back Iran."*
+
+The amendment to ADR-0106 now says what he said and no more: the runner says uncertain because
+it cannot see, the driver says failed cleanly because it can, and that observation — the page
+reopened, the value absent — is the only kind of evidence that overturns an uncertain; the
+driver relays it and never judges; with no read-back there is no claim and the stop stands. The
+student's own words for a value we already held were already on record as the entry's
+provenance excerpt, so the demanded walk's playback reads them now — one line. The attempt count
+is spent by the original failure, so a demand costs the page its second chance: row 96, his.
+The CV path is estimated in the report and waits on his reading of the estimate.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P233 — a refusal that becomes a question
 
 > *"A stop that becomes a question the student can answer is the whole point; a stop that

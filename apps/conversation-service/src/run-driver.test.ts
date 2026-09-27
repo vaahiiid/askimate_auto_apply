@@ -14183,6 +14183,10 @@ describeIfDatabase("a page the portal would not save without a part becomes ONE 
     const playback = said.at(-1)?.toLowerCase() ?? "";
     expect(playback, "the whole value is put, with the part the student just gave").toContain("tehran province");
     expect(playback, "and the parts they gave before, seeded from the confirmed value").toContain("valiasr");
+    // Their words, not ours: they said Iran, and the confirmed entry kept that
+    // as its provenance excerpt (Vahid, 2026-09-27: "They said Iran. Play back Iran.").
+    const heard = /you said: "([^"]*)"/.exec(playback)?.[1] ?? "";
+    expect(heard, "the country in the student's own word, from the entry's excerpt").toContain("country: iran");
     const proposals = await pool.query<{ playback_hash: string }>(
       "SELECT playback_hash FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_proposed'",
       [conversation],
