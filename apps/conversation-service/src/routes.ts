@@ -1465,6 +1465,19 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           if (closed) return;
           for (const event of await options.store.since(conversationId, cursor)) send(event);
         };
+        // A store that can no longer be read ends the stream, honestly and
+        // once. Until P231's follow-up the poll ran `void drain()`, so a store
+        // whose pool had been ended rejected on every tick as an UNHANDLED
+        // rejection — 404 of them in one CI run (#399) with every test green,
+        // and vitest rightly called the run red. A client sees the stream end
+        // and reconnects; it never sees a stream that is silently dead.
+        const drainOrEnd = (): void => {
+          drain().catch(() => {
+            if (closed) return;
+            stop();
+            res.end();
+          });
+        };
 
         // Backfill first, THEN subscribe — and the `ordinal <= cursor` guard in
         // `send` is what makes the overlap safe. Subscribing first would risk a
@@ -1477,15 +1490,17 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           if (event.ordinal === cursor + 1) send(event);
         });
 
-        const poll = setInterval(() => void drain(), pollMs);
+        const poll = setInterval(drainOrEnd, pollMs);
         // The drain, then the close. Ending the response with events still
         // unsent would make a client wait for the reconnect to see them, and a
         // scheduled close must not cost latency it did not have to.
         const lifetime = setTimeout(() => {
-          void drain().then(() => {
-            stop();
-            res.end();
-          });
+          void drain()
+            .catch(() => undefined)
+            .then(() => {
+              stop();
+              res.end();
+            });
         }, maxStreamMs);
         const heartbeat = setInterval(() => {
           if (!closed) res.write(`${SSE_HEARTBEAT_LINE}\n\n`);

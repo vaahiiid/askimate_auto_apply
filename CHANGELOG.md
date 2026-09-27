@@ -32,6 +32,9 @@ not shipped artefacts.
   and referee; a qualification's level after its title, subject, institution and country.
 - **Recorded** in ADR-0148: §4 as built, the human order in Vahid's words, what happens when the
   entry and the portal disagree, and that the sentence naming what was sent is required.
+- **Fixed** (follow-up, CI #399): the event stream's poll ran `void drain()`, so a store whose pool
+  had been ended rejected unhandled on every tick; a store that cannot be read now ends the
+  stream once. A test with a refusing store proves it and reproduces CI's failure on the old code.
 
 ---
 

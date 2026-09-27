@@ -645,3 +645,72 @@ describeIfDatabase("finding conversations", () => {
     expect((await fetch(`${BASE}/v1/conversations/${mine}`)).status).toBe(401);
   });
 });
+
+describeIfDatabase("a stream whose store can no longer be read ENDS, and raises nothing unhandled (P231 follow-up, CI #399)", () => {
+  // CI #399 on 573a0fb: every test green and the run red, on 404 unhandled
+  // rejections — `Cannot use a pool after calling end on the pool`, from the
+  // stream's poll, which ran `void drain()` and kept polling a store whose
+  // pool a finished test had ended. A store that cannot be read must end the
+  // stream once, not reject on every tick into nowhere.
+  it("ends the response when the store starts refusing, once, with no unhandled rejection", async () => {
+    let reads = 0;
+    const failing = new Proxy(store, {
+      get(target, property, receiver) {
+        if (property === "since") {
+          return (conversationId: string, after: number) => {
+            reads += 1;
+            return reads === 1 ? target.since(conversationId, after) : Promise.reject(new Error("Cannot use a pool after calling end on the pool"));
+          };
+        }
+        // Bound to the real store: its methods read private fields, which a
+        // Proxy as `this` cannot reach.
+        const value = Reflect.get(target, property, receiver) as unknown;
+        return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+    const app = express();
+    app.use(
+      createConversationRoutes({
+        store: failing,
+        authenticate: (req) => {
+          const id = req.header("x-student");
+          return id === undefined ? null : { studentId: id };
+        },
+        authorise: async (caller, conversationId) => {
+          const rows = await pool.query("SELECT 1 FROM conversations WHERE id = $1 AND student_id = $2", [conversationId, caller.studentId]);
+          return rows.rowCount === 1;
+        },
+        now: () => NOW,
+        pollIntervalMs: 20,
+        heartbeatIntervalMs: 60_000,
+      }),
+    );
+    const own = app.listen(0);
+    await new Promise<void>((resolve) => own.once("listening", () => resolve()));
+    const address = own.address();
+    const port = typeof address === "object" && address !== null ? address.port : 0;
+    try {
+      const conversation = await newConversation();
+      const response = await fetch(`http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/stream`, { headers: { "x-student": studentId } });
+      expect(response.status).toBe(200);
+      const reader = response.body!.getReader();
+      const ended = await Promise.race([
+        (async () => {
+          for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) return true;
+          }
+        })(),
+        new Promise<false>((resolve) => setTimeout(() => resolve(false), 5_000)),
+      ]);
+      expect(ended, "the stream ended when the store refused, rather than polling for ever").toBe(true);
+      // One backfill, one refused poll, and nothing after the end.
+      const readsAtEnd = reads;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(reads, "the poll stopped with the stream").toBe(readsAtEnd);
+      expect(reads).toBe(2);
+    } finally {
+      await new Promise<void>((resolve) => own.close(() => resolve()));
+    }
+  }, 30_000);
+});
