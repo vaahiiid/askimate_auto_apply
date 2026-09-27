@@ -344,7 +344,13 @@ function nextListQuestion(
   const values = valuesOf(readings);
   if (!readings.has(ANY)) {
     const label = `any ${spec.itemLabel} to list`;
-    return { part: yesNoPart(ANY, label, spec.anyRationale), suffix: label };
+    // The opening, said exactly so where the spec has the words (P232).
+    const opening: FieldPart<unknown> = {
+      ...yesNoPart(ANY, label, spec.anyRationale),
+      ...(spec.anyParse === undefined ? {} : { parse: spec.anyParse, expectedShape: "to be asked one at a time, or to leave it empty" }),
+      ...(spec.anyWords === undefined ? {} : { exactly: spec.anyWords }),
+    };
+    return { part: opening, suffix: label };
   }
   if (values.get(ANY) !== true) return undefined;
   for (let index = 0; ; index++) {
@@ -536,6 +542,7 @@ export async function nextAction(
       // says which thing, not just which field.
       label: question.kind === "part" ? `${label} — ${question.suffix}` : label,
       rationale: question.kind === "part" ? question.part.rationale : question.spec.rationale,
+      ...(question.kind === "part" && question.part.exactly !== undefined ? { exactly: question.part.exactly } : {}),
       conversationContext: state.transcript.slice(-6),
       previousAttempts: state.attempts.get(questionKey(fieldKey, partKey)) ?? 0,
       ...(state.rejected?.has(fieldKey) === true ? { previousReadingRejected: true } : {}),

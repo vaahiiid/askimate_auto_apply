@@ -96,6 +96,8 @@ export interface FieldPart<P> {
    * only when some mapped slot reads what it feeds.
    */
   readonly feeds?: string;
+  /** The question said exactly so, in place of a composed one (P232). */
+  readonly exactly?: string;
   /** Why the application needs this part specifically. */
   readonly rationale: string;
   readonly expectedShape: string;
@@ -168,6 +170,14 @@ export interface ListFieldSpec<T> {
   readonly itemLabel: string;
   /** Why the interview asks whether there is anything to list at all. */
   readonly anyRationale: string;
+  /**
+   * The opening said EXACTLY so (P232, ADR-0148 §3): the one plain warning
+   * and the student's choice, in Vahid's words, for a section that can be
+   * left empty. Absent, the opening is composed from `anyRationale`.
+   */
+  readonly anyWords?: string;
+  /** Reads the opening's answer: to be asked, or to leave it empty. Absent, yes or no. */
+  readonly anyParse?: (raw: string) => boolean | null;
   /** The question after an entry is complete: is there another? */
   readonly anotherRationale: string;
   /** One entry, asked part by part exactly as a composite is. */
@@ -379,6 +389,24 @@ const MONTH_NAMES = [
  * model reads the utterance; this decides whether the reading is usable, and a
  * hedge is not a usable reading of a question a student signs.
  */
+/**
+ * The answer to an opening that offers a choice (P232, ADR-0148 §3): to be
+ * asked, one job at a time, or to leave the section empty. A plain yes or no
+ * still reads as it always has; a sentence that says which they want reads
+ * by its words; anything else is asked again.
+ */
+export const enterOrLeave = (raw: string): boolean | null => {
+  const plain = yesNo(raw);
+  if (plain !== null) return plain;
+  const value = raw.trim().toLowerCase();
+  if (/\b(ask me|ask away|by hand|one at a time|one by one|go through|let's do it|enter|tell you|i'll enter|i will enter|i have jobs|i've had jobs)\b/.test(value)) return true;
+  // "skip" is not here: the model layer reads it as "I don't know" before any
+  // parser sees it (deterministic.ts), and at an opening that is a choice it
+  // is ambiguous between the question and the section. Asked again.
+  if (/\b(leave (it|this|the section) empty|leave empty|empty|nothing to add|no jobs|none)\b/.test(value)) return false;
+  return null;
+};
+
 export const yesNo = (raw: string): boolean | null => {
   const value = raw.trim().toLowerCase();
   if (["yes", "y", "yeah", "yep", "true"].includes(value)) return true;
@@ -1359,6 +1387,11 @@ export const FIELD_SPECS: Partial<{
     anyRationale:
       "Have you had any jobs you want to list on this application? If you have not, that is a " +
       "complete answer and the employment section is left empty. Please answer yes or no.",
+    // ADR-0148 §3, his sentence, printed as written. *"We give one plain
+    // warning that some universities weigh work experience, and nothing
+    // stronger — we have no data yet on how much it matters."*
+    anyWords: "Some universities weigh work experience when they decide. I have no figures on how much, so this is your call: I can ask you about your jobs one at a time, or leave this section empty.",
+    anyParse: enterOrLeave,
     anotherRationale: "Is there another job to add? Please answer yes or no.",
     item: {
       rationale: "One job.",

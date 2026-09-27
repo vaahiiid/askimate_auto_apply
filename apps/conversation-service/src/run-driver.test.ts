@@ -10172,7 +10172,8 @@ describeIfDatabase("a list is collected entry by entry, and the walk survives th
 
   it("ASKS whether there is anything to list, and the run stays live — P210's escalation reversed", async () => {
     const said = await assistantSaid();
-    expect(said.join(" ").toLowerCase()).toContain("any jobs");
+    // P232: the opening is his one plain warning and the student's choice.
+    expect(said.join(" ")).toContain("this is your call");
     const status = await pool.query<{ status: string }>(
       "SELECT status FROM workflow_runs WHERE run_id = $1",
       [runId],

@@ -1,7 +1,7 @@
 # ADR-0148 — The interview is an AI asking, not a form read aloud: the CV first, the by-hand questions from the portal's own fields, the student's words kept, and a list confirmed and corrected entry by entry
 
 **Status:** Accepted · 2026-09-26 · supersedes ADR-0113 §4 (a CV may be read, as the separate decision that ADR said it would have to be) and keeps §1–§3 for the by-hand path · amends ADR-0092 (a second process that fetches a document after the gates: the CV reader) · continues 0004, 0007, 0111, 0112, 0140, 0146
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231, less the two-turn opening of §3, which waits on his word for its sentence. §1–§2, §8–§10 are decided and not built, in the order he set.
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence. §1–§2, §8–§10 are decided and not built, in the order he set.
 
 ## Context
 
@@ -110,6 +110,31 @@ saved when the portal shows it, so the run reads back after the save, and a page
 goes `uncertain` and to a person. The student sees that their application is with a member
 of the team; the portal's own words are never printed (P178), and the entry is corrected by
 review, not by the run.
+
+## What §3 is, as built (P232)
+
+The employment section opens with one sentence, his, said exactly as written and never
+composed around:
+
+> *"Some universities weigh work experience when they decide. I have no figures on how much, so this is your call: I can ask you about your jobs one at a time, or leave this section empty."*
+
+The answer is theirs: *ask me*, *one at a time*, or a plain *yes* begins the walk at the first
+job's title; *leave it empty*, *nothing to add* or a plain *no* puts an empty list for their
+confirmation, which is the "none" ADR-0113 §3 already made a confirmation; anything else is
+asked again with the same sentence, after what happened to their answer, never a rewording.
+*skip* is neither: the model layer already reads it as "I don't know", and at an opening that is
+a choice it is ambiguous between the question and the section. A question with fixed words is a
+new thing a part can carry (`exactly`), honoured by both model clients, so the words a person
+decided are the words a student reads. Until there is data the sentence is the warning; when
+there is, §3 says it becomes a judgement, and the sentence changes then and not before.
+
+## When the portal refuses what the entry called optional (row 94)
+
+His finding on P231's answer: a student whose application stopped because a university
+demanded a field the entry called optional *"is owed more than silence. They are the one who
+could answer it in thirty seconds."* Not the portal's words — that rule holds — but our own
+sentence from the structure we have. What is expressible today and what is not is measured in
+row 94, and not built.
 
 ## Deleting the confirmed values, sized and not decided
 

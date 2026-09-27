@@ -1610,3 +1610,53 @@ describe("a list's parts are asked from what the portal reads, in a person's ord
     expect((await receiveAnswer(job, "employment.history", "full-time", model)).kind).toBe("understood");
   });
 });
+
+describe("the employment section opens with one plain warning and the student's choice, in his words (P232, ADR-0148 §3)", () => {
+  // Vahid: *"one plain warning that some universities weigh work experience,
+  // and nothing stronger — we have no data yet on how much it matters."* The
+  // sentence is his and is said exactly so; the answer is to be asked, one
+  // job at a time, or to leave the section empty, and either is theirs.
+  const SENTENCE = "Some universities weigh work experience when they decide. I have no figures on how much, so this is your call: I can ask you about your jobs one at a time, or leave this section empty.";
+
+  it("says the sentence exactly, and nothing composed around it", async () => {
+    const action = await nextAction(start(["employment.history"]), model);
+    expect(action.kind).toBe("ask");
+    if (action.kind === "ask") {
+      expect(action.say).toBe(SENTENCE);
+      expect(action.partKey).toBe("any");
+    }
+  });
+
+  it("reads 'ask me' as the walk beginning, at the job title", async () => {
+    for (const words of ["ask me", "Ask me about my jobs one at a time", "yes", "let's do it"]) {
+      const state = start(["employment.history"]);
+      const outcome = await receiveAnswer(state, "employment.history", words, model);
+      expect(outcome.kind, words).toBe("understood");
+      const next = await nextAction(outcome.state, model);
+      if (next.kind === "ask") expect(next.partKey, words).toBe("item0.position");
+    }
+  });
+
+  it("reads 'leave it empty' as an empty list to confirm, and their decision stands", async () => {
+    for (const words of ["leave it empty", "leave this section empty", "no", "nothing to add"]) {
+      const outcome = await receiveAnswer(start(["employment.history"]), "employment.history", words, model);
+      expect(outcome.kind, words).toBe("understood");
+      const next = await nextAction(outcome.state, model);
+      expect(next.kind, words).toBe("confirm");
+      const confirmed = receiveConfirmation(outcome.state, { agreed: true }, NOW);
+      const held = resolveField(confirmed.state.profile, "employment.history");
+      if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+      expect(unwrapConfirmed(held)).toEqual([]);
+    }
+  });
+
+  it("asks again with the same sentence, after saying what happened, when the answer was neither", async () => {
+    const outcome = await receiveAnswer(start(["employment.history"]), "employment.history", "maybe later", model);
+    expect(outcome.kind).toBe("not_understood");
+    const again = await nextAction(outcome.state, model);
+    if (again.kind === "ask") {
+      expect(again.say.endsWith(SENTENCE), "the sentence is not reworded").toBe(true);
+      expect(again.say).not.toContain("didn't quite catch");
+    }
+  });
+});

@@ -31,6 +31,11 @@ export class DeterministicModelClient implements ModelClient {
     // A second attempt is rephrased rather than repeated verbatim — asking the
     // identical question again is how a conversation stops feeling like one.
     const label = request.label.toLowerCase();
+    if (request.exactly !== undefined) {
+      return Promise.resolve(
+        modelText(request.previousAnswerUnread === undefined ? request.exactly : `${request.previousAnswerUnread} ${request.exactly}`),
+      );
+    }
     // P221: the reading was set aside because the student's message was taken
     // as a correction and could not be read as one. Said as what happened —
     // "I didn't catch that" would be untrue, and a student told so retypes

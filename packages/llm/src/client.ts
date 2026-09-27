@@ -50,6 +50,14 @@ export interface QuestionRequest {
   readonly label: string;
   /** Why the application needs it — so the question can explain itself. */
   readonly rationale: string;
+  /**
+   * The question, said EXACTLY so (P232, ADR-0148 §3). Vahid's own sentence
+   * for an opening that is a choice — *"one plain warning that some
+   * universities weigh work experience, and nothing stronger"* — is not a
+   * thing to paraphrase: it is printed as written, and a second attempt puts
+   * what happened to the last answer before it rather than rewording it.
+   */
+  readonly exactly?: string;
   /** Recent turns, so the question fits the conversation rather than restarting it. */
   readonly conversationContext: readonly string[];
   /**

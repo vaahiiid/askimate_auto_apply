@@ -35,7 +35,10 @@ the stack restarted with P221's page.
    under *Which did you mean?* with a button for each (ADR-0146); the press is the answer, spends
    no attempt, and for a date of birth is held at once. Before the next answer after 0.221.0 the
    service's start applies migration 0028, which re-tags the date of birth confirmed on the 26th
-   (row 92); nothing is retyped. If the button is not there while a playback is open (P221, row 90), the same
+   (row 92); nothing is retyped. The employment section opens with one sentence and a choice
+   (ADR-0148 §3): *ask me* walks the jobs one at a time, position first; *leave it empty* puts an
+   empty list for a yes; a wrong job in the played-back list is fixed by pressing *job N is wrong*
+   (§6–§7), without retyping the others. If the button is not there while a playback is open (P221, row 90), the same
    act from the console on the page, with the hash the server itself names:
 
    ```js

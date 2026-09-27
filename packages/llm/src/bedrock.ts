@@ -183,6 +183,11 @@ export class BedrockModelClient implements ModelClient {
   // ── Composing text for a human ──────────────────────────────────────────
 
   public async composeQuestion(request: QuestionRequest): Promise<ModelText> {
+    // A question with its words fixed is not composed (P232): the words are
+    // Vahid's, and what happened to the last answer goes before them.
+    if (request.exactly !== undefined) {
+      return modelText(request.previousAnswerUnread === undefined ? request.exactly : `${request.previousAnswerUnread} ${request.exactly}`);
+    }
     const rephrase =
       request.previousAnswerUnread !== undefined
         ? // P223: the student's last answer could not be read; say why, in

@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.228.0] — 2026-09-27
+
+**P232 — the employment section opens with one plain warning and the student's choice (ADR-0148 §3).**
+
+- **Added** `exactly` to a question request and a part spec: the question said as written, in both
+  model clients; a second attempt puts what happened to the last answer before it.
+- **Changed** the employment list's opening to Vahid's sentence, read by `enterOrLeave`: to be
+  asked one job at a time, or to leave the section empty.
+- **Recorded** row 94 (what the student is told when the portal refuses a save, measured against
+  what the run holds) and row 95 (the census is not a proxy for CI).
+
+---
+
 ## [0.227.0] — 2026-09-27
 
 **P231 — the by-hand questions come from what the portal reads, in a person's order (ADR-0148 §4).**

@@ -4906,6 +4906,28 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P232 — one sentence, and two rows
+
+> *"The sentence is right. Build the two-turn opening with it."*
+
+The employment section now opens with his sentence, said as written and never composed
+around: some universities weigh work experience, there are no figures on how much, and the
+choice is theirs. *Ask me* begins the walk at the first job's title; *leave it empty* puts an
+empty list for their yes; anything else is asked again with the same sentence after what
+happened to their answer. A part can carry its question's exact words now, and both model
+clients honour them.
+
+Two rows from his reading of P231. Row 94: a student whose application stopped because the
+portal refused a save is told only that a person has it, and they are the one who could answer
+in thirty seconds; what is expressible today (the page, the boxes we left empty) and what is
+one small capture away (what the runner saw unseen) is measured and not built. Row 95: the
+census is not a proxy for CI, three reds in a week each for a different reason, and the
+headline count now says so beside the number.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P231 — the questions from what the portal reads, in a person's order
 
 > *"Position, employer, start, end reads naturally … I would want the human order, not the
