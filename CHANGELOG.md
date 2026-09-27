@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.227.0] — 2026-09-27
+
+**P231 — the by-hand questions come from what the portal reads, in a person's order (ADR-0148 §4).**
+
+- **Added** `partPolicyFor` to the orchestrator: which parts of a list or composite the
+  portal's mapped slots read, and which of those a required slot reads, derived from the
+  mapping set and the blueprint's validations. **Added** `feeds` on a part spec.
+- **Changed** the interview: a spec-required part is always asked; an optional one only when a
+  slot reads what it feeds; "none" is refused where that slot is required. The order is the
+  spec's, rewritten as a person would say it: a job's position first, its duties before basis
+  and referee; a qualification's level after its title, subject, institution and country.
+- **Recorded** in ADR-0148: §4 as built, the human order in Vahid's words, what happens when the
+  entry and the portal disagree, and that the sentence naming what was sent is required.
+
+---
+
 ## [0.226.0] — 2026-09-26
 
 **P230 — ADR-0148, the interview's shape; a list confirmed as a whole and corrected one entry at a time (§6–§7).**

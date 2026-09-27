@@ -114,7 +114,7 @@ import type {
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
-import type { FieldSpec, InterviewAction, InterviewState, ReplyOutcome } from "@askimate/aas-interview";
+import type { FieldSpec, InterviewAction, InterviewState, PartPolicy, ReplyOutcome } from "@askimate/aas-interview";
 import {
   FIELD_SPECS,
   chooseReading,
@@ -160,6 +160,7 @@ import {
   markFilled,
   checkpointAfter,
   nextStep,
+  partPolicyFor,
   requiredFieldsFor,
   requiresSecureRequest,
   specialistHandoverOf,
@@ -1373,6 +1374,7 @@ function interviewFrom(input: {
   readonly profile: ConfirmedProfile;
   readonly requiredFields: readonly ProfileFieldKey[];
   readonly requiredDocuments: readonly string[];
+  readonly partPolicy?: PartPolicy;
   readonly events: readonly ConversationEvent[];
 }): InterviewState {
   const base = newInterview({
@@ -1380,6 +1382,7 @@ function interviewFrom(input: {
     profile: input.profile,
     requiredFields: input.requiredFields,
     requiredDocuments: input.requiredDocuments,
+    ...(input.partPolicy === undefined ? {} : { partPolicy: input.partPolicy }),
   });
 
   const open = openProposal(input.events);
@@ -2740,6 +2743,9 @@ export class RunDriver {
           studentRef: input.studentRef,
           profile,
           requiredFields: requiredFieldsFor(input.entry.blueprint, usable.mappingSet),
+          // P231, ADR-0148 §4: which parts of a list or composite this portal
+          // reads, and which it requires — derived, never authored.
+          partPolicy: partPolicyFor(input.entry.blueprint, usable.mappingSet),
           requiredDocuments: input.entry.requiredDocuments,
           events,
         }),

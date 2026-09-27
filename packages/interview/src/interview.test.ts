@@ -14,7 +14,7 @@ import { PROFILE_FIELD_KEYS, emptyProfile, resolveField } from "@askimate/aas-pr
 
 import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, isComposite, isList } from "./field-specs.js";
-import type { InterviewState } from "./interview.js";
+import type { InterviewState, PartPolicy, PartRule } from "./interview.js";
 import {
   chooseReading,
   MAX_ATTEMPTS_PER_FIELD,
@@ -1171,13 +1171,13 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     let state = start(["employment.history"]);
     state = await walk(state, "employment.history", [
       ["any", "yes"],
+      ["item0.position", "Engineer"],
       ["item0.employer", "Example Ltd"],
       ["item0.employerAddress", "1 Example Way, Sheffield"],
-      ["item0.position", "Engineer"],
       ["item0.startDate", "January 2023"],
       ["item0.still", "yes"],
-      ["item0.basis", "full time"],
       ["item0.duties", "Designing and testing things."],
+      ["item0.basis", "full time"],
       ["item0.refereeName", "none"],
       ["item0.another", "no"],
     ]);
@@ -1204,14 +1204,14 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     let state = start(["employment.history"]);
     state = await walk(state, "employment.history", [
       ["any", "yes"],
+      ["item0.position", "Assistant"],
       ["item0.employer", "Old Employer"],
       ["item0.employerAddress", "2 Old Road"],
-      ["item0.position", "Assistant"],
       ["item0.startDate", "2019-09"],
       ["item0.still", "no"],
       ["item0.endDate", "June 2021"],
-      ["item0.basis", "none"],
       ["item0.duties", "Assisting."],
+      ["item0.basis", "none"],
       ["item0.refereeName", "Dr Example"],
       ["item0.refereeRole", "Manager"],
       ["item0.another", "no"],
@@ -1260,14 +1260,18 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     // A level the question did not list is asked again, not decided to mean
     // something: `gradingSystemId` keys on the level's exact text.
     state = (await receiveAnswer(state, "education.prior_qualifications", "yes", model)).state;
-    const loose = await receiveAnswer(state, "education.prior_qualifications", "a masters", model);
-    expect(loose.kind).toBe("not_understood");
+    // The level is asked after the title, subject, institution and country
+    // (P231: a person's order); the loose spelling is refused where it is asked.
     state = await walk(state, "education.prior_qualifications", [
-      ["item0.level", "Master's degree"],
       ["item0.awardTitle", "MSc"],
       ["item0.subject", "Industrial Engineering"],
       ["item0.institution", "Sharif University of Technology"],
       ["item0.countryCode", "IR"],
+    ]);
+    const loose = await receiveAnswer(state, "education.prior_qualifications", "a masters", model);
+    expect(loose.kind).toBe("not_understood");
+    state = await walk(state, "education.prior_qualifications", [
+      ["item0.level", "Master's degree"],
       ["item0.start", "September 2008"],
       ["item0.endKind", "completed"],
       ["item0.endDate", "June 2012"],
@@ -1298,11 +1302,11 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     let state = start(["education.prior_qualifications"]);
     state = await walk(state, "education.prior_qualifications", [
       ["any", "yes"],
-      ["item0.level", "Bachelor's degree"],
       ["item0.awardTitle", "BSc"],
       ["item0.subject", "Business Management"],
       ["item0.institution", "University of Sheffield"],
       ["item0.countryCode", "United Kingdom"],
+      ["item0.level", "Bachelor's degree"],
       ["item0.start", "2019-09"],
       ["item0.endKind", "completed"],
       ["item0.endDate", "2022-06"],
@@ -1329,11 +1333,11 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     let state = start(["education.prior_qualifications"]);
     state = await walk(state, "education.prior_qualifications", [
       ["any", "yes"],
-      ["item0.level", "High school diploma"],
       ["item0.awardTitle", "none"],
       ["item0.subject", "General"],
       ["item0.institution", "Example High School"],
       ["item0.countryCode", "IR"],
+      ["item0.level", "High school diploma"],
       ["item0.start", "2004-09"],
       ["item0.endKind", "completed"],
       ["item0.endDate", "2008-06"],
@@ -1353,9 +1357,9 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
   it("refuses a part it cannot read and asks the SAME part again, counting the attempt under the item's key", async () => {
     let state = start(["employment.history"]);
     state = (await receiveAnswer(state, "employment.history", "yes", model)).state;
+    state = (await receiveAnswer(state, "employment.history", "Engineer", model)).state;
     state = (await receiveAnswer(state, "employment.history", "Example Ltd", model)).state;
     state = (await receiveAnswer(state, "employment.history", "1 Example Way", model)).state;
-    state = (await receiveAnswer(state, "employment.history", "Engineer", model)).state;
     const unreadable = await receiveAnswer(state, "employment.history", "a while ago", model);
     expect(unreadable.kind).toBe("not_understood");
     state = unreadable.state;
@@ -1392,9 +1396,11 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     const action = await nextAction(state, model);
     expect(action.kind).toBe("ask");
     if (action.kind === "ask") {
-      expect(action.partKey).toBe("item0.employer");
+      // The human order (P231, ADR-0148 §4): the position first, as a person
+      // would say it, not as the form lists it.
+      expect(action.partKey).toBe("item0.position");
       expect(action.say.toLowerCase()).toContain("job 1");
-      expect(action.say.toLowerCase()).toContain("employer");
+      expect(action.say.toLowerCase()).toContain("job title");
     }
   });
 });
@@ -1516,7 +1522,7 @@ describe("every part is asked for by the name a person uses, never by its key (P
     const action = await nextAction(state, model);
     expect(action.kind).toBe("ask");
     if (action.kind === "ask") {
-      expect(action.say).toContain("job 1 — employer");
+      expect(action.say).toContain("job 1 — job title");
       expect(action.say).not.toMatch(camelCase);
     }
   });
@@ -1536,5 +1542,71 @@ describe("every part is asked for by the name a person uses, never by its key (P
       expect(stop.reason).toContain('Asked for "Passport — passport number"');
       expect(stop.reason).not.toContain("— number");
     }
+  });
+});
+
+describe("a list's parts are asked from what the portal reads, in a person's order (P231, ADR-0148 §4)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid: *"By hand means asking properly, from what the university's form
+  // actually needs … the fields themselves, one at a time, in order."* And on
+  // the order: *"Position, employer, start, end reads naturally … I would
+  // want the human order, not the form's."* So the ORDER is the spec's, a
+  // person's; WHICH optional parts are asked, and which refuse "none", come
+  // from the portal's mapping and validations, derived and never authored.
+  // ═══════════════════════════════════════════════════════════════════════
+  const sheffieldLike: PartPolicy = new Map<ProfileFieldKey, PartRule>([
+    ["employment.history", { asked: new Set(["position", "employer", "employerAddress", "startDate", "end", "duties"]), required: new Set(["position", "employer", "employerAddress", "duties"]) }],
+  ]);
+  function withPolicy(): InterviewState {
+    return { ...start(["employment.history"]), partPolicy: sheffieldLike };
+  }
+
+  it("asks in the human order, skips the optional parts this portal never reads, and stops at 'another?'", async () => {
+    let state = withPolicy();
+    const asked: string[] = [];
+    for (const utterance of ["yes", "Engineer", "Example Ltd", "1 Example Way", "January 2023", "yes", "Designing and testing things."]) {
+      const action = await nextAction(state, model);
+      expect(action.kind).toBe("ask");
+      if (action.kind !== "ask") return;
+      asked.push(action.partKey ?? "");
+      const outcome = await receiveAnswer(state, "employment.history", utterance, model);
+      expect(outcome.kind, utterance).toBe("understood");
+      state = outcome.state;
+    }
+    expect(asked).toEqual(["any", "item0.position", "item0.employer", "item0.employerAddress", "item0.startDate", "item0.still", "item0.duties"]);
+    const next = await nextAction(state, model);
+    expect(next.kind).toBe("ask");
+    if (next.kind === "ask") expect(next.partKey, "no basis, no referee: this portal reads neither").toBe("item0.another");
+  });
+
+  it("still asks 'when did it end?' only of a job that has ended, because the portal reads the end", async () => {
+    let state = withPolicy();
+    for (const utterance of ["yes", "Assistant", "Old Employer", "2 Old Road", "2019-09", "no"]) {
+      state = (await receiveAnswer(state, "employment.history", utterance, model)).state;
+    }
+    const next = await nextAction(state, model);
+    if (next.kind === "ask") expect(next.partKey).toBe("item0.endDate");
+  });
+
+  it("asks every part, as the spec has it, when no policy is known or a slot reads the whole value", async () => {
+    const everything: PartPolicy = new Map<ProfileFieldKey, PartRule>([["employment.history", { asked: "all", required: new Set<string>() }]]);
+    for (const policy of [undefined, everything]) {
+      let state: InterviewState = { ...start(["employment.history"]), ...(policy === undefined ? {} : { partPolicy: policy }) };
+      for (const utterance of ["yes", "Engineer", "Example Ltd", "1 Example Way", "January 2023", "yes", "Designing and testing things."]) {
+        state = (await receiveAnswer(state, "employment.history", utterance, model)).state;
+      }
+      const next = await nextAction(state, model);
+      if (next.kind === "ask") expect(next.partKey, "basis is asked when every part is").toBe("item0.basis");
+    }
+  });
+
+  it("refuses 'none' for a part the portal requires, even where the spec would take it", async () => {
+    const employment: PartPolicy = new Map<ProfileFieldKey, PartRule>([["employment.history", { asked: "all", required: new Set(["basis"]) }]]);
+    let job: InterviewState = { ...start(["employment.history"]), partPolicy: employment };
+    for (const utterance of ["yes", "Engineer", "Example Ltd", "1 Example Way", "January 2023", "yes", "Designing and testing things."]) {
+      job = (await receiveAnswer(job, "employment.history", utterance, model)).state;
+    }
+    expect((await receiveAnswer(job, "employment.history", "none", model)).kind, "basis is optional in the spec and required by this portal").toBe("not_understood");
+    expect((await receiveAnswer(job, "employment.history", "full-time", model)).kind).toBe("understood");
   });
 });

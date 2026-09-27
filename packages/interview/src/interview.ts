@@ -115,11 +115,27 @@ interface PendingConfirmation {
 }
 
 /** The interview's state. Immutable; every step returns a new one. */
+/**
+ * What the portal reads of a field with parts, derived from its mapping set
+ * and never authored (P231, ADR-0148 §4). `asked` names the value paths some
+ * mapped slot reads, or `"all"` where a slot reads the whole value; a part the
+ * spec leaves optional is asked only when what it feeds is among them.
+ * `required` names the paths a slot with a `required` validation reads: such
+ * a part refuses "none" even where the spec would take it.
+ */
+export interface PartRule {
+  readonly asked: ReadonlySet<string> | "all";
+  readonly required: ReadonlySet<string>;
+}
+export type PartPolicy = ReadonlyMap<ProfileFieldKey, PartRule>;
+
 export interface InterviewState {
   readonly studentRef: string;
   readonly profile: ConfirmedProfile;
   /** What this application needs. Derived from requirements and the blueprint. */
   readonly requiredFields: readonly OrdinaryFieldKey[];
+  /** What the portal reads of each field with parts (P231). Absent: every part, as the spec has it. */
+  readonly partPolicy?: PartPolicy;
   /**
    * Documents the application needs, by type.
    *
@@ -185,11 +201,13 @@ export function newInterview(input: {
   readonly profile: ConfirmedProfile;
   readonly requiredFields: readonly OrdinaryFieldKey[];
   readonly requiredDocuments: readonly string[];
+  readonly partPolicy?: PartPolicy;
 }): InterviewState {
   return {
     studentRef: input.studentRef,
     profile: input.profile,
     requiredFields: input.requiredFields,
+    ...(input.partPolicy === undefined ? {} : { partPolicy: input.partPolicy }),
     requiredDocuments: input.requiredDocuments,
     collectedDocuments: [],
     partial: new Map(),
@@ -243,11 +261,30 @@ function questionKey(fieldKey: ProfileFieldKey, partKey?: string): string {
 function nextPart(
   spec: CompositeFieldSpec<unknown>,
   readings: PartReadings,
+  rule?: PartRule,
 ): FieldPart<unknown> | undefined {
   const answered = valuesOf(readings);
   return spec.parts.find(
-    (part) => !readings.has(part.partKey) && (part.askWhen?.(answered) ?? true),
+    (part) => !readings.has(part.partKey) && (part.askWhen?.(answered) ?? true) && isAsked(part, rule),
   );
+}
+
+/**
+ * Whether the portal gives a reason to ask this part (P231, ADR-0148 §4). A
+ * part the spec requires is always asked — the value cannot be built without
+ * it, and the profile is filled once for many portals (ADR-0111). A part the
+ * spec leaves optional is asked when no policy is known, when a slot reads the
+ * whole value, or when a slot reads what this part feeds; otherwise not.
+ */
+function isAsked(part: FieldPart<unknown>, rule: PartRule | undefined): boolean {
+  if (part.optional !== true || rule === undefined || rule.asked === "all") return true;
+  return rule.asked.has(part.feeds ?? part.partKey);
+}
+
+function portalRequires(part: FieldPart<unknown>, rule: PartRule | undefined): boolean {
+  // A list's question carries the part keyed by its entry (`item0.basis`);
+  // the rule names the bare path.
+  return rule !== undefined && rule.required.has(part.feeds ?? part.partKey.replace(/^item\d+\./, ""));
 }
 
 /**
@@ -302,6 +339,7 @@ function yesNoPart(partKey: string, label: string, rationale: string): FieldPart
 function nextListQuestion(
   spec: ListFieldSpec<unknown>,
   readings: PartReadings,
+  rule?: PartRule,
 ): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
   const values = valuesOf(readings);
   if (!readings.has(ANY)) {
@@ -310,7 +348,7 @@ function nextListQuestion(
   }
   if (values.get(ANY) !== true) return undefined;
   for (let index = 0; ; index++) {
-    const part = nextPart(spec.item, readingsOfItem(readings, index));
+    const part = nextPart(spec.item, readingsOfItem(readings, index), rule);
     if (part !== undefined) {
       return {
         part: { ...part, partKey: itemKey(index, part.partKey) },
@@ -348,9 +386,10 @@ function assembleList(spec: ListFieldSpec<unknown>, readings: PartReadings): rea
 function nextQuestionOf(
   spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>,
   readings: PartReadings,
+  rule?: PartRule,
 ): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
-  if (isList(spec)) return nextListQuestion(spec, readings);
-  const part = nextPart(spec, readings);
+  if (isList(spec)) return nextListQuestion(spec, readings, rule);
+  const part = nextPart(spec, readings, rule);
   // The part's NAME, never its key (P228, row 92): "Home address — street".
   return part === undefined ? undefined : { part, suffix: part.label };
 }
@@ -376,7 +415,7 @@ function questionFor(state: InterviewState, fieldKey: ProfileFieldKey): Question
   if (spec === undefined) return { kind: "undefined_field" };
   if (!isComposite(spec) && !isList(spec)) return { kind: "field", spec };
 
-  const next = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  const next = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS, state.partPolicy?.get(fieldKey));
   return next === undefined ? { kind: "stranded" } : { kind: "part", ...next };
 }
 
@@ -632,7 +671,8 @@ export async function receiveAnswer(
   // Which part this answers is derived from the state rather than passed in:
   // the caller answers "the question that was just asked", and only the state
   // knows which part that was.
-  const open = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  const rule = state.partPolicy?.get(fieldKey);
+  const open = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS, rule);
   if (open === undefined) {
     return {
       kind: "not_understood",
@@ -651,7 +691,7 @@ export async function receiveAnswer(
     label: `${label} — ${open.suffix}`,
     utterance,
     expectedShape: question.expectedShape,
-    parse: partParser(question),
+    parse: partParser(question, portalRequires(question, rule)),
   });
 
   if (isNotUnderstood(interpreted)) {
@@ -711,7 +751,7 @@ export function chooseReading(
   if (!isComposite(spec) && !isList(spec)) {
     return { kind: "not_understood", state, reason: `"${fieldKey}" has no part "${partKey}".` };
   }
-  const open = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  const open = nextQuestionOf(spec, state.partial.get(fieldKey) ?? NO_READINGS, state.partPolicy?.get(fieldKey));
   if (open === undefined || open.part.partKey !== partKey) {
     return { kind: "not_understood", state, reason: `"${fieldKey}" is not waiting on part "${partKey}".` };
   }
@@ -737,7 +777,7 @@ function withPartRead(
   // More parts to ask: hold what has been read and carry on. Nothing is put
   // for confirmation yet, because the student confirms the WHOLE value — for
   // a list, the whole list.
-  if (nextQuestionOf(spec, readings) !== undefined) {
+  if (nextQuestionOf(spec, readings, state.partPolicy?.get(fieldKey)) !== undefined) {
     const partial = new Map(state.partial).set(fieldKey, readings);
     return { kind: "understood", state: { ...state, transcript, attempts, partial } };
   }

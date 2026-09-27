@@ -10025,6 +10025,85 @@ const EMPLOYMENT_REQUIRED: CatalogueEntry = {
   },
 };
 
+/** P231: a portal that reads the job title alone, as a `part` — the Sheffield shape on the fixture. */
+const EMPLOYMENT_BY_POSITION: CatalogueEntry = {
+  ...ENTRY,
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.fieldRef === "email"
+        ? {
+            ...mapping,
+            source: {
+              kind: "profile_field" as const,
+              fieldKey: "employment.history" as const,
+              format: { kind: "part" as const, path: "position" },
+            },
+          }
+        : mapping,
+    ),
+  },
+};
+
+describeIfDatabase("the by-hand questions come from what the portal reads, in a person's order (P231, ADR-0148 §4)", () => {
+  // Vahid: *"Not 'do you have a job to list?' but the fields themselves, one
+  // at a time, in order."* This portal's one employment slot reads the job
+  // title; the parts the spec requires are asked regardless (the value cannot
+  // be built without them, and the profile is filled once for many portals);
+  // the optional basis and referee, which this portal never reads, are not.
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX23101";
+  let owner = "";
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_BY_POSITION));
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_BY_POSITION));
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("asks the job title first, then the employer, and never the basis or the referee this portal does not read", async () => {
+    await say("yes");
+    const questions: string[] = [];
+    for (const utterance of ["Engineer", "Example Ltd", "1 Example Way, Sheffield", "January 2023", "yes", "Designing and testing things."]) {
+      questions.push((await assistantSaid()).at(-1)?.toLowerCase() ?? "");
+      await say(utterance);
+    }
+    expect(questions[0]).toContain("job title");
+    expect(questions[1]).toContain("employer");
+    expect((await assistantSaid()).at(-1)?.toLowerCase(), "straight to 'another?' after the duties").toContain("another job");
+    const rows = await pool.query<{ part_key: string }>(
+      "SELECT part_key FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_read' ORDER BY ordinal ASC",
+      [conversation],
+    );
+    expect(rows.rows.map((row) => row.part_key)).toEqual(["any", "item0.position", "item0.employer", "item0.employerAddress", "item0.startDate", "item0.still", "item0.duties"]);
+  }, 300_000);
+});
+
 describeIfDatabase("a list is collected entry by entry, and the walk survives the request (ADR-0113, P211)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Item 1 of the list to `ready_to_submit`. P210 measured, through this
@@ -10104,17 +10183,18 @@ describeIfDatabase("a list is collected entry by entry, and the walk survives th
   it("walks the first entry's parts across requests, each in a new driver instance, keyed by the entry", async () => {
     await say("yes");
     expect(await partKeysOnTheLog()).toEqual(["any"]);
-    await say("Example Ltd");
-    expect(await partKeysOnTheLog()).toEqual(["any", "item0.employer"]);
+    // The human order (P231): the position first, then the employer.
+    await say("Engineer");
+    expect(await partKeysOnTheLog()).toEqual(["any", "item0.position"]);
     const said = await assistantSaid();
-    expect(said.at(-1)?.toLowerCase(), "the walk moved on to the address, not the employer again").toContain(
-      "employer's address",
+    expect(said.at(-1)?.toLowerCase(), "the walk moved on to the employer, not the position again").toContain(
+      "employer",
     );
     expect(said.at(-1)?.toLowerCase(), "and says which job it is asking about").toContain("job 1");
   }, 300_000);
 
   it("asks 'another?' after the entry, takes 'no', and puts ONE confirmation for the whole list", async () => {
-    for (const utterance of ["1 Example Way, Sheffield", "Engineer", "January 2023", "yes", "none", "Designing and testing things.", "none"]) {
+    for (const utterance of ["Example Ltd", "1 Example Way, Sheffield", "January 2023", "yes", "Designing and testing things.", "none", "none"]) {
       await say(utterance);
     }
     const said = await assistantSaid();
@@ -11006,9 +11086,9 @@ describeIfDatabase("one entry of a played-back list is corrected and the rest st
     }
     // Two jobs, entry by entry, then "that is all".
     await say("yes");
-    for (const utterance of ["Example Ltd", "1 Example Way, Sheffield", "Engineer", "January 2023", "yes", "none", "Designing and testing things.", "none"]) await say(utterance);
+    for (const utterance of ["Engineer", "Example Ltd", "1 Example Way, Sheffield", "January 2023", "yes", "Designing and testing things.", "none", "none"]) await say(utterance);
     await say("yes");
-    for (const utterance of ["Other Co", "2 Other Road, Leeds", "Analyst", "March 2020", "no", "December 2022", "none", "Analysing things.", "none"]) await say(utterance);
+    for (const utterance of ["Analyst", "Other Co", "2 Other Road, Leeds", "March 2020", "no", "December 2022", "Analysing things.", "none", "none"]) await say(utterance);
     await say("no");
   }, 600_000);
 
@@ -11061,12 +11141,12 @@ describeIfDatabase("one entry of a played-back list is corrected and the rest st
     // proposal and never a row of its own — so it is not here, and the walk
     // will ask it once more after job 2 is put right.
     expect(carried, "job 1's parts and its 'another', carried forward as they were").toEqual([
-      "any", "item0.employer", "item0.employerAddress", "item0.position", "item0.startDate", "item0.still", "item0.basis", "item0.duties", "item0.refereeName", "item0.another",
+      "any", "item0.position", "item0.employer", "item0.employerAddress", "item0.startDate", "item0.still", "item0.duties", "item0.basis", "item0.refereeName", "item0.another",
     ]);
     const asked = after.filter((event) => event.kind === "value_asked");
     expect(asked, "one question, for job 2's first part").toHaveLength(1);
     const said = await assistantSaid();
-    expect(said.at(-1)?.toLowerCase(), "job 2's first part, the employer").toContain("employer");
+    expect(said.at(-1)?.toLowerCase(), "job 2's first part, the job title").toContain("job title");
     expect(said.at(-2)).toBe("Job 2, then. I will ask you about it again, and then read the whole list back to you.");
     expect(said.at(-1)?.toLowerCase()).toContain("job 2");
     expect(said.at(-1), "asked plainly, not as a set-aside reading").not.toContain("set that reading aside");
@@ -11074,7 +11154,7 @@ describeIfDatabase("one entry of a played-back list is corrected and the rest st
   }, 300_000);
 
   it("walks job 2 again, plays the whole list back, and the confirmation stores both with the corrected one", async () => {
-    for (const utterance of ["Better Co", "3 Better Street, York", "Senior analyst", "March 2020", "no", "December 2022", "none", "Analysing better things.", "none"]) await say(utterance);
+    for (const utterance of ["Senior analyst", "Better Co", "3 Better Street, York", "March 2020", "no", "December 2022", "Analysing better things.", "none", "none"]) await say(utterance);
     expect((await assistantSaid()).at(-1)?.toLowerCase(), "the last entry's 'another?' is asked once more, truthfully").toContain("another job");
     await say("no");
     const said = await assistantSaid();

@@ -38,6 +38,7 @@ export {
   pageValuesOf,
   interviewWorklist,
   requiredFieldsFor,
+  partPolicyFor,
   requiresSecureRequest,
   signInWorkOf,
   specialistHandoverOf,

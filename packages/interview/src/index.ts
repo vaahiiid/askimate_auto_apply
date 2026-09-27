@@ -6,6 +6,7 @@
  * student is already having.
  */
 
+export type { PartPolicy, PartRule } from "./interview.js";
 export type { InterviewAction, InterviewState, ReplyOutcome,
   ReadingOnOffer } from "./interview.js";
 export {

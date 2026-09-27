@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P231 — the questions from what the portal reads, in a person's order
+
+> *"Position, employer, start, end reads naturally … I would want the human order, not the
+> form's."*
+
+Which parts are asked is the portal's, derived from its mapping set and its own validations
+and never written by hand: a part the spec requires is always asked, an optional one only when
+some slot reads what it feeds, and "none" is refused where that slot is required. At Sheffield
+that means the basis and the referee are never asked, and the duties are. The order is a
+person's, not the form's: a job is asked as position, employer, address, start, whether still
+there, end, duties. When the entry and the portal disagree the portal wins, found by the
+read-back ADR-0106 built, and the run goes to a person. The two-turn opening waits on his word
+for its one sentence.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P230 — the interview's shape decided, and a list corrected one entry at a time
 
 > *"The thing asking is an AI and it should behave like one: ask intelligently, read

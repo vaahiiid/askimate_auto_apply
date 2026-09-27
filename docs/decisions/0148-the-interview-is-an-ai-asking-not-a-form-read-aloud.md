@@ -1,7 +1,7 @@
 # ADR-0148 — The interview is an AI asking, not a form read aloud: the CV first, the by-hand questions from the portal's own fields, the student's words kept, and a list confirmed and corrected entry by entry
 
 **Status:** Accepted · 2026-09-26 · supersedes ADR-0113 §4 (a CV may be read, as the separate decision that ADR said it would have to be) and keeps §1–§3 for the by-hand path · amends ADR-0092 (a second process that fetches a document after the gates: the CV reader) · continues 0004, 0007, 0111, 0112, 0140, 0146
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230. §3–§5 and §1–§2, §8–§10 are decided and not built, in the order he set.
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231, less the two-turn opening of §3, which waits on his word for its sentence. §1–§2, §8–§10 are decided and not built, in the order he set.
 
 ## Context
 
@@ -84,6 +84,33 @@ not ours to guess, so the entries stay on offer and the student presses the one 
 No new event kind and no migration: the log records what happened in the kinds it has, and a
 rejection followed by part reads is read as a walk, so the next question is asked plainly.
 
+## What §4 is, as built (P231)
+
+Which parts of a list or composite are asked, and which refuse "none", come from the portal
+and are never authored: `partPolicyFor` reads the mapping set for the value paths each
+mapped slot reads (a `part` rule's first path, a `join`'s parts, a `switch`'s path, or the
+whole value) and the blueprint's own validations for which of those slots are required. A
+part the spec requires is always asked, because the value cannot be built without it and the
+profile is filled once for many portals (ADR-0111); a part the spec leaves optional is asked
+only when some slot reads what it feeds, and refuses "none" when that slot is required. A
+part names what it feeds where that differs from its key (`still` and `endDate` build `end`).
+Measured at Sheffield: position, employer, address, dates and duties asked; basis and referee,
+which no slot reads, not asked; duties required.
+
+The ORDER is not the form's. His ruling, 2026-09-27: *"Position, employer, start, end reads
+naturally. If Sheffield's slot order were address, duties, position, I would want the human
+order, not the form's."* So the order is the spec's, written as a person would say it — a
+job: position, employer, address, start, whether still there, end, duties, then the parts a
+portal may read; a qualification: title, subject, institution, country, level, dates, grade —
+and the portal decides only which of the optional ones are asked.
+
+When the entry and the portal disagree — a slot the entry calls optional that the portal
+refuses to save without — the portal wins, and it is found where ADR-0106 looks: a page is
+saved when the portal shows it, so the run reads back after the save, and a page not shown
+goes `uncertain` and to a person. The student sees that their application is with a member
+of the team; the portal's own words are never printed (P178), and the entry is corrected by
+review, not by the run.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation
@@ -92,7 +119,10 @@ message text today (a redaction keeps the row and empties the words); and, once 
 typed it, on the university's form, which is outside our reach and must be said so to the
 student. Honouring "delete those too" means: the profile rows removed, redaction widened from
 message bodies to the proposal columns by a migration, the case record measured for what it
-carries, and a sentence to the student naming what was already sent. Not decided here.
+carries, and a sentence to the student naming what was already sent. **Settled by him,
+2026-09-27: that sentence is required, not optional** — *"A student asking us to delete their
+data needs to know what is beyond our reach before they believe it is gone."* The rest of the
+sizing stays open.
 
 ## What this does not decide
 

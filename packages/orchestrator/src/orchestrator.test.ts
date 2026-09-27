@@ -47,6 +47,7 @@ import {
   markFilled,
   contentHandoverOf,
   nextStep,
+  partPolicyFor,
   requiredFieldsFor,
   signInWorkOf,
   withAccount,
@@ -1896,5 +1897,45 @@ describe("the ledger identity of a page that carries a document", () => {
       new Set(["given_name", "passport_upload"]),
     );
     expect(attachments).toEqual([passport]);
+  });
+});
+
+describe("what the portal reads of a field with parts is derived, never authored (P231, ADR-0148 §4)", () => {
+  // A blueprint with two mapped fields, one required, and mappings that read
+  // parts of the employment list — the Sheffield shapes: a `part`, a `join`,
+  // a nested `part` chain, and a `text` that reads the whole value.
+  const blueprint = {
+    pages: [{ sections: [{ fields: [
+      { fieldRef: "position", validations: [{ kind: "required" }] },
+      { fieldRef: "employerDetails", validations: [{ kind: "required" }] },
+      { fieldRef: "startMonth", validations: [] },
+      { fieldRef: "wholeAddress", validations: [] },
+    ] }] }],
+  } as unknown as Parameters<typeof partPolicyFor>[0];
+  const mappings = (list: readonly unknown[]) => ({ mappings: list }) as unknown as Parameters<typeof partPolicyFor>[1];
+
+  it("names the paths each mapping reads, and marks those a required slot reads", () => {
+    const policy = partPolicyFor(blueprint, mappings([
+      { fieldRef: "position", source: { kind: "profile_field", fieldKey: "employment.history", format: { kind: "part", path: "position" } } },
+      { fieldRef: "employerDetails", source: { kind: "profile_field", fieldKey: "employment.history", format: { kind: "join", parts: ["employer", "employerAddress"], separator: "\n" } } },
+      { fieldRef: "startMonth", source: { kind: "profile_field", fieldKey: "employment.history", format: { kind: "part", path: "startDate", then: { kind: "part", path: "month" } } } },
+    ]));
+    const rule = policy.get("employment.history");
+    expect(rule?.asked).toEqual(new Set(["position", "employer", "employerAddress", "startDate"]));
+    expect(rule?.required).toEqual(new Set(["position", "employer", "employerAddress"]));
+  });
+
+  it("reads the whole value as 'all', and a mapping to a scalar's whole value the same way", () => {
+    const policy = partPolicyFor(blueprint, mappings([
+      { fieldRef: "position", source: { kind: "profile_field", fieldKey: "employment.history", format: { kind: "part", path: "position" } } },
+      { fieldRef: "wholeAddress", source: { kind: "profile_field", fieldKey: "employment.history", format: { kind: "text" } } },
+    ]));
+    expect(policy.get("employment.history")?.asked).toBe("all");
+    expect(policy.get("employment.history")?.required).toEqual(new Set(["position"]));
+    expect(policy.has("contact.address"), "a field no mapping reads has no rule").toBe(false);
+  });
+
+  it("holds on the fixture: every fixture mapping reads a scalar whole, so no field has a rule narrower than all", () => {
+    for (const rule of partPolicyFor(FIXTURE_BLUEPRINT, usable()).values()) expect(rule.asked).toBe("all");
   });
 });

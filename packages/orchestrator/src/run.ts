@@ -2115,6 +2115,57 @@ export function interviewWorklist(state: RunState, plan: FillPlan): InterviewSta
  * Given to the interview so it asks for what this university actually wants,
  * rather than working from a fixed list that would be wrong for the next one.
  */
+/**
+ * What the portal reads of each field with parts, derived from the mapping
+ * set and the blueprint's own validations (P231, ADR-0148 §4). Vahid: *"By
+ * hand means asking properly, from what the university's form actually
+ * needs."* Never authored: a part is asked because a mapped slot reads what
+ * it feeds, and required because that slot's validation says so.
+ *
+ * `asked`: the top-level value paths the field's mappings read — a `part`
+ * rule's first path, a `join`'s parts, a `switch`'s path — or `"all"` when
+ * any mapping reads the whole value. `required`: the paths read by a mapping
+ * whose blueprint field carries a `required` validation.
+ */
+export function partPolicyFor(
+  blueprint: ApplicationBlueprint,
+  mappingSet: UsableMappingSet,
+): ReadonlyMap<ProfileFieldKey, { readonly asked: ReadonlySet<string> | "all"; readonly required: ReadonlySet<string> }> {
+  const required = new Set(
+    allFields(blueprint)
+      .filter((field) => field.validations.some((validation) => validation.kind === "required"))
+      .map((field) => field.fieldRef),
+  );
+  const asked = new Map<ProfileFieldKey, Set<string> | "all">();
+  const requiredPaths = new Map<ProfileFieldKey, Set<string>>();
+  for (const mapping of mappingSet.mappings) {
+    if (mapping.source.kind !== "profile_field") continue;
+    const fieldKey = mapping.source.fieldKey;
+    const paths = pathsRead(mapping.source.format);
+    const have = asked.get(fieldKey);
+    if (paths === "all" || have === "all") asked.set(fieldKey, "all");
+    else asked.set(fieldKey, new Set([...(have ?? []), ...paths]));
+    if (required.has(mapping.fieldRef) && paths !== "all") {
+      requiredPaths.set(fieldKey, new Set([...(requiredPaths.get(fieldKey) ?? []), ...paths]));
+    }
+  }
+  const policy = new Map<ProfileFieldKey, { asked: ReadonlySet<string> | "all"; required: ReadonlySet<string> }>();
+  for (const [fieldKey, read] of asked) {
+    policy.set(fieldKey, { asked: read, required: requiredPaths.get(fieldKey) ?? new Set() });
+  }
+  return policy;
+}
+
+/** The top-level paths a format rule reads of the value, or `"all"` when it reads the whole. */
+function pathsRead(format: unknown): ReadonlySet<string> | "all" {
+  const rule = format as { kind?: string; path?: string; parts?: readonly string[] } | undefined;
+  if (rule === undefined) return "all";
+  if (rule.kind === "part" && typeof rule.path === "string") return new Set([rule.path]);
+  if (rule.kind === "join" && Array.isArray(rule.parts)) return new Set(rule.parts);
+  if (rule.kind === "switch" && typeof rule.path === "string") return new Set([rule.path]);
+  return "all";
+}
+
 export function requiredFieldsFor(
   blueprint: ApplicationBlueprint,
   mappingSet: UsableMappingSet,

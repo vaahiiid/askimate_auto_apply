@@ -89,6 +89,13 @@ export interface FieldPart<P> {
    * otherwise fall back to the key, which is the internal word Vahid read.
    */
   readonly label: string;
+  /**
+   * The path of the VALUE this part builds, when it is not the part's own
+   * key (P231, ADR-0148 §4): a job's `still` and `endDate` build `end`, which
+   * is what a portal's mapping names. The interview asks an optional part
+   * only when some mapped slot reads what it feeds.
+   */
+  readonly feeds?: string;
   /** Why the application needs this part specifically. */
   readonly rationale: string;
   readonly expectedShape: string;
@@ -197,8 +204,12 @@ const OMISSION_WORDS: ReadonlySet<string> = new Set([
  * the student's "there is none" — which is an ANSWER, and moves the interview
  * on — and otherwise defers to the part's parser.
  */
-export function partParser(part: FieldPart<unknown>): (raw: string) => unknown {
-  if (part.optional !== true) return part.parse;
+export function partParser(part: FieldPart<unknown>, requiredByThePortal = false): (raw: string) => unknown {
+  // A part the spec leaves optional but a mapped slot REQUIRES is asked as a
+  // required one: "none" is not an answer the portal will take (P231,
+  // ADR-0148 §4 — "if the university requires it, we ask for it rather than
+  // offering").
+  if (part.optional !== true || requiredByThePortal) return part.parse;
   return (raw) => (OMISSION_WORDS.has(raw.trim().toLowerCase()) ? OMITTED : part.parse(raw));
 }
 
@@ -1353,6 +1364,13 @@ export const FIELD_SPECS: Partial<{
       rationale: "One job.",
       parts: [
         {
+          partKey: "position",
+          label: PART_LABELS["employment.history"].position,
+          rationale: "Your job title or position there.",
+          expectedShape: "a job title",
+          parse: trimmed,
+        },
+        {
           partKey: "employer",
           label: PART_LABELS["employment.history"].employer,
           rationale: "The name of the employer.",
@@ -1367,13 +1385,6 @@ export const FIELD_SPECS: Partial<{
           parse: trimmed,
         },
         {
-          partKey: "position",
-          label: PART_LABELS["employment.history"].position,
-          rationale: "Your job title or position there.",
-          expectedShape: "a job title",
-          parse: trimmed,
-        },
-        {
           partKey: "startDate",
           label: PART_LABELS["employment.history"].startDate,
           rationale: "When you started — the month and the year.",
@@ -1383,6 +1394,7 @@ export const FIELD_SPECS: Partial<{
         {
           partKey: "still",
           label: PART_LABELS["employment.history"].still,
+          feeds: "end",
           rationale:
             "Whether you are still in this job. I ask rather than assume: a blank end date is " +
             "not the same as a job that continues.",
@@ -1392,10 +1404,20 @@ export const FIELD_SPECS: Partial<{
         {
           partKey: "endDate",
           label: PART_LABELS["employment.history"].endDate,
+          feeds: "end",
           rationale: "When it ended — the month and the year.",
           expectedShape: "a month and a year, e.g. June 2021 or 2021-06",
           parse: yearMonth,
           askWhen: (answered) => answered.get("still") === false,
+        },
+        {
+          partKey: "duties",
+          label: PART_LABELS["employment.history"].duties,
+          rationale:
+            "What the job involved, in your own words. These are sent as you write them, so a " +
+            "sentence or two is right.",
+          expectedShape: "a short description of your duties",
+          parse: trimmed,
         },
         {
           partKey: "basis",
@@ -1406,15 +1428,6 @@ export const FIELD_SPECS: Partial<{
           expectedShape: "full time, part time, or none",
           parse: oneOf(EMPLOYMENT_BASIS),
           optional: true,
-        },
-        {
-          partKey: "duties",
-          label: PART_LABELS["employment.history"].duties,
-          rationale:
-            "What the job involved, in your own words. These are sent as you write them, so a " +
-            "sentence or two is right.",
-          expectedShape: "a short description of your duties",
-          parse: trimmed,
         },
         {
           partKey: "refereeName",
@@ -1503,6 +1516,7 @@ export const FIELD_SPECS: Partial<{
         {
           partKey: "still",
           label: PART_LABELS["residence.history"].still,
+          feeds: "to",
           rationale: "Whether you still live there. I ask rather than read it off a blank.",
           expectedShape: "yes or no",
           parse: yesNo,
@@ -1510,6 +1524,7 @@ export const FIELD_SPECS: Partial<{
         {
           partKey: "to",
           label: PART_LABELS["residence.history"].to,
+          feeds: "to",
           rationale: "When you left — the month and the year.",
           expectedShape: "a month and a year, e.g. August 2022 or 2022-08",
           parse: yearMonth,
@@ -1545,17 +1560,6 @@ export const FIELD_SPECS: Partial<{
       rationale: "One qualification.",
       parts: [
         {
-          partKey: "level",
-          label: PART_LABELS["education.prior_qualifications"].level,
-          rationale:
-            "What kind of qualification it is. Please choose one of: Bachelor's degree, Master's " +
-            "degree, Doctorate, Diploma, Certificate, High school diploma. I only read those " +
-            "words, because the form's own lists depend on them.",
-          expectedShape:
-            "one of: Bachelor's degree, Master's degree, Doctorate, Diploma, Certificate, High school diploma",
-          parse: oneOf(QUALIFICATION_LEVELS),
-        },
-        {
           partKey: "awardTitle",
           label: PART_LABELS["education.prior_qualifications"].awardTitle,
           rationale:
@@ -1589,6 +1593,17 @@ export const FIELD_SPECS: Partial<{
           parse: countryCodeIso2,
         },
         {
+          partKey: "level",
+          label: PART_LABELS["education.prior_qualifications"].level,
+          rationale:
+            "What kind of qualification it is. Please choose one of: Bachelor's degree, Master's " +
+            "degree, Doctorate, Diploma, Certificate, High school diploma. I only read those " +
+            "words, because the form's own lists depend on them.",
+          expectedShape:
+            "one of: Bachelor's degree, Master's degree, Doctorate, Diploma, Certificate, High school diploma",
+          parse: oneOf(QUALIFICATION_LEVELS),
+        },
+        {
           partKey: "start",
           label: PART_LABELS["education.prior_qualifications"].start,
           rationale: "When you started — the month and the year.",
@@ -1598,6 +1613,7 @@ export const FIELD_SPECS: Partial<{
         {
           partKey: "endKind",
           label: PART_LABELS["education.prior_qualifications"].endKind,
+          feeds: "end",
           rationale:
             "Whether you completed it, expect to complete it, or discontinued it. You say which; " +
             "nothing reads it off a date.",
@@ -1607,6 +1623,7 @@ export const FIELD_SPECS: Partial<{
         {
           partKey: "endDate",
           label: PART_LABELS["education.prior_qualifications"].endDate,
+          feeds: "end",
           rationale: "When it ended, or is expected to — the month and the year.",
           expectedShape: "a month and a year, e.g. June 2012 or 2012-06",
           parse: yearMonth,
