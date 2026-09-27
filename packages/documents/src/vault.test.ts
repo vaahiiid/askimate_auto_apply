@@ -263,6 +263,52 @@ describe("the lawful-basis gate at storage time", () => {
     ).toThrow(/store_document:identity_verification/);
   });
 
+  it("ADMITS a CV under its own purpose and determination, and REFUSES it under the academic one (B2 determination 5, P238)", () => {
+    // Signed by Vahid Mohammadi, 2026-09-27: a CV is offered by the student,
+    // not demanded by a portal, and has its own determination rather than
+    // being folded into the academic one. So the academic activity does not
+    // cover it, and its own does.
+    const cvSchedule: RetentionSchedule = {
+      ...SCHEDULE,
+      policies: [
+        ...SCHEDULE.policies,
+        { ...SCHEDULE.policies[0]!, documentType: "cv", purpose: "cv_section_filling", policyReference: "AAS-RET-ADR0148-10" },
+        { ...SCHEDULE.policies[0]!, documentType: "cv", purpose: "application_submission", policyReference: "AAS-RET-TEST-CV-AS" },
+      ],
+    };
+    const register = new LawfulBasisRegister();
+    const fixture = (id: string, purpose: "application_submission" | "cv_section_filling", documentTypes: string[], reasoning: string) =>
+      determineLawfulBasis(
+        {
+          determinationId: id,
+          activity: { activity: storageActivityFor(purpose), purpose: "test", documentTypes },
+          article6: "contract",
+          requiresStudentAuthorisation: false,
+          determinedBy: "test",
+          determinedAt: new Date("2026-08-01T00:00:00Z"),
+          reasoning,
+          reviewBy: new Date("2027-08-01T00:00:00Z"),
+        },
+        NOW,
+      );
+    const academic = fixture("test-academic", "application_submission", ["academic_transcript"], "Test fixture standing in for determination 2: academic documents, and no CV.");
+    const cv = fixture("test-cv", "cv_section_filling", ["cv"], "Test fixture standing in for determination 5: a CV, under its own purpose.");
+    if (!academic.valid || !cv.valid) throw new Error("fixture determinations must be valid");
+    register.register(academic.determination);
+    register.register(cv.determination);
+    const upload = (purpose: "cv_section_filling" | "application_submission"): DocumentUpload => ({
+      studentId: "stu_cv",
+      documentType: "cv",
+      purpose,
+      contentType: "application/pdf",
+      sizeBytes: BYTES.byteLength,
+      contentHash: BYTES_HASH,
+      dates: {},
+    });
+    expect(assertStorable({ schedule: cvSchedule, register, upload: upload("cv_section_filling") }).lawfulBasis).toBe(cv.determination);
+    expect(() => assertStorable({ schedule: cvSchedule, register, upload: upload("application_submission") })).toThrow(DocumentTypeNotCoveredError);
+  });
+
   it("REFUSES a basis determined for SENDING, which is a different decision", () => {
     // The mirror of `authoriseDisclosure`'s first check, whose own message is
     // "A basis for holding a document is not a basis for sending it." This is

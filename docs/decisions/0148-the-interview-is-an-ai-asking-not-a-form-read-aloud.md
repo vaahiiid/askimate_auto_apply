@@ -216,11 +216,10 @@ adds one policy to version 1 and changes nothing else: `cv / application_submiss
 from last use, deleted in full — the year is his (§10), the trigger follows the schedule's own
 principle that a student's purpose is alive while they are still applying.
 
-**Not determined, and not by us.** Storage is gated by a lawful-basis determination (ADR-0022),
-and none is registered for a CV: that is his to make, and it is row 97. Until it is, the gate
-refuses a CV with `DocumentTypeNotCoveredError`, which is the correct outcome for a document
-nobody has determined a basis for. Stage one's tests cover the type, the schedule and the
-deletion; no CV can enter the real vault yet.
+**Determined by him, not by us.** Storage is gated by a lawful-basis determination (ADR-0022).
+None was registered for a CV at stage one, and the gate refused one with
+`DocumentTypeNotCoveredError` until he signed determination 5 on 2026-09-27 (row 97, P238); from
+then a CV enters the vault under its own purpose, `cv_section_filling`, and schedule version 3.
 
 **Deletion by asking**, in his words: *"'Delete my CV', 'remove that document', 'get rid of
 everything you have on me' should all land."* A reader of families of words — a verb that means
@@ -248,10 +247,13 @@ time, just by saying so here. That deletes the document, or all of your document
 that; the details you have already confirmed stay unless you ask for those too."* The moved
 clause belongs to stage 3, where what was read is shown.
 
-**Row 97 answered in reasoning, drafted for his signature** (P236): a CV is offered by the
-student, not demanded by a portal, so it has its own determination rather than being folded into
-the academic one — `decision-sheet-b2-store-cv.md`, mirrored as `STORE_CV_DRAFT` and not in
-force until he signs.
+**Row 97 answered in reasoning, drafted for his signature** (P236), **and signed** (P238):
+*"Signed: Vahid Mohammadi, 27 September 2026"*, his words verbatim in
+`decision-sheet-b2-store-cv.md`. A CV is offered by the student, not demanded by a portal, so it
+has its own determination and its own purpose, `cv_section_filling`, rather than being folded
+into the academic one; `STORE_CV` is the fifth B2 determination, schedule version 3 carries the
+CV's policy under that purpose, and the gate admits a CV. The student can complete every
+application without ever giving us one.
 
 **The reader's failure mode, found and closed** (row 98, P236–P237). His words: *"forty
 phrasings tested both ways is good, and it will still miss some. The failure mode matters — a

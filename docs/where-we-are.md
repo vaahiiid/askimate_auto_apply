@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P238 — his signature in the record, and a CV that can be held
+
+> *"Signed: Vahid Mohammadi, 27 September 2026."*
+
+His words are in the sheet as he saw them printed, and the one phase they move is done: the
+purpose, the schedule's third version, the fifth determination registered under his name. A CV
+enters the vault under its own purpose and never under the academic one. The reproduction of the
+hole is a test now, at the interview package's own door, so that in a year it is still clear why
+the driver reads every message once; and row 99 says plainly that the guarantee is the driver's.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P237 — the hole closed before stage two
 
 > *"A message about deletion must never reach the interview as an answer to a question about a

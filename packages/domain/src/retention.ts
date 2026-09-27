@@ -106,7 +106,9 @@ export type RetentionPurpose =
   | "identity_verification"
   | "financial_evidence"
   | "minor_safeguarding"
-  | "audit_evidence";
+  | "audit_evidence"
+  /** A CV the student offered, read to fill the employment and qualification sections (B2 determination 5, signed 2026-09-27). */
+  | "cv_section_filling";
 
 /**
  * What starts the retention clock.

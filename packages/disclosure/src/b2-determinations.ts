@@ -204,10 +204,14 @@ export const MINOR_ROUTE: LawfulBasisDeterminationRecord = determination(
  * With no determination registered, `assertStorable` throws
  * `NoLawfulBasisError` for it — absence of a decision is not permission.
  */
+/** Determination 5 has its own date: signed 2026-09-27, nineteen days after the four. */
+export const STORE_CV_DETERMINED_AT = new Date("2026-09-27T00:00:00Z");
+export const STORE_CV_REVIEW_BY = new Date("2027-09-27T00:00:00Z");
+
 /**
- * 5 · Storing a CV — A DRAFT, for Vahid's signature. NOT REGISTERED.
+ * 5 · Storing a CV. Signed by Vahid Mohammadi, 27 September 2026 (row 97).
  *
- * Row 97. Drafted 2026-09-27 at his instruction, from his reasoning:
+ * Drafted 2026-09-27 at his instruction, from his reasoning:
  *
  * > *"A CV is offered by the student, not demanded by a portal. Nobody's
  * > application is refused for not having one; it is a convenience we offer
@@ -218,16 +222,18 @@ export const MINOR_ROUTE: LawfulBasisDeterminationRecord = determination(
  *
  * Its own activity, therefore — `store_document:cv_section_filling`, a
  * purpose of its own rather than `application_submission` — so that the
- * academic determination's scope is not widened by it. When he signs, three
- * things move in one phase: `cv_section_filling` joins `RetentionPurpose`,
- * schedule version 3 carries the CV's policy under that purpose (version 2
- * carries it under `application_submission`, and nothing was ever stored
- * under it), and this record joins `B2_DETERMINATIONS` with his date. Until
- * then `b2Register` does not carry it, `assertStorable` refuses a CV, and
- * this constant exists so that what he signs is exactly what the code will
- * enforce. The signature is his reply, the same as an entry's.
+ * academic determination's scope is not widened by it. Signed in his words,
+ * recorded verbatim in `docs/decision-sheet-b2-store-cv.md`: *"I have read
+ * the sheet's terms as you summarised them — activity
+ * store_document:cv_section_filling, Article 6(1)(b), type cv only, one year
+ * from last use, purpose limited to filling the employment and qualification
+ * sections, never sent to a university under it, deletion on request with
+ * the confirmed details staying unless asked for, and the student able to
+ * complete every application without giving us a CV at all."* With the
+ * signature, `cv_section_filling` joined `RetentionPurpose`, schedule version
+ * 3 carries the CV's policy under it, and this record is registered.
  */
-export const STORE_CV_DRAFT: LawfulBasisDeterminationRecord = {
+export const STORE_CV: LawfulBasisDeterminationRecord = {
   determinationId: "b2-5-store-cv",
   activity: {
     activity: "store_document:cv_section_filling",
@@ -238,8 +244,8 @@ export const STORE_CV_DRAFT: LawfulBasisDeterminationRecord = {
   },
   article6: "contract",
   requiresStudentAuthorisation: false,
-  determinedBy: "DRAFT — awaiting Vahid Mohammadi's signature (row 97)",
-  determinedAt: new Date("2026-09-27T00:00:00Z"),
+  determinedBy: DETERMINED_BY,
+  determinedAt: STORE_CV_DETERMINED_AT,
   reasoning:
     "Article 6(1)(b), performance of a contract. The student has asked for applications to be " +
     "made on their behalf and has offered their CV so that the sections listing their jobs and " +
@@ -255,9 +261,9 @@ export const STORE_CV_DRAFT: LawfulBasisDeterminationRecord = {
     "schedule version 3. DELETION: on the student's request, made in the conversation in their own " +
     "words, at any time; the document is purged and the details they confirmed from it stay unless " +
     "they ask for those too, which they are told. Consent is deliberately NOT the basis, for the " +
-    "reason recorded on determination 1. Drafted 2026-09-27 for Vahid Mohammadi's signature; not " +
-    "in force until he signs.",
-  reviewBy: new Date("2027-09-27T00:00:00Z"),
+    "reason recorded on determination 1. Determined by Vahid Mohammadi, 2026-09-27, in his own " +
+    "words, recorded in docs/decision-sheet-b2-store-cv.md.",
+  reviewBy: STORE_CV_REVIEW_BY,
 };
 
 export const B2_DETERMINATIONS: readonly LawfulBasisDeterminationRecord[] = [
@@ -265,6 +271,7 @@ export const B2_DETERMINATIONS: readonly LawfulBasisDeterminationRecord[] = [
   STORE_ACADEMIC_DOCUMENT,
   DISCLOSE_DOCUMENT,
   MINOR_ROUTE,
+  STORE_CV,
 ];
 
 /**

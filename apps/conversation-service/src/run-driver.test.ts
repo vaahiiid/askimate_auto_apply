@@ -53,6 +53,7 @@ import {
   runId as makeRunId,
   studentId,
   unwrapConfirmed,
+  unwrapProposed,
 } from "@askimate/aas-domain";
 import type { ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import {
@@ -95,7 +96,7 @@ import {
 } from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
-import { nextAction, newInterview } from "@askimate/aas-interview";
+import { nextAction, newInterview, receiveAnswer } from "@askimate/aas-interview";
 import { attachmentIntentTarget, pageAttachmentsOf, pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
 import { buildPreview } from "@askimate/aas-preparation";
 
@@ -14349,6 +14350,29 @@ describeIfDatabase("a student asks for a document to be deleted, in the chat, an
     await say("my CV is on its way");
     expect(await deletions(), "no deletion reply for a sentence that asks for none").toBe(before);
   }, 120_000);
+});
+
+describe("the reproduction, kept (row 98; row 99): the interview itself takes 'can you get rid of the thing from yesterday' as the first line of an address", () => {
+  // Vahid, 2026-09-27: *"'Can you get rid of the thing from yesterday'
+  // becoming the first line of an address is the clearest statement of why
+  // this mattered, and it will still be clear in a year when nobody remembers
+  // the conversation."* This is what the interview PACKAGE does with that
+  // sentence — it takes a string, and reads it as the answer to the open
+  // question. The driver is what stops the sentence reaching it
+  // (`readStudentMessage`, `StudentAnswer`); a second caller into the
+  // interview would not inherit that, which is row 99.
+  it("reads the sentence as the street, because the package takes any string as an answer", async () => {
+    const fresh = newInterview({
+      studentRef: "stu_repro",
+      profile: emptyProfile(studentId("stu_repro"), NOW),
+      requiredFields: ["contact.address"],
+      requiredDocuments: [],
+    });
+    const outcome = await receiveAnswer(fresh, "contact.address", "can you get rid of the thing from yesterday", new DeterministicModelClient());
+    expect(outcome.kind).toBe("understood");
+    const line1 = outcome.state.partial.get("contact.address")?.get("line1");
+    expect(line1 === undefined ? undefined : unwrapProposed(line1).value, "the hole, as it was").toBe("can you get rid of the thing from yesterday");
+  });
 });
 
 describeIfDatabase("a message about deletion never reaches the interview as an answer; unclear, it is asked about, with the way back (row 98, P237)", () => {

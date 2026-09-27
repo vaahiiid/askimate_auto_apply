@@ -1,9 +1,8 @@
 # Decision sheet — B2 determination 5: storing a CV (row 97)
 
-**Status:** DRAFT, for Vahid Mohammadi's signature. Not in force. Drafted 2026-09-27 (P236) at his
-instruction, from his reasoning below. The same text is `STORE_CV_DRAFT` in
-`packages/disclosure/src/b2-determinations.ts`, deliberately NOT in `B2_DETERMINATIONS`, so that
-what he signs is exactly what the code will enforce.
+**Status:** SIGNED by Vahid Mohammadi, 27 September 2026 (below). In force from P238: the same text
+is `STORE_CV` in `packages/disclosure/src/b2-determinations.ts`, registered with his name and his
+date. Drafted 2026-09-27 (P236) at his instruction, from his reasoning below.
 
 **Signature:** he reads it and signs it in his own words, the same as an entry (ADR-0118). Nothing
 below is his decision until he does.
@@ -46,4 +45,14 @@ below is his decision until he does.
 
 ## Signed
 
-_Not yet. His words, dated, go here — quotable verbatim._
+**Signed: Vahid Mohammadi, 27 September 2026.**
+
+In his words: *"I have read the sheet's terms as you summarised them — activity
+store_document:cv_section_filling, Article 6(1)(b), type cv only, one year from last use, purpose
+limited to filling the employment and qualification sections, never sent to a university under
+it, deletion on request with the confirmed details staying unless asked for, and the student able
+to complete every application without giving us a CV at all."*
+
+Recorded verbatim from his message of 2026-09-27. The determination is in force from this
+signature: `STORE_CV` joins the register with his name and this date; `cv_section_filling` joins
+the retention purposes; schedule version 3 carries the CV's policy under it.

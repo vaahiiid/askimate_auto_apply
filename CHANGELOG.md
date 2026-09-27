@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.234.0] — 2026-09-27
+
+**P238 — B2 determination 5 signed by Vahid and in force: a CV is held under its own purpose; row 99.**
+
+- **Added** `cv_section_filling` to the retention purposes, retention schedule version 3.2026-09-27
+  (the CV's policy under that purpose, nothing else changed), and `STORE_CV`, the fifth lawful-basis
+  determination, registered with his name and his date. The gate admits a CV under its own purpose
+  and refuses it under the academic one.
+- **Added** the kept reproduction of row 98's hole as a test at the interview package's door, and
+  row 99: the no-fall-through guarantee is the driver's, and a second caller would not inherit it.
+
+---
+
 ## [0.233.0] — 2026-09-27
 
 **P237 — a message about deletion is handled or asked about, never passed to the interview as an answer (row 98).**

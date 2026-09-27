@@ -26,7 +26,9 @@ import {
   DISCLOSE_DOCUMENT,
   MINOR_ROUTE,
   STORE_ACADEMIC_DOCUMENT,
-  STORE_CV_DRAFT,
+  STORE_CV,
+  STORE_CV_DETERMINED_AT,
+  STORE_CV_REVIEW_BY,
   STORE_IDENTITY_DOCUMENT,
   b2Register,
 } from "./b2-determinations.js";
@@ -35,35 +37,41 @@ import { determineLawfulBasis } from "./lawful-basis.js";
 
 const NOW = new Date("2026-09-08T12:00:00Z");
 
-describe("the CV determination, drafted and NOT in force (row 97, P236)", () => {
-  it("is not among the four, and the register does not carry its activity", () => {
-    expect(B2_DETERMINATIONS.map((r) => r.determinationId)).not.toContain(STORE_CV_DRAFT.determinationId);
-    expect(STORE_CV_DRAFT.determinedBy).toContain("DRAFT");
-    expect(STORE_CV_DRAFT.determinedBy).toContain("signature");
-    const register = b2Register(NOW);
-    expect(register.forActivity(STORE_CV_DRAFT.activity.activity), "not in force").toBeUndefined();
-    expect(register.activities).not.toContain(STORE_CV_DRAFT.activity.activity);
+const SIGNED = new Date("2026-09-28T12:00:00Z");
+
+describe("the CV determination, signed and in force (row 97, P238)", () => {
+  it("is the fifth, registered under its own activity, with his name and his date", () => {
+    // Signed: Vahid Mohammadi, 27 September 2026 — docs/decision-sheet-b2-store-cv.md.
+    expect(B2_DETERMINATIONS.map((r) => r.determinationId)).toContain(STORE_CV.determinationId);
+    expect(STORE_CV.determinedBy).toBe("Vahid Mohammadi");
+    expect(STORE_CV.determinedAt).toEqual(STORE_CV_DETERMINED_AT);
+    expect(STORE_CV.reviewBy).toEqual(STORE_CV_REVIEW_BY);
+    const register = b2Register(SIGNED);
+    expect(register.forActivity("store_document:cv_section_filling"), "in force").toBeDefined();
+    // Its own activity: the academic determination's scope is NOT widened.
+    expect(STORE_ACADEMIC_DOCUMENT.activity.documentTypes).not.toContain("cv");
   });
 
   it("says what he asked it to say: offered not demanded, its own basis, the type, the year, the purpose, deletion, and that no application needs one", () => {
-    const words = STORE_CV_DRAFT.reasoning;
-    expect(STORE_CV_DRAFT.activity.documentTypes).toEqual(["cv"]);
-    expect(STORE_CV_DRAFT.activity.activity).toBe("store_document:cv_section_filling");
-    expect(STORE_CV_DRAFT.article6).toBe("contract");
+    const words = STORE_CV.reasoning;
+    expect(STORE_CV.activity.documentTypes).toEqual(["cv"]);
+    expect(STORE_CV.activity.activity).toBe("store_document:cv_section_filling");
+    expect(STORE_CV.article6).toBe("contract");
+    expect(STORE_CV.requiresStudentAuthorisation).toBe(false);
     expect(words).toContain("OFFERED BY THE STUDENT, NOT DEMANDED BY A PORTAL");
     expect(words).toContain("complete every application without ever giving us one");
     expect(words).toContain("one year from the last use");
     expect(words).toContain("employment and qualification sections");
     expect(words).toContain("on the student's request");
-    expect(words).toContain("not in force until he signs");
+    expect(words).toContain("Determined by Vahid Mohammadi, 2026-09-27");
   });
 });
 
 describe("the four B2 determinations", () => {
-  it("are all four, and all usable", () => {
-    expect(B2_DETERMINATIONS).toHaveLength(4);
+  it("are all five now, and all usable", () => {
+    expect(B2_DETERMINATIONS).toHaveLength(5);
     for (const record of B2_DETERMINATIONS) {
-      const checked = determineLawfulBasis(record, NOW);
+      const checked = determineLawfulBasis(record, SIGNED);
       expect(checked.valid, `${record.determinationId} was refused`).toBe(true);
     }
   });
@@ -75,8 +83,9 @@ describe("the four B2 determinations", () => {
     // useless to anyone reviewing it.
     for (const record of B2_DETERMINATIONS) {
       expect(record.determinedBy, record.determinationId).toBe("Vahid Mohammadi");
-      expect(record.determinedAt).toEqual(B2_DETERMINED_AT);
-      expect(record.reviewBy).toEqual(B2_REVIEW_BY);
+      const cv = record.determinationId === STORE_CV.determinationId;
+      expect(record.determinedAt).toEqual(cv ? STORE_CV_DETERMINED_AT : B2_DETERMINED_AT);
+      expect(record.reviewBy).toEqual(cv ? STORE_CV_REVIEW_BY : B2_REVIEW_BY);
       expect(record.reasoning.length, `${record.determinationId} reasoning is thin`).toBeGreaterThan(
         200,
       );
