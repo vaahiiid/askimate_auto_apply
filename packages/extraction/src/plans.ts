@@ -29,6 +29,7 @@ import type {
   Qualification,
 } from "@askimate/aas-profile";
 import { readCountryCode } from "@askimate/aas-profile";
+import type { EmploymentEntry } from "@askimate/aas-profile";
 import type { DocumentType } from "@askimate/aas-domain";
 
 /** Which date on the document this is, in the validity engine's terms. */
@@ -85,7 +86,30 @@ export interface DocumentDateTarget extends TargetCommon {
   readonly parse: (raw: string) => Date | null;
 }
 
-export type ExtractionTarget = ScalarTarget | CompositeTarget | DocumentDateTarget;
+/** One part of one entry of a list, read by its label inside the entry's own lines. */
+export interface ListEntryPart extends TargetCommon {
+  readonly partKey: string;
+}
+
+/**
+ * A list of things read off a document — the jobs on a CV, the
+ * qualifications (ADR-0148 §1, stage two). The document is cut into a
+ * section under one of `headings` and into entries at the FIRST part's
+ * labels (`sections.ts`); each part of each entry is read on its own and
+ * grounded in the whole document; an entry a required part is missing from
+ * is dropped and said so, and the rest are kept. Never required: a CV may
+ * list none, and that is not a gap.
+ */
+export interface ListTarget {
+  readonly kind: "list";
+  readonly fieldKey: OrdinaryFieldKey;
+  readonly headings: readonly string[];
+  readonly parts: readonly ListEntryPart[];
+  readonly assemble: (parts: ReadonlyMap<string, string>) => unknown;
+  readonly required: false;
+}
+
+export type ExtractionTarget = ScalarTarget | CompositeTarget | DocumentDateTarget | ListTarget;
 
 export interface ExtractionPlan {
   readonly documentType: DocumentType;
@@ -499,10 +523,161 @@ const ACADEMIC_TRANSCRIPT: ExtractionPlan = {
   ],
 };
 
+// ───────────────────────────────────────────────────────────────────────────
+// A CV (ADR-0148 §1, §9; stage two)
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Two lists, read entry by entry. The words a CV uses for the closed
+// vocabularies the profile holds are read here into the profile's own tokens
+// — the same tokens the interview's parsers produce for a typed answer, so
+// a value read off a CV and a value typed into the chat are the same value.
+// PROVEN AGAINST THE DETERMINISTIC CLIENT ONLY: that client reads a line
+// labelled "Position:", and a real CV has no such line; whether the Bedrock
+// client reads prose into these parts is not shown by any test here.
+
+const trimmed = (raw: string): string | null => {
+  const value = raw.trim();
+  return value.length > 0 && value.length <= 2000 ? value : null;
+};
+
+/** "Present", "current", "to date", "now", "ongoing" — a job not yet ended — or a month and a year. */
+const endOfJob = (raw: string): string | null => {
+  const value = raw.trim();
+  if (/^(present|current|currently|to date|to present|now|ongoing|-)$/i.test(value)) return "current";
+  return yearMonth(value) === null ? null : value;
+};
+
+const QUALIFICATION_LEVELS: Readonly<Record<string, string>> = {
+  "bachelor's degree": "Bachelor's degree",
+  "bachelors degree": "Bachelor's degree",
+  bachelor: "Bachelor's degree",
+  "master's degree": "Master's degree",
+  "masters degree": "Master's degree",
+  master: "Master's degree",
+  doctorate: "Doctorate",
+  phd: "Doctorate",
+  diploma: "Diploma",
+  certificate: "Certificate",
+  "high school diploma": "High school diploma",
+};
+
+const GRADE_SCALES: Readonly<Record<string, string>> = {
+  "uk honours": "uk_honours",
+  "20-point": "twenty_point",
+  "20 point": "twenty_point",
+  "out of 20": "twenty_point",
+  "gpa out of 4": "gpa_4",
+  "gpa 4": "gpa_4",
+  gpa: "gpa_4",
+  percentage: "percentage",
+  "out of 100": "percentage",
+};
+
+const EMPLOYMENT_BASIS: Readonly<Record<string, string>> = {
+  "full time": "full_time",
+  "full-time": "full_time",
+  "part time": "part_time",
+  "part-time": "part_time",
+};
+
+const oneOf =
+  (options: Readonly<Record<string, string>>) =>
+  (raw: string): string | null =>
+    options[raw.trim().toLowerCase().replace(/\s+/g, " ")] ?? null;
+
+/**
+ * "Completed, June 2019" / "Expected June 2027" / "Discontinued March 2020",
+ * or a bare month and year, which a CV states as a completion. Kept as the
+ * kind and the date in one string for `assemble` to split.
+ */
+const endOfQualification = (raw: string): string | null => {
+  const value = raw.trim();
+  const kinded = /^(completed|expected|discontinued|finished|graduated|left)[\s,:-]*(.+)$/i.exec(value);
+  const kind = kinded === null ? "completed" : { finished: "completed", graduated: "completed", left: "discontinued" }[kinded[1]?.toLowerCase() ?? ""] ?? (kinded[1]?.toLowerCase() ?? "completed");
+  const date = kinded === null ? value : (kinded[2] ?? "");
+  return yearMonth(date) === null ? null : `${kind}|${date}`;
+};
+
+const CV: ExtractionPlan = {
+  documentType: "cv",
+  targets: [
+    {
+      kind: "list",
+      fieldKey: "employment.history",
+      headings: ["employment", "employment history", "work experience", "work history", "experience", "professional experience", "career", "career history"],
+      required: false,
+      parts: [
+        { partKey: "position", labels: ["Position", "Job title", "Title", "Role"], hint: "the job title of one job", expectedShape: "a job title", required: true },
+        { partKey: "employer", labels: ["Employer", "Company", "Organisation", "Organization"], hint: "who the job was with", expectedShape: "an employer's name", required: true },
+        { partKey: "employerAddress", labels: ["Employer address", "Address", "Location"], hint: "where the employer is", expectedShape: "an address or a place", required: true },
+        { partKey: "startDate", labels: ["Start", "Start date", "From"], hint: "when the job began, as a month and a year", expectedShape: "a month and a year", required: true },
+        { partKey: "end", labels: ["End", "End date", "To", "Until"], hint: "when the job ended, or that it has not", expectedShape: "a month and a year, or 'Present'", required: true },
+        { partKey: "duties", labels: ["Duties", "Responsibilities", "Description", "Summary"], hint: "what the job involved, in the student's words", expectedShape: "a description", required: true },
+        { partKey: "basis", labels: ["Basis", "Type", "Hours"], hint: "full-time or part-time", expectedShape: "full-time or part-time", required: false },
+      ],
+      assemble: (parts): EmploymentEntry | null => {
+        const position = trimmed(parts.get("position") ?? "");
+        const employer = trimmed(parts.get("employer") ?? "");
+        const employerAddress = trimmed(parts.get("employerAddress") ?? "");
+        const startDate = yearMonth(parts.get("startDate") ?? "");
+        const endRead = endOfJob(parts.get("end") ?? "");
+        const duties = trimmed(parts.get("duties") ?? "");
+        const basis = oneOf(EMPLOYMENT_BASIS)(parts.get("basis") ?? "");
+        if (position === null || employer === null || employerAddress === null || startDate === null || endRead === null || duties === null) return null;
+        const endDate = endRead === "current" ? null : yearMonth(endRead);
+        if (endRead !== "current" && endDate === null) return null;
+        return {
+          employer,
+          employerAddress,
+          position,
+          startDate,
+          end: endDate === null ? { kind: "current" } : { kind: "ended", date: endDate },
+          ...(basis === "full_time" || basis === "part_time" ? { basis } : {}),
+          duties,
+        };
+      },
+    },
+    {
+      kind: "list",
+      fieldKey: "education.prior_qualifications",
+      headings: ["education", "education and qualifications", "qualifications", "academic history", "academic qualifications", "academic background"],
+      required: false,
+      parts: [
+        { partKey: "awardTitle", labels: ["Qualification", "Award", "Degree"], hint: "the title as awarded, e.g. BSc", expectedShape: "a qualification's title", required: true },
+        { partKey: "subject", labels: ["Subject", "Course", "Field"], hint: "the subject studied", expectedShape: "a subject", required: true },
+        { partKey: "institution", labels: ["Institution", "University", "School", "College"], hint: "where it was studied", expectedShape: "an institution's name", required: true },
+        { partKey: "countryCode", labels: ["Country"], hint: "the country of the institution", expectedShape: "a country", required: true },
+        { partKey: "level", labels: ["Level"], hint: "the level: bachelor's degree, master's degree, doctorate, diploma, certificate", expectedShape: "a level of qualification", required: true },
+        { partKey: "start", labels: ["Start", "Start date", "From"], hint: "when it began, as a month and a year", expectedShape: "a month and a year", required: true },
+        { partKey: "end", labels: ["End", "End date", "To", "Until", "Completed"], hint: "when it ended, or is expected to", expectedShape: "a month and a year, with 'expected' or 'discontinued' where so", required: true },
+        { partKey: "grade", labels: ["Grade", "Result", "Classification"], hint: "the grade as printed", expectedShape: "a grade", required: true },
+        { partKey: "gradeScale", labels: ["Grade scale", "Scale"], hint: "the scale the grade is on", expectedShape: "UK honours, 20-point, GPA out of 4, or percentage", required: true },
+      ],
+      assemble: (parts): Qualification | null => {
+        const awardTitle = trimmed(parts.get("awardTitle") ?? "");
+        const subject = trimmed(parts.get("subject") ?? "");
+        const institution = trimmed(parts.get("institution") ?? "");
+        const countryCode = readCountryCode(parts.get("countryCode") ?? "");
+        const level = oneOf(QUALIFICATION_LEVELS)(parts.get("level") ?? "");
+        const start = yearMonth(parts.get("start") ?? "");
+        const endRead = endOfQualification(parts.get("end") ?? "");
+        const grade = trimmed(parts.get("grade") ?? "");
+        const gradeScale = oneOf(GRADE_SCALES)(parts.get("gradeScale") ?? "");
+        if (awardTitle === null || subject === null || institution === null || countryCode === null || level === null || start === null || endRead === null || grade === null || gradeScale === null) return null;
+        const [kind, endText] = endRead.split("|");
+        const endDate = yearMonth(endText ?? "");
+        if (endDate === null || (kind !== "completed" && kind !== "expected" && kind !== "discontinued")) return null;
+        return { level, awardTitle, subject, institution, countryCode, start, end: { kind, date: endDate }, grade, gradeScale };
+      },
+    },
+  ],
+};
+
 const PLANS: Readonly<Partial<Record<DocumentType, ExtractionPlan>>> = {
   passport: PASSPORT,
   bank_statement: BANK_STATEMENT,
   academic_transcript: ACADEMIC_TRANSCRIPT,
+  cv: CV,
 };
 
 /**
@@ -523,7 +698,7 @@ export const DOCUMENT_TYPES_WITH_PLANS: readonly DocumentType[] = Object.keys(
 export function fieldsExtractedBy(plan: ExtractionPlan): readonly ProfileFieldKey[] {
   return plan.targets
     .filter(
-      (target): target is ScalarTarget | CompositeTarget => target.kind !== "document_date",
+      (target): target is ScalarTarget | CompositeTarget | ListTarget => target.kind !== "document_date",
     )
     .map((target) => target.fieldKey);
 }

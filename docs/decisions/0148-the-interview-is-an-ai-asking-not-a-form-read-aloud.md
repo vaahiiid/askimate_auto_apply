@@ -1,7 +1,7 @@
 # ADR-0148 — The interview is an AI asking, not a form read aloud: the CV first, the by-hand questions from the portal's own fields, the student's words kept, and a list confirmed and corrected entry by entry
 
 **Status:** Accepted · 2026-09-26 · supersedes ADR-0113 §4 (a CV may be read, as the separate decision that ADR said it would have to be) and keeps §1–§3 for the by-hand path · amends ADR-0092 (a second process that fetches a document after the gates: the CV reader) · continues 0004, 0007, 0111, 0112, 0140, 0146
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence; §11 in P233; §10 in part in P235 (stage one of the CV path). §1–§2, §8–§9 and the rest of §10 are decided and not built, in the order he set.
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence; §11 in P233; §10 in part in P235–P238 (stage one of the CV path, and his signed determination); §1 and §9 in part in P239 (stage two: the CV read into its lists, proven against the deterministic client only). §2, §8, the rest of §1, §9 and §10 are decided and not built, in the order he set.
 
 ## Context
 
@@ -275,6 +275,42 @@ and nothing in it was proven against a real model. Every test in this phase runs
 deterministic client; a deterministic client passing is not the same as a CV being read, and
 stage 3 is where that distinction starts to matter. Each stage's record will say which, if
 either, it was proven against.
+
+## What §1 and §9 are, as built in part — stage two of the CV path (P239)
+
+**Bytes to text, real.** A CV arrives as a PDF or a Word file. Two extractors behind the one
+port `text.ts` declares: a PDF's own text layer through a real PDF library, page by page; a Word
+file's paragraphs through a real .docx library, one line each. Both are proven on real files —
+synthetic CVs generated for the repository — and a PDF with no text layer reads as an empty
+page, not an error. Reading a document does not destroy it: the PDF library detaches the buffer
+it is handed, found when two tests read one fixture, and the extractor copies first.
+
+**Text to entries, by code.** The model contract this package has reads one value out of a text
+by its label, so the text is cut first: a heading line opens a section (*Employment*, *Work
+experience*, *Education*…), the next heading closes it, and an entry begins at each line
+carrying the entry's first label. Deterministic, tested, and limited to the shapes a text layer
+or a Word file yields; a CV laid out as tables, columns or prose with no labels is not cut by it,
+and the reading that follows finds nothing in it.
+
+**Entries to values, grounded.** A new target kind, a list: the jobs and the qualifications, each
+entry read part by part through the same model call every other target uses, each span checked
+against the whole document before it is accepted. An entry a required part is missing from is
+dropped and reported by its position (*employment.history[2]*, and which part); an entry whose
+quoted span is not in the document is rejected — a model that invents a job invents nothing here;
+the entries that read whole are one proposal, with the document's id and the lines it was read
+from, and none is `not_found` and not required, because a CV may list none. The words a CV uses
+for the profile's closed vocabularies — a level, a grade scale, full-time — are read into the
+same tokens the interview's parsers produce for a typed answer, so a value read off a CV and a
+value typed into the chat are the same value.
+
+**What was proven against what, said plainly at his instruction.** Real: the PDF and Word
+libraries on real files; the cut into sections and entries on the fixtures' layout; the
+grounding guard rejecting an invented span; the assembly into the profile's own shapes.
+**Proven against the deterministic client only:** every value read. That client reads a line
+labelled *Position:*; a real CV has no such line. Whether the Bedrock client reads prose into
+these parts — the thing stage two is for — is not shown by any test in this phase, and stage
+three is where a real reading has to be proven. A green test here proves the wiring, not the
+reading.
 
 ## Deleting the confirmed values, sized and not decided
 

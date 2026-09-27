@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P239 — a CV read into its lists, and what that does not yet prove
+
+> *"A green test against a client that always returns the same thing proves the wiring, not the
+> reading."*
+
+A CV's bytes become text through real PDF and Word libraries on real files. The text is cut by
+code into the employment and education sections and into entries; each part of each entry is
+read through the one model call the package has and checked against the whole document before it
+is kept; a dropped entry is named by its position and the part it lacked, an invented span is
+rejected, and the entries that read whole are one proposal in the profile's own shapes. Every
+value read in this phase was read by the deterministic client, which reads a line labelled
+*Position:*. A real CV has no such line. Stage three is where a real reading has to be proven.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P238 — his signature in the record, and a CV that can be held
 
 > *"Signed: Vahid Mohammadi, 27 September 2026."*

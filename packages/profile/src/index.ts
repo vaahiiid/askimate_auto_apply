@@ -15,6 +15,7 @@ export type {
   ProfileFieldType,
   ProfileFieldTypes,
   Qualification,
+  EmploymentEntry,
   UkStatusClaims,
   UkStudy,
   UkStudyLevel,

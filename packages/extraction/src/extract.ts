@@ -27,6 +27,7 @@ import { checkGrounding } from "./grounding.js";
 import type { DocumentDateKind, ExtractionPlan, ExtractionTarget } from "./plans.js";
 import { planFor } from "./plans.js";
 import type { DocumentText } from "./text.js";
+import { entriesOf, sectionOf } from "./sections.js";
 import { fullText } from "./text.js";
 
 /** What one target produced. */
@@ -70,6 +71,114 @@ export interface ExtractionReport {
 }
 
 /** The key a target is reported under. */
+/**
+ * A list of entries, each read part by part and grounded (stage two).
+ *
+ * The document is cut by code (`sections.ts`) into the section under the
+ * target's headings and into entries at the first part's labels. Each part
+ * of each entry is read out of THAT ENTRY'S lines through the same model
+ * contract every other target uses, and its span is checked against the
+ * WHOLE document — a span from anywhere in the document is real, a span from
+ * nowhere is invented. An entry a required part is missing from, or whose
+ * span is not in the document, is dropped and reported by its position
+ * (`employment.history[2]`); the entries that read whole are one proposal.
+ * No entries is `not_found` and not required: a CV may list none.
+ */
+async function runList(
+  target: Extract<ExtractionTarget, { kind: "list" }>,
+  text: DocumentText,
+  model: ModelClient,
+): Promise<readonly ExtractionOutcome[]> {
+  const targetKey = target.fieldKey;
+  const first = target.parts[0];
+  if (first === undefined) return [{ kind: "not_found", targetKey, required: false, reason: "The plan names no parts." }];
+  const section = sectionOf(text, target.headings);
+  const entries = entriesOf(section, first.labels);
+  if (entries.length === 0) {
+    return [
+      {
+        kind: "not_found",
+        targetKey,
+        required: false,
+        reason:
+          section.length === 0
+            ? `No section headed ${target.headings.map((h) => `"${h}"`).join(", ")} on this ${text.documentType}.`
+            : `A section, but no entry in it opens with ${first.labels.map((l) => `"${l}"`).join(" or ")}.`,
+      },
+    ];
+  }
+
+  const items: unknown[] = [];
+  const spans: string[] = [];
+  const dropped: ExtractionOutcome[] = [];
+  let lowestConfidence = 1;
+  for (const [index, entry] of entries.entries()) {
+    const position = `${targetKey}[${String(index + 1)}]`;
+    const block = entry.join("\n");
+    const values = new Map<string, string>();
+    const entrySpans: string[] = [];
+    let bad: ExtractionOutcome | null = null;
+    for (const part of target.parts) {
+      const read = await model.extractFromDocument({
+        documentId: text.documentId,
+        documentType: text.documentType,
+        fieldKey: `${targetKey}.${part.partKey}`,
+        documentText: block,
+        hint: part.hint,
+        labels: part.labels,
+        expectedShape: part.expectedShape,
+        parse: (raw) => (raw.trim().length > 0 ? raw.trim() : null),
+        requireVerbatimSpan: true,
+      });
+      if (isNotUnderstood(read)) {
+        if (part.required) {
+          bad = { kind: "not_found", targetKey: position, required: false, reason: `Could not read "${part.partKey}": ${read.reason}` };
+          break;
+        }
+        continue;
+      }
+      const fields = unwrapProposed(read);
+      const grounding = checkGrounding(text, fields.verbatim);
+      if (grounding.kind !== "grounded") {
+        bad = { kind: "rejected_ungrounded", targetKey: position, required: false, claimedSpan: fields.verbatim, reason: `Part "${part.partKey}" was discarded. ${grounding.reason}` };
+        break;
+      }
+      values.set(part.partKey, fields.value);
+      entrySpans.push(fields.verbatim);
+      lowestConfidence = Math.min(lowestConfidence, fields.confidence);
+    }
+    if (bad !== null) {
+      dropped.push(bad);
+      continue;
+    }
+    const assembled = target.assemble(values);
+    if (assembled === null || assembled === undefined) {
+      dropped.push({ kind: "not_found", targetKey: position, required: false, reason: `Read the parts but could not assemble a complete entry from them.` });
+      continue;
+    }
+    items.push(assembled);
+    spans.push(...entrySpans);
+  }
+
+  const whole: ExtractionOutcome =
+    items.length === 0
+      ? { kind: "not_found", targetKey, required: false, reason: `${String(entries.length)} ${entries.length === 1 ? "entry" : "entries"} found and none read whole.` }
+      : {
+          kind: "extracted",
+          targetKey,
+          fieldKey: target.fieldKey,
+          proposed: proposeValue({
+            value: items,
+            origin: "document",
+            verbatim: spans.join("\n"),
+            confidence: lowestConfidence,
+            documentId: text.documentId,
+          }),
+          page: 1,
+        };
+  return [whole, ...dropped];
+}
+
 export function targetKeyOf(target: ExtractionTarget): string {
   return target.kind === "document_date" ? `document.${target.dateKind}` : target.fieldKey;
 }
@@ -99,6 +208,10 @@ async function runPlan(
   const outcomes: ExtractionOutcome[] = [];
 
   for (const target of plan.targets) {
+    if (target.kind === "list") {
+      outcomes.push(...(await runList(target, text, model)));
+      continue;
+    }
     outcomes.push(
       target.kind === "composite"
         ? await runComposite(target, text, model)
@@ -111,7 +224,7 @@ async function runPlan(
 
 /** One span, one value. */
 async function runSimple(
-  target: Exclude<ExtractionTarget, { kind: "composite" }>,
+  target: Exclude<ExtractionTarget, { kind: "composite" } | { kind: "list" }>,
   text: DocumentText,
   model: ModelClient,
 ): Promise<ExtractionOutcome> {

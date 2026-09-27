@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.235.0] — 2026-09-27
+
+**P239 — stage two of the CV path: a CV read into its jobs and qualifications, each entry grounded (ADR-0148 §1, §9); proven against the deterministic client only.**
+
+- **Added** `PdfTextExtractor` and `DocxTextExtractor` behind the extraction package's text port,
+  through real PDF and Word libraries (`pdf-parse`, `mammoth`), and `textExtractorFor` by content
+  type. The PDF extractor copies the bytes it is handed, because the library detaches them.
+- **Added** `sectionOf` and `entriesOf`: a CV cut into sections by heading and into entries by
+  the entry's first label, by code.
+- **Added** the `list` extraction target and the CV plan: the jobs and the qualifications, each
+  part of each entry read through the existing model call and grounded in the whole document; a
+  dropped entry reported by its position and the part it lacked; an invented span rejected.
+- **Recorded** in ADR-0148 what was proven against what: the libraries, the cut, the guard and
+  the assembly are real; every value read was read by the deterministic client.
+
+---
+
 ## [0.234.0] — 2026-09-27
 
 **P238 — B2 determination 5 signed by Vahid and in force: a CV is held under its own purpose; row 99.**
