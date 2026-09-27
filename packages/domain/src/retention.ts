@@ -56,6 +56,8 @@ export type DocumentType =
   | "parental_consent"
   | "guardianship_document"
   | "visa_document"
+  /** A CV, read to fill the sections that are a list of things (ADR-0148 §1, §9); held a year (§10). */
+  | "cv"
   | "other";
 
 /**
@@ -87,6 +89,7 @@ const EVERY_DOCUMENT_TYPE = {
   parental_consent: true,
   guardianship_document: true,
   visa_document: true,
+  cv: true,
   other: true,
 } as const satisfies Record<DocumentType, true>;
 

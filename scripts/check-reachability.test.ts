@@ -71,31 +71,33 @@ describe("the reachability check", () => {
   it("FAILS when something the register calls enforced has no production caller", async () => {
     // ── The P37 finding, reproduced ─────────────────────────────────────
     //
-    // `purgeContents` is genuinely unreachable — the vault holds nothing,
-    // because nothing can put anything into it. Claiming it is enforced is
-    // exactly the false record every phase from P31 onwards has been finding
-    // by hand, and the check must say so and name the promise.
-    // Matched by SHAPE rather than by the exact text of the entry.
+    // `assessUsability` is genuinely unreachable — nothing feeds it a
+    // requirement. Claiming it is enforced is exactly the false record every
+    // phase from P31 onwards has been finding by hand, and the check must say
+    // so and name the promise. Matched by SHAPE rather than by the exact text
+    // of the entry.
     //
     // This used to paste `purgeContents`'s whole `status` block as a literal,
     // and P44 broke it by editing the `closedBy` reason — B1 was decided, so
     // the reason naming B1 as the blocker had become false. The guard below
     // caught that honestly (the mutation no longer applied), but a fixture
     // that must be re-pasted every time a reviewed reason is corrected is a
-    // fixture that discourages correcting them.
+    // fixture that discourages correcting them. The fixture moved from
+    // `purgeContents` to `assessUsability` in P235, when a student's request
+    // to delete a document gave `purgeContents` its first production caller.
     const script = theScript();
-    const entry = /(symbol: "purgeContents",[\s\S]*?)status: \{[\s\S]*?\n {4}\},/;
+    const entry = /(symbol: "assessUsability",[\s\S]*?)status: \{[\s\S]*?\n {4}\},/;
     expect(script, "the register still carries the entry this test mutates").toMatch(entry);
     const mutated = script.replace(entry, '$1status: { kind: "reachable" },');
     expect(mutated, "the mutation applied").not.toBe(script);
 
     const { code, out } = await run(mutated);
     expect(code, out).toBe(1);
-    expect(out).toContain("purgeContents");
+    expect(out).toContain("assessUsability");
     expect(out).toContain("NOTHING IN PRODUCTION CALLS IT");
     // It names the promise, so the reader knows what is now untrue rather than
     // only which symbol moved.
-    expect(out).toContain("destroyed when its retention schedule expires");
+    expect(out).toContain("below the evidence bar cannot block an application");
   }, 120_000);
 
   it("FAILS when a reviewed-unreachable entry acquires a production caller", async () => {

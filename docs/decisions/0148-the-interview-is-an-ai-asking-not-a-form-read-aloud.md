@@ -1,7 +1,7 @@
 # ADR-0148 — The interview is an AI asking, not a form read aloud: the CV first, the by-hand questions from the portal's own fields, the student's words kept, and a list confirmed and corrected entry by entry
 
 **Status:** Accepted · 2026-09-26 · supersedes ADR-0113 §4 (a CV may be read, as the separate decision that ADR said it would have to be) and keeps §1–§3 for the by-hand path · amends ADR-0092 (a second process that fetches a document after the gates: the CV reader) · continues 0004, 0007, 0111, 0112, 0140, 0146
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence; §11 in P233. §1–§2, §8–§10 are decided and not built, in the order he set.
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence; §11 in P233; §10 in part in P235 (stage one of the CV path). §1–§2, §8–§9 and the rest of §10 are decided and not built, in the order he set.
 
 ## Context
 
@@ -204,6 +204,48 @@ us showing them our word for their answer, and it is the same defect as the fiel
 level deeper. They said Iran. Play back Iran."* The student's own words were already kept: a
 confirmed entry carries the proposal's verbatim as its provenance excerpt (ADR-0004). The seed
 now reads it, so the playback says *country: Iran*. The cost was one line and a test.
+
+## What §10 is, as built in part — stage one of the CV path (P235)
+
+His estimate for the CV path was accepted at nineteen hours across four stages, with a stop at
+the end of each. Stage one: the document type, its retention, and deletion by asking.
+
+**The type.** `cv` is a document type: a PDF or a Word file of up to five megabytes, with no
+expiry date to warn about. **The retention** is his year, in schedule version 2.2026-09-27, which
+adds one policy to version 1 and changes nothing else: `cv / application_submission`, 365 days
+from last use, deleted in full — the year is his (§10), the trigger follows the schedule's own
+principle that a student's purpose is alive while they are still applying.
+
+**Not determined, and not by us.** Storage is gated by a lawful-basis determination (ADR-0022),
+and none is registered for a CV: that is his to make, and it is row 97. Until it is, the gate
+refuses a CV with `DocumentTypeNotCoveredError`, which is the correct outcome for a document
+nobody has determined a basis for. Stage one's tests cover the type, the schedule and the
+deletion; no CV can enter the real vault yet.
+
+**Deletion by asking**, in his words: *"'Delete my CV', 'remove that document', 'get rid of
+everything you have on me' should all land."* A reader of families of words — a verb that means
+removal in any of its forms, and an object that says how much: one kind of document by the words
+a person uses for it (*CV*, *resume*, *passport*, *transcript*…), *that document*, or
+*everything* — answered before the sentence could be read as an interview answer. A negated
+request (*don't delete my CV*) and a person saying what they did (*I removed the typo*) are not
+requests. It is deterministic and tested over the phrasings, and it is said so: not a model's
+reading. When it lands: the document's contents are purged through the vault, the record staying
+with its hash for the audit (ADR-0010); the reply says what was deleted and, his condition, what
+was kept — *"The details you have confirmed stay in your application, because those are your own
+statements now. If you want any of those removed too, tell me and I will say what that takes."* —
+and, where a deleted document had already been sent to a university, that it is beyond our
+reach. *That document*, where more than one is held, is a question back, never a guess, because a
+wrong deletion cannot be undone. Where nothing of the kind is held, the reply says so and names
+what is held.
+
+**The upload sentence** — the one a student reads before handing over a document with their
+whole history in it — is printed for his word and not built, as the warning sentence was (§3).
+
+**What no stage has proven, said plainly at his instruction.** Nothing in stage one reads a CV,
+and nothing in it was proven against a real model. Every test in this phase runs the
+deterministic client; a deterministic client passing is not the same as a CV being read, and
+stage 3 is where that distinction starts to matter. Each stage's record will say which, if
+either, it was proven against.
 
 ## Deleting the confirmed values, sized and not decided
 

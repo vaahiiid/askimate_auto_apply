@@ -603,7 +603,7 @@ describe("the document types, as values", () => {
 
   it("names every supported type, and nothing else", () => {
     expect(DOCUMENT_TYPES).toContain("passport");
-    expect(DOCUMENT_TYPES).toHaveLength(13);
+    expect(DOCUMENT_TYPES).toHaveLength(14);
     expect(new Set(DOCUMENT_TYPES).size, "a duplicate entry").toBe(DOCUMENT_TYPES.length);
   });
 

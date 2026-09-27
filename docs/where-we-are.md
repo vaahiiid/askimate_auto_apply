@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P235 — the second chance kept, and a CV that can be deleted by asking
+
+> *"They say 'delete my CV' or 'delete everything you hold for me' and we do it."*
+
+The attempt a portal's demand closes no longer counts toward the two: one flag on the
+completion, set only there, and the refill after the answer is the first attempt at the page
+with that value. Stage one of the CV path is built to the edge of what an agent may write: the
+document type, his year in a new schedule version, and deletion in the chat in a person's own
+words — the document purged, the reply saying what went, that the confirmed details stay, and
+what a university already has. What an agent may not write is the lawful basis for holding a CV,
+so the real vault refuses one until he determines it: row 97. The upload sentence is printed for
+his word. No stage was proven against a real model, and the record says so.
+
+## Declared-but-unreachable surface
+
+**Three.** `purgeContents` left the register: a student asking "delete my CV" is its first
+production caller. The retention sweep that fires when a period elapses is still not built.
+
 # P234 — his three answers, and the CV path sized
 
 > *"They said Iran. Play back Iran."*

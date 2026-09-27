@@ -199,10 +199,11 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
         // The code this completion closed with, attempt or not (ADR-0144).
         ...(detail?.failure === undefined || outcome === "succeeded" ? {} : { failure: detail.failure }),
       },
-      attemptsMade: record.attemptsMade + (detail?.attempted === false ? 0 : 1),
-      // The code of an attempt MADE that failed (ADR-0122); nothing otherwise.
+      // An attempt not made, or one a demand closed (row 96), adds nothing.
+      attemptsMade: record.attemptsMade + (detail?.attempted === false || detail?.counts === false ? 0 : 1),
+      // The code of an attempt MADE and COUNTED that failed (ADR-0122); nothing otherwise.
       attemptFailures:
-        detail?.attempted === false || detail?.failure === undefined
+        detail?.attempted === false || detail?.counts === false || detail?.failure === undefined
           ? record.attemptFailures
           : [...record.attemptFailures, detail.failure],
     });

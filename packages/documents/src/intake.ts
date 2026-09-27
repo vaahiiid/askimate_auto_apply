@@ -92,6 +92,11 @@ export const DOCUMENT_LIMITS = {
   parental_consent: { maxBytes: 5 * 1024 * 1024, contentTypes: ["application/pdf", "image/jpeg", "image/png"] },
   guardianship_document: { maxBytes: 10 * 1024 * 1024, contentTypes: ["application/pdf"] },
   visa_document: { maxBytes: 10 * 1024 * 1024, contentTypes: ["application/pdf", "image/jpeg", "image/png"] },
+  // A CV is a few pages of text, as a PDF or a Word file (ADR-0148 §1).
+  cv: {
+    maxBytes: 5 * 1024 * 1024,
+    contentTypes: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  },
   other: { maxBytes: 10 * 1024 * 1024, contentTypes: ["application/pdf"] },
 } as const satisfies Record<
   DocumentType,

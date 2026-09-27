@@ -1,6 +1,6 @@
 # ADR-0122 — A failed page fill is tried twice, then stops for a person; the student is told which page, which attempt and what the page did
 
-**Status:** Accepted · 2026-09-17 · closes blocker 32 · applies 0114's rule to the third path, `execute` · the ledger of 0054/0114 gains the memory of what each attempt failed with
+**Status:** Accepted · 2026-09-17 · closes blocker 32 · applies 0114's rule to the third path, `execute` · the ledger of 0054/0114 gains the memory of what each attempt failed with · amended 2026-09-27 (row 96, P235): the attempt a portal's demand closes does not count
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-17. **Built in P155**, the same day; see *Built* below.
 
 ## Context
@@ -81,6 +81,30 @@ code — then:
   re-takeable, no intervention; the second stopped with `page_structure_changed`, the page, both
   codes and *"once is chance, twice is the portal"* on the record, the student told, never
   offered; a lost session neither counted nor told.
+
+## Amended 2026-09-27 — the attempt a demand closes does not count (row 96, P235)
+
+Vahid, on P233's refill being the second of the two attempts:
+
+> *"The reason is what the two attempts are for. ADR-0122 caps retries because a page that fails
+> twice is telling us something about the portal. A page that failed because we did not have a
+> value, and is now being filled with a value the student has just given us, is not a retry — it
+> is the first attempt at a different thing. Counting it spends a student's second chance on our
+> own gap."*
+
+And the shape, his: *"Not 'the cap counts from the answer', which would let a demand reset the
+cap repeatedly. The specific attempt that a demand closes does not count, and everything else
+counts as before."*
+
+Built as one flag on the completion, `counts: false`, which the store honours in both
+implementations: the attempt adds nothing to `attempts_made` and nothing to the cap's memory of
+codes, while the row still records the code it closed with (`last_failure`), so what happened is
+not forgotten. Only the driver's demand path sets it (ADR-0148 §11): the page was typed and saved
+and the read-back did not see it, and the refill after the student's answer is then the first
+attempt at the page with that value. A second demand on the same page closes its own attempt the
+same way, and any failure of another kind counts as before. The distinction was not awkward in
+the store: one parameter in each of two SQL values, and the contract suite proves it for both
+stores.
 
 ## Consequences
 

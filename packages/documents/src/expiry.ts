@@ -149,6 +149,9 @@ export const EXPIRY_THRESHOLDS = {
       "resolved. Not a scheduling gap, and not a product-scope call anyone here can reverse.",
   },
 
+  /** A CV carries no expiry date; it is the student's account of themselves (ADR-0148 §1). */
+  cv: { kind: "does_not_expire" },
+
   // ── Not yet decided, and saying so rather than guessing ────────────────
   sponsorship_letter: { kind: "undetermined", owner: "Vahid Mohammadi" },
   parental_consent: { kind: "undetermined", owner: "Vahid Mohammadi" },

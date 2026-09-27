@@ -268,10 +268,11 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
         now,
         runId,
         idempotencyKey,
-        detail?.attempted === false ? 0 : 1,
+        // An attempt not made, or one a demand closed (row 96), adds nothing.
+        detail?.attempted === false || detail?.counts === false ? 0 : 1,
         detail?.spentSecretRequestId ?? null,
-        // The code of an attempt MADE that failed (ADR-0122); nothing otherwise.
-        detail?.attempted === false || detail?.failure === undefined ? [] : [detail.failure],
+        // The code of an attempt MADE and COUNTED that failed (ADR-0122); nothing otherwise.
+        detail?.attempted === false || detail?.counts === false || detail?.failure === undefined ? [] : [detail.failure],
         // The code this completion closed with, attempt or not (ADR-0144).
         outcome === "succeeded" ? null : (detail?.failure ?? null),
       ],

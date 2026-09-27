@@ -413,18 +413,17 @@ export const CAPABILITIES: readonly Capability[] = [
       // is listed here as a declaration for that reason. Nothing calls it.
       "apps/conversation-service/src/s3-document-vault.ts",
     ],
-    record: "ADR-0010, ADR-0092",
-    promise: "a document's contents are destroyed when its retention schedule expires",
-    status: {
-      kind: "unreachable",
-      reason:
-        "nothing calls it. Since P60 the bucket CAN hold something to purge — the transport " +
-        "mints the upload and confirms it (ADR-0092, ADR-0093) — but the job that fires when a " +
-        "retention period elapses does not exist, and production wiring waits on durable metadata",
-      closedBy:
-        "the retention sweep: the job that calls this when a period elapses, once document " +
-        "metadata is durable and the S3 vault is wired in production",
-    },
+    record: "ADR-0010, ADR-0092, ADR-0148 §10",
+    promise: "a document's contents are destroyed when its retention schedule expires, or when the student asks",
+    // Declared-but-unreachable from P60 to P234: the bucket could hold
+    // something to purge, and nothing called this. P235 (ADR-0148 §10) gave
+    // it its first production caller — not the retention sweep, which still
+    // does not exist, but the Run Driver answering a student's own request in
+    // the chat: "delete my CV". The record on the row survives with its hash;
+    // the bytes go. This entry moving is the visible act; the sweep that fires
+    // when a period elapses is still not built, and its absence is now a
+    // gap in a caller, not a capability with none.
+    status: { kind: "reachable" },
   },
   {
     symbol: "assessUsability",

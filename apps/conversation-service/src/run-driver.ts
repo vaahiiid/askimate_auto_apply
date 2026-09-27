@@ -131,6 +131,7 @@ import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mapping";
 import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
+import { readDeletionRequest, type DeletionRequest } from "./deletion-requests.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
@@ -1287,6 +1288,23 @@ function rejectionsSinceConfirmed(events: readonly ConversationEvent[], fieldKey
  * nowhere to put. It names what is needed and hands the case to a person, which
  * is the only honest move available.
  */
+/** A document type in a person's words: "CV", "academic transcript". */
+function documentWords(documentType: string): string {
+  return documentType === "cv" ? "CV" : documentType.replace(/_/g, " ");
+}
+
+function withArticle(words: string): string {
+  return `${/^[aeiou]/i.test(words) && words !== "CV" ? "an" : "a"} ${words}`;
+}
+
+function andList(items: readonly string[]): string {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+
+function dayOf(date: Date): string {
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 function documentNeededMessage(entry: CatalogueEntry, documentType: string): string {
   const label = documentType.replace(/_/g, " ");
   return (
@@ -4895,6 +4913,17 @@ export class RunDriver {
     const said = input.event;
     if (said.kind !== "message" || said.actor !== "student" || said.content === null) return;
 
+    // ── "Delete my CV" — a request, before it could be read as an answer ──
+    //
+    // ADR-0148 §10, P235. A student may ask for a document to go at any
+    // point in the conversation, in their own words; it is answered here
+    // and never reaches the interview as an answer to whatever was asked.
+    const deletion = readDeletionRequest(said.content);
+    if (deletion !== null) {
+      await this.#deleteAtRequest(input.conversationId, deletion);
+      return;
+    }
+
     const situated = await this.#interviewSituation(input.conversationId);
     if (situated === null) return;
     const now = this.#options.now();
@@ -5010,6 +5039,97 @@ export class RunDriver {
       const next = await nextAction(worklist, this.#options.model);
       if (next.kind === "ask") await this.#putTheQuestion(input.conversationId, next);
     }
+  }
+
+  /**
+   * Deletes what the student asked to have deleted, and tells them what went
+   * and what stayed (ADR-0148 §10, P235).
+   *
+   * Vahid: *"the reply says what was deleted and what was kept — the
+   * confirmed values stay unless they ask for those too, and they should
+   * learn that from us rather than discover it later."* So every reply that
+   * deletes says the confirmed details stay, and how to ask for those; a
+   * document already sent to a university is named as beyond our reach; and
+   * "that document", where more than one is held, is a question back, never
+   * a guess (a wrong deletion cannot be undone).
+   *
+   * The deletion is the vault's `purgeContents`: the bytes go, the record
+   * stays with its hash so the audit can still say which document was used
+   * (ADR-0010). A conversation with no case has no student the driver can
+   * name, and nothing is said; the documents panel is only shown on a
+   * started application, so nothing can be held there either.
+   */
+  async #deleteAtRequest(conversationId: string, request: DeletionRequest): Promise<void> {
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null) return;
+    const vault = this.#options.disclosure?.vault;
+    if (vault === undefined) {
+      await say("I am not able to hold documents in this conversation, so there is nothing of yours here to delete.");
+      return;
+    }
+    const now = this.#options.now();
+    const held = (await vault.listForStudent(bound.studentId)).filter((record) => record.state !== "purged");
+    const listed = (records: readonly DocumentRecord[]): string => andList(records.map((record) => withArticle(documentWords(record.documentType))));
+
+    const chosen: readonly DocumentRecord[] =
+      request.scope === "all"
+        ? held
+        : request.scope === "type"
+          ? held.filter((record) => record.documentType === request.documentType)
+          : held.length <= 1
+            ? held
+            : [];
+    if (request.scope === "one" && held.length > 1) {
+      await say(
+        `I hold ${String(held.length)} documents for you: ${listed(held)}. Which one should I delete? ` +
+          `You can say "delete my ${documentWords(held[0]?.documentType ?? "cv")}", or "delete everything".`,
+      );
+      return;
+    }
+    if (chosen.length === 0) {
+      const what = request.scope === "type" ? `no ${documentWords(request.documentType)}` : "no documents";
+      await say(
+        `I hold ${what} for you, so there is nothing to delete.` +
+          (held.length === 0 ? "" : ` I hold: ${listed(held)}.`),
+      );
+      return;
+    }
+
+    for (const record of chosen) await vault.purgeContents(record.documentId, now);
+    const deleted = new Set(chosen.map((record) => record.documentId));
+
+    // What stayed: the details they confirmed, from these documents or otherwise.
+    const profile = await this.#options.profiles.load(bound.studentId, now);
+    const fromThese = [...profile.entries.values()].filter((entry) => {
+      const documentId = provenanceOf(entry.value).documentId;
+      return documentId !== undefined && deleted.has(documentId);
+    }).length;
+    const kept =
+      fromThese > 0
+        ? `The ${String(fromThese)} ${fromThese === 1 ? "detail" : "details"} you confirmed from ${chosen.length === 1 ? "it" : "them"} ` +
+          `stay in your application, because those are your own statements now. `
+        : "The details you have confirmed stay in your application, because those are your own statements now. ";
+    const ask = "If you want any of those removed too, tell me and I will say what that takes.";
+
+    // What is beyond our reach: a document a university already has.
+    const sent = (await this.#options.transmissions?.forCase(bound.caseId)) ?? [];
+    const gone = sent.filter((transmission) => deleted.has(transmission.documentId));
+    const beyond =
+      gone.length === 0
+        ? ""
+        : ` ${gone.length === 1 && chosen.length === 1 ? "It" : "What I deleted"} had already been sent to ${andList([...new Set(gone.map((t) => t.institutionName))])} ` +
+          `on ${andList([...new Set(gone.map((t) => dayOf(t.transmittedAt)))])}, and I cannot take it back from them.`;
+
+    const what =
+      request.scope === "all"
+        ? `I have deleted everything I held for you: ${listed(chosen)}.`
+        : chosen.length === 1
+          ? `I have deleted your ${documentWords(chosen[0]?.documentType ?? "cv")}.`
+          : `I have deleted your ${andList(chosen.map((record) => documentWords(record.documentType)))}.`;
+    await say(`${what} ${kept}${ask}${beyond}`);
   }
 
   /**
@@ -7393,7 +7513,10 @@ export class RunDriver {
     if (held.kind === "execute" && input.report.outcome === "uncertain" && input.report.failure === "not_recorded" && held.pageRef !== undefined) {
       const demanded = await this.#demandFromRefusal({ runId, pageRef: held.pageRef, unseen: input.report.unseen ?? [] });
       if (demanded) {
-        await this.#options.stores.runs.completeIntent(runId, key, "failed_cleanly", now, { attempted: true, failure: "not_recorded" });
+        // The attempt a demand closes does not count toward ADR-0122's two
+        // (row 96): it failed for a value we did not have, and the refill
+        // after the answer is the first attempt at a different thing.
+        await this.#options.stores.runs.completeIntent(runId, key, "failed_cleanly", now, { attempted: true, counts: false, failure: "not_recorded" });
         await this.#recordSession(held, input.report, now);
         return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
       }

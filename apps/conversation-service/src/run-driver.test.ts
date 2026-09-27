@@ -109,6 +109,7 @@ import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
+import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import type { ConversationEvent } from "@askimate/aas-contracts";
 import { answeredQuestion, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
@@ -370,6 +371,8 @@ function buildInstance(
    * `now()` answers a question about the harness rather than about the rule.
    */
   clock: () => Date = () => NOW,
+  /** The vault the driver deletes through (P235); the never-contacted S3 one when absent. */
+  vault: DocumentVault | null = null,
 ): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
@@ -424,7 +427,7 @@ function buildInstance(
     // never sends — over the same metadata store.
     disclosure: {
       register: b2Register(NOW),
-      vault: new S3DocumentVault({
+      vault: vault ?? new S3DocumentVault({
         client: new S3Client({
           region: "eu-west-2",
           credentials: { accessKeyId: "AKIAIOSFODNN7EXAMPLE", secretAccessKey: "not-a-secret" },
@@ -14165,11 +14168,15 @@ describeIfDatabase("a page the portal would not save without a part becomes ONE 
 
     // The intent completed cleanly on the read-back's evidence (nothing seen
     // saved), so the page is filled again once the answer is confirmed.
-    const intents = await pool.query<{ outcome: string | null }>(
-      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND action = 'advance_portal_page' AND target = $2",
+    const intents = await pool.query<{ outcome: string | null; attempts_made: number; last_failure: string | null }>(
+      "SELECT outcome, attempts_made, last_failure FROM workflow_action_intents WHERE run_id = $1 AND action = 'advance_portal_page' AND target = $2",
       [runId, PAGE],
     );
     expect(intents.rows[0]?.outcome).toBe("failed_cleanly");
+    // Row 96, Vahid: the attempt a demand closes "is not a retry — it is the
+    // first attempt at a different thing". Not counted; the code still kept.
+    expect(intents.rows[0]?.attempts_made, "the student's second chance is not spent on our gap").toBe(0);
+    expect(intents.rows[0]?.last_failure).toBe("not_recorded");
     const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
     expect(status.rows[0]?.status, "no stop, no person: a question").toBe("running");
     expect(await pool.query("SELECT 1 FROM interventions WHERE run_id = $1", [runId]).then((r) => r.rowCount)).toBe(0);
@@ -14207,4 +14214,139 @@ describeIfDatabase("a page the portal would not save without a part becomes ONE 
     expect(await stepOf(), "the run has moved off the interview").not.toBe("interview");
     expect((await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status).toBe("running");
   }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P235 — "delete my CV", said the way a person says it (ADR-0148 §10)
+// ───────────────────────────────────────────────────────────────────────────
+
+/** A vault of records in memory: what the driver lists and purges through. */
+function fakeVault(records: DocumentRecord[]): DocumentVault & { readonly records: DocumentRecord[] } {
+  const refuse = (): never => {
+    throw new Error("not used by a deletion");
+  };
+  const vault: DocumentVault & { readonly records: DocumentRecord[] } = {
+    records,
+    listForStudent: (studentId: string) => Promise.resolve(records.filter((r) => r.studentId === studentId)),
+    purgeContents: (documentId: string, _now: Date) => {
+      const index = records.findIndex((r) => r.documentId === documentId);
+      const found = records[index];
+      if (found === undefined) throw new Error(`no document ${documentId}`);
+      const purged: DocumentRecord = { ...found, state: "purged" };
+      records[index] = purged;
+      return Promise.resolve(purged);
+    },
+    describe: (documentId: string) => Promise.resolve(records.find((r) => r.documentId === documentId) ?? null),
+    prepareUpload: refuse,
+    confirmUpload: refuse,
+    prepareRetrieval: refuse,
+    transition: refuse,
+    startRetentionClock: refuse,
+  };
+  return vault;
+}
+
+describeIfDatabase("a student asks for a document to be deleted, in the chat, and is told what went and what stayed (P235, ADR-0148 §10)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-27: *"'Delete my CV', 'remove that document', 'get rid of
+  // everything you have on me' should all land. And when it lands, the reply
+  // says what was deleted and what was kept — the confirmed values stay
+  // unless they ask for those too, and they should learn that from us rather
+  // than discover it later."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX23501";
+  let owner = "";
+  let vault: ReturnType<typeof fakeVault>;
+
+  const held = (documentId: string, documentType: DocumentRecord["documentType"], uploadedAt: Date): DocumentRecord => ({
+    documentId,
+    studentId: owner,
+    documentType,
+    purpose: documentType === "passport" ? "identity_verification" : "application_submission",
+    state: "confirmed",
+    contentHash: "a".repeat(64),
+    contentType: "application/pdf",
+    sizeBytes: 1000,
+    uploadedAt,
+    dates: {},
+    retentionPolicyReference: documentType === "passport" ? "AAS-RET-B1-01" : "AAS-RET-ADR0148-10",
+    retentionTriggeredAt: null,
+  });
+
+  async function say(what: string): Promise<string> {
+    const built = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, vault);
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    return rows.rows[0]?.content ?? "";
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    vault = fakeVault([held("doc_cv_1", "cv", NOW), held("doc_pp_1", "passport", new Date(NOW.getTime() - 86_400_000))]);
+    const built = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, vault);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("asks WHICH when 'that document' could be either, and deletes nothing", async () => {
+    const reply = await say("remove that document");
+    expect(reply.toLowerCase()).toContain("which");
+    expect(reply).toContain("CV");
+    expect(reply).toContain("passport");
+    expect(vault.records.every((r) => r.state !== "purged"), "nothing deleted on a question").toBe(true);
+  }, 120_000);
+
+  it("deletes the CV on 'Delete my CV', and says what went and what stayed", async () => {
+    const reply = await say("Delete my CV");
+    expect(reply).toContain("I have deleted your CV");
+    expect(reply, "the confirmed values stay, and they learn it from us").toContain("stay");
+    expect(reply, "and how to ask for those too").toMatch(/ask|tell me/);
+    expect(reply, "the passport was not touched").not.toContain("deleted your passport");
+    expect(vault.records.find((r) => r.documentId === "doc_cv_1")?.state).toBe("purged");
+    expect(vault.records.find((r) => r.documentId === "doc_pp_1")?.state).toBe("confirmed");
+  }, 120_000);
+
+  it("says plainly when there is no such document to delete", async () => {
+    const reply = await say("please delete my CV");
+    expect(reply.toLowerCase()).toContain("no cv");
+    expect(reply, "and names what IS held").toContain("passport");
+  }, 120_000);
+
+  it("deletes everything on 'get rid of everything you have on me', naming each", async () => {
+    const reply = await say("get rid of everything you have on me");
+    expect(reply).toContain("I have deleted");
+    expect(reply).toContain("passport");
+    expect(reply).toContain("stay");
+    expect(vault.records.every((r) => r.state === "purged")).toBe(true);
+  }, 120_000);
+
+  it("is not read as a request when the sentence has no removal verb in it", async () => {
+    const deletions = async (): Promise<number> =>
+      Number(
+        (
+          await pool.query<{ n: string }>(
+            `SELECT count(*) AS n FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+              WHERE e.conversation_id = $1 AND e.actor = 'assistant' AND mb.content LIKE 'I have deleted%'`,
+            [conversation],
+          )
+        ).rows[0]?.n ?? 0,
+      );
+    const before = await deletions();
+    await say("my CV is on its way");
+    expect(await deletions(), "no deletion reply for a sentence that asks for none").toBe(before);
+  }, 120_000);
 });

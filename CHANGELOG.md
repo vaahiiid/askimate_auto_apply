@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.231.0] — 2026-09-27
+
+**P235 — the attempt a demand closes does not count (row 96); stage one of the CV path: the type, a year, and deletion by asking (ADR-0148 §10).**
+
+- **Added** `counts: false` to an intent completion (both workflow stores): the attempt was made
+  and does not count toward ADR-0122's two; the row keeps the code it closed with. The driver's
+  demand path sets it, so the refill after the student's answer is the first attempt.
+- **Added** the `cv` document type (PDF or Word, five megabytes, no expiry) and retention schedule
+  version 2.2026-09-27, which adds one policy to version 1: a CV held a year from last use.
+- **Added** `readDeletionRequest`: a student's request to delete a document, read the way a person
+  says it, and the driver's answer to it — the chosen documents purged through the vault, the reply
+  naming what went, that the confirmed details stay and how to ask for those, and what a
+  university already has; a question back where "that document" could be either.
+- **Changed** the reachability register: `purgeContents` has its first production caller, the
+  driver's deletion path; the declared-but-unreachable surface is three.
+- **Recorded** ADR-0122's amendment and ADR-0148 §10 as built in part; row 96 closed; row 97 (no
+  lawful basis is determined for holding a CV; the vault refuses one until Vahid determines it).
+
+---
+
 ## [0.230.0] — 2026-09-27
 
 **P234 — his three answers on P233: the amendment narrowed to the read-back's observation, the student's words played back, the attempt count measured (row 96).**

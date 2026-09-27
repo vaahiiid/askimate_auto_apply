@@ -154,6 +154,18 @@ export interface IntentCompletionDetail {
   readonly attempted?: boolean;
   readonly spentSecretRequestId?: string;
   readonly failure?: string;
+  /**
+   * `false` when the attempt was made and does NOT count toward the cap of
+   * two (ADR-0122, amended for row 96). Vahid, 2026-09-27: *"A page that
+   * failed because we did not have a value, and is now being filled with a
+   * value the student has just given us, is not a retry — it is the first
+   * attempt at a different thing. Counting it spends a student's second
+   * chance on our own gap."* The specific attempt a portal's demand closes;
+   * everything else counts as before. The row still records the code it
+   * closed with (`last_failure`), so what happened is not forgotten — only
+   * the cap's memory leaves it out.
+   */
+  readonly counts?: false;
 }
 
 /**

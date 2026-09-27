@@ -469,6 +469,27 @@ export function runWorkflowStoreContract(
         expect((await store.listIntents(id, "create_portal_account"))[0]?.attemptsMade).toBe(2);
       });
 
+      it("leaves the cap's memory alone for an attempt a demand closed, and still records its code (row 96)", async () => {
+        // Vahid, 2026-09-27: the attempt a portal's demand closes "is not a
+        // retry — it is the first attempt at a different thing". It was made
+        // (the page was typed and saved), it failed with a code the row keeps,
+        // and it does not count.
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, { attempted: true, counts: false, failure: "not_recorded" });
+        let found = await store.findIntent(id, key(id));
+        expect(found?.attemptsMade, "closed by a demand: not counted").toBe(0);
+        expect(found?.attemptFailures, "and not in the cap's memory of codes").toEqual([]);
+        expect(found?.completed?.failure, "but the row says what it closed with").toBe("not_recorded");
+
+        const later = new Date(NOW.getTime() + 60_000);
+        expect(await store.reopenIntent(id, key(id), later)).toBe(true);
+        await store.completeIntent(id, key(id), "failed_cleanly", later, { failure: "portal_refused" });
+        found = await store.findIntent(id, key(id));
+        expect(found?.attemptsMade, "the refill after the answer is the FIRST attempt").toBe(1);
+        expect(found?.attemptFailures).toEqual(["portal_refused"]);
+      });
+
       it("remembers what each attempt MADE failed with, in order, across a reopen (ADR-0122)", async () => {
         // ═══════════════════════════════════════════════════════════════
         // Vahid, 2026-09-17: *"the student told which attempt failed and
