@@ -321,6 +321,42 @@ parts read, missing, ungrounded (by span length) and not reached, why an entry w
 never a value, a span or a line of the document, held to that by a test. What to give and how is
 `docs/measure-cv-reading.md`. Stage three is not estimated again until the answer is in.
 
+**The measurement's answer (P241, row 100).** His own CV, through the stand-in: both sections
+found, 28 and 22 lines; zero entries from either. *"The cut by first label produces nothing on
+a real CV … So --live was never needed."* The free run answered the question the paid one was
+for. Stage three is therefore the different one: the model segments as well as reads.
+
+**What grounding means when the model segments.** A span check catches invention and nothing
+else; a merged pair of jobs and a job split in two are both real text. So the cut is held by
+different things, none of them a span: (1) the model returns **line ranges**, never text, so an
+entry can only be a contiguous run of the document's own lines and nothing outside the document
+can become one; (2) **exclusive coverage** — no line in two entries, and every unassigned line
+of the section named, so a merge cannot hide a line and a split cannot share one; (3) a
+**date-range count per entry** as the merge detector — an entry holding two start–end pairs is
+two jobs until a person says otherwise, and is flagged, never proposed as one; (4) the **part
+reading inside the range** as the split detector — half a job has no employer or no dates, and
+is dropped and named by position, as stage two already does; (5) the **student's confirmation,
+entry by entry** (§6–§7), as the check no code can be: the list is played back one job at a
+time, and *job 2 is wrong* corrects one without retyping the rest. Grounding of VALUES stays
+exactly what it is: every part's span checked against the whole document.
+
+**The measurement that proves stage three works, run before the reader process is built.**
+`measure-cv --segment --live`: the model's cut printed as line ranges — entry 1, lines 12–18;
+entry 2, lines 19–27 — with each entry's line count, its date-range count, the section's
+coverage (assigned, unassigned, doubly assigned) and then stage two's part reading inside each
+range, by status. He verifies the ranges against his own document by line number; nothing of the
+document leaves the report. The answer decides the rest: ranges matching the jobs he knows, one
+date range each, most parts read — build the reader process on it; ranges merging or splitting —
+the prompt or the detectors change, and the run is repeated before anything is built.
+
+**The honest estimate**, re-made rather than adjusted: about fifteen hours, not six. The
+segmentation call and its two implementations, the line-range contract and its three checks,
+the merge detector and the measurement's `--segment` mode: about five hours, before his run.
+Reading parts out of prose rather than labelled lines, the deterministic path kept for
+fixtures: about one hour. His run and what it changes: two hours held in reserve. The reader
+process and the proposals into the interview, entry by entry: six hours, as before. Records:
+one. Nothing after the first five is estimated to survive the measurement unchanged.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

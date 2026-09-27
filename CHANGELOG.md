@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.237.0] — 2026-09-27
+
+**P241 — the measurement's answer recorded (row 100); stage three re-estimated as the model-segmenting one.**
+
+- **Recorded** row 100: on Vahid's own CV both sections were found and the cut by first label
+  produced zero entries; the free run answered the question the paid one was for.
+- **Recorded** in ADR-0148 what grounding means when the model segments (line ranges, exclusive
+  coverage, a date-range count as the merge detector, the part reading as the split detector,
+  the student's confirmation entry by entry), the measurement that proves it before the reader
+  process is built, and the honest estimate: about fifteen hours, six before the measurement.
+
+---
+
 ## [0.236.0] — 2026-09-27
 
 **P240 — the measurement before stage three: real CVs through the real model, reported as structure only.**

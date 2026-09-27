@@ -4906,6 +4906,21 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P241 — the answer came without the model
+
+> *"Zero entries from 28 lines of real employment history. So --live was never needed."*
+
+His own CV, through the stand-in: both sections found, and the cut by first label produced
+nothing. The free run answered the question the paid one was for, and the six hours were not
+built on the assumption. Stage three is the different one — the model segments as well as
+reads — and before it is estimated again three things are on the record: what it actually
+costs, what grounding means when the model decides where a job ends, and the measurement that
+proves it works, run before the reader process is built. No code in this phase.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P240 — an hour of his before six of mine
 
 > *"If it turns out real CVs need the model to segment as well as read, that is a different
