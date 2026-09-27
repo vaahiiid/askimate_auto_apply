@@ -149,6 +149,7 @@ beforeAll(async () => {
     "0026_the_asking_carries_its_own_count",
     "0027_a_two_way_answer_is_offered",
     "0028_a_date_confirmed_through_the_log_is_a_date",
+    "0029_the_portal_demands_a_part",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -321,6 +322,17 @@ describeIfDatabase("the database refuses a word it does not know", () => {
       // An offer carries a field, the readings (in the proposal column) and
       // the offer's hash (in the playback column), and no part unless the
       // two-way answer was to one (ADR-0146, migration 0027).
+      // A demand names a field and a part and carries what we know in the
+      // proposal column; no hash (ADR-0148 §11, migration 0029).
+      if (kind === "value_part_demanded") {
+        await pool.query(
+          `INSERT INTO conversation_events
+             (conversation_id, ordinal, kind, field_key, part_key, proposal)
+           VALUES ($1, $2, $3, 'employment.history', 'item0.basis', $4::jsonb)`,
+          [conversation, ordinal, kind, JSON.stringify({ page: "Employment", empty: ["full-time or part-time"], unseen: [] })],
+        );
+        continue;
+      }
       if (kind === "value_offered") {
         await pool.query(
           `INSERT INTO conversation_events
@@ -1170,6 +1182,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0026_the_asking_carries_its_own_count",
         "0027_a_two_way_answer_is_offered",
         "0028_a_date_confirmed_through_the_log_is_a_date",
+        "0029_the_portal_demands_a_part",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1218,7 +1231,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       );
       expect(tagged.rowCount).toBe(1);
 
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part"]);
       const after = await fresh.query<{ field_key: string; value: unknown }>(
         "SELECT field_key, value FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
         [id],
@@ -1295,6 +1308,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0026_the_asking_carries_its_own_count",
     "0027_a_two_way_answer_is_offered",
     "0028_a_date_confirmed_through_the_log_is_a_date",
+    "0029_the_portal_demands_a_part",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

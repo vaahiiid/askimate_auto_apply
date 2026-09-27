@@ -1,7 +1,7 @@
 # ADR-0148 — The interview is an AI asking, not a form read aloud: the CV first, the by-hand questions from the portal's own fields, the student's words kept, and a list confirmed and corrected entry by entry
 
 **Status:** Accepted · 2026-09-26 · supersedes ADR-0113 §4 (a CV may be read, as the separate decision that ADR said it would have to be) and keeps §1–§3 for the by-hand path · amends ADR-0092 (a second process that fetches a document after the gates: the CV reader) · continues 0004, 0007, 0111, 0112, 0140, 0146
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence. §1–§2, §8–§10 are decided and not built, in the order he set.
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence; §11 in P233. §1–§2, §8–§10 are decided and not built, in the order he set.
 
 ## Context
 
@@ -66,6 +66,17 @@ And the two decisions the CV path waited on:
     confirmed. If they confirmed three jobs from that CV, those are their own statements now and
     they stay unless they ask for those too."* Deleting the confirmed values is a separate and
     larger thing, sized below and not decided.
+
+11. **The portal's demand for a part.** Decided 2026-09-27, on row 94's measurement: *"Build
+    the capture. It is one field on one outcome type and it turns a sentence that guesses into
+    one that knows."* Three conditions, his: *"The sentence names what we left empty AND what
+    the portal would not take, where we know both. Where the capture gives us nothing — a
+    refusal with no unseen names — the sentence says what we left empty and says plainly that
+    we do not know which of them the university minded. Never imply we know when we do not."*
+    Then: *"it asks for the first one, as an interview question, and resumes. A stop that
+    becomes a question the student can answer is the whole point; a stop that becomes a
+    better-explained stop is half a fix."* And the student's page *"stops saying 'with a member
+    of the team' for this case … the position line should say so."*
 
 ## What §6–§7 are, as built (P230)
 
@@ -134,7 +145,57 @@ His finding on P231's answer: a student whose application stopped because a univ
 demanded a field the entry called optional *"is owed more than silence. They are the one who
 could answer it in thirty seconds."* Not the portal's words — that rule holds — but our own
 sentence from the structure we have. What is expressible today and what is not is measured in
-row 94, and not built.
+row 94; §11 builds it.
+
+## What §11 is, as built (P233)
+
+**The capture.** The runner's read-back already knew what it did not see (ADR-0106) and wrote
+it to its log line; now the outcome carries it: `unseen`, the blueprint's own field names, on
+`uncertain (not_recorded)` and nowhere else — a success beside it is refused on the wire, since
+a success saw everything it typed. On a repeating page the read-back is a count (ADR-0106's
+stated limit), so `unseen` is `["entries"]`: the whole entry, and no box named.
+
+**The demand.** From the plan, the boxes on the refused page that were typed empty because the
+student left the part out (`absent: leave_empty` renders the empty string); from the runner,
+what was not seen, mapped through the reviewed mapping to the profile's parts and their words
+(`PART_LABELS`) — never the portal's. Where the read-back names one of the empty boxes, that is
+the demand. Where it could not say which (`entries`), every empty box is, said as not knowing.
+Where it names only boxes we had filled, there is no demand and the uncertainty stands: a
+person looks, as before. The demand is a log event, `value_part_demanded`, closed by the
+field's next confirmation.
+
+**The sentence**, in the two shapes his conditions set. Knowing: *Gated University would not
+save the "Your application" page without county, which I did not have. Let me ask you for it
+now.* Not knowing: *… would not save the "Employment" page. On it I had left full-time or
+part-time and job description empty, and I do not know which of them the university minded, so
+let me ask you for full-time or part-time first.*
+
+**The resume.** While a demand is open the run reads the profile without that field, so the
+plan blocks on it and the interview asks — for the demanded part only, from a walk seeded with
+every other part the student gave: their own part rows first, then the proposal's assembled
+value (a walk's last part is never a row of its own), then the confirmed entry (a value
+confirmed in an earlier conversation has no walk on this log). The demanded part is required by
+the portal's evidence, so "none" is refused for it. The whole value is played back and
+confirmed once; the confirmation replaces the entry, closes the demand, and the page is filled
+again.
+
+**The position line.** No stop and no person: the run stays `running` at the interview, and
+the student's page reads *"I'm asking you a few questions so I can fill in your application"*
+— the words the step already had. Nothing was added to the client.
+
+**The one consequence that touches an older decision, flagged rather than buried.** ADR-0106
+and ADR-0008 hold that `uncertain` completes nothing, because a clean failure is a claim that
+nothing happened on the university's system. On this path the intent is completed
+`failed_cleanly` on the read-back's evidence — the page was reopened and the value was not
+there — so that the page is filled again once the answer is confirmed. The runner still reports
+`uncertain`; the driver makes the claim, only where a demand is derivable, and only from what
+the read-back saw. That refill is the page's second attempt under ADR-0122's cap of two.
+
+**Limits, stated.** A part seeded from a value rather than a row is shown back as its rendered
+value — *country: IR* where the student had said *Iran* — because nothing else about it is on
+record. A repeating page names no box, so on Sheffield's employment page the not-knowing shape
+is the one the student will read. Nothing here touches the transmission gate, the authorisation
+content hash, or the mandatory-review categories.
 
 ## Deleting the confirmed values, sized and not decided
 

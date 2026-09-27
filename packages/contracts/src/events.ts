@@ -215,6 +215,28 @@ export interface ValueOfferedEvent extends EventBase {
   readonly offerHash: string;
 }
 
+/**
+ * The portal would not save a page without a part the student left out
+ * (P233, ADR-0148 §11, row 94). What we know, in the words a student reads:
+ * the page, the boxes we left empty on it, and what the read-back did not
+ * see — never the portal's own words. The part named is asked next, as an
+ * interview question; the field's next confirmation closes the demand.
+ */
+export interface ValuePartDemandedEvent extends EventBase {
+  readonly kind: "value_part_demanded";
+  readonly fieldKey: string;
+  /** The part to ask for, keyed by its entry for a list: `item1.basis`. */
+  readonly partKey: string;
+  readonly demand: {
+    /** The page's title, the reviewer's words. */
+    readonly page: string;
+    /** The boxes we left empty on that page, as the student names them. */
+    readonly empty: readonly string[];
+    /** What the read-back did not see, as the student names it; empty when the read-back could not say. */
+    readonly unseen: readonly string[];
+  };
+}
+
 export interface ValuePartReadEvent extends EventBase {
   readonly kind: "value_part_read";
   /** The composite field, e.g. `contact.address`. */
@@ -305,6 +327,7 @@ export type ConversationEvent =
   | ValueAskedEvent
   | ValueProposedEvent
   | ValueOfferedEvent
+  | ValuePartDemandedEvent
   | ValuePartReadEvent
   | ValueConfirmedEvent
   | ValueRejectedEvent
@@ -474,6 +497,19 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
         readings.push({ id, label, proposal: reading["proposal"] });
       }
       return { ...base, kind: "value_offered", fieldKey, readings, offerHash, ...(partKey === undefined ? {} : { partKey }) };
+    }
+    case "value_part_demanded": {
+      const fieldKey = readString(source, "fieldKey");
+      const partKey = readString(source, "partKey");
+      const demand = source["demand"];
+      if (fieldKey === null || partKey === null || typeof demand !== "object" || demand === null) return null;
+      const record = demand as Record<string, unknown>;
+      const page = readString(record, "page");
+      const empty = record["empty"];
+      const unseen = record["unseen"];
+      const words = (list: unknown): list is readonly string[] => Array.isArray(list) && list.every((item) => typeof item === "string");
+      if (page === null || !words(empty) || !words(unseen)) return null;
+      return { ...base, kind: "value_part_demanded", fieldKey, partKey, demand: { page, empty, unseen } };
     }
     case "value_confirmed": {
       const fieldKey = readString(source, "fieldKey");

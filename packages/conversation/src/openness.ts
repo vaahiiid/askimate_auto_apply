@@ -47,6 +47,7 @@ export function openSecretRequest(events: readonly UnpositionedEvent[]): string 
       case "value_asked":
 case "value_proposed":
     case "value_offered":
+    case "value_part_demanded":
       case "value_part_read":
       case "value_confirmed":
       case "value_rejected":
@@ -118,6 +119,7 @@ export function latestSecretRequest(events: readonly UnpositionedEvent[]): {
       case "value_asked":
 case "value_proposed":
     case "value_offered":
+    case "value_part_demanded":
       case "value_part_read":
       case "value_confirmed":
       case "value_rejected":

@@ -55,7 +55,19 @@ export type PerformOutcome =
       readonly transmissions?: readonly WireTransmission[];
     }
   | { readonly kind: "failed"; readonly failure: WorkFailure }
-  | { readonly kind: "uncertain"; readonly failure: WorkFailure };
+  | {
+      readonly kind: "uncertain";
+      readonly failure: WorkFailure;
+      /**
+       * With `not_recorded` (ADR-0106): what the read-back did not see, by the
+       * blueprint's own field names — or `entries` for a repeating page whose
+       * listing did not grow. The reviewer's names, never the page's words.
+       * P233, row 94: the one field that turns "I left these boxes empty and
+       * the university refused the page" into "the university would not save
+       * the page without X".
+       */
+      readonly unseen?: readonly string[];
+    };
 
 export interface WorkIntakeOptions {
   /** The Application Plane's internal base URL, on the private subnet. */
@@ -220,7 +232,12 @@ export async function runOneTurn(
             ? {}
             : { transmissions: outcome.transmissions }),
         }
-      : { leaseId: work.leaseId, outcome: outcome.kind, failure: outcome.failure };
+      : {
+          leaseId: work.leaseId,
+          outcome: outcome.kind,
+          failure: outcome.failure,
+          ...(outcome.kind === "uncertain" && outcome.unseen !== undefined ? { unseen: outcome.unseen } : {}),
+        };
 
   const accepted = await intake.report(work.runId, report);
   return accepted

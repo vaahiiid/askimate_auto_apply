@@ -149,6 +149,7 @@ export function projectEvent(event: UnpositionedEvent, position: Position): Tran
     case "value_asked":
     case "value_proposed":
     case "value_offered":
+    case "value_part_demanded":
     case "value_part_read":
     case "value_confirmed":
     case "value_rejected":

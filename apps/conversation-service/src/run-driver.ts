@@ -114,10 +114,11 @@ import type {
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
-import type { FieldSpec, InterviewAction, InterviewState, PartPolicy, ReplyOutcome } from "@askimate/aas-interview";
+import type { FieldPart, FieldSpec, InterviewAction, InterviewState, PartPolicy, ReplyOutcome } from "@askimate/aas-interview";
 import {
   FIELD_SPECS,
   chooseReading,
+  isComposite,
   isList,
   newInterview,
   nextAction,
@@ -127,7 +128,8 @@ import {
 import { createHash } from "node:crypto";
 
 import type { ModelClient } from "@askimate/aas-llm";
-import { checkUsable, planFill, toStoredPlan } from "@askimate/aas-mapping";
+import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mapping";
+import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
@@ -212,7 +214,7 @@ import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-con
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
 import type { ProposedValue } from "@askimate/aas-domain";
-import { unwrapProposed } from "@askimate/aas-domain";
+import { proposeValue, unwrapProposed } from "@askimate/aas-domain";
 
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
@@ -1354,6 +1356,137 @@ function partsReadFrom(
 }
 
 /**
+ * The walk of a field whose part the portal has demanded, seeded with every
+ * OTHER part of the refused value so that only the demanded part is asked
+ * (P233, ADR-0148 §11). Three sources, in order, each filling what the one
+ * before lacks:
+ *
+ *   1. the part rows behind the last proposal before the demand — the
+ *      student's own words for each part, as they gave them;
+ *   2. that proposal's assembled value — the LAST part of a walk is never a
+ *      row of its own, because the proposal that follows carries it (P194);
+ *   3. the confirmed profile entry — a value confirmed in an earlier
+ *      conversation has no walk on this log at all.
+ *
+ * A part row written after the demand — the answer — joins the seed; a
+ * proposal written after the demand ends the seeding, as it ends any walk.
+ * The words shown back for a part taken from a value rather than a row are
+ * the part's rendered value: that is what the student confirmed, and nothing
+ * else about it is on record.
+ */
+function seededWithDemands(
+  walks: ReadonlyMap<ProfileFieldKey, ReadonlyMap<string, ProposedValue<unknown>>>,
+  events: readonly ConversationEvent[],
+  confirmed: ConfirmedProfile | undefined,
+): ReadonlyMap<ProfileFieldKey, ReadonlyMap<string, ProposedValue<unknown>>> {
+  const demands = demandsFrom(events);
+  if (demands.size === 0) return walks;
+  const seeded = new Map(walks);
+  for (const [fieldKey, demand] of demands) {
+    const proposedSince = events.some((event) => event.kind === "value_proposed" && event.fieldKey === fieldKey && event.ordinal > demand.ordinal);
+    if (proposedSince) continue;
+    const spec = FIELD_SPECS[fieldKey] as FieldSpec<unknown> | undefined;
+    if (spec === undefined) continue;
+    const before = events.filter((event) => event.ordinal < demand.ordinal);
+    const seed = new Map<string, ProposedValue<unknown>>();
+    for (const [partKey, proposal] of walkBehindProposal(before, fieldKey)) {
+      seed.set(partKey, decodeValue(proposal) as ProposedValue<unknown>);
+    }
+    const lastProposed = before.filter((event) => event.kind === "value_proposed" && event.fieldKey === fieldKey).at(-1);
+    const whole =
+      lastProposed !== undefined && lastProposed.kind === "value_proposed"
+        ? unwrapProposed(decodeValue(lastProposed.proposal) as ProposedValue<unknown>)
+        : (() => {
+            const entry = confirmed?.entries.get(fieldKey);
+            return entry === undefined ? undefined : { value: unwrapConfirmed(entry.value), verbatim: "", confidence: 1 };
+          })();
+    if (whole !== undefined) {
+      for (const [partKey, reading] of partReadingsOf(spec, whole)) {
+        if (!seed.has(partKey)) seed.set(partKey, reading);
+      }
+    }
+    seed.delete(demand.partKey);
+    for (const [partKey, proposal] of walks.get(fieldKey) ?? []) seed.set(partKey, proposal);
+    seeded.set(fieldKey, seed);
+  }
+  return seeded;
+}
+
+/**
+ * A value's parts as the readings a walk would hold for them (P233): a
+ * composite's own, keyed by part; a list's by entry (`item0.basis`), with the
+ * walk's own "any?" and "another?" answers that the value implies. The words
+ * for each are its segment of the proposal's verbatim — "street: 12 Valiasr
+ * Street" — where the value came from a walk, else the part rendered.
+ */
+function partReadingsOf(
+  spec: FieldSpec<unknown>,
+  whole: { readonly value: unknown; readonly verbatim: string; readonly confidence: number },
+): ReadonlyMap<string, ProposedValue<unknown>> {
+  const readings = new Map<string, ProposedValue<unknown>>();
+  const segments = whole.verbatim.split("; ");
+  const reading = (name: string, value: unknown): ProposedValue<unknown> => {
+    const segment = segments.find((candidate) => candidate.startsWith(`${name}: `));
+    return proposeValue({
+      value,
+      origin: "conversation",
+      verbatim: segment === undefined ? renderPart(value) : segment.slice(name.length + 2),
+      confidence: whole.confidence,
+    });
+  };
+  const partsOf = (value: unknown, parts: readonly FieldPart<unknown>[], key: (partKey: string) => string, name: (label: string) => string): void => {
+    if (typeof value !== "object" || value === null) return;
+    const held = value as Record<string, unknown>;
+    for (const part of parts) {
+      if (held[part.partKey] !== undefined) readings.set(key(part.partKey), reading(name(part.label), held[part.partKey]));
+    }
+  };
+  if (isList(spec)) {
+    const items = Array.isArray(whole.value) ? (whole.value as readonly unknown[]) : [];
+    if (items.length === 0) return readings;
+    readings.set("any", proposeValue({ value: true, origin: "conversation", verbatim: "yes", confidence: whole.confidence }));
+    items.forEach((item, index) => {
+      partsOf(item, spec.item.parts, (partKey) => `item${String(index)}.${partKey}`, (label) => `${spec.itemLabel} ${String(index + 1)} — ${label}`);
+      const another = index < items.length - 1;
+      readings.set(`item${String(index)}.another`, proposeValue({ value: another, origin: "conversation", verbatim: another ? "yes" : "no", confidence: whole.confidence }));
+    });
+  } else if (isComposite(spec)) {
+    partsOf(whole.value, spec.parts, (partKey) => partKey, (label) => label);
+  }
+  return readings;
+}
+
+/** A part's value in words, for a reading rebuilt from a value rather than from what the student typed. */
+function renderPart(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (typeof value === "number") return String(value);
+  return JSON.stringify(value);
+}
+
+/** The policy, with each demanded part required and asked — the portal's own evidence (P233). */
+function withDemandedParts(
+  policy: PartPolicy,
+  demands: ReadonlyMap<ProfileFieldKey, { readonly partKey: string }>,
+): PartPolicy {
+  if (demands.size === 0) return policy;
+  const merged = new Map(policy);
+  for (const [fieldKey, demand] of demands) {
+    const path = demand.partKey.replace(/^item\d+\./, "");
+    const spec = FIELD_SPECS[fieldKey] as FieldSpec<unknown> | undefined;
+    const parts = spec === undefined ? [] : partsOfSpec(spec);
+    const feeds = parts.find((part) => part.partKey === path)?.feeds ?? path;
+    const rule = merged.get(fieldKey) ?? { asked: "all" as const, required: new Set<string>() };
+    merged.set(fieldKey, {
+      asked: rule.asked === "all" ? "all" : new Set([...rule.asked, feeds]),
+      required: new Set([...rule.required, feeds]),
+    });
+  }
+  return merged;
+}
+
+/**
  * The interview, rebuilt from the conversation log (ADR-0051).
  *
  * ═══════════════════════════════════════════════════════════════════════════
@@ -1376,6 +1509,8 @@ function interviewFrom(input: {
   readonly requiredDocuments: readonly string[];
   readonly partPolicy?: PartPolicy;
   readonly events: readonly ConversationEvent[];
+  /** The profile as confirmed, WITH any field a demand hides from `profile` — the seed of a demanded walk (P233). */
+  readonly confirmed?: ConfirmedProfile;
 }): InterviewState {
   const base = newInterview({
     studentRef: input.studentRef,
@@ -1389,8 +1524,10 @@ function interviewFrom(input: {
   return {
     ...base,
     // Blocker 60: the walk of a composite field, rebuilt from the log rather
-    // than lost with the request that read it (ADR-0140).
-    partial: partsReadFrom(input.events),
+    // than lost with the request that read it (ADR-0140). Seeded, while the
+    // portal's demand for one part is open, with every OTHER part of the
+    // value the portal refused, so only the demanded part is asked (P233).
+    partial: seededWithDemands(partsReadFrom(input.events), input.events, input.confirmed),
     attempts: attemptsFrom(input.events),
     // P221: a reading set aside as an unreadable correction is asked about
     // as what it was, not as something nobody caught.
@@ -1495,6 +1632,143 @@ export function walkBehindProposal(
     }
   }
   return behind;
+}
+
+/**
+ * The portal's open demands: a `value_part_demanded` for a field with no
+ * `value_confirmed` after it (P233, ADR-0148 §11). Keyed by field; the latest
+ * demand stands, with the ordinal it was made at, so the walk it is seeded
+ * from is the one that produced the value the portal refused.
+ */
+export function demandsFrom(
+  events: readonly ConversationEvent[],
+): ReadonlyMap<ProfileFieldKey, { readonly partKey: string; readonly ordinal: number; readonly demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[] } }> {
+  const open = new Map<ProfileFieldKey, { partKey: string; ordinal: number; demand: { page: string; empty: readonly string[]; unseen: readonly string[] } }>();
+  for (const event of events) {
+    if (event.kind === "value_part_demanded") {
+      open.set(event.fieldKey as ProfileFieldKey, { partKey: event.partKey, ordinal: event.ordinal, demand: event.demand });
+    } else if (event.kind === "value_confirmed") {
+      open.delete(event.fieldKey as ProfileFieldKey);
+    }
+  }
+  return open;
+}
+
+/**
+ * The profile as the run reads it while a demand is open: without the field
+ * the portal would not take as it stands (P233). Derived, never written — the
+ * student's confirmed statement stays in the store until they confirm the
+ * completed value, which replaces it. With the field absent the plan blocks
+ * on it, the interview asks for it, and the walk is seeded so that only the
+ * demanded part is asked.
+ */
+export function withoutDemanded(profile: ConfirmedProfile, demanded: ReadonlySet<ProfileFieldKey>): ConfirmedProfile {
+  if (demanded.size === 0) return profile;
+  return { ...profile, entries: new Map([...profile.entries].filter(([key]) => !demanded.has(key))) };
+}
+
+/** The parts a spec asks for: a list's item's, a composite's own, a scalar's none. */
+function partsOfSpec(spec: FieldSpec<unknown>): readonly FieldPart<unknown>[] {
+  if (isList(spec)) return spec.item.parts;
+  if (isComposite(spec)) return spec.parts;
+  return [];
+}
+
+/** The top-level paths a mapping's format reads of a value; none when it reads the whole. */
+function pathsOfFormat(format: unknown): readonly string[] {
+  const rule = format as { kind?: string; path?: string; parts?: readonly string[] } | undefined;
+  if (rule === undefined) return [];
+  if (rule.kind === "part" && typeof rule.path === "string") return [rule.path];
+  if (rule.kind === "join" && Array.isArray(rule.parts)) return rule.parts.filter((part): part is string => typeof part === "string");
+  if (rule.kind === "switch" && typeof rule.path === "string") return [rule.path];
+  return [];
+}
+
+/**
+ * What the portal would not save the page without, derived from what the run
+ * already holds (P233, ADR-0148 §11, row 94). Vahid: *"'The university would
+ * not save the page without a job description' is us doing our detective
+ * work … the second asks one question they can answer."*
+ *
+ * From the plan: the boxes on the refused page that were typed EMPTY because
+ * the student left the part out (`absent: leave_empty` renders the empty
+ * string). From the runner: what the read-back did not see, by the
+ * blueprint's names, mapped through the reviewed mapping to the profile's
+ * parts and their words — never the portal's words. The demand is:
+ *
+ *   - the empty boxes the read-back named, where it named any of them —
+ *     "would not save the page without X, which I did not have";
+ *   - every empty box, where the read-back could not say which (a repeating
+ *     page's listing did not grow) — said as not knowing which it minded;
+ *   - nothing, where the read-back named only boxes we had filled: that is
+ *     not a missing answer and stays a person's problem.
+ */
+export function demandFromRefusal(input: {
+  readonly entry: CatalogueEntry;
+  readonly mappingSet: MappedUsableMappingSet;
+  readonly plan: MappedFillPlan;
+  readonly pageRef: string;
+  /** Which item of a repeating page; absent off one. */
+  readonly item?: number;
+  readonly unseen: readonly string[];
+}): { readonly fieldKey: ProfileFieldKey; readonly partKey: string; readonly demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[] } } | null {
+  const page = input.entry.blueprint.pages.find((candidate) => candidate.pageRef === input.pageRef);
+  if (page === undefined) return null;
+  const refsOnPage = new Set(page.sections.flatMap((section) => section.fields.map((field) => field.fieldRef)));
+
+  const partsOf = (fieldRef: string): readonly { fieldKey: ProfileFieldKey; part: FieldPart<unknown>; list: boolean }[] => {
+    const mapping = input.mappingSet.mappings.find((candidate) => candidate.fieldRef === fieldRef && candidate.source.kind === "profile_field");
+    if (mapping === undefined || mapping.source.kind !== "profile_field") return [];
+    const fieldKey = mapping.source.fieldKey;
+    const spec = FIELD_SPECS[fieldKey] as FieldSpec<unknown> | undefined;
+    if (spec === undefined) return [];
+    const parts = partsOfSpec(spec);
+    return pathsOfFormat(mapping.source.format)
+      .flatMap((path) => parts.filter((part) => (part.feeds ?? part.partKey) === path))
+      .map((part) => ({ fieldKey, part, list: isList(spec) }));
+  };
+
+  const empty = input.plan.instructions
+    .filter((instruction) => refsOnPage.has(instruction.fieldRef))
+    .filter((instruction) => input.item === undefined || instruction.item === undefined || instruction.item.index === input.item)
+    .filter((instruction) => instruction.value.kind === "confirmed" && textOf(instruction.value) === "")
+    .flatMap((instruction) => partsOf(instruction.fieldRef))
+    .filter((found) => found.part.optional === true);
+  if (empty.length === 0) return null;
+
+  // "entries" is a repeating page's whole entry — a listing that did not
+  // grow says nothing about WHICH box the portal minded.
+  const saysWhich = input.unseen.some((name) => name !== "entries");
+  const unseen = input.unseen.filter((name) => name !== "entries").flatMap(partsOf);
+  const named = empty.filter((found) => unseen.some((seen) => seen.fieldKey === found.fieldKey && seen.part.partKey === found.part.partKey));
+  const demanded = named.length > 0 ? named : saysWhich ? [] : empty;
+  const first = demanded[0];
+  if (first === undefined) return null;
+
+  const words = (list: readonly { part: FieldPart<unknown> }[]): readonly string[] => [...new Set(list.map((found) => found.part.label))];
+  return {
+    fieldKey: first.fieldKey,
+    partKey: first.list ? `item${String(input.item ?? 0)}.${first.part.partKey}` : first.part.partKey,
+    demand: { page: page.title, empty: words(empty), unseen: words(named) },
+  };
+}
+
+/** The demand, in the student's words: what the university would not take, and what is asked next. */
+export function demandSentence(entry: CatalogueEntry, demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[] }): string {
+  const and = (list: readonly string[]): string =>
+    list.length <= 1 ? (list[0] ?? "") : `${list.slice(0, -1).join(", ")} and ${list.at(-1) ?? ""}`;
+  const university = entry.blueprint.institutionName;
+  if (demand.unseen.length > 0) {
+    return (
+      `${university} would not save the "${demand.page}" page without ${and(demand.unseen)}, ` +
+      `which I did not have. Let me ask you for ${demand.unseen.length === 1 ? "it" : "them"} now.`
+    );
+  }
+  return (
+    `${university} would not save the "${demand.page}" page. On it I had left ${and(demand.empty)} empty, ` +
+    `and I do not know which of ${demand.empty.length === 1 ? "it" : "them"} the university minded, ` +
+    `so let me ask you for ${demand.empty[0] ?? ""} first.`
+  );
 }
 
 /**
@@ -2700,6 +2974,11 @@ export class RunDriver {
     const events = await this.#options.conversations.since(input.conversationId, 0);
     const secret = latestSecretRequest(events);
     const deployment = deploymentOf(input.entry);
+    // P233, ADR-0148 §11: while the portal's demand for a part is open, the
+    // run reads the profile WITHOUT that field, so the plan blocks on it and
+    // the interview asks — for the one part, from a walk seeded below.
+    const demands = demandsFrom(events);
+    const profileView = withoutDemanded(profile, new Set(demands.keys()));
 
     const base: RunState = withCheckpoint(
       beginRun({
@@ -2738,16 +3017,18 @@ export class RunDriver {
           // without the student having been present — the step enforces it.
           studentPresentAtCreation: true,
         },
-        profile,
+        profile: profileView,
         interview: interviewFrom({
           studentRef: input.studentRef,
-          profile,
+          profile: profileView,
           requiredFields: requiredFieldsFor(input.entry.blueprint, usable.mappingSet),
           // P231, ADR-0148 §4: which parts of a list or composite this portal
-          // reads, and which it requires — derived, never authored.
-          partPolicy: partPolicyFor(input.entry.blueprint, usable.mappingSet),
+          // reads, and which it requires — derived, never authored. A part the
+          // portal has DEMANDED is required by that evidence (P233).
+          partPolicy: withDemandedParts(partPolicyFor(input.entry.blueprint, usable.mappingSet), demands),
           requiredDocuments: input.entry.requiredDocuments,
           events,
+          confirmed: profile,
         }),
       }),
       input.record,
@@ -7093,6 +7374,26 @@ export class RunDriver {
       );
     }
 
+    // ── A page the portal would not save without a part the student left out
+    //
+    // P233, ADR-0148 §11, row 94. The read-back said the page was not kept
+    // (ADR-0106). Where the plan had left a box on that page empty because
+    // the student left the part out, the refusal is a QUESTION for the
+    // student, not a person's problem: the demand goes on the log, the
+    // student is told what the university would not take in our words, and
+    // the part is asked next. The intent completes as a clean failure on the
+    // read-back's evidence — nothing was seen saved — so the page is filled
+    // again once the answer is confirmed. Where nothing was left empty, the
+    // uncertainty stands and a person looks, as before.
+    if (held.kind === "execute" && input.report.outcome === "uncertain" && input.report.failure === "not_recorded" && held.pageRef !== undefined) {
+      const demanded = await this.#demandFromRefusal({ runId, pageRef: held.pageRef, unseen: input.report.unseen ?? [] });
+      if (demanded) {
+        await this.#options.stores.runs.completeIntent(runId, key, "failed_cleanly", now, { attempted: true, failure: "not_recorded" });
+        await this.#recordSession(held, input.report, now);
+        return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
+      }
+    }
+
     // ── The attachments this page carried (ADR-0069, P73) ────────────────
     await this.#settleAttachments({ runId, held, report: input.report, now });
 
@@ -7166,6 +7467,49 @@ export class RunDriver {
     }
 
     return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
+  }
+
+  /**
+   * Turns a refused save into the portal's demand for a part, where the run
+   * holds what that takes (P233). Returns whether it did.
+   */
+  async #demandFromRefusal(input: {
+    readonly runId: RunId;
+    readonly pageRef: string;
+    readonly unseen: readonly string[];
+  }): Promise<boolean> {
+    const context = await this.#stopContext(input.runId);
+    if (context === null) return false;
+    const { record, conversationId, entry } = context;
+    const usable = checkUsable(entry.mappingSet, entry.blueprint);
+    if (!usable.usable) return false;
+    const profile = await this.#options.profiles.load(record.studentRef, this.#options.now());
+    const plan = planFill(entry.blueprint, usable.mappingSet, profile);
+    // Which item of a repeating page this fill was: the ones already saved
+    // on it, counted from the ledger, are the items before this one.
+    const repeated = plan.repeats.some((repeat) => repeat.pageRef === input.pageRef);
+    const saved = (await this.#options.stores.runs.listIntents(input.runId, ACTION_FOR_WORK.execute)).filter(
+      (intent) => intent.completed?.outcome === "succeeded" && intent.intent.target.startsWith(input.pageRef),
+    ).length;
+    const demanded = demandFromRefusal({
+      entry,
+      mappingSet: usable.mappingSet,
+      plan,
+      pageRef: input.pageRef,
+      ...(repeated ? { item: saved } : {}),
+      unseen: input.unseen,
+    });
+    if (demanded === null) return false;
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "value_part_demanded", fieldKey: demanded.fieldKey, partKey: demanded.partKey, demand: demanded.demand },
+    });
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: demandSentence(entry, demanded.demand) },
+    });
+    await this.#askAfterWriting(conversationId);
+    return true;
   }
 
   /**

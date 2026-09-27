@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.229.0] — 2026-09-27
+
+**P233 — a page the portal would not save without a part becomes our sentence, one question and a resumed run (ADR-0148 §11).**
+
+- **Added** `unseen` to the fill's outcome and the work report: what the read-back did not
+  see, by the blueprint's names, carried only beside `uncertain (not_recorded)`; `entries` for a
+  repeating page. A success beside it is refused on the wire.
+- **Added** the `value_part_demanded` log event and migration 0029: the portal would not keep
+  the page without this part of this field, with the page, the boxes we left empty and what was
+  not seen, in the student's words.
+- **Changed** the driver: a refused save whose page had a box typed empty for a part the
+  student left out becomes the portal's demand for that part, said in Vahid's two shapes
+  (knowing which box, or saying plainly that we do not know which), asked as one interview
+  question from a walk seeded with every other part, confirmed once, and the page is filled
+  again. The intent completes `failed_cleanly` on the read-back's evidence, recorded as
+  ADR-0106's amendment. The student's page reads the interview, not a member of the team.
+- **Recorded** ADR-0148 §11 in his words; ADR-0106 amended; rows 22 and 94 closed.
+
+---
+
 ## [0.228.0] — 2026-09-27
 
 **P232 — the employment section opens with one plain warning and the student's choice (ADR-0148 §3).**

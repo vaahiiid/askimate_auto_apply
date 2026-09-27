@@ -50,6 +50,7 @@ export const EVENT_KINDS = [
   "value_asked",
   "value_proposed",
   "value_offered",
+  "value_part_demanded",
   // One part of a field whose value has several (ADR-0140). Its own kind
   // rather than a proposal with a compound key: nothing is shown and nothing
   // is agreed, so it must not appear where "what is outstanding?" is asked.
@@ -147,6 +148,7 @@ export const PROPOSAL_EVENT_KINDS = [
   "value_asked",
   "value_proposed",
   "value_offered",
+  "value_part_demanded",
   "value_part_read",
   "value_confirmed",
   "value_rejected",

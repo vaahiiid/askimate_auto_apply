@@ -355,7 +355,10 @@ export async function fillApplication(
     // What was NOT seen, by the blueprint's field names or the listing's
     // word for its entries — the reviewer's names, never the page's values.
     say(`${run}: page fill: the save was pressed, the page was read back — not seen: ${seen.unseen.join(", ")}`);
-    return { kind: "uncertain", failure: "not_recorded" };
+    // The names travel with the outcome (P233, row 94), not only in this log
+    // line: the plane can then tell the student what the portal would not
+    // keep, in our words, and ask for it.
+    return { kind: "uncertain", failure: "not_recorded", unseen: seen.unseen };
   }
   say(`${run}: page fill: the save was pressed, the page was read back — every filled value seen`);
 

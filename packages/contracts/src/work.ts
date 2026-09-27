@@ -692,7 +692,19 @@ export interface WorkReport {
    * disclosure that did not happen.
    */
   readonly transmissions?: readonly WireTransmission[];
+  /**
+   * With `uncertain` / `not_recorded` only (ADR-0106): what the read-back did
+   * not see, by the blueprint's own field names, or `entries` for a repeating
+   * page whose listing did not grow. Identifiers, never a portal's text — the
+   * plane checks each against the page's blueprint before it acts on one
+   * (P233, row 94).
+   */
+  readonly unseen?: readonly string[];
 }
+
+/** An unseen name is a reviewer's identifier: short, and shaped like one. */
+export const UNSEEN_NAME = /^[A-Za-z0-9_.:-]{1,64}$/;
+export const MAX_UNSEEN_PER_REPORT = 50;
 
 // ───────────────────────────────────────────────────────────────────────────
 // Bytes from the network
@@ -1205,7 +1217,8 @@ export function parseWorkReport(value: unknown): WorkReport | null {
   // read as more or less certainty than the runner actually reported.
   const transmissions = record["transmissions"];
   if (outcome === "succeeded") {
-    if (failure !== undefined) return null;
+    // A success saw everything it typed: an `unseen` beside it contradicts it (P233).
+    if (failure !== undefined || record["unseen"] !== undefined) return null;
     if (transmissions === undefined) return { leaseId: record["leaseId"], outcome };
     const parsed = parseTransmissions(transmissions);
     if (parsed === null) return null;
@@ -1215,7 +1228,13 @@ export function parseWorkReport(value: unknown): WorkReport | null {
   // A transmission on a page that was not saved is a disclosure that did
   // not happen; the half-written record is refused rather than stored.
   if (transmissions !== undefined) return null;
-  return { leaseId: record["leaseId"], outcome, failure };
+  const unseen = record["unseen"];
+  if (unseen === undefined) return { leaseId: record["leaseId"], outcome, failure };
+  // Only the read-back names what it did not see, and only as identifiers.
+  if (outcome !== "uncertain" || failure !== "not_recorded") return null;
+  if (!Array.isArray(unseen) || unseen.length > MAX_UNSEEN_PER_REPORT) return null;
+  if (!unseen.every((name) => typeof name === "string" && UNSEEN_NAME.test(name))) return null;
+  return { leaseId: record["leaseId"], outcome, failure, unseen: unseen as string[] };
 }
 
 function parseTransmissions(value: unknown): readonly WireTransmission[] | null {

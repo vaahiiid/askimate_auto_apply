@@ -664,6 +664,8 @@ describe("bytes from the network to a target event", () => {
         ],
         offerHash: OFFER,
       },
+      // ADR-0148 §11. No hash: nothing was shown to agree to.
+      value_part_demanded: { fieldKey: "employment.history", partKey: "item0.basis", demand: { page: "Employment", empty: ["full-time or part-time"], unseen: [] } },
       value_confirmed: { fieldKey: "contact.email", playbackHash: OFFER },
       value_rejected: { fieldKey: "contact.email" },
       target_offered: { offerHash: OFFER, targetBlueprintId: "bp-x", targetContentHash: CONTENT },
@@ -993,6 +995,56 @@ describe("what shows a page was saved crosses the wire as locators and a URL, an
     });
     // A transmission beside it is a disclosure nobody saw happen: refused.
     expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", transmissions: [] })).toBeNull();
+  });
+
+  it("carries what the read-back did not see, by the blueprint's names, and only beside `not_recorded` (P233)", () => {
+    // Vahid, row 94: the sentence that names what the portal would not take
+    // needs the runner's `unseen` on the wire, not only in its log line.
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: ["given_name", "entries"] })).toEqual({
+      leaseId: "wl_1",
+      outcome: "uncertain",
+      failure: "not_recorded",
+      unseen: ["given_name", "entries"],
+    });
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: [] })).toEqual({
+      leaseId: "wl_1",
+      outcome: "uncertain",
+      failure: "not_recorded",
+      unseen: [],
+    });
+    // Absent is absent — a report from before the capture still parses.
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded" })).not.toHaveProperty("unseen");
+    // Only the read-back can say what it did not see: any other outcome or failure refuses it.
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "succeeded", unseen: ["given_name"] })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", failure: "portal_refused", unseen: ["given_name"] })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "runner_fault", unseen: ["given_name"] })).toBeNull();
+    // Names are a reviewer's identifiers, bounded in shape and number.
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: ["given name"] })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: [""] })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: ["a".repeat(65)] })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: [7] })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: "given_name" })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: Array.from({ length: 51 }, (_, i) => `f${String(i)}`) })).toBeNull();
+  });
+});
+
+describe("the portal's demand for a part, on the wire (P233, ADR-0148 §11)", () => {
+  const base = { ordinal: 9, createdAt: "2026-09-27T08:00:00.000Z" };
+  const demand = { page: "Employment", empty: ["full-time or part-time", "job description"], unseen: ["job description"] };
+  it("reads the field, the part and the demand's three parts, and refuses a demand missing any", () => {
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties", demand })).toEqual({
+      ...base,
+      kind: "value_part_demanded",
+      fieldKey: "employment.history",
+      partKey: "item0.duties",
+      demand,
+    });
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", demand })).toBeNull();
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties" })).toBeNull();
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties", demand: { ...demand, page: 4 } })).toBeNull();
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties", demand: { ...demand, empty: "none" } })).toBeNull();
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties", demand: { page: "Employment", empty: [] } })).toBeNull();
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties", demand: { ...demand, unseen: [null] } })).toBeNull();
   });
 });
 

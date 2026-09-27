@@ -354,7 +354,9 @@ describe("a page that carries a document (ADR-0069, P73)", () => {
     // was kept — and a transmission record for a dropped file is the worst case.
     const live = session({ attach: () => Promise.resolve(), count: () => Promise.resolve(1) });
     const outcome = await fillApplication(WITH_UPLOAD, { session: live, now: () => NOW, documents: documents(), challenge: unchallenged });
-    expect(outcome).toEqual({ kind: "uncertain", failure: "not_recorded" });
+    // P233: the outcome names the box the read-back did not see, so the
+    // conversation can say which one rather than guess.
+    expect(outcome).toEqual({ kind: "uncertain", failure: "not_recorded", unseen: ["passport_upload"] });
   });
 
   it("reports the transmission when the reopened page shows the file by its marker, and UNCERTAIN when it does not", async () => {
@@ -365,7 +367,7 @@ describe("a page that carries a document (ADR-0069, P73)", () => {
 
     const dropped = session({ attach: () => Promise.resolve(), count: () => Promise.resolve(0) });
     const unseen = await fillApplication(WITH_RECORDED_UPLOAD, { session: dropped, now: () => NOW, documents: documents(), challenge: unchallenged });
-    expect(unseen).toEqual({ kind: "uncertain", failure: "not_recorded" });
+    expect(unseen).toEqual({ kind: "uncertain", failure: "not_recorded", unseen: ["passport_upload"] });
   });
 });
 
@@ -405,6 +407,7 @@ describe("a page is saved when the portal shows it, not when a control was press
     expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
       kind: "uncertain",
       failure: "not_recorded",
+      unseen: ["given_name"],
     });
   });
 
@@ -413,6 +416,7 @@ describe("a page is saved when the portal shows it, not when a control was press
     expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
       kind: "uncertain",
       failure: "not_recorded",
+      unseen: ["given_name"],
     });
   });
 
@@ -433,9 +437,12 @@ describe("a page is saved when the portal shows it, not when a control was press
     });
 
     const stays = session({ count: () => Promise.resolve(1) });
+    // A listing that did not grow says nothing about WHICH box the portal
+    // minded — "entries" is the whole entry, and that is all a count can say.
     expect(await fillApplication(ITEM, { session: stays, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
       kind: "uncertain",
       failure: "not_recorded",
+      unseen: ["entries"],
     });
   });
 
@@ -444,6 +451,7 @@ describe("a page is saved when the portal shows it, not when a control was press
     expect(await fillApplication(item, { session: session(), now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
       kind: "uncertain",
       failure: "not_recorded",
+      unseen: ["entries"],
     });
   });
 
@@ -589,7 +597,7 @@ describe("the fill says what it did, in words it is allowed to say (ADR-0124 app
       readValue: () => Promise.resolve(saved ? "" : "Niloofar"),
     });
     const outcome = await fillApplication(WORK, { session: forgetting, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
-    expect(outcome).toEqual({ kind: "uncertain", failure: "not_recorded" });
+    expect(outcome).toEqual({ kind: "uncertain", failure: "not_recorded", unseen: ["given_name"] });
     expect(lines.at(-1)).toBe("run run_1: page fill: the save was pressed, the page was read back — not seen: given_name");
   });
 

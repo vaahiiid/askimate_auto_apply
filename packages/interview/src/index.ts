@@ -21,5 +21,5 @@ export {
 } from "./interview.js";
 
 export type { FieldSpec } from "./field-specs.js";
-export { FIELD_SPECS, isList } from "./field-specs.js";
-export type { ListFieldSpec } from "./field-specs.js";
+export { FIELD_SPECS, isComposite, isList } from "./field-specs.js";
+export type { FieldPart, ListFieldSpec } from "./field-specs.js";

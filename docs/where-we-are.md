@@ -4906,6 +4906,29 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P233 — a refusal that becomes a question
+
+> *"A stop that becomes a question the student can answer is the whole point; a stop that
+> becomes a better-explained stop is half a fix."*
+
+The runner always knew what the reopened page did not hold; now it says so in its outcome, and
+the driver reads it. Where the refused page had a box we typed empty because the student left
+the part out, the refusal is the university's demand for that part: the chat says what the
+university would not take, in our words and by the student's name for the part, and where the
+read-back could not say which box (a repeating page counts, it does not read) it says plainly
+that we do not know which. Then it asks for that one part, from a walk seeded with everything
+the student already gave, plays the whole value back once, and the page is filled again. The
+position line reads the interview. Rows 22 and 94 close.
+
+One thing to flag rather than bury: the page's intent is completed as a clean failure on the
+read-back's evidence, which ADR-0106 and ADR-0008 had reserved for the runner not to claim. The
+driver claims it, only where a demand is derivable and only from what the reopened page showed.
+His word on that stands open; ADR-0106 carries the amendment.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P232 — one sentence, and two rows
 
 > *"The sentence is right. Build the two-turn opening with it."*

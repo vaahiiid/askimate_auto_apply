@@ -92,6 +92,7 @@ export type AppendableEvent =
   | { readonly kind: "value_proposed"; readonly fieldKey: string;
       readonly proposal: unknown; readonly playbackHash: string }
   // P225: the readings a two-way answer was offered as, and the offer's hash.
+  | { readonly kind: "value_part_demanded"; readonly fieldKey: string; readonly partKey: string; readonly demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[] } }
   | { readonly kind: "value_offered"; readonly fieldKey: string; readonly partKey?: string;
       readonly readings: readonly { readonly id: string; readonly label: string; readonly proposal: unknown }[];
       readonly offerHash: string }
@@ -263,6 +264,15 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         fieldKey: row["field_key"] as string,
         partKey: row["part_key"] as string,
         proposal: row["proposal"],
+      };
+    case "value_part_demanded":
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        fieldKey: row["field_key"] as string,
+        partKey: row["part_key"] as string,
+        demand: row["proposal"] as { page: string; empty: string[]; unseen: string[] },
       };
     case "value_offered": {
       const partKey = row["part_key"] as string | null;
@@ -558,12 +568,18 @@ export class ConversationEventStore {
         event.kind === "secret_requested" ? event.expiresAt : null,
         isProposalEvent(event) ? event.fieldKey : null,
         // A part read names a part, and an offer may (`only_a_part_read_names_a_part`, 0027).
-        event.kind === "value_part_read" ? event.partKey : event.kind === "value_offered" ? (event.partKey ?? null) : null,
+        event.kind === "value_part_read" || event.kind === "value_part_demanded"
+          ? event.partKey
+          : event.kind === "value_offered"
+            ? (event.partKey ?? null)
+            : null,
         event.kind === "value_proposed" || event.kind === "value_part_read"
           ? JSON.stringify(event.proposal)
           : event.kind === "value_offered"
             ? JSON.stringify(event.readings)
-            : null,
+            : event.kind === "value_part_demanded"
+              ? JSON.stringify(event.demand)
+              : null,
         event.kind === "value_proposed" || event.kind === "value_confirmed"
           ? event.playbackHash
           : event.kind === "value_offered"

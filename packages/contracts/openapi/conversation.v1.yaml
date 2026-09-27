@@ -2035,6 +2035,7 @@ components:
         - { $ref: "#/components/schemas/ValueProposedEvent" }
         - { $ref: "#/components/schemas/ValuePartReadEvent" }
         - { $ref: "#/components/schemas/ValueOfferedEvent" }
+        - { $ref: "#/components/schemas/ValuePartDemandedEvent" }
         - { $ref: "#/components/schemas/ValueConfirmedEvent" }
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
         - { $ref: "#/components/schemas/TargetOfferedEvent" }
@@ -2054,6 +2055,7 @@ components:
           value_proposed: "#/components/schemas/ValueProposedEvent"
           value_part_read: "#/components/schemas/ValuePartReadEvent"
           value_offered: "#/components/schemas/ValueOfferedEvent"
+          value_part_demanded: "#/components/schemas/ValuePartDemandedEvent"
           value_confirmed: "#/components/schemas/ValueConfirmedEvent"
           value_rejected: "#/components/schemas/ValueRejectedEvent"
           target_offered: "#/components/schemas/TargetOfferedEvent"
@@ -2228,6 +2230,32 @@ components:
           type: string
           pattern: "^sha256:[0-9a-f]{64}$"
           description: The hash of the offer as put; a choose_reading decision must carry it.
+
+    ValuePartDemandedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey, partKey, demand]
+      description: >
+        The portal would not save a page without a part the student left out
+        (ADR-0148 §11, row 94). What the system knows, in the words a student
+        reads: the page, the boxes it left empty there, and what the read-back
+        did not see. Never the portal's own words. The part named is asked
+        next as an interview question, and the field's next confirmation
+        closes the demand.
+      properties:
+        kind: { type: string, enum: [value_part_demanded] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
+        partKey: { type: string }
+        demand:
+          type: object
+          additionalProperties: false
+          required: [page, empty, unseen]
+          properties:
+            page: { type: string, maxLength: 200 }
+            empty: { type: array, items: { type: string, maxLength: 200 } }
+            unseen: { type: array, items: { type: string, maxLength: 200 } }
 
     ValueConfirmedEvent:
       type: object
@@ -2781,6 +2809,15 @@ components:
             reopened page did not hold what was typed, a repeating page's
             listing did not grow, or a slot shows no file. No transmission may
             accompany it.
+        unseen:
+          type: array
+          maxItems: 50
+          description: >-
+            With `uncertain` / `not_recorded` only (ADR-0106, P233): what the
+            read-back did not see, by the blueprint's own field names, or
+            `entries` for a repeating page whose listing did not grow.
+            Identifiers, never a portal's text; refused with any other outcome.
+          items: { type: string, pattern: "^[A-Za-z0-9_.:-]{1,64}$" }
         transmissions:
           type: array
           maxItems: 20

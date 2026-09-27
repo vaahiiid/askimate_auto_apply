@@ -128,6 +128,7 @@ beforeAll(async () => {
     "0026_the_asking_carries_its_own_count",
     "0027_a_two_way_answer_is_offered",
     "0028_a_date_confirmed_through_the_log_is_a_date",
+    "0029_the_portal_demands_a_part",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
@@ -294,6 +295,37 @@ describeIfDatabase("an offer of readings is on the log (0027, ADR-0146)", () => 
       { kind: "value_offered", fieldKey: "identity.passport", partKey: "expiry", readings, offerHash: "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2" },
     ]);
     expect(log[0] !== undefined && log[0].kind === "value_offered" && log[0].partKey).toBeUndefined();
+  });
+
+  it("writes the portal's demand for a part and reads it back whole (P233)", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE0027B";
+    const owner = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-0027-b', true) RETURNING id",
+    );
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, owner.rows[0]!.id]);
+    const store = new ConversationEventStore(pool);
+    const demand = { page: "Your application", empty: ["county", "second line of the address"], unseen: ["county"] };
+    await store.append({ conversationId: conversation, event: { kind: "value_part_demanded", fieldKey: "contact.address", partKey: "region", demand } });
+    const unknowing = { page: "Employment", empty: ["full-time or part-time"], unseen: [] };
+    await store.append({ conversationId: conversation, event: { kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item1.basis", demand: unknowing } });
+    const log = await store.since(conversation, 0);
+    expect(log).toMatchObject([
+      { kind: "value_part_demanded", fieldKey: "contact.address", partKey: "region", demand },
+      { kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item1.basis", demand: unknowing },
+    ]);
+    // The demand is the row's proposal column and nothing else: no text, no hash.
+    const rows = await pool.query<{ kind: string; part_key: string; proposal: unknown; body_id: string | null; playback_hash: string | null }>(
+      "SELECT kind, part_key, proposal, body_id, playback_hash FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal",
+      [conversation],
+    );
+    expect(rows.rows[0]).toEqual({ kind: "value_part_demanded", part_key: "region", proposal: demand, body_id: null, playback_hash: null });
+    // A demand that names no part is refused by the schema, not smoothed over.
+    await expect(
+      pool.query(
+        "INSERT INTO conversation_events (conversation_id, ordinal, kind, field_key, proposal) VALUES ($1, 99, 'value_part_demanded', 'contact.address', $2)",
+        [conversation, JSON.stringify(demand)],
+      ),
+    ).rejects.toThrow(/only_a_part_read_names_a_part/);
   });
 });
 

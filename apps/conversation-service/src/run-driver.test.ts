@@ -110,7 +110,7 @@ import { S3DocumentVault } from "./s3-document-vault.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { answeredQuestion, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
+import { answeredQuestion, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
@@ -13960,4 +13960,247 @@ describe("the fields whose last reading was set aside (P221)", () => {
     expect([...rejectedFrom([at("value_rejected", "identity.given_name"), at("value_proposed", "contact.email")])]).toEqual(["identity.given_name"]);
     expect([...rejectedFrom([])]).toEqual([]);
   });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P233 — the portal would not save a page without a part the student left out
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * The gated portal with "First name" repointed to the COUNTY of the student's
+ * address, left empty when the address has none. The stand-in for a page the
+ * portal will not keep without a part the reviewed mapping thought optional —
+ * the failure the CV path will hit most (Vahid, 2026-09-27).
+ */
+const DEMANDING_ENTRY: CatalogueEntry = {
+  ...GATED_ENTRY,
+  // The reviewer recorded no `required` on the box — the portal enforces one
+  // anyway. A recorded one would stop the run BEFORE the fill under ADR-0123
+  // (the content as planned would be rejected); this is the case where the
+  // blueprint did not know, which is the one the read-back catches.
+  blueprint: {
+    ...GATED_ENTRY.blueprint,
+    pages: GATED_ENTRY.blueprint.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) => (field.fieldRef === "given_name" ? { ...field, validations: [] } : field)),
+      })),
+    })),
+  },
+  mappingSet: {
+    ...GATED_ENTRY.mappingSet,
+    mappings: GATED_ENTRY.mappingSet.mappings.map((mapping) =>
+      mapping.fieldRef === "given_name"
+        ? {
+            ...mapping,
+            source: {
+              kind: "profile_field" as const,
+              fieldKey: "contact.address" as const,
+              format: { kind: "part" as const, path: "region", absent: "leave_empty" as const },
+            },
+          }
+        : mapping,
+    ),
+  },
+};
+
+const DEMANDING_CATALOGUE: TestCatalogue = {
+  targets: () => [targetOf({ entry: DEMANDING_ENTRY, contentHash: TEST_CONTENT_HASH, admits: DEMANDING_ENTRY.admits })],
+  find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? DEMANDING_ENTRY : null),
+};
+
+describeIfDatabase("a page the portal would not save without a part becomes ONE question, and the run resumes (P233, ADR-0148 §11)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Rows 22 and 94, closed. Before this, a read-back that did not see the
+  // page (ADR-0106) stopped the run for a person, and the student read "with
+  // a member of the team" for a box they could have filled in thirty
+  // seconds. Vahid: *"The sentence names what we left empty AND what the
+  // portal would not take, where we know both … Then it asks for the first
+  // one, as an interview question, and resumes. A stop that becomes a
+  // question the student can answer is the whole point."*
+  //
+  // The address is confirmed WITHOUT a county — a real address may have none
+  // — and the box mapped to it is typed empty. The portal keeps the page
+  // without "First name" in it; the runner reads back and does not see it.
+  // ═══════════════════════════════════════════════════════════════════════
+  const PAGE = "page-application";
+  const TITLE = GATED_PORTAL_BLUEPRINT.pages.find((p) => p.pageRef === PAGE)?.title ?? "";
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX23301";
+  let runId = "";
+  let leaseId = "";
+
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), DEMANDING_CATALOGUE);
+  }
+
+  async function takeThePage(built: ReturnType<typeof buildInstance>, holder: string): Promise<string> {
+    const runRef = makeRunId(runId);
+    const key = idempotencyKeyFor({ runId: runRef, action: "advance_portal_page", target: PAGE });
+    const runs = new PostgresWorkflowRunStore(built.pool);
+    if ((await runs.findIntent(runRef, key)) === null) {
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "advance_portal_page", target: PAGE, startedAt: NOW });
+    } else if (!(await runs.reopenIntent(runRef, key, NOW))) {
+      expect.unreachable("a cleanly failed page re-opens");
+    }
+    const lease = await new WorkLeaseStore(built.pool).claim({ runId, leaseId: `wl_${holder}`, kind: "execute", holder, pageRef: PAGE, now: NOW, leaseSeconds: 120 });
+    if (lease === null) expect.unreachable("the page's lease should be free to take");
+    return `wl_${holder}`;
+  }
+
+  async function saidByAssistant(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function say(what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+
+  async function stepOf(): Promise<string | undefined> {
+    const built = instance();
+    try {
+      return (await built.driver.runFor(conversation))?.run.step;
+    } finally {
+      await built.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    await ownConversation(conversation);
+    const built = instance();
+    try {
+      const profiles = new PostgresConfirmedProfileStore(built.pool);
+      await confirmTheInterview(profiles, ownerOf(conversation));
+      await confirmInto(
+        profiles,
+        "contact.address",
+        { line1: "12 Valiasr Street", city: "Tehran", postalCode: "1966733411", countryCode: "IR" },
+        "street: 12 Valiasr Street; town: Tehran; postcode: 1966733411; country: Iran",
+        ownerOf(conversation),
+      );
+      const started = await pastTheYes(built, conversation, DEMANDING_ENTRY);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      await captureAuthorisation(built.pool, conversation, DEMANDING_ENTRY);
+      leaseId = await takeThePage(built, "page-demand");
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("derives the demand from the plan and the read-back: the empty box, named by the student's own word for it", async () => {
+    const built = instance();
+    try {
+      const usable = checkUsable(DEMANDING_ENTRY.mappingSet, DEMANDING_ENTRY.blueprint);
+      if (!usable.usable) expect.unreachable("the demanding mapping set is reviewed");
+      const profile = await new PostgresConfirmedProfileStore(built.pool).load(ownerOf(conversation), NOW);
+      const plan = planFill(DEMANDING_ENTRY.blueprint, usable.mappingSet, profile);
+      const input = { entry: DEMANDING_ENTRY, mappingSet: usable.mappingSet, plan, pageRef: PAGE };
+
+      // The read-back named the empty box: we know both halves.
+      expect(demandFromRefusal({ ...input, unseen: ["given_name"] })).toEqual({
+        fieldKey: "contact.address",
+        partKey: "region",
+        demand: { page: TITLE, empty: ["county"], unseen: ["county"] },
+      });
+      expect(demandSentence(DEMANDING_ENTRY, { page: TITLE, empty: ["county"], unseen: ["county"] })).toBe(
+        `Gated University would not save the "${TITLE}" page without county, which I did not have. Let me ask you for it now.`,
+      );
+      // The read-back could not say which (a listing that did not grow): the
+      // sentence says what we left empty and that we do not know which.
+      expect(demandFromRefusal({ ...input, unseen: ["entries"] })).toEqual({
+        fieldKey: "contact.address",
+        partKey: "region",
+        demand: { page: TITLE, empty: ["county"], unseen: [] },
+      });
+      expect(demandSentence(DEMANDING_ENTRY, { page: TITLE, empty: ["county"], unseen: [] })).toBe(
+        `Gated University would not save the "${TITLE}" page. On it I had left county empty, ` +
+          "and I do not know which of it the university minded, so let me ask you for county first.",
+      );
+      expect(demandSentence(DEMANDING_ENTRY, { page: TITLE, empty: ["county", "second line of the address"], unseen: [] })).toBe(
+        `Gated University would not save the "${TITLE}" page. On it I had left county and second line of the address empty, ` +
+          "and I do not know which of them the university minded, so let me ask you for county first.",
+      );
+      // The read-back named only boxes we HAD filled: not a missing answer. No demand.
+      expect(demandFromRefusal({ ...input, unseen: ["family_name"] })).toBeNull();
+      // A page we left nothing empty on has nothing to ask for.
+      expect(demandFromRefusal({ ...input, pageRef: "page-course", unseen: ["course"] })).toBeNull();
+    } finally {
+      await built.pool.end();
+    }
+  }, 120_000);
+
+  it("turns the refused save into the sentence and ONE question — the county, not the whole address — with the run still running", async () => {
+    const built = instance();
+    try {
+      expect(
+        await built.driver.reportWork({ runId, report: { leaseId, outcome: "uncertain", failure: "not_recorded", unseen: ["given_name"] } }),
+      ).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+    const said = await saidByAssistant();
+    const sentence = said.findIndex((content) => content.includes("would not save"));
+    expect(sentence, "the student is told what the university would not take").toBeGreaterThanOrEqual(0);
+    expect(said[sentence]).toBe(`Gated University would not save the "${TITLE}" page without county, which I did not have. Let me ask you for it now.`);
+    const question = said.slice(sentence + 1).join(" ").toLowerCase();
+    expect(question, "the demanded part is asked").toContain("county");
+    expect(question, "and nothing the student already gave").not.toContain("first line of your address");
+    expect(question).not.toContain("town or city");
+
+    const demands = demandsFrom(await new ConversationEventStore(pool).since(conversation, 0));
+    expect([...demands.keys()]).toEqual(["contact.address"]);
+    expect(demands.get("contact.address")?.partKey).toBe("region");
+
+    // The intent completed cleanly on the read-back's evidence (nothing seen
+    // saved), so the page is filled again once the answer is confirmed.
+    const intents = await pool.query<{ outcome: string | null }>(
+      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND action = 'advance_portal_page' AND target = $2",
+      [runId, PAGE],
+    );
+    expect(intents.rows[0]?.outcome).toBe("failed_cleanly");
+    const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(status.rows[0]?.status, "no stop, no person: a question").toBe("running");
+    expect(await pool.query("SELECT 1 FROM interventions WHERE run_id = $1", [runId]).then((r) => r.rowCount)).toBe(0);
+    // Which is what the student's page reads: the interview, not a member of the team.
+    expect(await stepOf()).toBe("interview");
+  }, 300_000);
+
+  it("takes the answer, plays the WHOLE address back with it, and the confirmation closes the demand and resumes", async () => {
+    await say("Tehran Province");
+    const said = await saidByAssistant();
+    const playback = said.at(-1)?.toLowerCase() ?? "";
+    expect(playback, "the whole value is put, with the part the student just gave").toContain("tehran province");
+    expect(playback, "and the parts they gave before, seeded from the confirmed value").toContain("valiasr");
+    const proposals = await pool.query<{ playback_hash: string }>(
+      "SELECT playback_hash FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_proposed'",
+      [conversation],
+    );
+    expect(proposals.rowCount, "one proposal, for the whole address").toBe(1);
+
+    const built = instance();
+    try {
+      expect(
+        await built.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: proposals.rows[0]!.playback_hash } }),
+      ).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+    const stored = await pool.query<{ value: unknown }>("SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = $2", [ownerOf(conversation), "contact.address"]);
+    expect(stored.rows[0]?.value).toMatchObject({ line1: "12 Valiasr Street", city: "Tehran", region: "Tehran Province", postalCode: "1966733411", countryCode: "IR" });
+    expect(demandsFrom(await new ConversationEventStore(pool).since(conversation, 0)).size, "the confirmation closed the demand").toBe(0);
+    expect(await stepOf(), "the run has moved off the interview").not.toBe("interview");
+    expect((await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status).toBe("running");
+  }, 300_000);
 });
