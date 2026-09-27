@@ -131,7 +131,7 @@ import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mapping";
 import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
-import { readDeletionRequest, type DeletionRequest } from "./deletion-requests.js";
+import { readStudentMessage, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
@@ -1288,6 +1288,10 @@ function rejectionsSinceConfirmed(events: readonly ConversationEvent[], fieldKey
  * nowhere to put. It names what is needed and hands the case to a person, which
  * is the only honest move available.
  */
+/** The question asked when deletion is mentioned and the reader cannot tell what of (row 98). Its prefix is how the answer to it is recognised. */
+const DELETION_QUESTION = "Do you want me to delete a document?";
+const DELETION_WAY_BACK = "If you did not mean a deletion, say so and we will carry on where we were.";
+
 /** A document type in a person's words: "CV", "academic transcript". */
 function documentWords(documentType: string): string {
   return documentType === "cv" ? "CV" : documentType.replace(/_/g, " ");
@@ -4913,16 +4917,23 @@ export class RunDriver {
     const said = input.event;
     if (said.kind !== "message" || said.actor !== "student" || said.content === null) return;
 
-    // ── "Delete my CV" — a request, before it could be read as an answer ──
+    // ── ONE reading of the message: about deletion, or an answer ─────────
     //
-    // ADR-0148 §10, P235. A student may ask for a document to go at any
-    // point in the conversation, in their own words; it is answered here
-    // and never reaches the interview as an answer to whatever was asked.
-    const deletion = readDeletionRequest(said.content);
-    if (deletion !== null) {
-      await this.#deleteAtRequest(input.conversationId, deletion);
+    // ADR-0148 §10, P235; row 98, P237. Vahid: *"a deletion-shaped message
+    // is handled or asked about, never passed along."* The interview path
+    // below takes `StudentAnswer`, which only the `answer` branch holds, so
+    // a message about deletion cannot reach it — not by a check that could
+    // be forgotten, but because there is no value of the right type to pass.
+    const read = readStudentMessage(said.content);
+    if (read.kind === "deletion") {
+      await this.#deleteAtRequest(input.conversationId, read.reading);
       return;
     }
+    const answer: StudentAnswer = read.answer;
+
+    // The way back from the deletion question (row 98): a plain no after it
+    // deletes nothing and carries on where the interview was.
+    if (await this.#declinedTheDeletionQuestion(input.conversationId, answer)) return;
 
     const situated = await this.#interviewSituation(input.conversationId);
     if (situated === null) return;
@@ -4953,7 +4964,7 @@ export class RunDriver {
         });
         return;
       }
-      await this.#correct(input.conversationId, situated.state.interview, said.content, now);
+      await this.#correct(input.conversationId, situated.state.interview, answer, now);
       return;
     }
 
@@ -4972,7 +4983,7 @@ export class RunDriver {
     const outcome = await receiveAnswer(
       situated.state.interview,
       asking,
-      said.content,
+      answer,
       this.#options.model,
     );
     if (outcome.kind === "ambiguous") {
@@ -5059,7 +5070,7 @@ export class RunDriver {
    * name, and nothing is said; the documents panel is only shown on a
    * started application, so nothing can be held there either.
    */
-  async #deleteAtRequest(conversationId: string, request: DeletionRequest): Promise<void> {
+  async #deleteAtRequest(conversationId: string, request: DeletionReading): Promise<void> {
     const say = async (content: string): Promise<void> => {
       await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
     };
@@ -5073,6 +5084,30 @@ export class RunDriver {
     const now = this.#options.now();
     const held = (await vault.listForStudent(bound.studentId)).filter((record) => record.state !== "purged");
     const listed = (records: readonly DocumentRecord[]): string => andList(records.map((record) => withArticle(documentWords(record.documentType))));
+
+    // ── Mentioned, not asked for; or asked for, of what the reader cannot tell (row 98) ──
+    //
+    // Neither is an answer to whatever was open, and neither is guessed at.
+    // Both name what is held, and both give the way back — Vahid: *"A
+    // student who typed something ambiguous needs the way back as much as
+    // the way forward."*
+    if (request.scope === "not_a_request") {
+      await say(
+        `Understood — I am not deleting anything.` +
+          (held.length === 0 ? " I hold no documents for you." : ` I still hold ${listed(held)}.`) +
+          ` If you did want something deleted, tell me which; otherwise we carry on where we were.`,
+      );
+      await this.#askAfterWriting(conversationId);
+      return;
+    }
+    if (request.scope === "unclear") {
+      await say(
+        held.length === 0
+          ? `${DELETION_QUESTION} I hold no documents for you, so there is nothing to delete. ${DELETION_WAY_BACK}`
+          : `${DELETION_QUESTION} I hold ${listed(held)}. Tell me which — for example "delete my ${documentWords(held[0]?.documentType ?? "cv")}" — or say "delete everything". ${DELETION_WAY_BACK}`,
+      );
+      return;
+    }
 
     const chosen: readonly DocumentRecord[] =
       request.scope === "all"
@@ -5130,6 +5165,25 @@ export class RunDriver {
           ? `I have deleted your ${documentWords(chosen[0]?.documentType ?? "cv")}.`
           : `I have deleted your ${andList(chosen.map((record) => documentWords(record.documentType)))}.`;
     await say(`${what} ${kept}${ask}${beyond}`);
+  }
+
+  /**
+   * The way back from the deletion question (row 98): the last thing said was
+   * that question, and the student's answer is a plain no. Nothing is deleted,
+   * they are told so, and the interview carries on where it was — the open
+   * question asked again, since this message was not an answer to it.
+   */
+  async #declinedTheDeletionQuestion(conversationId: string, answer: StudentAnswer): Promise<boolean> {
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const lastAssistant = [...events].reverse().find((event) => event.kind === "message" && event.actor === "assistant");
+    if (lastAssistant === undefined || lastAssistant.kind !== "message" || !(lastAssistant.content ?? "").startsWith(DELETION_QUESTION)) return false;
+    if (!/^\s*(no|nope|nah|never mind|nevermind|not that|nothing|no thanks|no thank you|neither|none|i didn'?t mean that|carry on|i meant something else)\b/i.test(answer)) return false;
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: "Understood — nothing is deleted. Back to where we were." },
+    });
+    await this.#askAfterWriting(conversationId);
+    return true;
   }
 
   /**
@@ -5403,7 +5457,7 @@ export class RunDriver {
   async #correct(
     conversationId: string,
     state: InterviewState,
-    correction: string,
+    correction: StudentAnswer,
     now: Date,
   ): Promise<void> {
     const pending = state.pending;

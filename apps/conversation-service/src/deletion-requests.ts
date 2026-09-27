@@ -24,6 +24,35 @@ export type DeletionRequest =
   /** "That document" — the one, where one is held; a question where more are. */
   | { readonly scope: "one" };
 
+/**
+ * What a message that MENTIONS deletion reads as (row 98, P237). Vahid:
+ * *"A message about deletion must never reach the interview as an answer to a
+ * question about a job title."* So a sentence about deletion is one of these,
+ * and never an answer:
+ */
+export type DeletionReading =
+  | DeletionRequest
+  /** Deletion is mentioned and the reader cannot tell what of: a question back, never a guess. */
+  | { readonly scope: "unclear" }
+  /** Deletion is mentioned and NOT asked for — a negation, or a person saying what they did. */
+  | { readonly scope: "not_a_request" };
+
+declare const STUDENT_ANSWER: unique symbol;
+/**
+ * A student's message that is NOT about deletion, and so may be read as an
+ * answer. Minted by `readStudentMessage` alone: the interview path takes this
+ * and not a string, which is what makes "a deletion-shaped message is handled
+ * or asked about, never passed along" structural rather than a matter of
+ * remembering the check (row 98).
+ */
+export type StudentAnswer = string & { readonly [STUDENT_ANSWER]: true };
+
+/** One reading of a student's message: about deletion, or an answer. Nothing is both, and nothing is neither. */
+export function readStudentMessage(text: string): { readonly kind: "deletion"; readonly reading: DeletionReading } | { readonly kind: "answer"; readonly answer: StudentAnswer } {
+  const reading = readDeletionRequest(text);
+  return reading === null ? { kind: "answer", answer: text as StudentAnswer } : { kind: "deletion", reading };
+}
+
 const REMOVAL_VERBS = [
   "delete",
   "remove",
@@ -142,19 +171,24 @@ function normalised(text: string): string {
     .trim();
 }
 
-/** The request the sentence makes, or `null` when it makes none this reader can see. */
-export function readDeletionRequest(text: string): DeletionRequest | null {
+/**
+ * What the sentence says about deletion, or `null` when it does not mention
+ * deletion at all — and only then may it be read as an answer.
+ */
+export function readDeletionRequest(text: string): DeletionReading | null {
   const said = normalised(text);
   if (said.length === 0) return null;
-  // "don't keep my CV" is a removal verb by itself; every other negation of a
-  // removal verb is a request NOT to.
-  const negated = NEGATIONS.some((pattern) => pattern.test(said)) && !/\b(don'?t|do not|dont)\s+(keep|hold)\b/.test(said);
-  if (negated) return null;
-  // "I removed the typo" is a person saying what they did, not asking.
-  if (/\bi(?:'ve| have| just| already)? (?:deleted|removed|erased|wiped|discarded|dropped|scrapped|cleared)\b/.test(said)) return null;
-  // Any form of the verb: delete, deleted, deleting, deletes.
+  // Any form of the verb: delete, deleted, deleting, deletes — or the noun.
   const verb = REMOVAL_VERBS.find((candidate) => new RegExp(`\\b${candidate.replace(/'/g, "'?")}(?:d|ed|s|ing)?\\b`).test(said));
-  if (verb === undefined) return null;
+  const mentions = verb !== undefined || /\b(deletion|deletions|removal|erasure)\b/.test(said);
+  if (!mentions) return null;
+  // "don't keep my CV" is a removal verb by itself; every other negation of a
+  // removal verb is a request NOT to — said back, never passed along.
+  const negated = NEGATIONS.some((pattern) => pattern.test(said)) && !/\b(don'?t|do not|dont)\s+(keep|hold)\b/.test(said);
+  if (negated) return { scope: "not_a_request" };
+  // "I removed the typo" is a person saying what they did, not asking.
+  if (/\bi(?:'ve| have| just| already)? (?:deleted|removed|erased|wiped|discarded|dropped|scrapped|cleared)\b/.test(said)) return { scope: "not_a_request" };
+  if (verb === undefined) return { scope: "unclear" };
 
   // What the verb is about, in the order a wider claim beats a narrower one:
   // everything, then a kind of document, then "that document".
@@ -164,5 +198,7 @@ export function readDeletionRequest(text: string): DeletionRequest | null {
   if (typed !== undefined) return { scope: "type", documentType: typed[0] };
   if (EVERYTHING.some(has)) return { scope: "all" };
   if (ONE.some(has)) return { scope: "one" };
-  return null;
+  // Deletion, of something this reader cannot name: asked about, never guessed,
+  // never an answer (row 98).
+  return { scope: "unclear" };
 }

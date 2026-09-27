@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readDeletionRequest } from "./deletion-requests.js";
+import { readDeletionRequest, readStudentMessage } from "./deletion-requests.js";
 
 describe("a student asking for a document to be deleted, the way a person says it (ADR-0148 §10)", () => {
   // Vahid, 2026-09-27: *"'Delete my CV', 'remove that document', 'get rid of
@@ -56,20 +56,46 @@ describe("a student asking for a document to be deleted, the way a person says i
     }
   });
 
-  it("does NOT read an answer, a question about the process, or a negated request as one", () => {
+  it("reads a sentence that mentions deletion of something it cannot name as UNCLEAR — asked about, never guessed (row 98)", () => {
+    // Vahid, 2026-09-27: *"A student says 'get rid of that file' and the
+    // system silently treats it as an answer to whatever question was open.
+    // Worst case it lands in a field."*
     for (const said of [
-      "12 Valiasr Street",
-      "yes",
-      "My CV is attached",
-      "How long do you keep my CV?",
+      "can you get rid of the thing from yesterday",
+      "delete",
+      "please delete the wrong one",
+      "remove the old version",
+      "I want a deletion",
+      "erase what I gave you last week",
+      "scrap the second thing",
+    ]) {
+      expect(readDeletionRequest(said), said).toEqual({ scope: "unclear" });
+    }
+  });
+
+  it("reads a negated request, and a person saying what they did, as NOT a request — still never an answer", () => {
+    for (const said of [
       "Don't delete my CV",
       "please do not remove my passport",
       "never delete anything",
       "I removed the typo from my statement",
-      "can I upload my CV?",
-      "",
+      "I've deleted the old file on my side",
     ]) {
+      expect(readDeletionRequest(said), said).toEqual({ scope: "not_a_request" });
+    }
+  });
+
+  it("does NOT read an answer or a question about the process as anything to do with deletion", () => {
+    for (const said of ["12 Valiasr Street", "yes", "My CV is attached", "How long do you keep my CV?", "can I upload my CV?", "Software engineer", ""]) {
       expect(readDeletionRequest(said), said).toBeNull();
     }
+  });
+
+  it("reads every message as EITHER about deletion OR an answer, never both and never neither", () => {
+    expect(readStudentMessage("get rid of that file")).toEqual({ kind: "deletion", reading: { scope: "one" } });
+    expect(readStudentMessage("get rid of that thing")).toEqual({ kind: "deletion", reading: { scope: "unclear" } });
+    expect(readStudentMessage("Delete my CV")).toEqual({ kind: "deletion", reading: { scope: "type", documentType: "cv" } });
+    expect(readStudentMessage("don't delete my CV")).toEqual({ kind: "deletion", reading: { scope: "not_a_request" } });
+    expect(readStudentMessage("Software engineer")).toEqual({ kind: "answer", answer: "Software engineer" });
   });
 });

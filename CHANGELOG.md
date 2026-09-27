@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.233.0] — 2026-09-27
+
+**P237 — a message about deletion is handled or asked about, never passed to the interview as an answer (row 98).**
+
+- **Added** `readStudentMessage`: every student message reads as either about deletion or an
+  answer, and the interview path takes a branded `StudentAnswer` that only the answer branch
+  holds. The reader now returns `unclear` for deletion of something it cannot name and
+  `not_a_request` for a negation or a person saying what they did.
+- **Added** the question for an unclear request — what is held, the way forward, and the way
+  back — and the plain no after it, which deletes nothing and re-asks the open question; a
+  negation is said back the same way.
+- **Fixed** the hole Vahid named: with a question open, "can you get rid of the thing from
+  yesterday" had become the first line of the student's address.
+
+---
+
 ## [0.232.0] — 2026-09-27
 
 **P236 — the CV upload sentence, as Vahid revised it; the CV determination drafted for his signature; row 98.**

@@ -14350,3 +14350,87 @@ describeIfDatabase("a student asks for a document to be deleted, in the chat, an
     expect(await deletions(), "no deletion reply for a sentence that asks for none").toBe(before);
   }, 120_000);
 });
+
+describeIfDatabase("a message about deletion never reaches the interview as an answer; unclear, it is asked about, with the way back (row 98, P237)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-27: *"A student says 'get rid of that file' and the
+  // system silently treats it as an answer to whatever question was open.
+  // Worst case it lands in a field. … a deletion-shaped message is handled
+  // or asked about, never passed along."* And: *"A student who typed
+  // something ambiguous needs the way back as much as the way forward."*
+  //
+  // The address fixture has a question OPEN — "the first line of your
+  // address" — which is exactly where a fall-through would land.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX23701";
+  let owner = "";
+  let vault: ReturnType<typeof fakeVault>;
+
+  async function say(what: string): Promise<string[]> {
+    const built = buildInstance(connectionString(), opener(), catalogueOf(ADDRESS_REQUIRED), "wired", null, () => NOW, vault);
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function partsRead(): Promise<number> {
+    return Number((await pool.query<{ n: string }>("SELECT count(*) AS n FROM conversation_events WHERE conversation_id = $1 AND kind IN ('value_part_read', 'value_proposed')", [conversation])).rows[0]?.n ?? 0);
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    vault = fakeVault([
+      { documentId: "doc_cv_7", studentId: owner, documentType: "cv", purpose: "application_submission", state: "confirmed", contentHash: "b".repeat(64), contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+    ]);
+    const built = buildInstance(connectionString(), opener(), catalogueOf(ADDRESS_REQUIRED), "wired", null, () => NOW, vault);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("asks WHICH, naming what is held and the way back, and writes NOTHING into the open question", async () => {
+    const before = await partsRead();
+    const said = await say("can you get rid of the thing from yesterday");
+    const reply = said.at(-1) ?? "";
+    expect(reply).toContain("Do you want me to delete a document?");
+    expect(reply).toContain("a CV");
+    expect(reply, "the way forward").toContain("delete my CV");
+    expect(reply, "the way back").toContain("If you did not mean a deletion");
+    expect(await partsRead(), "nothing landed in the address").toBe(before);
+    expect(vault.records[0]?.state, "and nothing was deleted on a question").toBe("confirmed");
+  }, 120_000);
+
+  it("takes a plain no as the way back: deletes nothing, says so, and asks the open question again", async () => {
+    const said = await say("no, never mind");
+    expect(said.at(-2)).toContain("nothing is deleted");
+    expect(said.at(-1)?.toLowerCase(), "back to where we were").toContain("first line of your address");
+    expect(vault.records[0]?.state).toBe("confirmed");
+  }, 120_000);
+
+  it("answers a negated request the same way — nothing deleted, said so, never an answer to the open question", async () => {
+    const before = await partsRead();
+    const said = await say("don't delete my CV");
+    expect(said.at(-2)).toContain("I am not deleting anything");
+    expect(said.at(-2)).toContain("a CV");
+    expect(said.at(-1)?.toLowerCase()).toContain("first line of your address");
+    expect(await partsRead()).toBe(before);
+  }, 120_000);
+
+  it("then takes the real answer, and the walk moves on", async () => {
+    const said = await say("12 Valiasr Street");
+    expect(said.at(-1)?.toLowerCase()).toContain("second line");
+  }, 120_000);
+});

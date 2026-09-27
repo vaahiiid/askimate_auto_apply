@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P237 — the hole closed before stage two
+
+> *"A message about deletion must never reach the interview as an answer to a question about a
+> job title."*
+
+It could, and it did: with the address question open, a student's "can you get rid of the thing
+from yesterday" became the first line of their address and the walk moved on. Now every message
+is read once, as about deletion or as an answer, and the interview path takes a type only the
+answer branch holds, so nothing deletion-shaped can be passed along. What the reader cannot name
+it asks about, naming what is held and the way back; a plain no after the question deletes
+nothing and returns to the open question; a negation is said back. The determination's signature
+block is printed for his eyes and not yet written.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P236 — the sentence as he revised it, and a determination for his hand
 
 > *"It belongs in the moment we show them what we read, not in the sentence about keeping the

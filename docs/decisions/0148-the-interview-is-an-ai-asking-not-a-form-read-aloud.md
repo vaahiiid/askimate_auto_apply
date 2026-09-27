@@ -253,12 +253,20 @@ student, not demanded by a portal, so it has its own determination rather than b
 the academic one — `decision-sheet-b2-store-cv.md`, mirrored as `STORE_CV_DRAFT` and not in
 force until he signs.
 
-**The reader's failure mode, recorded and not changed** (row 98, P236). His words: *"forty
+**The reader's failure mode, found and closed** (row 98, P236–P237). His words: *"forty
 phrasings tested both ways is good, and it will still miss some. The failure mode matters — a
-missed 'delete my CV' leaves a document we were told to delete. So when the reader does not
-recognise a message that mentions deletion at all, it should ask rather than ignore."* Today it
-does not ask: a sentence with a removal verb and no object the reader knows returns nothing, and
-the message goes on to the interview as an answer, or nowhere.
+missed 'delete my CV' leaves a document we were told to delete."* And, ordering it built before
+stage two: *"It is not a preference, it is a hole. … The fall-through is the actual defect, not
+the missing question. A message about deletion must never reach the interview as an answer to a
+question about a job title."* Reproduced through the real driver with a question open — *"can
+you get rid of the thing from yesterday"* became the first line of the student's address — then
+closed: every message is read once, as about deletion or as an answer, and the interview path
+takes a type that only the answer branch holds, so a deletion-shaped message cannot be passed
+along; there is no value of the right type to pass. Deletion of something the reader cannot name
+is asked about — what is held, the way forward, and, his condition, the way back: *"If you did
+not mean a deletion, say so and we will carry on where we were."* A plain no after that question
+deletes nothing and re-asks the open question; a negation, or a person saying what they did, is
+said back the same way. Nothing is guessed, and nothing falls through.
 
 **What no stage has proven, said plainly at his instruction.** Nothing in stage one reads a CV,
 and nothing in it was proven against a real model. Every test in this phase runs the
