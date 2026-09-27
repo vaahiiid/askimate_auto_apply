@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.235.0",
+  "version": "0.236.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -19,6 +19,7 @@
     "walkthrough": "tsx scripts/walkthrough.ts",
     "interview-demo": "tsx scripts/interview-demo.ts",
     "extraction-demo": "tsx scripts/extraction-demo.ts",
+    "measure-cv": "tsx scripts/measure-cv-reading.ts",
     "end-to-end": "tsx scripts/end-to-end.ts",
     "verify-bedrock": "tsx scripts/verify-bedrock.ts",
     "inspect-discovery": "tsx scripts/inspect-discovery.ts",

@@ -71,6 +71,39 @@ export interface ExtractionReport {
 }
 
 /** The key a target is reported under. */
+/** What happened to one part of one entry of a list, for the report and for a measurement. */
+export interface ListPartReading {
+  readonly partKey: string;
+  readonly required: boolean;
+  /** `read` and grounded; `missing` — the model found nothing; `ungrounded` — a span the document does not contain; `skipped` — not reached, an earlier required part having failed. */
+  readonly status: "read" | "missing" | "ungrounded" | "skipped";
+  /** The length of the span quoted, for a measurement, which must carry no line of the document. */
+  readonly spanLength?: number;
+  /** The span the model quoted and the document does not contain — on `ungrounded` only, for the report's `claimedSpan`. */
+  readonly claimedSpan?: string;
+  readonly reason?: string;
+}
+
+/** One entry of a list, as read. */
+export interface ListEntryReading {
+  /** One-based, as the report names it: `employment.history[2]`. */
+  readonly index: number;
+  readonly lines: number;
+  readonly parts: readonly ListPartReading[];
+  /** The assembled item, or `null` where a required part was missing or ungrounded, or the parts did not assemble. */
+  readonly item: unknown;
+  readonly spans: readonly string[];
+  readonly lowestConfidence: number;
+}
+
+/** A list target read against a document: what was found before anything was accepted. */
+export interface ListReading {
+  readonly fieldKey: string;
+  /** The heading the section was found under, or `null` for none. */
+  readonly sectionLines: number;
+  readonly entries: readonly ListEntryReading[];
+}
+
 /**
  * A list of entries, each read part by part and grounded (stage two).
  *
@@ -79,46 +112,32 @@ export interface ExtractionReport {
  * of each entry is read out of THAT ENTRY'S lines through the same model
  * contract every other target uses, and its span is checked against the
  * WHOLE document — a span from anywhere in the document is real, a span from
- * nowhere is invented. An entry a required part is missing from, or whose
- * span is not in the document, is dropped and reported by its position
- * (`employment.history[2]`); the entries that read whole are one proposal.
- * No entries is `not_found` and not required: a CV may list none.
+ * nowhere is invented. Exported as a reading so that a measurement against a
+ * real document (P240) can say, part by part, what was read, what was
+ * missing and what was rejected, without carrying a line of the document.
  */
-async function runList(
+export async function readListEntries(
   target: Extract<ExtractionTarget, { kind: "list" }>,
   text: DocumentText,
   model: ModelClient,
-): Promise<readonly ExtractionOutcome[]> {
+): Promise<ListReading> {
   const targetKey = target.fieldKey;
   const first = target.parts[0];
-  if (first === undefined) return [{ kind: "not_found", targetKey, required: false, reason: "The plan names no parts." }];
   const section = sectionOf(text, target.headings);
-  const entries = entriesOf(section, first.labels);
-  if (entries.length === 0) {
-    return [
-      {
-        kind: "not_found",
-        targetKey,
-        required: false,
-        reason:
-          section.length === 0
-            ? `No section headed ${target.headings.map((h) => `"${h}"`).join(", ")} on this ${text.documentType}.`
-            : `A section, but no entry in it opens with ${first.labels.map((l) => `"${l}"`).join(" or ")}.`,
-      },
-    ];
-  }
-
-  const items: unknown[] = [];
-  const spans: string[] = [];
-  const dropped: ExtractionOutcome[] = [];
-  let lowestConfidence = 1;
+  const entries = first === undefined ? [] : entriesOf(section, first.labels);
+  const readings: ListEntryReading[] = [];
   for (const [index, entry] of entries.entries()) {
-    const position = `${targetKey}[${String(index + 1)}]`;
     const block = entry.join("\n");
     const values = new Map<string, string>();
-    const entrySpans: string[] = [];
-    let bad: ExtractionOutcome | null = null;
+    const spans: string[] = [];
+    const parts: ListPartReading[] = [];
+    let lowestConfidence = 1;
+    let failed = false;
     for (const part of target.parts) {
+      if (failed) {
+        parts.push({ partKey: part.partKey, required: part.required, status: "skipped" });
+        continue;
+      }
       const read = await model.extractFromDocument({
         documentId: text.documentId,
         documentType: text.documentType,
@@ -131,38 +150,90 @@ async function runList(
         requireVerbatimSpan: true,
       });
       if (isNotUnderstood(read)) {
-        if (part.required) {
-          bad = { kind: "not_found", targetKey: position, required: false, reason: `Could not read "${part.partKey}": ${read.reason}` };
-          break;
-        }
+        parts.push({ partKey: part.partKey, required: part.required, status: "missing", reason: read.reason });
+        if (part.required) failed = true;
         continue;
       }
       const fields = unwrapProposed(read);
       const grounding = checkGrounding(text, fields.verbatim);
       if (grounding.kind !== "grounded") {
-        bad = { kind: "rejected_ungrounded", targetKey: position, required: false, claimedSpan: fields.verbatim, reason: `Part "${part.partKey}" was discarded. ${grounding.reason}` };
-        break;
+        parts.push({ partKey: part.partKey, required: part.required, status: "ungrounded", spanLength: fields.verbatim.length, claimedSpan: fields.verbatim, reason: grounding.reason });
+        failed = true;
+        continue;
       }
+      parts.push({ partKey: part.partKey, required: part.required, status: "read", spanLength: fields.verbatim.length });
       values.set(part.partKey, fields.value);
-      entrySpans.push(fields.verbatim);
+      spans.push(fields.verbatim);
       lowestConfidence = Math.min(lowestConfidence, fields.confidence);
     }
-    if (bad !== null) {
-      dropped.push(bad);
+    const item = failed ? null : (target.assemble(values) ?? null);
+    readings.push({ index: index + 1, lines: entry.length, parts, item, spans, lowestConfidence });
+  }
+  return { fieldKey: targetKey, sectionLines: section.length, entries: readings };
+}
+
+/**
+ * The outcomes of a list target: the entries that read whole as one
+ * proposal; each dropped entry reported by its position and why; none is
+ * `not_found` and not required, because a CV may list none.
+ */
+async function runList(
+  target: Extract<ExtractionTarget, { kind: "list" }>,
+  text: DocumentText,
+  model: ModelClient,
+): Promise<readonly ExtractionOutcome[]> {
+  const targetKey = target.fieldKey;
+  const first = target.parts[0];
+  if (first === undefined) return [{ kind: "not_found", targetKey, required: false, reason: "The plan names no parts." }];
+  const reading = await readListEntries(target, text, model);
+  if (reading.entries.length === 0) {
+    return [
+      {
+        kind: "not_found",
+        targetKey,
+        required: false,
+        reason:
+          reading.sectionLines === 0
+            ? `No section headed ${target.headings.map((h) => `"${h}"`).join(", ")} on this ${text.documentType}.`
+            : `A section, but no entry in it opens with ${first.labels.map((l) => `"${l}"`).join(" or ")}.`,
+      },
+    ];
+  }
+
+  const items: unknown[] = [];
+  const spans: string[] = [];
+  const dropped: ExtractionOutcome[] = [];
+  let lowestConfidence = 1;
+  for (const entry of reading.entries) {
+    const position = `${targetKey}[${String(entry.index)}]`;
+    const ungrounded = entry.parts.find((part) => part.status === "ungrounded");
+    const missing = entry.parts.find((part) => part.status === "missing" && part.required);
+    if (ungrounded !== undefined) {
+      dropped.push({
+        kind: "rejected_ungrounded",
+        targetKey: position,
+        required: false,
+        claimedSpan: ungrounded.claimedSpan ?? "",
+        reason: `Part "${ungrounded.partKey}" was discarded. ${ungrounded.reason ?? ""}`.trim(),
+      });
       continue;
     }
-    const assembled = target.assemble(values);
-    if (assembled === null || assembled === undefined) {
+    if (missing !== undefined) {
+      dropped.push({ kind: "not_found", targetKey: position, required: false, reason: `Could not read "${missing.partKey}": ${missing.reason ?? ""}`.trim() });
+      continue;
+    }
+    if (entry.item === null) {
       dropped.push({ kind: "not_found", targetKey: position, required: false, reason: `Read the parts but could not assemble a complete entry from them.` });
       continue;
     }
-    items.push(assembled);
-    spans.push(...entrySpans);
+    items.push(entry.item);
+    spans.push(...entry.spans);
+    lowestConfidence = Math.min(lowestConfidence, entry.lowestConfidence);
   }
 
   const whole: ExtractionOutcome =
     items.length === 0
-      ? { kind: "not_found", targetKey, required: false, reason: `${String(entries.length)} ${entries.length === 1 ? "entry" : "entries"} found and none read whole.` }
+      ? { kind: "not_found", targetKey, required: false, reason: `${String(reading.entries.length)} ${reading.entries.length === 1 ? "entry" : "entries"} found and none read whole.` }
       : {
           kind: "extracted",
           targetKey,

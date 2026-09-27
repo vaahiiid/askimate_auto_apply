@@ -300,6 +300,10 @@ describe("the published demonstrations", () => {
       // P150 — `run-a-profile.test.ts` spawns the command without --write (prints, writes
       // nothing) and drives the seed against a real migrated database.
       "profile:seed",
+      // P240 — `measure-cv-reading.test.ts` spawns the command bare (usage, exit 2), on the
+      // fixture CV through the stand-in (a report carrying nothing of the document), and with
+      // --live unconfigured (an error, never a silent fallback).
+      "measure-cv",
     ];
     const GUARDED_HERE = [
       "extraction-demo", "interview-demo", "catalogue", "interventions", "inspect-discovery",

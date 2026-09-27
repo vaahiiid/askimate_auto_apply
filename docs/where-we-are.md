@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P240 — an hour of his before six of mine
+
+> *"If it turns out real CVs need the model to segment as well as read, that is a different
+> stage three from the one you estimated, and I want to know that before you start rather than
+> after."*
+
+The measurement is built and not run. A script takes real CVs, reads them through the real
+PDF and Word libraries and, with `--live`, the real model, and reports what came out as
+structure: sections found, entries found and read whole, parts read, missing, ungrounded and
+not reached, why an entry was dropped. Never a value, a span or a line, and a test holds it to
+that. What to give and how is one page. The model call is his spend and his act, so he runs
+it; stage three waits on the answer.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P239 — a CV read into its lists, and what that does not yet prove
 
 > *"A green test against a client that always returns the same thing proves the wiring, not the

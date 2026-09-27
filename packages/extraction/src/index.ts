@@ -40,7 +40,8 @@ export {
   planFor,
 } from "./plans.js";
 
-export type { ExtractionOutcome, ExtractionReport } from "./extract.js";
+export type { ExtractionOutcome, ExtractionReport, ListEntryReading, ListPartReading, ListReading } from "./extract.js";
+export { readListEntries } from "./extract.js";
 export {
   extractDocument,
   extracted,

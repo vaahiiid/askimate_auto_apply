@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.236.0] — 2026-09-27
+
+**P240 — the measurement before stage three: real CVs through the real model, reported as structure only.**
+
+- **Added** `readListEntries` to the extraction package: a list target read part by part, each
+  part's status kept (read, missing, ungrounded with the span's length, not reached); the list
+  runner is rebuilt on it.
+- **Added** `pnpm run measure-cv`: PDFs and Word files through the stage-two pipeline, `--live`
+  through Bedrock under the environment's account, `--out` for JSON; the report carries counts,
+  part names, statuses and reasons, and never a value, a span or a line of a document (tested).
+- **Added** `docs/measure-cv-reading.md`: what to give, where, what to run, and what each
+  answer decides for stage three.
+
+---
+
 ## [0.235.0] — 2026-09-27
 
 **P239 — stage two of the CV path: a CV read into its jobs and qualifications, each entry grounded (ADR-0148 §1, §9); proven against the deterministic client only.**

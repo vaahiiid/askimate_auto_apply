@@ -1,0 +1,96 @@
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import { DOCX_CONTENT_TYPE, PDF_CONTENT_TYPE } from "@askimate/aas-extraction";
+import { DeterministicModelClient } from "@askimate/aas-llm";
+
+import { contentTypeOf, measureDocument, renderMeasurement } from "./measure-cv-reading.js";
+
+const PDF = new Uint8Array(readFileSync(new URL("../packages/extraction/src/fixtures/cv.pdf", import.meta.url)));
+const DOCX = new Uint8Array(readFileSync(new URL("../packages/extraction/src/fixtures/cv.docx", import.meta.url)));
+
+const ROOT = resolve(join(import.meta.dirname, ".."));
+const COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+
+/** Runs the published command the way `pnpm run measure-cv` does. */
+function run(args: readonly string[], env: NodeJS.ProcessEnv = {}): { readonly code: number | null; readonly out: string } {
+  const result = spawnSync(process.execPath, ["--import", "tsx", join(ROOT, "scripts", "measure-cv-reading.ts"), ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    timeout: 180_000,
+    env: { ...process.env, ...env },
+  });
+  return { code: result.status, out: `${result.stdout}${result.stderr}`.replace(COLOUR, "") };
+}
+
+describe("the published command, spawned the way Vahid runs it (P240)", () => {
+  it("REFUSES to run bare, and says what it wants", () => {
+    const bare = run([]);
+    expect(bare.code).toBe(2);
+    expect(bare.out).toContain("usage:");
+    expect(bare.out).toContain("--live");
+  }, 60_000);
+
+  it("reads the fixture CV through the stand-in and prints a report carrying nothing of it", () => {
+    const report = run([join(ROOT, "packages", "extraction", "src", "fixtures", "cv.pdf")]);
+    expect(report.code, report.out).toBe(0);
+    expect(report.out).toContain("entries: 2 found, 2 read whole");
+    expect(report.out).toContain("No model was called");
+    for (const word of ["Niloofar", "Pardis", "Valiasr", "Data analyst"]) expect(report.out, word).not.toContain(word);
+  }, 120_000);
+
+  it("REFUSES --live when Bedrock is not configured, rather than measuring against the stand-in", () => {
+    const live = run(["--live", join(ROOT, "packages", "extraction", "src", "fixtures", "cv.pdf")], {
+      AAS_BEDROCK_REGION: "",
+      AAS_BEDROCK_MODEL_INTERVIEW: "",
+      AAS_BEDROCK_MODEL_INTERPRETATION: "",
+      AAS_BEDROCK_MODEL_DOCUMENT_EXTRACTION: "",
+      AAS_BEDROCK_MODEL_NAVIGATION: "",
+    });
+    expect(live.code).not.toBe(0);
+    expect(live.out).toContain("Bedrock is not configured");
+    expect(live.out).not.toContain("entries:");
+  }, 60_000);
+});
+
+describe("the CV reading measured, structure only (P240)", () => {
+  // The fixture is a synthetic CV. The point of these tests is the SHAPE of
+  // the measurement, and that it carries nothing of the document: Vahid runs
+  // it on real people's CVs, and what comes back to the record is counts.
+  it("counts the sections, the entries and the parts read, through the deterministic stand-in", async () => {
+    const measured = await measureDocument({ name: "cv.pdf", contentType: PDF_CONTENT_TYPE, contents: PDF }, new DeterministicModelClient());
+    expect(measured.pages).toBe(1);
+    const jobs = measured.lists.find((list) => list.fieldKey === "employment.history");
+    expect(jobs).toMatchObject({ sectionFound: true, entriesFound: 2, entriesReadWhole: 2 });
+    expect(jobs?.entries[0]?.read).toEqual(["position", "employer", "employerAddress", "startDate", "end", "duties"]);
+    expect(jobs?.entries[0]?.missing, "basis is optional and not on the fixture").toEqual(["basis"]);
+    const studied = measured.lists.find((list) => list.fieldKey === "education.prior_qualifications");
+    expect(studied).toMatchObject({ sectionFound: true, entriesFound: 1, entriesReadWhole: 1 });
+  });
+
+  it("says a section was not found rather than reading nothing silently", async () => {
+    const empty = new TextEncoder().encode("PK");
+    await expect(measureDocument({ name: "x.docx", contentType: DOCX_CONTENT_TYPE, contents: empty }, new DeterministicModelClient())).rejects.toThrow();
+    const measured = await measureDocument({ name: "cv.docx", contentType: DOCX_CONTENT_TYPE, contents: DOCX }, new DeterministicModelClient());
+    expect(measured.lists.every((list) => list.sectionFound)).toBe(true);
+  });
+
+  it("carries no value, no span and no line of the document — in the report or its rendering", async () => {
+    const measured = await measureDocument({ name: "cv.pdf", contentType: PDF_CONTENT_TYPE, contents: PDF }, new DeterministicModelClient());
+    const everything = `${JSON.stringify(measured)}\n${renderMeasurement(measured)}`;
+    for (const word of ["Niloofar", "Hosseini", "Pardis", "Valiasr", "Nikan", "Tehran", "Data analyst", "Computer science"]) {
+      expect(everything, word).not.toContain(word);
+    }
+    expect(renderMeasurement(measured)).toContain("entries: 2 found, 2 read whole");
+  });
+
+  it("reads a document's kind from its name, and refuses the rest", () => {
+    expect(contentTypeOf("/tmp/my-cv.PDF")).toBe(PDF_CONTENT_TYPE);
+    expect(contentTypeOf("cv.docx")).toBe(DOCX_CONTENT_TYPE);
+    expect(contentTypeOf("cv.doc")).toBeUndefined();
+    expect(contentTypeOf("scan.jpg")).toBeUndefined();
+  });
+});

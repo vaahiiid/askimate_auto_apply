@@ -312,6 +312,15 @@ these parts — the thing stage two is for — is not shown by any test in this 
 three is where a real reading has to be proven. A green test here proves the wiring, not the
 reading.
 
+**The measurement before stage three (P240).** His reading of stage two: *"the cut into entries
+by label is a fixture-shaped assumption a real CV would not meet. That means stage three cannot
+start with building."* So a measurement, run by him because the model call is his spend and
+his act: `pnpm run measure-cv -- --live <files>` reads real CVs through the real extractors and
+the real model and reports structure only — sections found, entries found and read whole, the
+parts read, missing, ungrounded (by span length) and not reached, why an entry was dropped —
+never a value, a span or a line of the document, held to that by a test. What to give and how is
+`docs/measure-cv-reading.md`. Stage three is not estimated again until the answer is in.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation
