@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P236 — the sentence as he revised it, and a determination for his hand
+
+> *"It belongs in the moment we show them what we read, not in the sentence about keeping the
+> document."*
+
+The upload sentence is on the documents panel, shown when a CV is the chosen type: one year from
+last use, deleted by asking, the confirmed details staying. The clause that was also selling is
+gone from it and waits for the moment it belongs to. The lawful basis for holding a CV is drafted
+from his reasoning — offered by the student, not demanded by a portal, its own determination and
+its own purpose, and the sentence the academic one never needed: every application can be
+completed without one. It is a draft in the sheet and a constant not in force; his signature moves
+it. Row 98 records what the reader does not do: ask, when it does not recognise a request that
+mentions deletion.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P235 — the second chance kept, and a CV that can be deleted by asking
 
 > *"They say 'delete my CV' or 'delete everything you hold for me' and we do it."*

@@ -81,6 +81,21 @@ export function positionLine(run: { readonly status: RunStatus; readonly step: R
   return mint(overriding ?? STEP_WORDS[run.step]);
 }
 
+/**
+ * What a student reads before handing over a CV (ADR-0148 §10, P236). Vahid's
+ * sentence, said as written: it is about keeping the document and nothing
+ * else — what they will be shown of what was read belongs to the moment it is
+ * shown, not here. *"It makes a plain sentence about storage into a sentence
+ * that is also selling."*
+ */
+export const CV_UPLOAD_SENTENCE: StudentWords = mint(
+  "Before you hand me your CV: I will keep it for one year from the last time I use it, and I will " +
+    "read it only to fill in the sections of your applications that list your jobs and qualifications. " +
+    "You can tell me to delete it at any time, just by saying so here. That deletes the document, or all " +
+    "of your documents if you ask for that; the details you have already confirmed stay unless you ask " +
+    "for those too.",
+);
+
 /** Every sentence the line can be, for the test that reads them all. */
 export const EVERY_SENTENCE: readonly string[] = [
   ...Object.values(STEP_WORDS),

@@ -238,8 +238,27 @@ reach. *That document*, where more than one is held, is a question back, never a
 wrong deletion cannot be undone. Where nothing of the kind is held, the reply says so and names
 what is held.
 
-**The upload sentence** — the one a student reads before handing over a document with their
-whole history in it — is printed for his word and not built, as the warning sentence was (§3).
+**The upload sentence** (P236), his after one change — *"'always showing you what I read before it
+goes anywhere' — cut it, or rather move it. It belongs in the moment we show them what we read,
+not in the sentence about keeping the document."* Built as written, shown on the documents panel at
+the point a CV is the chosen type and for no other type: *"Before you hand me your CV: I will keep
+it for one year from the last time I use it, and I will read it only to fill in the sections of
+your applications that list your jobs and qualifications. You can tell me to delete it at any
+time, just by saying so here. That deletes the document, or all of your documents if you ask for
+that; the details you have already confirmed stay unless you ask for those too."* The moved
+clause belongs to stage 3, where what was read is shown.
+
+**Row 97 answered in reasoning, drafted for his signature** (P236): a CV is offered by the
+student, not demanded by a portal, so it has its own determination rather than being folded into
+the academic one — `decision-sheet-b2-store-cv.md`, mirrored as `STORE_CV_DRAFT` and not in
+force until he signs.
+
+**The reader's failure mode, recorded and not changed** (row 98, P236). His words: *"forty
+phrasings tested both ways is good, and it will still miss some. The failure mode matters — a
+missed 'delete my CV' leaves a document we were told to delete. So when the reader does not
+recognise a message that mentions deletion at all, it should ask rather than ignore."* Today it
+does not ask: a sentence with a removal verb and no object the reader knows returns nothing, and
+the message goes on to the interview as an answer, or nowhere.
 
 **What no stage has proven, said plainly at his instruction.** Nothing in stage one reads a CV,
 and nothing in it was proven against a real model. Every test in this phase runs the

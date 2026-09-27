@@ -1775,6 +1775,19 @@ describeIfDatabase("the student's page sends a document (ADR-0095)", () => {
     expect(stored).toBe("{}{}");
   }, 180_000);
 
+  it("shows Vahid's sentence when a CV is the chosen type, and nothing for a passport (P236, ADR-0148 §10)", async () => {
+    // The real schedule offers `cv` since version 2.2026-09-27. The sentence
+    // is read at the point they choose it, before any file is picked.
+    await page.selectOption("#document-type", "cv");
+    const notice = await textOf("#document-notice", 10_000);
+    expect(notice).toContain("keep it for one year from the last time I use it");
+    expect(notice).toContain("tell me to delete it at any time");
+    expect(notice).toContain("the details you have already confirmed stay");
+    expect(notice, "about keeping the document and nothing else").not.toContain("showing you");
+    await page.selectOption("#document-type", "passport");
+    await page.waitForFunction(() => (document.querySelector("#document-notice")?.textContent ?? "") === "", undefined, { timeout: 10_000 });
+  }, 120_000);
+
   it("is REFUSED by the gate before a byte crosses the wire, and told so in words", async () => {
     // `other` is offered — the schedule has a row for it — and refused at the
     // declaration, because its determination was decided against (ADR-0088).

@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.232.0] — 2026-09-27
+
+**P236 — the CV upload sentence, as Vahid revised it; the CV determination drafted for his signature; row 98.**
+
+- **Added** `CV_UPLOAD_SENTENCE` to the student's words and to the documents panel, shown when a
+  CV is the chosen type: how long it is kept, that asking deletes it, and that confirmed details
+  stay. The clause about showing what was read is moved to the moment it is shown (stage 3).
+- **Added** `STORE_CV_DRAFT`, the lawful-basis determination for holding a CV, with its own
+  activity — drafted from his reasoning, deliberately not registered, not in force until he signs
+  (`docs/decision-sheet-b2-store-cv.md`).
+- **Recorded** row 98: the deletion reader does not ask when it does not recognise a request that
+  mentions deletion; his to order.
+
+---
+
 ## [0.231.0] — 2026-09-27
 
 **P235 — the attempt a demand closes does not count (row 96); stage one of the CV path: the type, a year, and deletion by asking (ADR-0148 §10).**

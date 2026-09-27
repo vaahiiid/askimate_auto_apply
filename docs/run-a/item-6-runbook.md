@@ -44,7 +44,8 @@ the stack restarted with P221's page.
    position line reads the interview, not a member of the team. A document can be deleted by
    asking in the chat (P235, ADR-0148 §10): "delete my CV", "remove that document", "delete
    everything you have on me"; the reply names what went and that the confirmed details stay. A
-   CV cannot yet be uploaded on this deployment — row 97, the lawful basis is his to determine. If the button is not there while a playback is open (P221, row 90), the same
+   CV cannot yet be uploaded on this deployment — row 97, the lawful basis is drafted for his signature;
+   choosing "CV" in the documents panel shows his sentence about keeping it (P236). If the button is not there while a playback is open (P221, row 90), the same
    act from the console on the page, with the hash the server itself names:
 
    ```js

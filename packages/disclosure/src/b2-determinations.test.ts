@@ -26,6 +26,7 @@ import {
   DISCLOSE_DOCUMENT,
   MINOR_ROUTE,
   STORE_ACADEMIC_DOCUMENT,
+  STORE_CV_DRAFT,
   STORE_IDENTITY_DOCUMENT,
   b2Register,
 } from "./b2-determinations.js";
@@ -33,6 +34,30 @@ import { DISCLOSURE_ACTIVITY } from "./disclosure.js";
 import { determineLawfulBasis } from "./lawful-basis.js";
 
 const NOW = new Date("2026-09-08T12:00:00Z");
+
+describe("the CV determination, drafted and NOT in force (row 97, P236)", () => {
+  it("is not among the four, and the register does not carry its activity", () => {
+    expect(B2_DETERMINATIONS.map((r) => r.determinationId)).not.toContain(STORE_CV_DRAFT.determinationId);
+    expect(STORE_CV_DRAFT.determinedBy).toContain("DRAFT");
+    expect(STORE_CV_DRAFT.determinedBy).toContain("signature");
+    const register = b2Register(NOW);
+    expect(register.forActivity(STORE_CV_DRAFT.activity.activity), "not in force").toBeUndefined();
+    expect(register.activities).not.toContain(STORE_CV_DRAFT.activity.activity);
+  });
+
+  it("says what he asked it to say: offered not demanded, its own basis, the type, the year, the purpose, deletion, and that no application needs one", () => {
+    const words = STORE_CV_DRAFT.reasoning;
+    expect(STORE_CV_DRAFT.activity.documentTypes).toEqual(["cv"]);
+    expect(STORE_CV_DRAFT.activity.activity).toBe("store_document:cv_section_filling");
+    expect(STORE_CV_DRAFT.article6).toBe("contract");
+    expect(words).toContain("OFFERED BY THE STUDENT, NOT DEMANDED BY A PORTAL");
+    expect(words).toContain("complete every application without ever giving us one");
+    expect(words).toContain("one year from the last use");
+    expect(words).toContain("employment and qualification sections");
+    expect(words).toContain("on the student's request");
+    expect(words).toContain("not in force until he signs");
+  });
+});
 
 describe("the four B2 determinations", () => {
   it("are all four, and all usable", () => {

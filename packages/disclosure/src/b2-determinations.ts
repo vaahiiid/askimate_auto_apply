@@ -204,6 +204,62 @@ export const MINOR_ROUTE: LawfulBasisDeterminationRecord = determination(
  * With no determination registered, `assertStorable` throws
  * `NoLawfulBasisError` for it — absence of a decision is not permission.
  */
+/**
+ * 5 · Storing a CV — A DRAFT, for Vahid's signature. NOT REGISTERED.
+ *
+ * Row 97. Drafted 2026-09-27 at his instruction, from his reasoning:
+ *
+ * > *"A CV is offered by the student, not demanded by a portal. Nobody's
+ * > application is refused for not having one; it is a convenience we offer
+ * > so they do not have to type what they have already written down. That is
+ * > a different thing from a passport we must hold because a university
+ * > requires it, and it should have its own determination rather than being
+ * > folded into the academic one."*
+ *
+ * Its own activity, therefore — `store_document:cv_section_filling`, a
+ * purpose of its own rather than `application_submission` — so that the
+ * academic determination's scope is not widened by it. When he signs, three
+ * things move in one phase: `cv_section_filling` joins `RetentionPurpose`,
+ * schedule version 3 carries the CV's policy under that purpose (version 2
+ * carries it under `application_submission`, and nothing was ever stored
+ * under it), and this record joins `B2_DETERMINATIONS` with his date. Until
+ * then `b2Register` does not carry it, `assertStorable` refuses a CV, and
+ * this constant exists so that what he signs is exactly what the code will
+ * enforce. The signature is his reply, the same as an entry's.
+ */
+export const STORE_CV_DRAFT: LawfulBasisDeterminationRecord = {
+  determinationId: "b2-5-store-cv",
+  activity: {
+    activity: "store_document:cv_section_filling",
+    purpose:
+      "Holding the CV a student offers, to fill in the sections of their applications that list " +
+      "their jobs and qualifications from what they have already written down",
+    documentTypes: ["cv"],
+  },
+  article6: "contract",
+  requiresStudentAuthorisation: false,
+  determinedBy: "DRAFT — awaiting Vahid Mohammadi's signature (row 97)",
+  determinedAt: new Date("2026-09-27T00:00:00Z"),
+  reasoning:
+    "Article 6(1)(b), performance of a contract. The student has asked for applications to be " +
+    "made on their behalf and has offered their CV so that the sections listing their jobs and " +
+    "qualifications can be filled from it rather than typed again. A CV is OFFERED BY THE STUDENT, " +
+    "NOT DEMANDED BY A PORTAL: nobody's application is refused for not having one, and the student " +
+    "can complete every application without ever giving us one — by answering the questions by " +
+    "hand, or by leaving a section empty (ADR-0148 §3). It is a convenience, and that is why it has " +
+    "its own determination rather than being folded into the academic one, whose documents a " +
+    "university requires. SCOPE: the document type `cv`, and nothing else. PURPOSE: filling the " +
+    "employment and qualification sections of the student's applications, and nothing else; the CV " +
+    "is not sent to any university under this determination (disclosure is determination 3, and a " +
+    "CV is not in its scope). RETENTION: one year from the last use, per ADR-0148 §10 and retention " +
+    "schedule version 3. DELETION: on the student's request, made in the conversation in their own " +
+    "words, at any time; the document is purged and the details they confirmed from it stay unless " +
+    "they ask for those too, which they are told. Consent is deliberately NOT the basis, for the " +
+    "reason recorded on determination 1. Drafted 2026-09-27 for Vahid Mohammadi's signature; not " +
+    "in force until he signs.",
+  reviewBy: new Date("2027-09-27T00:00:00Z"),
+};
+
 export const B2_DETERMINATIONS: readonly LawfulBasisDeterminationRecord[] = [
   STORE_IDENTITY_DOCUMENT,
   STORE_ACADEMIC_DOCUMENT,

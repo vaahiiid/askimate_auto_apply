@@ -58,7 +58,7 @@ import {
 } from "@askimate/aas-conversation";
 
 import * as api from "./transport.js";
-import { positionLine, type StudentWords } from "./words.js";
+import { CV_UPLOAD_SENTENCE, positionLine, type StudentWords } from "./words.js";
 
 /** Everything drawn, in one object, replaced whole on every read. */
 interface View {
@@ -719,7 +719,14 @@ function drawDocuments(): void {
       event.preventDefault();
       void sendDocument();
     });
-    panel.append(heading, list, form);
+    // What they read before handing over a CV (ADR-0148 §10): shown for that
+    // type and no other, at the point they choose it.
+    const notice = document.createElement("p");
+    notice.id = "document-notice";
+    type.addEventListener("change", () => {
+      drawDocumentNotice();
+    });
+    panel.append(heading, list, form, notice);
   }
 
   list.replaceChildren();
@@ -742,10 +749,20 @@ function drawDocuments(): void {
     for (const name of held.documentTypes) {
       const option = document.createElement("option");
       option.value = name;
-      text(option, name.replace(/_/g, " "));
+      text(option, name === "cv" ? "CV" : name.replace(/_/g, " "));
       type.append(option);
     }
   }
+  drawDocumentNotice();
+}
+
+/** The CV sentence while a CV is the chosen type; nothing otherwise. */
+function drawDocumentNotice(): void {
+  const notice = el("document-notice");
+  const type = el("document-type") as HTMLSelectElement | null;
+  if (notice === null || type === null) return;
+  const sentence: StudentWords | "" = type.value === "cv" ? CV_UPLOAD_SENTENCE : "";
+  text(notice, sentence);
 }
 
 function drawComposer(): void {

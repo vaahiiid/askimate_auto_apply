@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { RUN_PHASES, RUN_STATUSES, RUN_STEP_KINDS } from "@askimate/aas-contracts";
 
-import { EVERY_SENTENCE, positionLine } from "./words.js";
+import { CV_UPLOAD_SENTENCE, EVERY_SENTENCE, positionLine } from "./words.js";
 
 describe("no internal word ever reaches a student's screen (P227, ADR-0147)", () => {
   // ═══════════════════════════════════════════════════════════════════════
@@ -35,6 +35,21 @@ describe("no internal word ever reaches a student's screen (P227, ADR-0147)", ()
         expect(sentence).not.toMatch(new RegExp(`\\b${form}\\b`, "i"));
       }
     }
+  });
+
+  it("says, before a CV is handed over, how long it is kept and that asking deletes it — and nothing about showing what was read (P236)", () => {
+    // Vahid, 2026-09-27: the sentence is about keeping the document; the
+    // reassurance about what is shown belongs where it is shown.
+    const sentence: string = CV_UPLOAD_SENTENCE;
+    expect(sentence).toBe(
+      "Before you hand me your CV: I will keep it for one year from the last time I use it, and I will " +
+        "read it only to fill in the sections of your applications that list your jobs and qualifications. " +
+        "You can tell me to delete it at any time, just by saying so here. That deletes the document, or all " +
+        "of your documents if you ask for that; the details you have already confirmed stay unless you ask " +
+        "for those too.",
+    );
+    expect(sentence).not.toContain("showing you");
+    for (const form of forms) expect(sentence).not.toMatch(new RegExp(`\\b${form}\\b`, "i"));
   });
 
   it("says a person has it when a person has it — the step he saw, and the two statuses", () => {
