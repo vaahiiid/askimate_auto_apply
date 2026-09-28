@@ -8,6 +8,8 @@
  */
 
 export type {
+  Segmentation,
+  SegmentationRequest,
   DocumentRequest,
   ExtractionRequest,
   InterpretationRequest,

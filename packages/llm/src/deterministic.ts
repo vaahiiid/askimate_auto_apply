@@ -24,6 +24,8 @@ import type {
   ModelClient,
   NotUnderstood,
   QuestionRequest,
+  Segmentation,
+  SegmentationRequest,
 } from "./client.js";
 
 export class DeterministicModelClient implements ModelClient {
@@ -140,6 +142,55 @@ export class DeterministicModelClient implements ModelClient {
    * document, so a stand-in that fabricated spans would make every test of that
    * check vacuous.
    */
+  /**
+   * The stand-in's cut: crude but real (Vahid, 2026-09-28: *"if the
+   * segmentation can be given a deterministic mode that cuts on something
+   * crude but real, we can at least see whether the pipeline downstream of
+   * the cut works without spending anything"*).
+   *
+   * The scope — the section a heading found, else the whole document — is
+   * cut into BLOCKS at blank lines and at lines opening with one of the
+   * entry's labels. A block is an entry when it carries a DATE RANGE — "Sep
+   * 2019 – Aug 2021", "2019 - Present", "March 2015 to June 2019" — because
+   * a real CV puts the dates beside each job, or when it opens with a label,
+   * which is what a fixture does. A block with neither belongs to no entry.
+   * Nothing here reads what is inside a block; nothing here knows a cover
+   * letter from a job. What it gets wrong, the checks and the measurement
+   * name.
+   */
+  public segmentDocument(request: SegmentationRequest): Promise<Segmentation | NotUnderstood> {
+    const from = request.section?.from ?? 1;
+    const to = request.section?.to ?? request.lines.length;
+    const blocks: { from: number; to: number }[] = [];
+    let open: { from: number; to: number } | null = null;
+    for (let number = from; number <= to; number += 1) {
+      const line = request.lines[number - 1] ?? "";
+      const blank = line.trim().length === 0;
+      if (blank) {
+        open = null;
+        continue;
+      }
+      if (open === null || opensWithLabel(line, request.entryLabels)) {
+        open = { from: number, to: number };
+        blocks.push(open);
+      } else {
+        open.to = number;
+      }
+    }
+    const entries = blocks.filter((block) =>
+      request.lines.slice(block.from - 1, block.to).some((line) => DATE_RANGE.test(line) || opensWithLabel(line, request.entryLabels)),
+    );
+    if (entries.length === 0) {
+      return Promise.resolve({
+        kind: "not_understood",
+        reason:
+          `No block between lines ${String(from)} and ${String(to)} carries a date range or opens with ` +
+          `${request.entryLabels.map((l) => `"${l}"`).join(" or ")}, so the stand-in finds no ${request.kind}.`,
+      });
+    }
+    return Promise.resolve({ entries });
+  }
+
   public extractFromDocument<T>(
     request: ExtractionRequest<T>,
   ): Promise<ProposedValue<T> | NotUnderstood> {
@@ -175,6 +226,25 @@ export class DeterministicModelClient implements ModelClient {
       }),
     );
   }
+}
+
+/**
+ * A date range on one line: a month-and-year or a year, a dash or "to", and a
+ * month-and-year, a year, or a word for "still here".
+ */
+const MONTH = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?";
+const POINT = `(?:${MONTH}\\s+)?(?:19|20)\\d{2}|(?:0?[1-9]|1[0-2])[/.](?:19|20)\\d{2}`;
+const DATE_RANGE = new RegExp(
+  `\\b(?:${POINT})\\s*(?:[-–—]|to|until|till)\\s*(?:(?:${POINT})|present|current|now|date|ongoing|today)\\b`,
+  "i",
+);
+
+function opensWithLabel(line: string, labels: readonly string[]): boolean {
+  const trimmed = line.trim().toLowerCase();
+  return labels.some((label) => {
+    const bare = label.toLowerCase();
+    return trimmed.startsWith(bare) && /^[:/]/.test(trimmed.slice(bare.length).trimStart());
+  });
 }
 
 interface LabelledLine {

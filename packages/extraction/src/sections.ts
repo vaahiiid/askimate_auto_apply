@@ -82,6 +82,30 @@ export function sectionOf(text: DocumentText, headings: readonly string[]): read
   return body;
 }
 
+/**
+ * The section under the first heading that is one of `headings`, as a
+ * one-based inclusive line range over the WHOLE document's lines (the numbers
+ * a cut names), or `null` for none. Blank lines inside the section count;
+ * the range is where the section is, not what it holds.
+ */
+export function sectionRangeOf(text: DocumentText, headings: readonly string[]): { readonly from: number; readonly to: number } | null {
+  const wanted = new Set(headings.map((heading) => heading.toLowerCase()));
+  const lines = fullText(text).split(/\r?\n/);
+  const start = lines.findIndex((line) => {
+    const heading = headingOf(line);
+    return heading !== null && wanted.has(heading);
+  });
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (headingOf(lines[index] ?? "") !== null) {
+      end = index;
+      break;
+    }
+  }
+  return end <= start + 1 ? null : { from: start + 2, to: end };
+}
+
 /** The entries of a section, each beginning at a line labelled with one of the entry's first labels. */
 export function entriesOf(section: readonly string[], firstLabels: readonly string[]): readonly (readonly string[])[] {
   const opens = (line: string): boolean =>

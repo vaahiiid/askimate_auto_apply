@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P242 — the cut as line ranges, and what holds it
+
+> *"A merge that cannot hide a line and a split that loses its employer are both caught by
+> structure rather than by trust."*
+
+The model cuts now, and only into line ranges: nothing outside the document can become an entry.
+A range outside the document is refused; a pair that share a line are both refused; the
+section's unclaimed lines are counted; an entry with two date ranges is held back and named; a
+job with no employer is dropped and named; and the cover letter is found by its opening and its
+closing, so letter text inside a job's range is a line in the report rather than a range that
+looked odd. The stand-in cuts on something crude but real, so a free run shows the cut before a
+paid one shows the reading. The credentials the paid run needs are on the page: the account, the
+key or the profile, the permissions, and the one step that is a lead time.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P241 — the answer came without the model
 
 > *"Zero entries from 28 lines of real employment history. So --live was never needed."*

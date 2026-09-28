@@ -32,7 +32,7 @@ import { basename, extname } from "node:path";
 
 import type { ModelClient } from "@askimate/aas-llm";
 import type { DocumentText, ListReading } from "@askimate/aas-extraction";
-import { fullText, planFor, readListEntries, sectionOf, textExtractorFor, DOCX_CONTENT_TYPE, PDF_CONTENT_TYPE } from "@askimate/aas-extraction";
+import { cutDocument, fullText, planFor, readListEntries, sectionOf, textExtractorFor, DOCX_CONTENT_TYPE, PDF_CONTENT_TYPE } from "@askimate/aas-extraction";
 
 import { demoModel, usageLine } from "./model-for-demo.js";
 
@@ -51,11 +51,30 @@ export interface ListMeasurement {
   readonly headings: readonly string[];
   readonly sectionFound: boolean;
   readonly sectionLines: number;
+  /** The section as a line range, for him to check against his own document. */
+  readonly section: { readonly from: number; readonly to: number } | null;
+  /** The model said the document lists none, in its words. */
+  readonly none: string | null;
+  /** The cut, held to its checks (stage three). Line numbers only. */
+  readonly cut: {
+    readonly outsideDocument: number;
+    readonly overlapping: number;
+    readonly unassignedSectionLines: number;
+    readonly linesOutsideSection: number;
+    /** The cover letter as a line range, or null for none found. */
+    readonly letter: { readonly from: number; readonly to: number } | null;
+  };
   readonly entriesFound: number;
   readonly entriesReadWhole: number;
   readonly entries: readonly {
     readonly index: number;
+    readonly from: number;
+    readonly to: number;
     readonly lines: number;
+    /** The merge detector: two is two jobs cut as one. */
+    readonly dateRanges: number;
+    /** The named failure: cover-letter lines inside this entry. */
+    readonly letterLines: number;
     readonly readWhole: boolean;
     readonly read: readonly string[];
     readonly missing: readonly string[];
@@ -80,6 +99,11 @@ export async function measureDocument(
   const extractor = textExtractorFor(input.contentType);
   if (extractor === undefined) throw new Error(`${input.name}: nothing reads ${input.contentType}; a PDF with a text layer or a .docx`);
   const text: DocumentText = await extractor.textOf({ documentId: `measure_${input.name}`, documentType: "cv", contents: input.contents });
+  return measureText(input.name, input.contentType, text, model);
+}
+
+/** The measurement of a document already read into text. */
+export async function measureText(name: string, contentType: string, text: DocumentText, model: ModelClient): Promise<DocumentMeasurement> {
   const whole = fullText(text);
   const plan = planFor("cv");
   if (plan === undefined) throw new Error("no plan for a CV");
@@ -87,20 +111,35 @@ export async function measureDocument(
   for (const target of plan.targets) {
     if (target.kind !== "list") continue;
     const section = sectionOf(text, target.headings);
-    const reading: ListReading = await readListEntries(target, text, model);
+    const cut = await cutDocument(target, text, model);
+    const reading: ListReading = await readListEntries(target, text, model, cut);
     lists.push({
       fieldKey: target.fieldKey,
       headings: target.headings,
       sectionFound: section.length > 0,
       sectionLines: section.length,
+      section: cut.checks.section,
+      none: cut.none,
+      cut: {
+        outsideDocument: cut.checks.outsideDocument.length,
+        overlapping: cut.checks.overlapping.length,
+        unassignedSectionLines: cut.checks.unassignedSectionLines,
+        linesOutsideSection: cut.checks.linesOutsideSection,
+        letter: cut.checks.letter,
+      },
       entriesFound: reading.entries.length,
       entriesReadWhole: reading.entries.filter((entry) => entry.item !== null).length,
       entries: reading.entries.map((entry) => {
+        const cutEntry = cut.entries[entry.index - 1];
         const missingRequired = entry.parts.find((part) => part.status === "missing" && part.required);
         const ungrounded = entry.parts.find((part) => part.status === "ungrounded");
         return {
           index: entry.index,
+          from: cutEntry?.from ?? 0,
+          to: cutEntry?.to ?? 0,
           lines: entry.lines,
+          dateRanges: cutEntry?.dateRanges ?? 0,
+          letterLines: cutEntry?.letterLines ?? 0,
           readWhole: entry.item !== null,
           read: entry.parts.filter((part) => part.status === "read").map((part) => part.partKey),
           missing: entry.parts.filter((part) => part.status === "missing").map((part) => part.partKey),
@@ -121,8 +160,8 @@ export async function measureDocument(
     });
   }
   return {
-    name: input.name,
-    contentType: input.contentType,
+    name,
+    contentType,
     pages: text.pages.length,
     lines: whole.split("\n").filter((line) => line.trim().length > 0).length,
     characters: whole.length,
@@ -139,12 +178,23 @@ export function renderMeasurement(measured: DocumentMeasurement): string {
     out.push("");
     out.push(`### ${list.fieldKey}`);
     out.push(
-      list.sectionFound
-        ? `section: found (${String(list.sectionLines)} lines) · entries: ${String(list.entriesFound)} found, ${String(list.entriesReadWhole)} read whole`
-        : `section: NOT FOUND under ${list.headings.map((h) => `"${h}"`).join(", ")} — nothing was read`,
+      list.section === null
+        ? `section: NOT FOUND under ${list.headings.map((h) => `"${h}"`).join(", ")} — the cut ran over the whole document`
+        : `section: lines ${String(list.section.from)}–${String(list.section.to)} (${String(list.sectionLines)} non-blank)`,
     );
+    if (list.none !== null) out.push(`cut: NONE — ${list.none}`);
+    out.push(
+      `cut: ${String(list.entriesFound)} entries · ${String(list.entriesReadWhole)} read whole · ` +
+        `${String(list.cut.unassignedSectionLines)} section lines unassigned · ${String(list.cut.linesOutsideSection)} entry lines outside the section · ` +
+        `${String(list.cut.overlapping)} overlapping pairs refused · ${String(list.cut.outsideDocument)} ranges outside the document refused`,
+    );
+    out.push(list.cut.letter === null ? "cover letter: none found" : `cover letter: lines ${String(list.cut.letter.from)}–${String(list.cut.letter.to)}`);
     for (const entry of list.entries) {
-      out.push(`- entry ${String(entry.index)} (${String(entry.lines)} lines): ${entry.readWhole ? "READ WHOLE" : "DROPPED"}`);
+      out.push(
+        `- entry ${String(entry.index)} lines ${String(entry.from)}–${String(entry.to)} (${String(entry.lines)}): ${entry.readWhole ? "READ WHOLE" : "DROPPED"}` +
+          ` · date ranges: ${String(entry.dateRanges)}${entry.dateRanges > 1 ? " — TWO ENTRIES CUT AS ONE?" : ""}` +
+          (entry.letterLines > 0 ? ` · LETTER TEXT INSIDE THE ENTRY: ${String(entry.letterLines)} line(s)` : ""),
+      );
       out.push(`  read: ${entry.read.length === 0 ? "none" : entry.read.join(", ")}`);
       if (entry.missing.length > 0) out.push(`  missing: ${entry.missing.join(", ")}`);
       for (const bad of entry.ungrounded) out.push(`  ungrounded: ${bad.partKey} (span of ${String(bad.spanLength)} characters) — ${bad.reason}`);

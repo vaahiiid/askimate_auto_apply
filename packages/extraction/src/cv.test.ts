@@ -127,6 +127,7 @@ describe("reading a CV: the jobs and the qualifications, each entry grounded (AD
       composeQuestion: (request) => model.composeQuestion(request),
       composeDocumentRequest: (request) => model.composeDocumentRequest(request),
       interpretAnswer: (request) => model.interpretAnswer(request),
+      segmentDocument: (request) => model.segmentDocument(request),
       extractFromDocument: <T>(request: ExtractionRequest<T>): Promise<ProposedValue<T> | NotUnderstood> =>
         request.fieldKey.endsWith(".employer")
           ? Promise.resolve(

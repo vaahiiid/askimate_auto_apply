@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.238.0] — 2026-09-28
+
+**P242 — stage three's first six hours: the cut is the model's, as line ranges, held by structure (ADR-0148 §9).**
+
+- **Added** `segmentDocument` to the model client: a document cut into the entries of a list as
+  one-based line ranges. Bedrock answers through a tool whose schema carries ranges and nothing
+  else; the stand-in cuts the scope into blocks at blank and labelled lines and keeps a block that
+  carries a date range — crude but real.
+- **Added** `cutDocument` and its checks: ranges outside the document and overlapping pairs
+  refused, unclaimed section lines and entry lines outside the section counted, a date-range
+  count per entry as the merge detector, the cover letter found and its lines inside any entry
+  counted. The list runner cuts through the model and holds back an entry with two date ranges.
+- **Changed** `measure-cv` to print the cut before the parts: line ranges, detectors, checks and
+  the letter; `docs/measure-cv-reading.md` gains the credentials section.
+
+---
+
 ## [0.237.0] — 2026-09-27
 
 **P241 — the measurement's answer recorded (row 100); stage three re-estimated as the model-segmenting one.**

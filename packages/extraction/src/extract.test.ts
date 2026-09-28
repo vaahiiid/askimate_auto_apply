@@ -9,6 +9,8 @@ import type {
   ModelClient,
   NotUnderstood,
   QuestionRequest,
+  Segmentation,
+  SegmentationRequest,
 } from "@askimate/aas-llm";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 
@@ -247,6 +249,11 @@ class ConfabulatingModelClient implements ModelClient {
   ): Promise<ProposedValue<T> | NotUnderstood> {
     return Promise.reject(new Error("not used"));
   }
+  /** The cut is the stand-in's, crude but real; only the READING lies here. */
+  public segmentDocument(request: SegmentationRequest): Promise<Segmentation | NotUnderstood> {
+    return new DeterministicModelClient().segmentDocument(request);
+  }
+
   public extractFromDocument<T>(
     request: ExtractionRequest<T>,
   ): Promise<ProposedValue<T> | NotUnderstood> {
@@ -309,7 +316,12 @@ describe("a model that invents values", () => {
       ): Promise<ProposedValue<T> | NotUnderstood> {
         return this.#honest.interpretAnswer(request);
       }
-      public extractFromDocument<T>(
+      /** The cut is the stand-in's, crude but real; only the READING lies here. */
+  public segmentDocument(request: SegmentationRequest): Promise<Segmentation | NotUnderstood> {
+    return new DeterministicModelClient().segmentDocument(request);
+  }
+
+  public extractFromDocument<T>(
         request: ExtractionRequest<T>,
       ): Promise<ProposedValue<T> | NotUnderstood> {
         if (!request.fieldKey.endsWith(".grade")) {

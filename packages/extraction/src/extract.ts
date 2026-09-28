@@ -27,7 +27,9 @@ import { checkGrounding } from "./grounding.js";
 import type { DocumentDateKind, ExtractionPlan, ExtractionTarget } from "./plans.js";
 import { planFor } from "./plans.js";
 import type { DocumentText } from "./text.js";
-import { entriesOf, sectionOf } from "./sections.js";
+import { sectionOf } from "./sections.js";
+import { cutDocument } from "./segments.js";
+import type { Cut } from "./segments.js";
 import { fullText } from "./text.js";
 
 /** What one target produced. */
@@ -99,8 +101,10 @@ export interface ListEntryReading {
 /** A list target read against a document: what was found before anything was accepted. */
 export interface ListReading {
   readonly fieldKey: string;
-  /** The heading the section was found under, or `null` for none. */
+  /** How many lines the section found by heading holds, 0 for none. */
   readonly sectionLines: number;
+  /** The cut the entries were read within, with its checks (stage three). */
+  readonly cut: Cut;
   readonly entries: readonly ListEntryReading[];
 }
 
@@ -120,13 +124,16 @@ export async function readListEntries(
   target: Extract<ExtractionTarget, { kind: "list" }>,
   text: DocumentText,
   model: ModelClient,
+  /** The cut to read within; when absent, the document is cut through the model first (`segments.ts`). */
+  given?: Cut,
 ): Promise<ListReading> {
   const targetKey = target.fieldKey;
-  const first = target.parts[0];
+  const cut = given ?? (await cutDocument(target, text, model));
   const section = sectionOf(text, target.headings);
-  const entries = first === undefined ? [] : entriesOf(section, first.labels);
   const readings: ListEntryReading[] = [];
-  for (const [index, entry] of entries.entries()) {
+  for (const cutEntry of cut.entries) {
+    const index = cutEntry.index - 1;
+    const entry = cutEntry.lines;
     const block = entry.join("\n");
     const values = new Map<string, string>();
     const spans: string[] = [];
@@ -169,7 +176,7 @@ export async function readListEntries(
     const item = failed ? null : (target.assemble(values) ?? null);
     readings.push({ index: index + 1, lines: entry.length, parts, item, spans, lowestConfidence });
   }
-  return { fieldKey: targetKey, sectionLines: section.length, entries: readings };
+  return { fieldKey: targetKey, sectionLines: section.length, cut, entries: readings };
 }
 
 /**
@@ -193,9 +200,10 @@ async function runList(
         targetKey,
         required: false,
         reason:
-          reading.sectionLines === 0
-            ? `No section headed ${target.headings.map((h) => `"${h}"`).join(", ")} on this ${text.documentType}.`
-            : `A section, but no entry in it opens with ${first.labels.map((l) => `"${l}"`).join(" or ")}.`,
+          reading.cut.none ??
+          (reading.sectionLines === 0
+            ? `No section headed ${target.headings.map((h) => `"${h}"`).join(", ")} on this ${text.documentType}, and no entry was cut elsewhere.`
+            : `A section of ${String(reading.sectionLines)} lines, and no entry was cut from it.`),
       },
     ];
   }
@@ -206,6 +214,14 @@ async function runList(
   let lowestConfidence = 1;
   for (const entry of reading.entries) {
     const position = `${targetKey}[${String(entry.index)}]`;
+    // The merge detector (segments.ts) first: two date ranges in one entry is
+    // two jobs until a person says otherwise — held back, named, never
+    // proposed as one, and never read as one.
+    const cutEntry = reading.cut.entries[entry.index - 1];
+    if (cutEntry !== undefined && cutEntry.dateRanges > 1) {
+      dropped.push({ kind: "not_found", targetKey: position, required: false, reason: `Held back: the entry carries ${String(cutEntry.dateRanges)} date ranges, which reads as ${String(cutEntry.dateRanges)} entries cut as one.` });
+      continue;
+    }
     const ungrounded = entry.parts.find((part) => part.status === "ungrounded");
     const missing = entry.parts.find((part) => part.status === "missing" && part.required);
     if (ungrounded !== undefined) {

@@ -17,7 +17,9 @@
 export type { DocumentText, DocumentTextExtractor, TextSource } from "./text.js";
 export { PlainTextExtractor, fullText } from "./text.js";
 export { DOCX_CONTENT_TYPE, DocxTextExtractor, PDF_CONTENT_TYPE, PdfTextExtractor, textExtractorFor } from "./formats.js";
-export { entriesOf, sectionOf } from "./sections.js";
+export { entriesOf, sectionOf, sectionRangeOf } from "./sections.js";
+export type { Cut, CutChecks, CutEntry, LineRange } from "./segments.js";
+export { cutDocument, dateRangeCount, letterRangeOf, linesOf } from "./segments.js";
 
 export type { GroundingResult } from "./grounding.js";
 export { MIN_EXCERPT_LENGTH, checkGrounding, isGrounded, normaliseForComparison } from "./grounding.js";

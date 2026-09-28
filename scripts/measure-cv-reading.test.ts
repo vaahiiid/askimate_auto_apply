@@ -37,7 +37,7 @@ describe("the published command, spawned the way Vahid runs it (P240)", () => {
   it("reads the fixture CV through the stand-in and prints a report carrying nothing of it", () => {
     const report = run([join(ROOT, "packages", "extraction", "src", "fixtures", "cv.pdf")]);
     expect(report.code, report.out).toBe(0);
-    expect(report.out).toContain("entries: 2 found, 2 read whole");
+    expect(report.out).toContain("cut: 2 entries · 2 read whole");
     expect(report.out).toContain("No model was called");
     for (const word of ["Niloofar", "Pardis", "Valiasr", "Data analyst"]) expect(report.out, word).not.toContain(word);
   }, 120_000);
@@ -64,7 +64,12 @@ describe("the CV reading measured, structure only (P240)", () => {
     const measured = await measureDocument({ name: "cv.pdf", contentType: PDF_CONTENT_TYPE, contents: PDF }, new DeterministicModelClient());
     expect(measured.pages).toBe(1);
     const jobs = measured.lists.find((list) => list.fieldKey === "employment.history");
-    expect(jobs).toMatchObject({ sectionFound: true, entriesFound: 2, entriesReadWhole: 2 });
+    expect(jobs).toMatchObject({ sectionFound: true, entriesFound: 2, entriesReadWhole: 2, none: null });
+    expect(jobs?.cut).toMatchObject({ outsideDocument: 0, overlapping: 0, unassignedSectionLines: 0, linesOutsideSection: 0, letter: null });
+    expect(jobs?.entries.map((e) => [e.from, e.to, e.dateRanges, e.letterLines])).toEqual([
+      [3, 8, 0, 0],
+      [9, 14, 0, 0],
+    ]);
     expect(jobs?.entries[0]?.read).toEqual(["position", "employer", "employerAddress", "startDate", "end", "duties"]);
     expect(jobs?.entries[0]?.missing, "basis is optional and not on the fixture").toEqual(["basis"]);
     const studied = measured.lists.find((list) => list.fieldKey === "education.prior_qualifications");
@@ -84,7 +89,33 @@ describe("the CV reading measured, structure only (P240)", () => {
     for (const word of ["Niloofar", "Hosseini", "Pardis", "Valiasr", "Nikan", "Tehran", "Data analyst", "Computer science"]) {
       expect(everything, word).not.toContain(word);
     }
-    expect(renderMeasurement(measured)).toContain("entries: 2 found, 2 read whole");
+    expect(renderMeasurement(measured)).toContain("cut: 2 entries · 2 read whole");
+  });
+
+  it("reports the cut of a prose CV with a cover letter — ranges, detectors and what the stand-in could not read — carrying nothing of it", async () => {
+    // The stand-in cuts the prose CV at its date ranges and reads no part of
+    // it (no labels): the report shows the cut working and the reading not,
+    // which is exactly what a free run is for.
+    const prose = new TextEncoder().encode(readFileSync(new URL("../packages/extraction/src/fixtures/cv-prose.txt", import.meta.url), "utf8"));
+    const measured = await measureDocument({ name: "cv-prose.docx", contentType: DOCX_CONTENT_TYPE, contents: prose }, new DeterministicModelClient()).catch(() => null);
+    // A .docx it is not; the text extractor path is covered elsewhere. Measure the text directly.
+    expect(measured).toBeNull();
+    const text = readFileSync(new URL("../packages/extraction/src/fixtures/cv-prose.txt", import.meta.url), "utf8");
+    const { PlainTextExtractor } = await import("@askimate/aas-extraction");
+    const asText = await new PlainTextExtractor().textOf({ documentId: "m", documentType: "cv", contents: new TextEncoder().encode(text) });
+    const { measureText } = await import("./measure-cv-reading.js");
+    const report = await measureText("cv-prose.txt", "text/plain", asText, new DeterministicModelClient());
+    const jobs = report.lists.find((list) => list.fieldKey === "employment.history");
+    expect(jobs?.section).toEqual({ from: 15, to: 23 });
+    expect(jobs?.cut.letter).toEqual({ from: 4, to: 9 });
+    expect(jobs?.entries.map((e) => [e.from, e.to, e.dateRanges, e.letterLines])).toEqual([
+      [16, 18, 1, 0],
+      [20, 22, 1, 0],
+    ]);
+    expect(jobs?.entriesReadWhole, "the stand-in reads labels, and prose has none").toBe(0);
+    const rendered = renderMeasurement(report);
+    expect(rendered).toContain("cover letter: lines 4–9");
+    for (const word of ["Pardis", "Nikan", "Hiring Manager", "poetry"]) expect(rendered, word).not.toContain(word);
   });
 
   it("reads a document's kind from its name, and refuses the rest", () => {

@@ -172,6 +172,37 @@ export interface ModelClient {
 
   /** Reads a value out of a document. Same rule: proposed, not confirmed. */
   extractFromDocument<T>(request: ExtractionRequest<T>): Promise<ProposedValue<T> | NotUnderstood>;
+
+  /**
+   * Cuts a document into the entries of a list — the jobs on a CV, the
+   * qualifications — as LINE RANGES, never text (ADR-0148 §9, stage three).
+   *
+   * Line ranges are what holds the cut without a span check: an entry can
+   * only be a contiguous run of the document's own lines, so nothing outside
+   * the document can become one; the caller checks that no line is in two
+   * entries and names every line of the section left out. What a range
+   * contains is then read part by part and grounded as every value is.
+   */
+  segmentDocument(request: SegmentationRequest): Promise<Segmentation | NotUnderstood>;
+}
+
+/** What the agent needs a document cut into. */
+export interface SegmentationRequest {
+  readonly documentId: string;
+  readonly documentType: string;
+  /** Which kind of entry: the jobs, or the qualifications. */
+  readonly kind: "jobs" | "qualifications";
+  /** The document's lines, in order; a range names them one-based. */
+  readonly lines: readonly string[];
+  /** Where the section for this kind was found by heading, one-based and inclusive; absent when no heading was found. */
+  readonly section?: { readonly from: number; readonly to: number };
+  /** The labels an entry of this kind is printed under when it is labelled at all — the stand-in's second rule. */
+  readonly entryLabels: readonly string[];
+}
+
+/** One-based, inclusive line ranges, in document order. */
+export interface Segmentation {
+  readonly entries: readonly { readonly from: number; readonly to: number }[];
 }
 
 /** Usage, so cost per run can be measured rather than estimated. */
@@ -221,6 +252,11 @@ export class MeteredModelClient implements ModelClient {
     this.#calls += 1;
     this.#inputTokens += estimateTokens(request.utterance + request.expectedShape);
     return this.inner.interpretAnswer(request);
+  }
+
+  public async segmentDocument(request: SegmentationRequest): Promise<Segmentation | NotUnderstood> {
+    this.#calls += 1;
+    return this.inner.segmentDocument(request);
   }
 
   public async extractFromDocument<T>(

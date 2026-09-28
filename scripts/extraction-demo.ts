@@ -31,7 +31,10 @@ import type {
   ModelClient,
   NotUnderstood,
   QuestionRequest,
+  Segmentation,
+  SegmentationRequest,
 } from "@askimate/aas-llm";
+import { DeterministicModelClient } from "@askimate/aas-llm";
 import { demoModel, usageLine } from "./model-for-demo.js";
 import { PASSPORT_TEXT, bytesOf } from "@askimate/aas-extraction/fixtures";
 import {
@@ -77,6 +80,11 @@ class ConfabulatingModelClient implements ModelClient {
   ): Promise<ProposedValue<T> | NotUnderstood> {
     return Promise.reject(new Error("not used"));
   }
+  /** The cut is the stand-in's, crude but real; only the READING lies here. */
+  public segmentDocument(request: SegmentationRequest): Promise<Segmentation | NotUnderstood> {
+    return new DeterministicModelClient().segmentDocument(request);
+  }
+
   public extractFromDocument<T>(
     request: ExtractionRequest<T>,
   ): Promise<ProposedValue<T> | NotUnderstood> {

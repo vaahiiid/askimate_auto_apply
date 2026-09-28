@@ -58,6 +58,8 @@ import { toProposal } from "./bedrock-reading.js";
 import type {
   DocumentRequest,
   ExtractionRequest,
+  Segmentation,
+  SegmentationRequest,
   InterpretationRequest,
   ModelClient,
   ModelUsage,
@@ -81,6 +83,41 @@ const SYSTEM_RULES = [
 
 /** The structured answer both interpretation and extraction ask for. */
 const READING_TOOL_NAME = "record_reading";
+
+const SEGMENTATION_TOOL_NAME = "record_cut";
+
+/** The cut, as line ranges and nothing else: the model cannot hand back text through this. */
+function segmentationTool(kind: "jobs" | "qualifications"): Anthropic.Tool {
+  return {
+    name: SEGMENTATION_TOOL_NAME,
+    description:
+      `Record where each of the ${kind} begins and ends, by LINE NUMBER, using the numbers printed ` +
+      `at the start of each line. Ranges are inclusive, in document order, and never overlap.`,
+    strict: true,
+    input_schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        understood: { type: "boolean", description: `False when the document lists no ${kind}. A normal outcome.` },
+        entries: {
+          type: "array",
+          description: `One item per ${kind === "jobs" ? "job" : "qualification"}, in document order.`,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              from: { type: "integer", description: "The first line of the entry." },
+              to: { type: "integer", description: "The last line of the entry, inclusive." },
+            },
+            required: ["from", "to"],
+          },
+        },
+        reason: { type: ["string", "null"], description: "Why, when not understood." },
+      },
+      required: ["understood", "entries", "reason"],
+    },
+  };
+}
 
 function readingTool(expectedShape: string, quoting: "utterance" | "document"): Anthropic.Tool {
   return {
@@ -263,6 +300,35 @@ export class BedrockModelClient implements ModelClient {
     });
   }
 
+  public async segmentDocument(request: SegmentationRequest): Promise<Segmentation | NotUnderstood> {
+    const numbered = request.lines.map((line, index) => `${String(index + 1).padStart(4, " ")}| ${line}`).join("\n");
+    const where =
+      request.section === undefined
+        ? `No heading for the ${request.kind} was found; look through the whole document.`
+        : `A heading for the ${request.kind} was found; the section runs from line ${String(request.section.from)} to ${String(request.section.to)}, but an entry may sit outside it.`;
+    const input = await this.#call(
+      "document_extraction",
+      segmentationTool(request.kind),
+      `Cut this ${request.documentType} into its ${request.kind}, as LINE RANGES.\n\n` +
+        `${where}\n\n` +
+        `Rules: one entry per ${request.kind === "jobs" ? "job" : "qualification"}; every entry is a contiguous run of lines, ` +
+        `given by its first and last line number; no line belongs to two entries; a cover letter, ` +
+        `a summary, a skills list or a heading is NOT an entry and its lines belong to none. If the ` +
+        `document lists no ${request.kind}, say so — do not cut something else into ${request.kind}.\n\n` +
+        `--- DOCUMENT, NUMBERED ---\n${numbered}\n--- END ---`,
+      { cacheDocument: true },
+    );
+    const raw = input as { understood?: boolean; entries?: unknown; reason?: string | null };
+    if (raw.understood === false || !Array.isArray(raw.entries)) {
+      return { kind: "not_understood", reason: raw.reason ?? `The model found no ${request.kind} to cut.` };
+    }
+    const entries = raw.entries
+      .map((entry) => entry as { from?: unknown; to?: unknown })
+      .filter((entry): entry is { from: number; to: number } => Number.isInteger(entry.from) && Number.isInteger(entry.to))
+      .map((entry) => ({ from: entry.from, to: entry.to }));
+    return { entries };
+  }
+
   public async extractFromDocument<T>(
     request: ExtractionRequest<T>,
   ): Promise<ProposedValue<T> | NotUnderstood> {
@@ -324,6 +390,16 @@ export class BedrockModelClient implements ModelClient {
     prompt: string,
     options: { readonly cacheDocument?: boolean } = {},
   ): Promise<ReadingToolInput> {
+    return (await this.#call(workload, tool, prompt, options)) as ReadingToolInput;
+  }
+
+  /** One call that must answer through the given tool; the tool's input, unparsed. */
+  async #call(
+    workload: ModelWorkload,
+    tool: Anthropic.Tool,
+    prompt: string,
+    options: { readonly cacheDocument?: boolean } = {},
+  ): Promise<unknown> {
     const response = await this.#client.messages.create({
       model: this.#config.models[workload],
       max_tokens: this.#maxTokens,
@@ -332,7 +408,7 @@ export class BedrockModelClient implements ModelClient {
       tools: [tool],
       // Forced: this call exists to produce one structured reading, and a
       // conversational reply instead would be an unhandled shape.
-      tool_choice: { type: "tool", name: READING_TOOL_NAME },
+      tool_choice: { type: "tool", name: tool.name },
       messages: [
         {
           role: "user",
@@ -347,7 +423,7 @@ export class BedrockModelClient implements ModelClient {
 
     const call = response.content.find(
       (block): block is Anthropic.ToolUseBlock =>
-        block.type === "tool_use" && block.name === READING_TOOL_NAME,
+        block.type === "tool_use" && block.name === tool.name,
     );
 
     if (call === undefined) {
@@ -356,7 +432,7 @@ export class BedrockModelClient implements ModelClient {
 
     // Parsed, never string-matched: models differ in how they escape JSON, and
     // the SDK has already decoded this into an object.
-    return call.input as ReadingToolInput;
+    return call.input;
   }
 
   #record(response: Anthropic.Message): void {

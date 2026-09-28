@@ -1,7 +1,7 @@
 # ADR-0148 — The interview is an AI asking, not a form read aloud: the CV first, the by-hand questions from the portal's own fields, the student's words kept, and a list confirmed and corrected entry by entry
 
 **Status:** Accepted · 2026-09-26 · supersedes ADR-0113 §4 (a CV may be read, as the separate decision that ADR said it would have to be) and keeps §1–§3 for the by-hand path · amends ADR-0092 (a second process that fetches a document after the gates: the CV reader) · continues 0004, 0007, 0111, 0112, 0140, 0146
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence; §11 in P233; §10 in part in P235–P238 (stage one of the CV path, and his signed determination); §1 and §9 in part in P239 (stage two: the CV read into its lists, proven against the deterministic client only). §2, §8, the rest of §1, §9 and §10 are decided and not built, in the order he set.
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-26. **Built in part:** §6–§7 in P230; §4 in P231; §3 in P232, with his sentence; §11 in P233; §10 in part in P235–P238 (stage one of the CV path, and his signed determination); §1 and §9 in part in P239 and P242 (stage two, and the first six hours of stage three: the cut as the model's line ranges, held by structure; proven against the deterministic client only). §2, §8, the rest of §1, §9 and §10 are decided and not built, in the order he set.
 
 ## Context
 
@@ -356,6 +356,24 @@ Reading parts out of prose rather than labelled lines, the deterministic path ke
 fixtures: about one hour. His run and what it changes: two hours held in reserve. The reader
 process and the proposals into the interview, entry by entry: six hours, as before. Records:
 one. Nothing after the first five is estimated to survive the measurement unchanged.
+
+**Stage three, the first six hours, as built (P242).** The cut is the model's, as line ranges:
+`ModelClient.segmentDocument` takes the document's lines, the section a heading found, and the
+entry's labels, and answers with one-based inclusive ranges — the Bedrock client through a tool
+whose schema cannot carry text, the stand-in through a rule that is crude but real (Vahid: *"we
+can at least see whether the pipeline downstream of the cut works without spending anything"*):
+the scope cut into blocks at blank lines and at labelled lines, a block with a date range an
+entry. The cut is held by the checks §9 named: a range outside the document refused, a pair that
+share a line both refused, the section's unclaimed lines and the entry lines outside it counted,
+a date-range count per entry as the merge detector — an entry with two is held back, named,
+never read as one — and the part reading as the split detector. And the failure he named: the
+cover letter found by its opening and closing, and every entry's lines inside it counted
+(*LETTER TEXT INSIDE THE ENTRY*). The list runner cuts through the model now; the label cutter
+survives only as the stand-in's second rule. The measurement prints the cut before the parts.
+Proven against the stand-in only, on a synthetic prose CV with a letter whose sentence carries
+a date range: the scoped cut finds the two jobs and the qualification; unscoped, it starts an
+entry inside the letter, and the detector says so. Whether the Bedrock client cuts a real CV
+well is what his `--live` run is for, and it needs credentials the page now describes.
 
 ## Deleting the confirmed values, sized and not decided
 
