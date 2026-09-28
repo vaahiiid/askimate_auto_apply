@@ -23,17 +23,14 @@
  * ListInferenceProfiles. It requests no model access, invokes no model, and
  * costs nothing.
  *
- * ── Two services answer to "Bedrock", and this lists the other one ────────
+ * ── This lists the service the client calls, and checks the configuration against it ──
  *
- * P243, row 101. The two `List` calls above are the InvokeModel service's
- * (`bedrock-runtime`; ids with `eu.`/`global.` prefixes and version suffixes).
- * The client (`packages/llm/src/bedrock.ts`) calls the Messages-API endpoint
- * ("Claude in Amazon Bedrock", `bedrock-mantle.<region>.api.aws`), which serves
- * a different model list under ids of the form `anthropic.<model>` and has no
- * list call of its own. On 2026-09-28 an id this script listed as ACTIVE was
- * handed to the client and the endpoint answered "does not exist". So the
- * script now says which service each section is about, and section 4 says
- * what the client calls and where its list lives.
+ * P243, row 101: two services answer to "Bedrock". This script's two `List`
+ * calls are the InvokeModel service's (`bedrock-runtime`); the client had been
+ * calling the other one, and an id listed here as ACTIVE was answered "does not
+ * exist" there. P244, on Vahid's word — *"verify-bedrock and the client must
+ * read the same list"* — the client calls the InvokeModel service, and section
+ * 4 checks each configured id against the lists just read, by identity.
  */
 
 import {
@@ -46,12 +43,11 @@ import {
 import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 
 import {
-  MESSAGES_API_MODELS_PAGE,
   MODEL_WORKLOADS,
   REGION_ENV_VAR,
   WORKLOAD_ENV_VARS,
-  mantleBaseURL,
-  modelIdShape,
+  bedrockRuntimeBaseURL,
+  listedAs,
   type ModelWorkload,
 } from "@askimate/aas-llm";
 
@@ -127,8 +123,8 @@ async function main(): Promise<void> {
   // ── What is available? ──────────────────────────────────────────────────
   heading("2 · Anthropic models this account can see — on the InvokeModel service (bedrock-runtime)");
   console.log(
-    `  ${DIM}This list and the next are the InvokeModel service's. The client calls a different\n` +
-      `  service; section 4 says which, and what that one takes.${RESET}\n`,
+    `  ${DIM}This list and the next are the InvokeModel service's, which is the service the client\n` +
+      `  calls (${bedrockRuntimeBaseURL(region)}). Section 4 checks the configuration against them.${RESET}\n`,
   );
 
   const bedrock = new BedrockClient({ region });
@@ -187,16 +183,17 @@ async function main(): Promise<void> {
     console.log(`    ${DIM}${profile.inferenceProfileName ?? ""} · ${profile.status ?? "?"}${RESET}`);
   }
 
-  // ── What the client actually calls ──────────────────────────────────────
-  heading("4 · What the client calls, and what that service takes");
+  // ── The configuration, against the lists just read ──────────────────────
+  heading("4 · What is configured, against the lists above");
   console.log(
-    `  ${BOLD}${mantleBaseURL(region)}${RESET}\n` +
-      `  ${DIM}The Messages-API endpoint ("Claude in Amazon Bedrock", signed for bedrock-mantle). It is\n` +
-      `  NOT the InvokeModel service sections 2 and 3 listed. Its ids are of the form anthropic.<model>,\n` +
-      `  with no eu./global. prefix and no version suffix, and it has no list call: what it serves is\n` +
-      `  read from the documentation, and proven only by a call.\n` +
-      `  ${MESSAGES_API_MODELS_PAGE}${RESET}\n`,
+    `  ${BOLD}${bedrockRuntimeBaseURL(region)}${RESET}\n` +
+      `  ${DIM}The client calls this — the InvokeModel service — so the two lists above are its list.\n` +
+      `  Each configured id is looked up in them by identity; nothing is inferred from its shape.${RESET}\n`,
   );
+  const listed = {
+    models: models.map((model) => model.modelId ?? "").filter((id) => id.length > 0),
+    profiles: profiles.map((profile) => profile.inferenceProfileId ?? "").filter((id) => id.length > 0),
+  };
   for (const workload of MODEL_WORKLOADS) {
     const variable = WORKLOAD_ENV_VARS[workload];
     const value = process.env[variable]?.trim();
@@ -204,13 +201,13 @@ async function main(): Promise<void> {
       console.log(`  ${DIM}·${RESET} ${variable} ${DIM}unset${RESET}`);
       continue;
     }
-    const shape = modelIdShape(value);
+    const where = listedAs(value, listed);
     const verdict =
-      shape === "invoke_model"
-        ? `${RED}✗${RESET} the shape of an InvokeModel id — the client's endpoint does not take these`
-        : shape === "messages_api"
-          ? `${AMBER}·${RESET} the documented shape — whether it is served is proven by a call, not here`
-          : `${AMBER}·${RESET} a shape this script does not recognise`;
+      where === "model"
+        ? `${GREEN}✓${RESET} listed in section 2 (a model this account can see)`
+        : where === "profile"
+          ? `${GREEN}✓${RESET} listed in section 3 (an inference profile this account can see)`
+          : `${RED}✗${RESET} NOT LISTED — the account returned no model and no profile with this id`;
     console.log(`  ${verdict}\n    ${DIM}${variable}=${value}${RESET}`);
   }
 
@@ -229,12 +226,12 @@ async function main(): Promise<void> {
   heading("6 · What to set once you have chosen");
 
   console.log(
-    `  ${DIM}Deliberately not filled in. Choose an id the client's endpoint documents (section 4)\n` +
-      `  against the criteria in section 5, then record the choice and the reasoning in ADR-0018.${RESET}\n`,
+    `  ${DIM}Deliberately not filled in. Choose from section 2/3 against the criteria in\n` +
+      `  section 5, then record the choice and the reasoning in ADR-0018.${RESET}\n`,
   );
   console.log(`  export ${REGION_ENV_VAR}=${region}`);
   for (const workload of MODEL_WORKLOADS) {
-    console.log(`  export ${WORKLOAD_ENV_VARS[workload]}=anthropic.<model>`);
+    console.log(`  export ${WORKLOAD_ENV_VARS[workload]}=<an id from section 2 or 3>`);
   }
 
   console.log(

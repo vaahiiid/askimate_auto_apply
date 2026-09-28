@@ -47,7 +47,7 @@
  * it safe.
  */
 
-import { AnthropicBedrockMantle } from "@anthropic-ai/bedrock-sdk";
+import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ModelText, ProposedValue } from "@askimate/aas-domain";
 import { modelText } from "@askimate/aas-domain";
@@ -190,23 +190,29 @@ export interface BedrockClientOptions {
  * CONFIGURATION, before the call, rather than the DESTINATION, after it. This
  * is the destination: the endpoint fixed at construction, and the URL of every
  * request that left the client, in order, whether or not a response came back.
+ *
+ * P244. The service is the InvokeModel one (`bedrock-runtime`), on his word:
+ * *"verify-bedrock and the client must read the same list."* It is the
+ * service whose models and inference profiles `verify-bedrock` lists, so an
+ * id it printed is an id this client can call; and its regional endpoint
+ * resolves to the region named, which the other Bedrock service could not be
+ * shown to do from London (ADR-0012, amended).
  */
 export interface BedrockDestination {
   /**
-   * The service, by the name it is signed for. `bedrock-mantle` is "Claude in
-   * Amazon Bedrock": the Messages-API endpoint, which is not the InvokeModel
-   * service (`bedrock-runtime`) that `verify-bedrock` lists models from.
+   * The service, by the name it is signed for: `bedrock-runtime`, the
+   * InvokeModel service, the one `verify-bedrock` lists models from.
    */
-  readonly service: "bedrock-mantle";
+  readonly service: "bedrock-runtime";
   /** Fixed from the region at construction. No environment variable moves it. */
   readonly baseURL: string;
   /** The URL of every request that left the client, in order — failed ones included. */
   readonly requests: readonly string[];
 }
 
-/** The Messages-API endpoint of Amazon Bedrock, in one region. */
-export function mantleBaseURL(region: string): string {
-  return `https://bedrock-mantle.${region}.api.aws/anthropic`;
+/** The InvokeModel endpoint of Amazon Bedrock, in one region. */
+export function bedrockRuntimeBaseURL(region: string): string {
+  return `https://bedrock-runtime.${region}.amazonaws.com`;
 }
 
 /**
@@ -217,7 +223,7 @@ export function mantleBaseURL(region: string): string {
  * `MeteredModelClient`, whose figures are deliberately approximate.
  */
 export class BedrockModelClient implements ModelClient {
-  readonly #client: AnthropicBedrockMantle;
+  readonly #client: AnthropicBedrock;
   readonly #config: BedrockConfig;
   readonly #maxTokens: number;
 
@@ -231,12 +237,12 @@ export class BedrockModelClient implements ModelClient {
     this.#config = options.config;
     this.#maxTokens = options.maxTokens ?? 2_048;
     const carry = options.fetch ?? globalThis.fetch;
-    this.#client = new AnthropicBedrockMantle({
+    this.#client = new AnthropicBedrock({
       awsRegion: options.config.region,
-      // Pinned. Left out, the SDK reads ANTHROPIC_BEDROCK_MANTLE_BASE_URL and a
-      // shell variable would move every student document this client carries
-      // to another host without a word (P243, row 101).
-      baseURL: mantleBaseURL(options.config.region),
+      // Pinned. Left out, the SDK reads ANTHROPIC_BEDROCK_BASE_URL and a shell
+      // variable would move every student document this client carries to
+      // another host without a word (P243, row 101).
+      baseURL: bedrockRuntimeBaseURL(options.config.region),
       // Recorded before it leaves, so a request that gets no answer is still on
       // the record: the failed call is the one whose destination is evidence.
       fetch: (input, init) => {
@@ -258,7 +264,7 @@ export class BedrockModelClient implements ModelClient {
 
   /** Where the requests go, and where they went. See `BedrockDestination`. */
   public get destination(): BedrockDestination {
-    return { service: "bedrock-mantle", baseURL: this.#client.baseURL, requests: [...this.#requests] };
+    return { service: "bedrock-runtime", baseURL: this.#client.baseURL, requests: [...this.#requests] };
   }
 
   public get region(): string {

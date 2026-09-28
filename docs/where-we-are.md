@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P244 — one service, one list, and London that resolves to London
+
+> *"verify-bedrock and the client must read the same list. … An endpoint whose routing we cannot
+> determine is not a place to send a student's CV."*
+
+His word, and the client follows it: the InvokeModel service, whose models and profiles are
+exactly what the verifier lists, so an id the verifier prints is an id the client calls, in the
+path of the request the record holds. The verifier now looks each configured id up in the lists
+it has just read and says listed or not listed, by identity, inferring nothing from a shape. The
+residency reasoning is in ADR-0012 in his words: London means the request resolves there, or to a
+profile that names the EU, not an address that carries the name. Two more scripts printed raw
+colour codes as text; every script that prints a colour was swept. Nothing was called from here.
+The measurement is his to run, with `eu.anthropic.claude-sonnet-4-6`.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P243 — the request went to Bedrock, with the other Bedrock's id
 
 > *"The banner should name what it actually called, after the call rather than before it."*

@@ -8,10 +8,10 @@ import {
   WORKLOAD_ENV_VARS,
   bedrockConfigFrom,
   isBedrockConfigured,
-  modelIdShape,
+  listedAs,
 } from "./bedrock-config.js";
 import { clampConfidence, toProposal } from "./bedrock-reading.js";
-import { BedrockModelClient, mantleBaseURL } from "./bedrock.js";
+import { BedrockModelClient, bedrockRuntimeBaseURL } from "./bedrock.js";
 import { isNotUnderstood } from "./client.js";
 
 const COMPLETE_ENV = {
@@ -201,7 +201,7 @@ describe("confidence from a model that misbehaves", () => {
   });
 });
 
-// ── Where the client's requests actually go (P243, row 101) ──────────────
+// ── Where the client's requests actually go (P243, row 101; P244) ────────
 //
 // Vahid's `--live` run of 2026-09-28 printed "LIVE — Amazon Bedrock, eu-west-2"
 // and then a 404 in the Claude API's own error shape, with a `req_…` id. His
@@ -209,6 +209,10 @@ describe("confidence from a model that misbehaves", () => {
 // tests here hold two things: no environment variable can move the destination,
 // and the client can say, AFTER a call, what it actually called — including a
 // call that failed, because that is the one whose destination matters.
+//
+// P244, on his word: the service is the InvokeModel one, `bedrock-runtime`,
+// the one `verify-bedrock` lists — *"verify-bedrock and the client must read
+// the same list."*
 
 const CONFIG = {
   region: "eu-west-2",
@@ -239,7 +243,7 @@ function recordingFetch(seen: string[], body: unknown, status: number): typeof g
 describe("where the Bedrock client's requests go (P243)", () => {
   const saved: Record<string, string | undefined> = {};
   beforeEach(() => {
-    for (const name of ["ANTHROPIC_BEDROCK_MANTLE_BASE_URL", "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]) {
+    for (const name of ["ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_BEDROCK_MANTLE_BASE_URL", "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]) {
       saved[name] = process.env[name];
     }
     // Signing needs a credential; these are not credentials of anything. No
@@ -255,22 +259,23 @@ describe("where the Bedrock client's requests go (P243)", () => {
     }
   });
 
-  it("is built for the Messages-API endpoint of Amazon Bedrock, in the configured region", () => {
+  it("is built for the InvokeModel service of Amazon Bedrock, in the configured region — the service verify-bedrock lists", () => {
     const client = new BedrockModelClient({ config: CONFIG });
-    expect(client.destination.service).toBe("bedrock-mantle");
-    expect(client.destination.baseURL).toBe("https://bedrock-mantle.eu-west-2.api.aws/anthropic");
-    expect(mantleBaseURL("us-east-1")).toBe("https://bedrock-mantle.us-east-1.api.aws/anthropic");
+    expect(client.destination.service).toBe("bedrock-runtime");
+    expect(client.destination.baseURL).toBe("https://bedrock-runtime.eu-west-2.amazonaws.com");
+    expect(bedrockRuntimeBaseURL("us-east-1")).toBe("https://bedrock-runtime.us-east-1.amazonaws.com");
     // Nothing has been called: the record says so rather than the banner guessing.
     expect(client.destination.requests).toEqual([]);
   });
 
   it("CANNOT be moved by an environment variable — his first guess, closed", () => {
-    // The SDK reads this variable when no base URL is given. The client gives one.
+    // The SDK reads the first of these when no base URL is given. The client gives one.
+    process.env["ANTHROPIC_BEDROCK_BASE_URL"] = "https://api.anthropic.com";
     process.env["ANTHROPIC_BEDROCK_MANTLE_BASE_URL"] = "https://api.anthropic.com";
     process.env["ANTHROPIC_BASE_URL"] = "https://api.anthropic.com";
     process.env["ANTHROPIC_API_KEY"] = "sk-ant-not-real";
     const client = new BedrockModelClient({ config: CONFIG });
-    expect(client.destination.baseURL).toBe("https://bedrock-mantle.eu-west-2.api.aws/anthropic");
+    expect(client.destination.baseURL).toBe("https://bedrock-runtime.eu-west-2.amazonaws.com");
   });
 
   it("records what it actually called, after the call, INCLUDING a call that failed", async () => {
@@ -287,34 +292,53 @@ describe("where the Bedrock client's requests go (P243)", () => {
       }),
     ).rejects.toThrow(/does not exist/);
 
-    // The request left the client and went where it was built to go — and the
-    // record survives the failure, which is the one time it is evidence.
-    expect(seen).toEqual(["https://bedrock-mantle.eu-west-2.api.aws/anthropic/v1/messages"]);
+    // The request left the client and went where it was built to go — the
+    // InvokeModel path, with the model id in it — and the record survives the
+    // failure, which is the one time it is evidence.
+    expect(seen).toEqual(["https://bedrock-runtime.eu-west-2.amazonaws.com/model/some-model/invoke"]);
     expect(client.destination.requests).toEqual(seen);
     // No response was counted: usage says what came back, the record says what went out.
     expect(client.usage.calls).toBe(0);
   });
+
+  it("puts the configured id in the path, so the id verify-bedrock listed is the id called", async () => {
+    const seen: string[] = [];
+    const config = { ...CONFIG, models: { ...CONFIG.models, document_extraction: "eu.anthropic.claude-sonnet-4-6" } };
+    const client = new BedrockModelClient({ config, fetch: recordingFetch(seen, NOT_FOUND, 404) });
+    await expect(
+      client.extractFromDocument({
+        documentId: "doc-1",
+        documentType: "cv",
+        fieldKey: "employment.history",
+        documentText: "text",
+        hint: "h",
+        labels: ["L"],
+        expectedShape: "s",
+        parse: (text: string) => text,
+        requireVerbatimSpan: true,
+      }),
+    ).rejects.toThrow();
+    expect(seen).toEqual(["https://bedrock-runtime.eu-west-2.amazonaws.com/model/eu.anthropic.claude-sonnet-4-6/invoke"]);
+  });
 });
 
-describe("the shape of a model id, as a fact about the string (P243)", () => {
-  it("knows an InvokeModel inference profile or versioned id when it sees one", () => {
-    expect(modelIdShape("eu.anthropic.claude-sonnet-4-6")).toBe("invoke_model");
-    expect(modelIdShape("global.anthropic.claude-opus-4-6-v1")).toBe("invoke_model");
-    expect(modelIdShape("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("invoke_model");
-    expect(modelIdShape("arn:aws:bedrock:eu-west-2:123456789012:inference-profile/eu.anthropic.claude-sonnet-4-6")).toBe("invoke_model");
+describe("a configured id against the list the account returned (P244)", () => {
+  // His words: "verify-bedrock and the client must read the same list." The
+  // check is identity against the two lists the account itself gave back.
+  const LISTED = {
+    models: ["anthropic.claude-sonnet-4-6", "anthropic.claude-haiku-4-5-20251001-v1:0"],
+    profiles: ["eu.anthropic.claude-sonnet-4-6", "global.anthropic.claude-sonnet-4-6"],
+  };
+
+  it("says which list carries the id", () => {
+    expect(listedAs("eu.anthropic.claude-sonnet-4-6", LISTED)).toBe("profile");
+    expect(listedAs("anthropic.claude-sonnet-4-6", LISTED)).toBe("model");
+    expect(listedAs(" eu.anthropic.claude-sonnet-4-6 ", LISTED)).toBe("profile");
   });
 
-  it("knows the form the Messages-API endpoint documents — and says nothing about whether it is served", () => {
-    expect(modelIdShape("anthropic.claude-sonnet-5")).toBe("messages_api");
-    expect(modelIdShape("anthropic.claude-haiku-4-5")).toBe("messages_api");
-    // His second try. The shape is the documented one; the endpoint still answered 404.
-    // A shape is not availability, and the label must not claim it is.
-    expect(modelIdShape("anthropic.claude-sonnet-4-6")).toBe("messages_api");
-  });
-
-  it("labels nothing it does not recognise", () => {
-    expect(modelIdShape("claude-sonnet-5")).toBe("unknown");
-    expect(modelIdShape("some-model")).toBe("unknown");
-    expect(modelIdShape("")).toBe("unknown");
+  it("says NOT LISTED for anything the account did not return — and infers nothing from a shape", () => {
+    expect(listedAs("anthropic.claude-sonnet-5", LISTED)).toBe("not_listed");
+    expect(listedAs("us.anthropic.claude-sonnet-4-6", LISTED)).toBe("not_listed");
+    expect(listedAs("", LISTED)).toBe("not_listed");
   });
 });

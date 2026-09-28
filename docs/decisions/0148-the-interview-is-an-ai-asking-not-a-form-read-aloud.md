@@ -383,7 +383,9 @@ api.anthropic.com; but the id came from `verify-bedrock`, which lists the *other
 (InvokeModel), whose ids the Messages-API endpoint does not take. ADR-0018 carries the amendment.
 The measurement waits on his choice of an id that endpoint serves, or of the other service; the
 banner now names nothing before the call and the record of what was called is printed after it,
-on the failure path as well.
+on the failure path as well. **Decided in P244, his words:** the InvokeModel service, so the
+verifier and the client read one list (ADR-0018), and London that resolves to London (ADR-0012);
+the measurement runs with `eu.anthropic.claude-sonnet-4-6`, and it is his run.
 
 ## Deleting the confirmed values, sized and not decided
 

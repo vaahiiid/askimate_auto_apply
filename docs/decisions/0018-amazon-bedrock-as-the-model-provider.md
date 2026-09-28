@@ -1,8 +1,9 @@
 # ADR-0018 — Amazon Bedrock is the model provider, and no model is named yet
 
 **Status:** **Accepted** — Vahid's decision, 2026-08-26. **Amended 2026-09-28 (P243, row 101):** two
-AWS services answer to "Bedrock"; the client calls one and the verify script listed the other. See
-the last section.
+AWS services answer to "Bedrock"; the client called one and the verify script listed the other.
+**Decided 2026-09-28 (P244), in his words:** the client calls the InvokeModel service, the one the
+verify script lists. See the last two sections.
 **Depends on:** [ADR-0004](./0004-branded-types-for-confirmed-values.md),
 [ADR-0012](./0012-aws-region-eu-west-2.md), [ADR-0016](./0016-extraction-must-quote-the-document.md)
 
@@ -194,3 +195,39 @@ serves in eu-west-2, or the client moved to the other service. The two ways:
 
 Neither is taken here. The choice of model was his in this ADR from the start, and the choice of
 service is the same choice.
+
+## Decided 2026-09-28 (P244): the InvokeModel service, so the verifier and the client read one list
+
+Vahid, 2026-09-28, in his words:
+
+> *"Option two. Move the client to the InvokeModel service. verify-bedrock and the client must
+> read the same list. Today one verifies against a service the other never calls, and that
+> produced three wrong guesses from me in a row."*
+
+And on residency, recorded in ADR-0012's amendment: *"An endpoint whose routing we cannot determine
+is not a place to send a student's CV."*
+
+**What changed.** `packages/llm/src/bedrock.ts` builds `AnthropicBedrock` — the InvokeModel client
+from the same package — with the base URL pinned from the region to
+`https://bedrock-runtime.{region}.amazonaws.com`. The request the SDK sends is the same Messages
+request the client always built (system rules, strict tool, forced tool choice, an explicit cache
+breakpoint on the document), rewritten by the SDK onto `/model/{id}/invoke`, so the configured id
+is in the path of every request the destination record holds. Strict tool use and explicit cache
+breakpoints are documented as available on this service; automatic caching is not, and was never
+relied on. `BedrockDestination.service` is `bedrock-runtime`. `ANTHROPIC_BEDROCK_BASE_URL` is the
+variable this client would have read; the pin closes it the way P243 closed the other.
+
+**One list.** `verify-bedrock`'s two calls, `ListFoundationModels` and `ListInferenceProfiles`, are
+this service's own lists. Its section 4 now looks each configured `AAS_BEDROCK_MODEL_*` up in the
+two lists it has just read, by identity — *listed in section 2*, *listed in section 3*, or *NOT
+LISTED — the account returned no model and no profile with this id* — and infers nothing from an
+id's shape. The shape classifier of P243 is gone: it labelled ids by which service documents them,
+and with one service there is nothing for it to say.
+
+**The first configuration, his:** `eu.anthropic.claude-sonnet-4-6` for the measurement — the EU
+inference profile of Sonnet 4.6, which the account lists as ACTIVE and which names the EU in its
+id. Set for `document_extraction`; the other three workloads carry the same id until each is
+chosen against §4 of the verify script's output, as this ADR has always said.
+
+**Not proven here.** No call left this environment. The first `--live` run against this service is
+his, and it is what shows the request shape accepted and the id served.

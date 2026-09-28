@@ -29,12 +29,12 @@ import {
   recordDocument,
 } from "@askimate/aas-interview";
 
-const DIM = "[2m";
-const BOLD = "[1m";
-const BLUE = "[36m";
-const GREEN = "[32m";
-const AMBER = "[33m";
-const RESET = "[0m";
+const DIM = "\u001b[2m";
+const BOLD = "\u001b[1m";
+const BLUE = "\u001b[36m";
+const GREEN = "\u001b[32m";
+const AMBER = "\u001b[33m";
+const RESET = "\u001b[0m";
 
 const NOW = new Date("2026-08-26T12:00:00Z");
 

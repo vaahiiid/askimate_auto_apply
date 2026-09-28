@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.240.0] — 2026-09-28
+
+**P244 — the client moved to the InvokeModel service on Vahid's word, so the verifier and the client read one list; the residency reasoning recorded (ADR-0012 and ADR-0018 amended; row 101 closed).**
+
+- **Changed** `BedrockModelClient` to build the InvokeModel client (`bedrock-runtime`), base URL
+  pinned from the region against `ANTHROPIC_BEDROCK_BASE_URL`; the configured id is in the path of
+  every request the destination record holds. The request shape is unchanged.
+- **Changed** `verify-bedrock` section 4 to look each configured `AAS_BEDROCK_MODEL_*` up in the two
+  lists it has just read, by identity: listed in 2, listed in 3, or NOT LISTED. `listedAs` replaces
+  the P243 shape classifier, which had nothing to say once there was one service.
+- **Fixed** two more scripts printing raw colour codes as text, `interview-demo` and
+  `inspect-discovery`; every script that prints a colour was swept.
+- **Changed** `docs/measure-cv-reading.md`: one service, one list, the permissions back to
+  `bedrock:InvokeModel`, and the first run's id.
+
+---
+
 ## [0.239.0] — 2026-09-28
 
 **P243 — his `--live` run reached Bedrock's Messages-API endpoint with the other Bedrock service's id; the banner had named the configuration as the destination (row 101, ADR-0018 amended).**

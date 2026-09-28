@@ -31,12 +31,12 @@ import { authenticationQuestions } from "@askimate/aas-account";
 import type { ApplicationBlueprint, BlueprintField } from "@askimate/aas-blueprint";
 import { allFields, allRequiredDocuments, checkExecutable } from "@askimate/aas-blueprint";
 
-const DIM = "[2m";
-const BOLD = "[1m";
-const GREEN = "[32m";
-const AMBER = "[33m";
-const RED = "[31m";
-const RESET = "[0m";
+const DIM = "\u001b[2m";
+const BOLD = "\u001b[1m";
+const GREEN = "\u001b[32m";
+const AMBER = "\u001b[33m";
+const RED = "\u001b[31m";
+const RESET = "\u001b[0m";
 
 /**
  * A signal the discovery run recorded, carried alongside the blueprint.

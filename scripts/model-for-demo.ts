@@ -28,12 +28,10 @@
 import {
   BedrockModelClient,
   DeterministicModelClient,
-  MESSAGES_API_MODELS_PAGE,
   MODEL_WORKLOADS,
   WORKLOAD_ENV_VARS,
   bedrockConfigFrom,
   isBedrockConfigured,
-  modelIdShape,
   type ModelClient,
 } from "@askimate/aas-llm";
 
@@ -52,25 +50,6 @@ export interface DemoModel {
    * `destinationLine` says it then (P243, row 101).
    */
   readonly description: string;
-}
-
-/**
- * One line per configured model id whose SHAPE belongs to the other service,
- * printed before the call so the answer "does not exist" is not the first word.
- * A shape is a fact about the string; it says nothing about what is served.
- */
-export function shapeWarnings(models: Readonly<Record<string, string>>): readonly string[] {
-  const out: string[] = [];
-  for (const [workload, id] of Object.entries(models)) {
-    if (modelIdShape(id) === "invoke_model") {
-      out.push(
-        `${AMBER}  ${workload}: "${id}" has the shape of an InvokeModel id — an inference-profile prefix, ` +
-          `a version suffix or an ARN — which is the service verify-bedrock lists, not the one this ` +
-          `client calls. The Messages-API endpoint documents ids of the form anthropic.<model> only:\n  ${MESSAGES_API_MODELS_PAGE}${RESET}`,
-      );
-    }
-  }
-  return out;
 }
 
 /**
@@ -114,14 +93,11 @@ export function demoModel(argv: readonly string[] = process.argv): DemoModel {
     live: true,
     description:
       `${AMBER}LIVE${RESET} — nothing has been called yet. Configured: region ${config.region}; ` +
-      `the client is built for the Messages-API endpoint of Amazon Bedrock (${client.destination.baseURL}). ` +
-      `What it actually called is printed after the run.\n` +
+      `the client is built for the InvokeModel service of Amazon Bedrock (${client.destination.baseURL}), ` +
+      `the service verify-bedrock lists. What it actually called is printed after the run.\n` +
       MODEL_WORKLOADS.map(
         (workload) => `${DIM}  ${workload.padEnd(20)} ${config.models[workload]}${RESET}`,
-      ).join("\n") +
-      shapeWarnings(config.models)
-        .map((line) => `\n${line}`)
-        .join(""),
+      ).join("\n"),
   };
 }
 
@@ -151,6 +127,6 @@ export function destinationLine(model: DemoModel): string {
   const distinct = [...new Set(requests)];
   return (
     `${String(requests.length)} request(s) went to ${distinct.join(", ")} ` +
-    `${DIM}(service ${service} — "Claude in Amazon Bedrock", the Messages-API endpoint; the record, not the configuration)${RESET}`
+    `${DIM}(service ${service} — the InvokeModel service, the one verify-bedrock lists; the record, not the configuration)${RESET}`
   );
 }

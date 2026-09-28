@@ -38,13 +38,13 @@ ADR status uses exactly that vocabulary:
 | [0009](./0009-requirements-provenance-and-verification.md) | Requirements provenance and multi-source verification | Accepted |
 | [0010](./0010-policy-driven-document-retention.md) | Policy-driven document retention, with no default | Accepted |
 | [0011](./0011-minor-detection-and-the-minor-workflow.md) | Identity check, minor detection, and the minor workflow | Accepted |
-| [0012](./0012-aws-region-eu-west-2.md) | AWS region — eu-west-2 (London) | Accepted |
+| [0012](./0012-aws-region-eu-west-2.md) | AWS region — eu-west-2 (London) | Accepted; amended 2026-09-28 (P244: the model endpoint must resolve to London, not merely be addressed there) |
 | [0013](./0013-minor-is-not-a-blocker.md) | Minor is not a blocker; minor conditions are stage-scoped | Accepted |
 | [0014](./0014-discovery-cannot-submit.md) | Discovery is structurally incapable of submitting | Accepted |
 | [0015](./0015-interview-is-a-capability-of-askimate-chat.md) | The interview is a capability of AskiMate Chat, not a new interface | Accepted |
 | [0016](./0016-extraction-must-quote-the-document.md) | An extracted value must quote the document, or it is discarded | Accepted |
 | [0017](./0017-mapping-is-reviewed-data.md) | Field mapping is reviewed data, and format rules are data too | Accepted |
-| [0018](./0018-amazon-bedrock-as-the-model-provider.md) | Amazon Bedrock is the model provider, and no model is named yet | Accepted; amended 2026-09-28 (P243: two services answer to "Bedrock" — the client calls the Messages-API endpoint, the verifier listed the other) |
+| [0018](./0018-amazon-bedrock-as-the-model-provider.md) | Amazon Bedrock is the model provider, and no model is named yet | Accepted; amended 2026-09-28 (P243: two services answer to "Bedrock"); decided 2026-09-28 in his words (P244: the client calls the InvokeModel service, the one the verifier lists) |
 | [0019](./0019-requirements-curation-ownership.md) | A human specialist curates requirements, through the AskiMate knowledge workflow | Accepted |
 | [0020](./0020-the-account-belongs-to-the-student.md) | The account belongs to the student, and control is handed back | Accepted |
 | [0021](./0021-application-requirements-are-not-visa-requirements.md) | University application requirements are not Student visa requirements | Accepted · reasoning amended by 0080 |

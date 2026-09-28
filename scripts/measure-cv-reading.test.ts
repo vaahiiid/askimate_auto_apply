@@ -68,9 +68,7 @@ describe("the published command, spawned the way Vahid runs it (P240)", () => {
     });
     expect(failed.code).toBe(1);
     expect(failed.out).toContain("nothing has been called yet");
-    // The id he tried first, flagged before the run by its shape — not by a call.
-    expect(failed.out).toContain("has the shape of an InvokeModel id");
-    expect(failed.out).toContain("called: No request left the client (built for https://bedrock-mantle.eu-west-2.api.aws/anthropic, service bedrock-mantle)");
+    expect(failed.out).toContain("called: No request left the client (built for https://bedrock-runtime.eu-west-2.amazonaws.com, service bedrock-runtime)");
     expect(failed.out).toContain("usage: 0 call(s)");
     expect(failed.out).toContain("no-such-cv.pdf");
   }, 60_000);
