@@ -75,10 +75,20 @@ since P242 the CUT comes first, because that is what stage three depends on:
   number — its **date-range count** (two reads *TWO ENTRIES CUT AS ONE?*: the merge detector), and
   **LETTER TEXT INSIDE THE ENTRY** with the count of lines where the cut put the letter into a job
   — the failure named rather than discovered;
-- then, inside each entry, stage two's reading: the parts read, missing, ungrounded (with the
-  span's length), not reached, and why the entry was dropped.
+- then, inside each entry, the reading: the parts **read**, **missing from the document**, **read
+  but not that value** (real text the plan's parser refused — "BSc" for a level), **the student's
+  to state** (never asked of the document, ADR-0149), and **would ask** — what the interview asks
+  for this entry, in the plan's order. An entry is COMPLETE when every document part read,
+  INCOMPLETE when the interview has something to ask, DROPPED for an invented span or two date
+  ranges cut as one. On a real CV the qualifications read *would ask: countryCode* and nothing
+  else: that is the end state (P246).
 
 Then the provider's own usage figures.
+
+The same reading runs in production through `apps/cv-reader` (ADR-0092 as amended, P246): the
+process claims a confirmed CV from the plane, fetches it once, reads it exactly as this script
+does, and reports what the document gave; the plane seeds the interview from the report, and the
+interview asks only *would ask*. This script is the measurement; the reader is the deployment.
 
 Without `--live`, the cut is the stand-in's — crude but real: the scope is cut into blocks at
 blank lines and at labelled lines, and a block that carries a date range ("Sep 2019 – Aug 2021",

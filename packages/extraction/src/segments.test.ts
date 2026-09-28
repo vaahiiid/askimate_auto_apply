@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { ModelClient, Segmentation, SegmentationRequest } from "@askimate/aas-llm";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 
-import { extractDocument } from "./extract.js";
+import { readListEntries } from "./extract.js";
 import { planFor } from "./plans.js";
 import type { ListTarget } from "./plans.js";
 import { sectionRangeOf } from "./sections.js";
@@ -93,10 +93,10 @@ describe("the cut held by structure: the checks and the two detectors", () => {
     const merged = cuttingAs([{ from: 16, to: 22 }]);
     const cut = await cutDocument(target("employment.history"), text, merged);
     expect(cut.entries[0]?.dateRanges).toBe(2);
-    const report = await extractDocument(text, merged);
-    const held = report?.outcomes.find((o) => o.targetKey === "employment.history[1]");
-    expect(held?.kind).toBe("not_found");
-    expect(held?.kind === "not_found" ? held.reason : "").toContain("2 date ranges");
+    const reading = await readListEntries(target("employment.history"), text, merged);
+    expect(reading.entries[0]?.dropped).toContain("2 date ranges");
+    expect(reading.entries[0]?.fields, "held back: nothing of it is offered").toEqual({});
+    expect(reading.entries[0]?.parts.every((part) => part.status === "skipped"), "and nothing of it is read").toBe(true);
   });
 
   it("finds the cover letter by its opening and closing, and names letter text inside a job's range", async () => {

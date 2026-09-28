@@ -33,6 +33,7 @@ export type {
   ExtractionTarget,
   ListEntryPart,
   ListTarget,
+  PartSource,
   ScalarTarget,
 } from "./plans.js";
 export {

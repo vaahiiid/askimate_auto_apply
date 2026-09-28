@@ -284,6 +284,28 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)
 
+  apps/cv-reader:
+    dependencies:
+      '@askimate/aas-config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@askimate/aas-domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@askimate/aas-extraction':
+        specifier: workspace:*
+        version: link:../../packages/extraction
+      '@askimate/aas-llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
   apps/secure-filler:
     dependencies:
       '@askimate/aas-blueprint':

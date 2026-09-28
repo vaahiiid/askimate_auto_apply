@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.242.0] — 2026-09-28
+
+**P246 — the CV reader: the second process that fetches a document (ADR-0092 as amended), the source flag of ADR-0149 inside it, and the interview seeded from what the document gave.**
+
+- **Added** `apps/cv-reader`: claims one CV from the plane, fetches it once through a sixty-second
+  URL, refuses a hash mismatch, reads it through the real extractors and the model ADR-0018 names,
+  reports what the document gave, keeps nothing. Its configuration refuses every database URL, the
+  KMS key, the envelope cache and the bucket; the boundary check forbids it the vault, the case
+  store, the secrets, `pg` and a browser.
+- **Added** the reader's contract: `ClaimedReading`, `ReadingReport`, their parsers and bounds
+  (values and their words only, a few lines each); two internal routes and their OpenAPI entries;
+  the `AAS_SERVICE_CERT_READER` certificate on the conversation service.
+- **Added** `document_readings` (migration 0030) and its store: asked for by the confirm route when
+  a CV's bytes are in the bucket; the claim runs the storage gate and mints the retrieval; a lapsed
+  lease is handed on; a report from a lease not held is refused.
+- **Changed** the driver to seed the interview's walk from a report: `value_part_read` events with
+  the document as origin and the span as words, `any` yes, `another` yes for every entry but the
+  last; a field already begun or confirmed is left alone.
+- **Changed** the extraction plan: every list part carries `source` and its own `parse`; a
+  `student` part is never in a request; a missing or unparsed part is asked, never a reason to
+  drop; lists are no longer part of `extractDocument`'s report — `readListEntries` is the list
+  API. `measure-cv` prints what the interview *would ask* per entry.
+
+---
+
 ## [0.241.0] — 2026-09-28
 
 **P245 — ADR-0149: some parts are the student's to state, and grounding catches invention, not inference; a section ends at the letter that follows it, guarded.**

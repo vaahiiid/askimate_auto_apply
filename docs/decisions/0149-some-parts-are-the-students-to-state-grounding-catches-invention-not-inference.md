@@ -91,9 +91,13 @@ Nothing is re-marked by inference here either.
 The source on every plan part, the reader that skips a `student` part, and the incomplete entry
 that arrives with what the document gave and asks for the rest: built inside the reader process
 of stage three (ADR-0148 §9), not before it, because an incomplete entry with nothing to carry it
-into the interview would be produced by nothing and consumed by nothing. Until then the CV plan
-still drops such entries, and the measurement says so entry by entry. The rule is in force from
-this ADR's date; the code follows in the phase that gives it something to act on.
+into the interview would be produced by nothing and consumed by nothing. **Built in P246:** every
+part of a list plan carries `source`; `readListEntries` builds no request for a `student` part and
+drops no entry for a missing one; the CV reader names such parts in `toAsk`; the plane seeds the
+interview's walk with what the document gave and the interview asks the rest. A test holds the
+boundary before the model: a client that records every part it is asked for is never asked for
+the country of a qualification or the basis of a job, even off a fixture that prints them (red
+before the flag, green after).
 
 ## Consequences
 

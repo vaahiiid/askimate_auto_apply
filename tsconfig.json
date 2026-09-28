@@ -30,6 +30,7 @@
     { "path": "./apps/secure-service" },
     { "path": "./apps/secure-filler" },
     { "path": "./apps/browser-runner" },
+    { "path": "./apps/cv-reader" },
     { "path": "./apps/worker" },
     { "path": "./tsconfig.tools.json" }
   ]

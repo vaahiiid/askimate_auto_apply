@@ -403,6 +403,33 @@ const RULES: readonly Rule[] = [
       "APM names are the usual list.",
   },
   {
+    packagePath: "apps/cv-reader",
+    forbidden: [
+      // ADR-0092 as amended by ADR-0148 §9: the second process that fetches
+      // a student's document. It holds a URL for a minute, never a key, and
+      // reaches no database, no vault and no browser. `@askimate/aas-extraction`
+      // and `@askimate/aas-llm` ARE permitted — reading is what it is for —
+      // and `@askimate/aas-documents` is not: the vault's shape is the plane's.
+      "@askimate/aas-documents",
+      "@askimate/aas-case-store",
+      "@askimate/aas-orchestrator",
+      "@askimate/aas-secrets",
+      "@askimate/aas-profile",
+      "@askimate/aas-interview",
+      "@aws-sdk/client-s3",
+      "@aws-sdk/client-kms",
+      "@aws-sdk/client-secrets-manager",
+      "pg",
+      "drizzle-orm",
+      "playwright",
+      "express",
+    ],
+    rationale:
+      "The CV reader fetches one document through a pre-signed GET, reads it and forgets it (ADR-0148 §9). " +
+      "A process that holds students' CVs in memory must be unable to reach a database, a vault, a " +
+      "secret or a browser, so that a compromise of it is a compromise of one document for one minute.",
+  },
+  {
     packagePath: "apps/browser-runner",
     forbidden: [
       "@askimate/aas-case-store",

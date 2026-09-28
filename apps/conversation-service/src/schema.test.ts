@@ -150,6 +150,7 @@ beforeAll(async () => {
     "0027_a_two_way_answer_is_offered",
     "0028_a_date_confirmed_through_the_log_is_a_date",
     "0029_the_portal_demands_a_part",
+    "0030_a_document_is_read_by_the_reader",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -1183,6 +1184,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0027_a_two_way_answer_is_offered",
         "0028_a_date_confirmed_through_the_log_is_a_date",
         "0029_the_portal_demands_a_part",
+        "0030_a_document_is_read_by_the_reader",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1231,7 +1233,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       );
       expect(tagged.rowCount).toBe(1);
 
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part", "0030_a_document_is_read_by_the_reader"]);
       const after = await fresh.query<{ field_key: string; value: unknown }>(
         "SELECT field_key, value FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
         [id],
@@ -1309,6 +1311,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0027_a_two_way_answer_is_offered",
     "0028_a_date_confirmed_through_the_log_is_a_date",
     "0029_the_portal_demands_a_part",
+    "0030_a_document_is_read_by_the_reader",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

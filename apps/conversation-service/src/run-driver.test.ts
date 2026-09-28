@@ -107,6 +107,7 @@ import { RunSessionStore } from "./session-store.js";
 import { PortalConsentStore } from "./consent-store.js";
 import { TransmissionStore } from "./transmission-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
+import { PostgresDocumentReadingStore } from "./document-reading-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
@@ -426,6 +427,10 @@ function buildInstance(
     // ADR-0099: the register the disclosure determination is read from, and
     // a vault that mints a retrieval URL OFFLINE — the SDK signs, the client
     // never sends — over the same metadata store.
+    // ADR-0148 §9, P246: which CV waits to be read. Present in every
+    // instance, so a claim answering "nothing waits" and the claim path not
+    // existing do not look alike.
+    readings: new PostgresDocumentReadingStore(instancePool),
     disclosure: {
       register: b2Register(NOW),
       vault: vault ?? new S3DocumentVault({
@@ -7154,7 +7159,7 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
     // (ADR-0078, ADR-0087), the transport was built (ADR-0090), the bytes go
     // from the browser to the bucket and never enter this process (ADR-0092),
     // and P61 made the METADATA durable here (ADR-0094). So the schema now
-    // names documents — exactly two tables — and what survives of the
+    // names documents — a few tables — and what survives of the
     // original assertion is the half that was always the point: nothing in
     // this database can hold a document's contents.
     const tables = await pool.query<{ table_name: string }>(
@@ -7164,8 +7169,12 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
     );
     // `document_transmissions` (P73) is the audit record of what LEFT —
     // identifiers and a hash — and is held to the same rule below.
+    // `document_readings` (P246) is which CV waits for the reader and how
+    // its reading ended — a lease and a closed word — and is held to the
+    // same rule below.
     expect(tables.rows.map((r) => r.table_name)).toEqual([
       "document_intakes",
+      "document_readings",
       "document_transmissions",
       "documents",
     ]);
@@ -7179,7 +7188,7 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
     const contents = await pool.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND table_name IN ('documents', 'document_intakes', 'document_transmissions')
+          AND table_name IN ('documents', 'document_intakes', 'document_readings', 'document_transmissions')
           AND column_name NOT IN ('content_hash', 'content_type')
           AND (column_name ILIKE '%content%' OR column_name ILIKE '%body%' OR column_name ILIKE '%bytes')`,
     );
@@ -14457,4 +14466,221 @@ describeIfDatabase("a message about deletion never reaches the interview as an a
     const said = await say("12 Valiasr Street");
     expect(said.at(-1)?.toLowerCase()).toContain("second line");
   }, 120_000);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The CV reader's side of the plane (ADR-0148 §9, ADR-0149, P246)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Vahid's end state, 2026-09-28: *"the measurement run that proves it is the
+// same one — my CV, live — ending with three qualifications asking for their
+// country and nothing else."* This is that end state with one qualification
+// and the stand-in: the reader's report seeds the walk, the interview asks
+// for the country and nothing else, and plays the qualification back.
+
+const QUALIFICATIONS_REQUIRED: CatalogueEntry = {
+  ...ENTRY,
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.fieldRef === "email"
+        ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: { kind: "text" as const } } }
+        : mapping,
+    ),
+  },
+};
+
+describeIfDatabase("a CV read by the reader seeds the interview, which asks only what the document did not give (P246)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX24601";
+  const documentId = "01JQDOCREAD000000000000001";
+  const contentHash = "d".repeat(64);
+  let owner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+  let leaseId = "";
+
+  /** The deletion tests' fake vault, with a retrieval the reader can be handed. */
+  function readingVault(records: DocumentRecord[]): DocumentVault & { readonly records: DocumentRecord[] } {
+    const base = fakeVault(records);
+    return {
+      ...base,
+      records: base.records,
+      prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }),
+    };
+  }
+
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function partsRead(): Promise<readonly { part: string | null; proposal: unknown }[]> {
+    const rows = await pool.query<{ part_key: string | null; proposal: unknown }>(
+      "SELECT part_key, proposal FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_read' ORDER BY ordinal ASC",
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ part: row.part_key, proposal: row.proposal }));
+  }
+  async function askedCount(): Promise<number> {
+    return Number((await pool.query<{ n: string }>("SELECT count(*) AS n FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_asked'", [conversation])).rows[0]?.n ?? 0);
+  }
+
+  const REPORT_FIELDS = {
+    awardTitle: "BSc",
+    subject: "Computer science",
+    institution: "University of Tehran",
+    level: "Bachelor's degree",
+    start: { year: 2015, month: 9 },
+    end: { kind: "completed", date: { year: 2019, month: 6 } },
+    grade: "17.2",
+    gradeScale: "twenty_point",
+  };
+  const REPORT_SPANS = {
+    awardTitle: "BSc Computer Science, University of Tehran",
+    subject: "BSc Computer Science, University of Tehran",
+    institution: "BSc Computer Science, University of Tehran",
+    level: "BSc Computer Science, University of Tehran",
+    start: "September 2015 – June 2019",
+    end: "September 2015 – June 2019",
+    grade: "Grade 17.2 on the 20-point scale.",
+    gradeScale: "Grade 17.2 on the 20-point scale.",
+  };
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    vault = readingVault([
+      { documentId, studentId: owner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+    ]);
+    const built = instance();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      // The confirm route asks for the reading once the bucket has the bytes.
+      await built.driver.requestReading({ documentId, conversationId: conversation, studentId: owner, contentHash });
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("hands the reader the document after the gate, with a sixty-second retrieval — and not twice", async () => {
+    const built = instance();
+    try {
+      const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed).toMatchObject({ documentId, conversationId: conversation, documentType: "cv", contentType: "application/pdf", contentHash });
+      expect(claimed?.retrieval).toMatchObject({ url: `https://vault.test/${documentId}`, method: "GET" });
+      expect(claimed?.leaseId.startsWith("rl_")).toBe(true);
+      leaseId = claimed?.leaseId ?? "";
+      expect(await built.driver.claimReading({ holder: "reader-2", leaseSeconds: 300 }), "leased: nobody else's").toBeNull();
+    } finally {
+      await built.pool.end();
+    }
+  }, 120_000);
+
+  it("REFUSES a report from a lease it does not hold, and writes nothing", async () => {
+    const built = instance();
+    try {
+      const accepted = await built.driver.reportReading({
+        documentId,
+        report: { leaseId: "rl_not_mine", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: REPORT_FIELDS, spans: REPORT_SPANS, confidence: 0.9, toAsk: ["countryCode"] }], dropped: 0 }] },
+      });
+      expect(accepted).toBe(false);
+      expect(await partsRead()).toEqual([]);
+    } finally {
+      await built.pool.end();
+    }
+  }, 120_000);
+
+  it("seeds the walk from the report: every part the document gave, with the document as its origin and its own words — and none it did not", async () => {
+    const built = instance();
+    try {
+      const accepted = await built.driver.reportReading({
+        documentId,
+        report: {
+          leaseId,
+          outcome: "read",
+          lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: REPORT_FIELDS, spans: REPORT_SPANS, confidence: 0.9, toAsk: ["countryCode"] }], dropped: 0 }],
+          usage: { calls: 12, inputTokens: 3000, outputTokens: 900 },
+        },
+      });
+      expect(accepted).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+    const parts = await partsRead();
+    expect(parts.map((row) => row.part)).toEqual([
+      "any",
+      "item0.awardTitle",
+      "item0.subject",
+      "item0.institution",
+      "item0.level",
+      "item0.start",
+      "item0.endKind",
+      "item0.endDate",
+      "item0.grade",
+      "item0.gradeScale",
+    ]);
+    // ADR-0149: the country is the student's to state, and no reading of it exists.
+    expect(parts.some((row) => row.part === "item0.countryCode")).toBe(false);
+    const subject = JSON.stringify(parts.find((row) => row.part === "item0.subject")?.proposal);
+    expect(subject).toContain('"origin":"document"');
+    expect(subject).toContain("BSc Computer Science, University of Tehran");
+    expect(subject).toContain(documentId);
+    const still = JSON.stringify(parts.find((row) => row.part === "item0.endKind")?.proposal);
+    expect(still, "the walk's two end parts, derived from the one value the document stated").toContain('"completed"');
+  }, 120_000);
+
+  it("then the interview asks for the country — and nothing else — before playing the qualification back: his end state", async () => {
+    const askedBefore = await askedCount();
+    const built = instance();
+    try {
+      const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    } finally {
+      await built.pool.end();
+    }
+    expect((await assistantSaid()).at(-1)?.toLowerCase(), "the first question is the country").toContain("country");
+    await say("Iran");
+    // The fixture mapping reads every part of the field, so the walk also asks
+    // the one OPTIONAL part the document could not give — the date of award,
+    // "say none" — before asking whether there is another. On a mapping that
+    // reads no award, that question is not asked (FieldPart.feeds). Nothing
+    // the document gave is asked again, and the country was asked first.
+    const between: string[] = [];
+    for (let turn = 0; turn < 3; turn += 1) {
+      const last = (await assistantSaid()).at(-1)?.toLowerCase() ?? "";
+      if (last.includes("another qualification")) break;
+      between.push(last);
+      await say("none");
+    }
+    expect(between, "only the optional award date, asked with 'say none'").toHaveLength(1);
+    expect(between[0]).toContain("award");
+    for (const given of ["subject", "institution", "grade", "started", "level"]) expect(between[0], given).not.toContain(given);
+    expect((await assistantSaid()).at(-1)?.toLowerCase()).toContain("another qualification");
+    await say("no");
+    const playback = (await assistantSaid()).at(-1) ?? "";
+    expect(playback).toContain("University of Tehran");
+    expect(playback).toContain("Is that right?");
+    expect((await askedCount()) - askedBefore, "three questions in all: the country, the award date, and another?").toBe(3);
+    const built2 = instance();
+    try {
+      const reading = await built2.driver.runFor(conversation);
+      expect(reading?.pending?.decision).toBe("confirm_value");
+      expect(reading?.pending?.decision === "confirm_value" ? reading.pending.entries : []).toEqual([{ index: 1, label: "qualification 1" }]);
+    } finally {
+      await built2.pool.end();
+    }
+  }, 300_000);
 });

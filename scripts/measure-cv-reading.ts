@@ -67,7 +67,8 @@ export interface ListMeasurement {
     readonly letter: { readonly from: number; readonly to: number } | null;
   };
   readonly entriesFound: number;
-  readonly entriesReadWhole: number;
+  /** Entries that stand with every document part read: nothing for the interview to ask but the student's own parts. */
+  readonly entriesComplete: number;
   readonly entries: readonly {
     readonly index: number;
     readonly from: number;
@@ -77,11 +78,19 @@ export interface ListMeasurement {
     readonly dateRanges: number;
     /** The named failure: cover-letter lines inside this entry. */
     readonly letterLines: number;
-    readonly readWhole: boolean;
+    /** Every document part read; the entry stands. */
+    readonly complete: boolean;
     readonly read: readonly string[];
+    /** Document parts the model found nothing for: the interview asks (ADR-0149). */
     readonly missing: readonly string[];
+    /** Document parts read as real text the plan's parser refused — "BSc" for a level: asked, never guessed. */
+    readonly unparsed: readonly string[];
+    /** The student's to state: never asked of the document (ADR-0149). */
+    readonly student: readonly string[];
     readonly ungrounded: readonly { readonly partKey: string; readonly spanLength: number; readonly reason: string }[];
     readonly skipped: readonly string[];
+    /** What the interview would ask for this entry, in the plan's order: missing, unparsed and the student's own. */
+    readonly wouldAsk: readonly string[];
     readonly droppedBecause: string | null;
   }[];
 }
@@ -131,11 +140,10 @@ export async function measureText(name: string, contentType: string, text: Docum
         letter: cut.checks.letter,
       },
       entriesFound: reading.entries.length,
-      entriesReadWhole: reading.entries.filter((entry) => entry.item !== null).length,
+      entriesComplete: reading.entries.filter((entry) => entry.dropped === null && entry.parts.every((part) => part.status === "read" || part.status === "student")).length,
       entries: reading.entries.map((entry) => {
         const cutEntry = cut.entries[entry.index - 1];
-        const missingRequired = entry.parts.find((part) => part.status === "missing" && part.required);
-        const ungrounded = entry.parts.find((part) => part.status === "ungrounded");
+        const keys = (status: string): string[] => entry.parts.filter((part) => part.status === status).map((part) => part.partKey);
         return {
           index: entry.index,
           from: cutEntry?.from ?? 0,
@@ -143,21 +151,17 @@ export async function measureText(name: string, contentType: string, text: Docum
           lines: entry.lines,
           dateRanges: cutEntry?.dateRanges ?? 0,
           letterLines: cutEntry?.letterLines ?? 0,
-          readWhole: entry.item !== null,
-          read: entry.parts.filter((part) => part.status === "read").map((part) => part.partKey),
-          missing: entry.parts.filter((part) => part.status === "missing").map((part) => part.partKey),
+          complete: entry.dropped === null && entry.parts.every((part) => part.status === "read" || part.status === "student"),
+          read: keys("read"),
+          missing: keys("missing"),
+          unparsed: keys("unparsed"),
+          student: keys("student"),
           ungrounded: entry.parts
             .filter((part) => part.status === "ungrounded")
             .map((part) => ({ partKey: part.partKey, spanLength: part.spanLength ?? 0, reason: part.reason ?? "" })),
-          skipped: entry.parts.filter((part) => part.status === "skipped").map((part) => part.partKey),
-          droppedBecause:
-            entry.item !== null
-              ? null
-              : ungrounded !== undefined
-                ? `the span quoted for "${ungrounded.partKey}" is not in the document`
-                : missingRequired !== undefined
-                  ? `"${missingRequired.partKey}" was not found: ${missingRequired.reason ?? ""}`.trim()
-                  : "the parts were read but did not assemble into a complete entry",
+          skipped: keys("skipped"),
+          wouldAsk: entry.dropped === null ? entry.parts.filter((part) => part.status === "missing" || part.status === "unparsed" || part.status === "student").map((part) => part.partKey) : [],
+          droppedBecause: entry.dropped,
         };
       }),
     });
@@ -189,19 +193,22 @@ export function renderMeasurement(measured: DocumentMeasurement): string {
     );
     if (list.none !== null) out.push(`cut: NONE — ${list.none}`);
     out.push(
-      `cut: ${String(list.entriesFound)} entries · ${String(list.entriesReadWhole)} read whole · ` +
+      `cut: ${String(list.entriesFound)} entries · ${String(list.entriesComplete)} complete from the document · ` +
         `${String(list.cut.unassignedSectionLines)} section lines unassigned · ${String(list.cut.linesOutsideSection)} entry lines outside the section · ` +
         `${String(list.cut.overlapping)} overlapping pairs refused · ${String(list.cut.outsideDocument)} ranges outside the document refused`,
     );
     out.push(list.cut.letter === null ? "cover letter: none found" : `cover letter: lines ${String(list.cut.letter.from)}–${String(list.cut.letter.to)}`);
     for (const entry of list.entries) {
       out.push(
-        `- entry ${String(entry.index)} lines ${String(entry.from)}–${String(entry.to)} (${String(entry.lines)}): ${entry.readWhole ? "READ WHOLE" : "DROPPED"}` +
+        `- entry ${String(entry.index)} lines ${String(entry.from)}–${String(entry.to)} (${String(entry.lines)}): ${entry.droppedBecause !== null ? "DROPPED" : entry.complete ? "COMPLETE" : "INCOMPLETE — the interview asks"}` +
           ` · date ranges: ${String(entry.dateRanges)}${entry.dateRanges > 1 ? " — TWO ENTRIES CUT AS ONE?" : ""}` +
           (entry.letterLines > 0 ? ` · LETTER TEXT INSIDE THE ENTRY: ${String(entry.letterLines)} line(s)` : ""),
       );
       out.push(`  read: ${entry.read.length === 0 ? "none" : entry.read.join(", ")}`);
-      if (entry.missing.length > 0) out.push(`  missing: ${entry.missing.join(", ")}`);
+      if (entry.missing.length > 0) out.push(`  missing from the document: ${entry.missing.join(", ")}`);
+      if (entry.unparsed.length > 0) out.push(`  read but not that value: ${entry.unparsed.join(", ")}`);
+      if (entry.student.length > 0) out.push(`  the student's to state (never asked of the document): ${entry.student.join(", ")}`);
+      if (entry.droppedBecause === null) out.push(`  would ask: ${entry.wouldAsk.length === 0 ? "nothing" : entry.wouldAsk.join(", ")}`);
       for (const bad of entry.ungrounded) out.push(`  ungrounded: ${bad.partKey} (span of ${String(bad.spanLength)} characters) — ${bad.reason}`);
       if (entry.skipped.length > 0) out.push(`  not reached: ${entry.skipped.join(", ")}`);
       if (entry.droppedBecause !== null) out.push(`  dropped because ${entry.droppedBecause}`);

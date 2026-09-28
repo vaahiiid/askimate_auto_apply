@@ -278,7 +278,11 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       // deployment's mesh policy rather than to this app.
       authoriseService: (req) => {
         const presented = req.header(SERVICE_CERTIFICATE_HEADER);
-        return presented === config.serviceCertSecure || presented === config.serviceCertRunner;
+        return (
+          presented === config.serviceCertSecure ||
+          presented === config.serviceCertRunner ||
+          (config.serviceCertReader !== undefined && presented === config.serviceCertReader)
+        );
       },
       // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
       now: () => new Date(),

@@ -24,7 +24,7 @@ import { isNotUnderstood } from "@askimate/aas-llm";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 import { checkGrounding } from "./grounding.js";
-import type { DocumentDateKind, ExtractionPlan, ExtractionTarget } from "./plans.js";
+import type { DocumentDateKind, ExtractionPlan, ExtractionTarget, PartSource } from "./plans.js";
 import { planFor } from "./plans.js";
 import type { DocumentText } from "./text.js";
 import { sectionOf } from "./sections.js";
@@ -76,9 +76,16 @@ export interface ExtractionReport {
 /** What happened to one part of one entry of a list, for the report and for a measurement. */
 export interface ListPartReading {
   readonly partKey: string;
-  readonly required: boolean;
-  /** `read` and grounded; `missing` — the model found nothing; `ungrounded` — a span the document does not contain; `skipped` — not reached, an earlier required part having failed. */
-  readonly status: "read" | "missing" | "ungrounded" | "skipped";
+  readonly source: PartSource;
+  /**
+   *   read        read, grounded and parsed — in `fields`;
+   *   missing     the model found nothing; the interview asks (ADR-0149);
+   *   unparsed    read and grounded, and the plan's parser refused the text; asked, never guessed;
+   *   ungrounded  a span the document does not contain — the ENTRY is dropped (ADR-0016);
+   *   skipped     not reached, the entry having been dropped;
+   *   student     the student's to state: never asked of the document (ADR-0149).
+   */
+  readonly status: "read" | "missing" | "unparsed" | "ungrounded" | "skipped" | "student";
   /** The length of the span quoted, for a measurement, which must carry no line of the document. */
   readonly spanLength?: number;
   /** The span the model quoted and the document does not contain — on `ungrounded` only, for the report's `claimedSpan`. */
@@ -86,16 +93,19 @@ export interface ListPartReading {
   readonly reason?: string;
 }
 
-/** One entry of a list, as read. */
+/** One entry of a list, as read: what the document gave, and what it did not. */
 export interface ListEntryReading {
   /** One-based, as the report names it: `employment.history[2]`. */
   readonly index: number;
   readonly lines: number;
   readonly parts: readonly ListPartReading[];
-  /** The assembled item, or `null` where a required part was missing or ungrounded, or the parts did not assemble. */
-  readonly item: unknown;
-  readonly spans: readonly string[];
+  /** The parsed value of every `document` part that read — the entry as far as the document states it. Empty when dropped. */
+  readonly fields: Readonly<Record<string, unknown>>;
+  /** The span each read part was read from, by part key — the student's own words for the playback. Empty when dropped. */
+  readonly spans: Readonly<Record<string, string>>;
   readonly lowestConfidence: number;
+  /** Why the entry is not offered at all: an invented span, or two date ranges cut as one. `null` for an entry that stands. */
+  readonly dropped: string | null;
 }
 
 /** A list target read against a document: what was found before anything was accepted. */
@@ -132,17 +142,28 @@ export async function readListEntries(
   const section = sectionOf(text, target.headings);
   const readings: ListEntryReading[] = [];
   for (const cutEntry of cut.entries) {
-    const index = cutEntry.index - 1;
     const entry = cutEntry.lines;
     const block = entry.join("\n");
-    const values = new Map<string, string>();
-    const spans: string[] = [];
+    const fields: Record<string, unknown> = {};
+    const spans: Record<string, string> = {};
     const parts: ListPartReading[] = [];
     let lowestConfidence = 1;
-    let failed = false;
+    // The merge detector first (segments.ts): two date ranges in one entry is
+    // two jobs until a person says otherwise — held back, named, never read
+    // as one and never offered as one.
+    let dropped: string | null =
+      cutEntry.dateRanges > 1
+        ? `Held back: the entry carries ${String(cutEntry.dateRanges)} date ranges, which reads as ${String(cutEntry.dateRanges)} entries cut as one.`
+        : null;
     for (const part of target.parts) {
-      if (failed) {
-        parts.push({ partKey: part.partKey, required: part.required, status: "skipped" });
+      if (dropped !== null) {
+        parts.push({ partKey: part.partKey, source: part.source, status: "skipped" });
+        continue;
+      }
+      // ADR-0149: the student's to state. No request is built for it, so the
+      // model is never in a position to derive it from something real.
+      if (part.source === "student") {
+        parts.push({ partKey: part.partKey, source: "student", status: "student" });
         continue;
       }
       const read = await model.extractFromDocument({
@@ -157,113 +178,41 @@ export async function readListEntries(
         requireVerbatimSpan: true,
       });
       if (isNotUnderstood(read)) {
-        parts.push({ partKey: part.partKey, required: part.required, status: "missing", reason: read.reason });
-        if (part.required) failed = true;
+        // A normal outcome: the document does not state it, and the interview asks.
+        parts.push({ partKey: part.partKey, source: "document", status: "missing", reason: read.reason });
         continue;
       }
-      const fields = unwrapProposed(read);
-      const grounding = checkGrounding(text, fields.verbatim);
+      const grounded = unwrapProposed(read);
+      const grounding = checkGrounding(text, grounded.verbatim);
       if (grounding.kind !== "grounded") {
-        parts.push({ partKey: part.partKey, required: part.required, status: "ungrounded", spanLength: fields.verbatim.length, claimedSpan: fields.verbatim, reason: grounding.reason });
-        failed = true;
+        // ADR-0016: a model that invents a span invents nothing here — and an
+        // entry it invented for is not offered at all.
+        parts.push({ partKey: part.partKey, source: "document", status: "ungrounded", spanLength: grounded.verbatim.length, claimedSpan: grounded.verbatim, reason: grounding.reason });
+        dropped = `Part "${part.partKey}" was discarded. ${grounding.reason}`.trim();
         continue;
       }
-      parts.push({ partKey: part.partKey, required: part.required, status: "read", spanLength: fields.verbatim.length });
-      values.set(part.partKey, fields.value);
-      spans.push(fields.verbatim);
-      lowestConfidence = Math.min(lowestConfidence, fields.confidence);
+      const value = part.parse(grounded.value);
+      if (value === null || value === undefined) {
+        // Real text, not this value: "BSc" is not a level. Asked, never guessed.
+        parts.push({ partKey: part.partKey, source: "document", status: "unparsed", spanLength: grounded.verbatim.length, reason: `The text read is not ${part.expectedShape}.` });
+        continue;
+      }
+      parts.push({ partKey: part.partKey, source: "document", status: "read", spanLength: grounded.verbatim.length });
+      fields[part.partKey] = value;
+      spans[part.partKey] = grounded.verbatim;
+      lowestConfidence = Math.min(lowestConfidence, grounded.confidence);
     }
-    const item = failed ? null : (target.assemble(values) ?? null);
-    readings.push({ index: index + 1, lines: entry.length, parts, item, spans, lowestConfidence });
+    readings.push({
+      index: cutEntry.index,
+      lines: entry.length,
+      parts,
+      fields: dropped === null ? fields : {},
+      spans: dropped === null ? spans : {},
+      lowestConfidence,
+      dropped,
+    });
   }
   return { fieldKey: targetKey, sectionLines: section.length, cut, entries: readings };
-}
-
-/**
- * The outcomes of a list target: the entries that read whole as one
- * proposal; each dropped entry reported by its position and why; none is
- * `not_found` and not required, because a CV may list none.
- */
-async function runList(
-  target: Extract<ExtractionTarget, { kind: "list" }>,
-  text: DocumentText,
-  model: ModelClient,
-): Promise<readonly ExtractionOutcome[]> {
-  const targetKey = target.fieldKey;
-  const first = target.parts[0];
-  if (first === undefined) return [{ kind: "not_found", targetKey, required: false, reason: "The plan names no parts." }];
-  const reading = await readListEntries(target, text, model);
-  if (reading.entries.length === 0) {
-    return [
-      {
-        kind: "not_found",
-        targetKey,
-        required: false,
-        reason:
-          reading.cut.none ??
-          (reading.sectionLines === 0
-            ? `No section headed ${target.headings.map((h) => `"${h}"`).join(", ")} on this ${text.documentType}, and no entry was cut elsewhere.`
-            : `A section of ${String(reading.sectionLines)} lines, and no entry was cut from it.`),
-      },
-    ];
-  }
-
-  const items: unknown[] = [];
-  const spans: string[] = [];
-  const dropped: ExtractionOutcome[] = [];
-  let lowestConfidence = 1;
-  for (const entry of reading.entries) {
-    const position = `${targetKey}[${String(entry.index)}]`;
-    // The merge detector (segments.ts) first: two date ranges in one entry is
-    // two jobs until a person says otherwise — held back, named, never
-    // proposed as one, and never read as one.
-    const cutEntry = reading.cut.entries[entry.index - 1];
-    if (cutEntry !== undefined && cutEntry.dateRanges > 1) {
-      dropped.push({ kind: "not_found", targetKey: position, required: false, reason: `Held back: the entry carries ${String(cutEntry.dateRanges)} date ranges, which reads as ${String(cutEntry.dateRanges)} entries cut as one.` });
-      continue;
-    }
-    const ungrounded = entry.parts.find((part) => part.status === "ungrounded");
-    const missing = entry.parts.find((part) => part.status === "missing" && part.required);
-    if (ungrounded !== undefined) {
-      dropped.push({
-        kind: "rejected_ungrounded",
-        targetKey: position,
-        required: false,
-        claimedSpan: ungrounded.claimedSpan ?? "",
-        reason: `Part "${ungrounded.partKey}" was discarded. ${ungrounded.reason ?? ""}`.trim(),
-      });
-      continue;
-    }
-    if (missing !== undefined) {
-      dropped.push({ kind: "not_found", targetKey: position, required: false, reason: `Could not read "${missing.partKey}": ${missing.reason ?? ""}`.trim() });
-      continue;
-    }
-    if (entry.item === null) {
-      dropped.push({ kind: "not_found", targetKey: position, required: false, reason: `Read the parts but could not assemble a complete entry from them.` });
-      continue;
-    }
-    items.push(entry.item);
-    spans.push(...entry.spans);
-    lowestConfidence = Math.min(lowestConfidence, entry.lowestConfidence);
-  }
-
-  const whole: ExtractionOutcome =
-    items.length === 0
-      ? { kind: "not_found", targetKey, required: false, reason: `${String(reading.entries.length)} ${reading.entries.length === 1 ? "entry" : "entries"} found and none read whole.` }
-      : {
-          kind: "extracted",
-          targetKey,
-          fieldKey: target.fieldKey,
-          proposed: proposeValue({
-            value: items,
-            origin: "document",
-            verbatim: spans.join("\n"),
-            confidence: lowestConfidence,
-            documentId: text.documentId,
-          }),
-          page: 1,
-        };
-  return [whole, ...dropped];
 }
 
 export function targetKeyOf(target: ExtractionTarget): string {
@@ -295,10 +244,11 @@ async function runPlan(
   const outcomes: ExtractionOutcome[] = [];
 
   for (const target of plan.targets) {
-    if (target.kind === "list") {
-      outcomes.push(...(await runList(target, text, model)));
-      continue;
-    }
+    // A list is read by `readListEntries`, entry by entry, into the interview's
+    // walk (ADR-0148 §9, ADR-0149): its entries arrive with what the document
+    // gave and the interview asks for the rest, which is not an outcome this
+    // report can carry. Nothing here reads one.
+    if (target.kind === "list") continue;
     outcomes.push(
       target.kind === "composite"
         ? await runComposite(target, text, model)

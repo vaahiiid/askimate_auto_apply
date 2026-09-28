@@ -1,0 +1,22 @@
+{
+  "name": "@askimate/aas-cv-reader",
+  "version": "0.242.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@askimate/aas-config": "workspace:*",
+    "@askimate/aas-contracts": "workspace:*",
+    "@askimate/aas-domain": "workspace:*",
+    "@askimate/aas-extraction": "workspace:*",
+    "@askimate/aas-llm": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}

@@ -129,6 +129,7 @@ beforeAll(async () => {
     "0027_a_two_way_answer_is_offered",
     "0028_a_date_confirmed_through_the_log_is_a_date",
     "0029_the_portal_demands_a_part",
+    "0030_a_document_is_read_by_the_reader",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(

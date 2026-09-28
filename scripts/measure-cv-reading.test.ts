@@ -37,7 +37,8 @@ describe("the published command, spawned the way Vahid runs it (P240)", () => {
   it("reads the fixture CV through the stand-in and prints a report carrying nothing of it", () => {
     const report = run([join(ROOT, "packages", "extraction", "src", "fixtures", "cv.pdf")]);
     expect(report.code, report.out).toBe(0);
-    expect(report.out).toContain("cut: 2 entries · 2 read whole");
+    expect(report.out).toContain("cut: 2 entries · 2 complete from the document");
+    expect(report.out).toContain("would ask: countryCode");
     expect(report.out).toContain("No model was called");
     for (const word of ["Niloofar", "Pardis", "Valiasr", "Data analyst"]) expect(report.out, word).not.toContain(word);
   }, 120_000);
@@ -82,16 +83,20 @@ describe("the CV reading measured, structure only (P240)", () => {
     const measured = await measureDocument({ name: "cv.pdf", contentType: PDF_CONTENT_TYPE, contents: PDF }, new DeterministicModelClient());
     expect(measured.pages).toBe(1);
     const jobs = measured.lists.find((list) => list.fieldKey === "employment.history");
-    expect(jobs).toMatchObject({ sectionFound: true, entriesFound: 2, entriesReadWhole: 2, none: null });
+    expect(jobs).toMatchObject({ sectionFound: true, entriesFound: 2, entriesComplete: 2, none: null });
     expect(jobs?.cut).toMatchObject({ outsideDocument: 0, overlapping: 0, unassignedSectionLines: 0, linesOutsideSection: 0, letter: null });
     expect(jobs?.entries.map((e) => [e.from, e.to, e.dateRanges, e.letterLines])).toEqual([
       [3, 8, 0, 0],
       [9, 14, 0, 0],
     ]);
     expect(jobs?.entries[0]?.read).toEqual(["position", "employer", "employerAddress", "startDate", "end", "duties"]);
-    expect(jobs?.entries[0]?.missing, "basis is optional and not on the fixture").toEqual(["basis"]);
+    expect(jobs?.entries[0]?.missing).toEqual([]);
+    // ADR-0149: the basis is the student's to state, never asked of the document.
+    expect(jobs?.entries[0]?.student).toEqual(["basis"]);
+    expect(jobs?.entries[0]?.wouldAsk, "what the interview would ask for this job").toEqual(["basis"]);
     const studied = measured.lists.find((list) => list.fieldKey === "education.prior_qualifications");
-    expect(studied).toMatchObject({ sectionFound: true, entriesFound: 1, entriesReadWhole: 1 });
+    expect(studied).toMatchObject({ sectionFound: true, entriesFound: 1, entriesComplete: 1 });
+    expect(studied?.entries[0]?.wouldAsk, "the country: the student's, and nothing else").toEqual(["countryCode"]);
   });
 
   it("says a section was not found rather than reading nothing silently", async () => {
@@ -107,7 +112,8 @@ describe("the CV reading measured, structure only (P240)", () => {
     for (const word of ["Niloofar", "Hosseini", "Pardis", "Valiasr", "Nikan", "Tehran", "Data analyst", "Computer science"]) {
       expect(everything, word).not.toContain(word);
     }
-    expect(renderMeasurement(measured)).toContain("cut: 2 entries · 2 read whole");
+    expect(renderMeasurement(measured)).toContain("cut: 2 entries · 2 complete from the document");
+    expect(renderMeasurement(measured)).toContain("would ask: countryCode");
   });
 
   it("reports the cut of a prose CV with a cover letter — ranges, detectors and what the stand-in could not read — carrying nothing of it", async () => {
@@ -130,7 +136,7 @@ describe("the CV reading measured, structure only (P240)", () => {
       [16, 18, 1, 0],
       [20, 22, 1, 0],
     ]);
-    expect(jobs?.entriesReadWhole, "the stand-in reads labels, and prose has none").toBe(0);
+    expect(jobs?.entriesComplete, "the stand-in reads labels, and prose has none").toBe(0);
     const rendered = renderMeasurement(report);
     expect(rendered).toContain("cover letter: lines 4–9");
     for (const word of ["Pardis", "Nikan", "Hiring Manager", "poetry"]) expect(rendered, word).not.toContain(word);

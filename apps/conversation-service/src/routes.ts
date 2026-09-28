@@ -35,6 +35,7 @@ import {
   parseRejectionReason,
   problemTypeFor,
   renderSseFrame,
+  parseReadingReport,
   parseWorkReport,
   parseResolutionSubmission,
   parsePriorOutcome,
@@ -91,7 +92,7 @@ import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
 import type { RunOutcome, RunReading, RunRefusal, WorkDocumentRefusal } from "./run-driver.js";
-import type { WorkDocument } from "@askimate/aas-contracts";
+import type { ClaimedReading, ReadingReport, WorkDocument } from "@askimate/aas-contracts";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
 /** Who is calling. Resolved by the host, so identity stays ADR-0038's problem. */
@@ -221,6 +222,18 @@ export interface RunCoordinator {
     readonly holder: string;
     readonly documentRef: string;
   }): Promise<{ readonly ok: true; readonly document: WorkDocument } | { readonly ok: false; readonly refusal: WorkDocumentRefusal }>;
+  // ── The CV reader (ADR-0148 §9, ADR-0149, P246) ────────────────────────
+  /** A CV confirmed into the vault is asked to be read. Idempotent. */
+  requestReading(input: {
+    readonly documentId: string;
+    readonly conversationId: string;
+    readonly studentId: string;
+    readonly contentHash: string;
+  }): Promise<void>;
+  /** Leases one CV to read, after the storage gate, with its sixty-second retrieval; `null` when none waits. */
+  claimReading(input: { readonly holder: string; readonly leaseSeconds: number }): Promise<ClaimedReading | null>;
+  /** Records what the document gave and seeds the interview's walk from it. `false` when the caller is not the holder. */
+  reportReading(input: { readonly documentId: string; readonly report: ReadingReport }): Promise<boolean>;
   /** Records a specialist's review of a case. ADR-0049 §4. */
   completeReview(input: {
     readonly caseId: CaseId;
@@ -248,6 +261,9 @@ export interface RunCoordinator {
  */
 const MAX_LEASE_SECONDS = 300;
 const DEFAULT_LEASE_SECONDS = 120;
+/** A reading is a minute or two of model calls; the plane clamps what a reader asks for. */
+const DEFAULT_READING_LEASE_SECONDS = 300;
+const MAX_READING_LEASE_SECONDS = 600;
 
 export interface ConversationRoutesOptions {
   readonly store: ConversationEventStore;
@@ -2060,6 +2076,78 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
   );
 
 
+  // ── POST /internal/v1/readings/claims ───────────────────────────────────
+  //
+  // The CV reader asks for a document to read (ADR-0148 §9, ADR-0092 as
+  // amended). It PULLS, as the runner does; the plane runs the storage gate
+  // and mints a sixty-second retrieval URL. Nothing on this route reads a byte.
+  router.post(
+    "/internal/v1/readings/claims",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const record = (typeof req.body === "object" && req.body !== null ? req.body : {}) as Record<string, unknown>;
+        const holder = readString(record, "holder");
+        if (holder === null || holder.length > 128) {
+          problem(res, "validation_failed", { pointers: ["/holder"] });
+          return;
+        }
+        const requested = record["leaseSeconds"];
+        // Clamped by the server, not trusted from the request: the lease is
+        // the plane's risk. A reading of a long CV is a minute or two.
+        const leaseSeconds =
+          typeof requested === "number" && Number.isInteger(requested) && requested >= 1
+            ? Math.min(requested, MAX_READING_LEASE_SECONDS)
+            : DEFAULT_READING_LEASE_SECONDS;
+        const reading = await options.runs.claimReading({ holder, leaseSeconds });
+        if (reading === null) {
+          res.status(204).end();
+          return;
+        }
+        res.setHeader("Cache-Control", "no-store");
+        res.status(200).json(reading);
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/readings/:documentId/report ───────────────────────
+  //
+  // What the document gave. The plane seeds the interview's walk from it and
+  // gives the lease back; a caller that does not hold the lease is refused.
+  router.post(
+    "/internal/v1/readings/:documentId/report",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const report = parseReadingReport(req.body);
+        if (report === null) {
+          problem(res, "validation_failed", { pointers: ["/leaseId", "/outcome", "/lists"] });
+          return;
+        }
+        const accepted = await options.runs.reportReading({ documentId: String(req.params["documentId"]), report });
+        if (!accepted) {
+          problem(res, "forbidden");
+          return;
+        }
+        res.status(204).end();
+      })().catch(next);
+    },
+  );
+
   // ═══════════════════════════════════════════════════════════════════════
   // The document transport (ADR-0090, ADR-0092, ADR-0093) — B4, answered
   // ═══════════════════════════════════════════════════════════════════════
@@ -2267,6 +2355,17 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
 
         try {
           const record = await documents.vault.confirmUpload(intake, options.now());
+          // ADR-0148 §1: the CV comes first, and it is read. Asked for here,
+          // once the bucket has confirmed the bytes; the reader takes it from
+          // the plane's table, never from this request.
+          if (record.documentType === "cv" && options.runs !== undefined) {
+            await options.runs.requestReading({
+              documentId: record.documentId,
+              conversationId,
+              studentId: record.studentId,
+              contentHash: record.contentHash,
+            });
+          }
           res.status(201).json(renderDocument(record));
         } catch (error) {
           if (error instanceof IntakeRefusedError) {

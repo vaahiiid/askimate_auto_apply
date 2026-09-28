@@ -21,6 +21,7 @@ import {
 import { PROBLEM_STATUS, PROBLEM_TITLES, parseProblem, problemTypeFor } from "./problems.js";
 import { parseFrameInbound, parseFrameOutbound } from "./frame.js";
 import { parseClaimedWork, parseWorkDocument, parseWorkReport } from "./work.js";
+import { parseClaimedReading, parseReadingReport } from "./reading.js";
 import { parseLastEventId, renderSseFrame, SSE_EVENT_NAME } from "./sse.js";
 import {
   EVENT_KINDS,
@@ -1081,5 +1082,57 @@ describe("a two-way answer's offer, and the pick (ADR-0146)", () => {
     expect(parseStudentDecision({ kind: "correct_entry", contentHash: "sha256:0", entry: 0 })).toBeNull();
     expect(parseStudentDecision({ kind: "correct_entry", contentHash: "sha256:0", entry: "2" })).toBeNull();
     expect(parseStudentDecision({ kind: "correct_entry", entry: 2 })).toBeNull();
+  });
+});
+
+// ── The CV reader's contract (ADR-0148 §9, ADR-0149, P246) ─────────────────
+
+describe("what a reading may carry, and what it may not", () => {
+  const CLAIM = {
+    leaseId: "rl_1",
+    expiresAt: "2026-09-28T20:05:00Z",
+    documentId: "01JQDOC0000000000000000001",
+    conversationId: "01JBXQ8Z9WKTQ6M4H2NPX23701",
+    documentType: "cv",
+    contentType: "application/pdf",
+    contentHash: "b".repeat(64),
+    retrieval: { url: "https://vault.test/cv", method: "GET", expiresAt: "2026-09-28T20:01:00Z" },
+  };
+  const ENTRY = { index: 1, fields: { subject: "Computer science", end: { kind: "completed", date: { year: 2019, month: 6 } } }, spans: { subject: "Subject: Computer science", end: "End: June 2019" }, confidence: 0.9, toAsk: ["countryCode"] };
+
+  it("accepts a claim field by field, and refuses one without a hash, a retrieval, or an https URL", () => {
+    expect(parseClaimedReading(CLAIM)).toEqual(CLAIM);
+    expect(parseClaimedReading({ ...CLAIM, contentHash: "short" })).toBeNull();
+    expect(parseClaimedReading({ ...CLAIM, retrieval: undefined })).toBeNull();
+    expect(parseClaimedReading({ ...CLAIM, retrieval: { ...CLAIM.retrieval, url: "ftp://vault.test/cv" } })).toBeNull();
+    expect(parseClaimedReading({ ...CLAIM, retrieval: { ...CLAIM.retrieval, method: "POST" } })).toBeNull();
+  });
+
+  it("accepts a reading whose every field has its words, and refuses words with no field and a field with no words", () => {
+    const report = { leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [ENTRY], dropped: 0 }] };
+    expect(parseReadingReport(report)).toEqual(report);
+    // Words for a part that has no value: document text with nothing to be the words OF.
+    expect(parseReadingReport({ ...report, lists: [{ ...report.lists[0], entries: [{ ...ENTRY, spans: { ...ENTRY.spans, institution: "University of Tehran" } }] }] })).toBeNull();
+    // A value with no words: nothing to show the student the source of.
+    expect(parseReadingReport({ ...report, lists: [{ ...report.lists[0], entries: [{ ...ENTRY, spans: { subject: ENTRY.spans.subject } }] }] })).toBeNull();
+    // A part both read and to be asked is a contradiction.
+    expect(parseReadingReport({ ...report, lists: [{ ...report.lists[0], entries: [{ ...ENTRY, toAsk: ["subject"] }] }] })).toBeNull();
+  });
+
+  it("is symmetric: `read` carries lists and no failure, `failed` carries a closed failure and no lists", () => {
+    expect(parseReadingReport({ leaseId: "rl_1", outcome: "read" })).toBeNull();
+    expect(parseReadingReport({ leaseId: "rl_1", outcome: "read", lists: [], failure: "unreadable" })).toBeNull();
+    expect(parseReadingReport({ leaseId: "rl_1", outcome: "failed", failure: "unreadable" })).toEqual({ leaseId: "rl_1", outcome: "failed", failure: "unreadable" });
+    expect(parseReadingReport({ leaseId: "rl_1", outcome: "failed", failure: "the PDF library said: …" })).toBeNull();
+    expect(parseReadingReport({ leaseId: "rl_1", outcome: "failed", failure: "unreadable", lists: [] })).toBeNull();
+  });
+
+  it("bounds a value: no arrays, no deep structures, no text longer than a few lines", () => {
+    const withValue = (value: unknown): unknown => ({ leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "employment.history", entries: [{ index: 1, fields: { duties: value }, spans: { duties: "Duties: …" }, confidence: 1, toAsk: [] }], dropped: 0 }] });
+    expect(parseReadingReport(withValue("x".repeat(4000)))).not.toBeNull();
+    expect(parseReadingReport(withValue("x".repeat(4001)))).toBeNull();
+    expect(parseReadingReport(withValue(["a", "b"]))).toBeNull();
+    expect(parseReadingReport(withValue({ a: { b: { c: { d: 1 } } } }))).toBeNull();
+    expect(parseReadingReport(withValue({ kind: "ended", date: { year: 2021, month: 8 } }))).not.toBeNull();
   });
 });

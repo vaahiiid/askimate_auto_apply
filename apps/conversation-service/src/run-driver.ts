@@ -210,6 +210,8 @@ import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
 import { admits, type Admission } from "@askimate/aas-catalogue";
 import { SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { WorkFailure } from "@askimate/aas-contracts";
+import type { ClaimedReading, ReadingReport, WireEntryReading, WireFieldValue } from "@askimate/aas-contracts";
+import type { DocumentReadingStore } from "./document-reading-store.js";
 import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
@@ -1483,6 +1485,36 @@ function partReadingsOf(
   return readings;
 }
 
+/**
+ * One walk part from what a document gave (P246). The document plan's parts
+ * are the profile's field names, and the walk's are mostly the same; where
+ * the walk splits one into two — a job's `end` into `still` and `endDate`, a
+ * qualification's into `endKind` and `endDate` — the reading is derived from
+ * the ONE value the document stated, with that value's own words. `null`
+ * where the document gave nothing for this part, so the walk asks.
+ */
+export function walkPartFromDocument(
+  partKey: string,
+  fields: Readonly<Record<string, WireFieldValue>>,
+  spans: Readonly<Record<string, string>>,
+): { readonly value: unknown; readonly verbatim: string } | null {
+  const end = fields["end"];
+  const endWords = spans["end"] ?? "";
+  const endObject = typeof end === "object" ? end : undefined;
+  if (partKey === "still" && endObject !== undefined && typeof endObject["kind"] === "string") {
+    return { value: endObject["kind"] === "current", verbatim: endWords };
+  }
+  if (partKey === "endKind" && endObject !== undefined && typeof endObject["kind"] === "string" && endObject["kind"] !== "current" && endObject["kind"] !== "ended") {
+    return { value: endObject["kind"], verbatim: endWords };
+  }
+  if (partKey === "endDate" && endObject !== undefined && typeof endObject["date"] === "object") {
+    return { value: endObject["date"], verbatim: endWords };
+  }
+  const value = fields[partKey];
+  if (value === undefined || partKey === "end") return null;
+  return { value, verbatim: spans[partKey] ?? renderPart(value) };
+}
+
 /** A part's value in words, for a reading rebuilt from a value rather than from what the student typed. */
 function renderPart(value: unknown): string {
   if (typeof value === "string") return value;
@@ -2120,6 +2152,13 @@ export interface RunDriverOptions {
    * run did before P64. The metadata store only; no byte is read here.
    */
   readonly heldDocuments?: HeldDocuments;
+  /**
+   * Which CV waits to be read by the reader, and how its reading ended
+   * (ADR-0148 §9, P246). A claim needs `disclosure` too, for the vault that
+   * mints the retrieval; a deployment with the table and no vault hands out
+   * no readings.
+   */
+  readonly readings?: DocumentReadingStore;
   /**
    * What a runner is handed a document THROUGH (ADR-0099): the lawful-basis
    * register the disclosure determination is read from, and the vault that
@@ -7474,6 +7513,140 @@ export class RunDriver {
    * because a slow runner must not be able to close out work the current holder
    * is in the middle of.
    */
+  // ── The CV reader (ADR-0148 §9, ADR-0149, P246) ────────────────────────
+  //
+  // Vahid, 2026-09-26: *"A separate process whose only job is reading a CV.
+  // It fetches the document, produces text, and forgets it."* The plane's
+  // side of that: which CV waits, a lease and a sixty-second retrieval after
+  // the storage gate, and the report turned into the interview's own walk —
+  // part readings on the log with the document as their origin, so the
+  // interview asks only what the document did not give.
+
+  /** A CV confirmed into the vault is asked to be read. Idempotent: a document already asked for is left as it is. */
+  public async requestReading(input: {
+    readonly documentId: string;
+    readonly conversationId: string;
+    readonly studentId: string;
+    readonly contentHash: string;
+  }): Promise<void> {
+    const readings = this.#options.readings;
+    if (readings === undefined) return;
+    await readings.request({ ...input, now: this.#options.now() });
+  }
+
+  /**
+   * Leases one CV to read, or `null` because none waits.
+   *
+   * The storage gate runs here, at the claim: the document is a CV, held
+   * under the CV-reading purpose (the STORE_CV determination, ADR-0148 §10),
+   * neither purged nor superseded, and its bytes are the ones the reading
+   * was asked for. A document the gate refuses is ended as `gate_refused`
+   * and the next waiting one is offered, so one bad row cannot block the
+   * queue. Only then is a retrieval minted — sixty seconds, a URL and never
+   * a key (ADR-0042, ADR-0092).
+   */
+  public async claimReading(input: { readonly holder: string; readonly leaseSeconds: number }): Promise<ClaimedReading | null> {
+    const readings = this.#options.readings;
+    const disclosure = this.#options.disclosure;
+    if (readings === undefined || disclosure === undefined) return null;
+    const now = this.#options.now();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const leaseId = `rl_${randomUUID().replace(/-/g, "")}`;
+      const leased = await readings.claim({ holder: input.holder, leaseId, now, leaseSeconds: input.leaseSeconds });
+      if (leased === null) return null;
+      const record = await disclosure.vault.describe(leased.documentId);
+      const usable =
+        record !== null &&
+        record.documentType === "cv" &&
+        record.purpose === "cv_section_filling" &&
+        record.state !== "purged" &&
+        record.state !== "superseded" &&
+        record.contentHash === leased.contentHash &&
+        record.studentId === leased.studentId;
+      if (!usable) {
+        await readings.complete({ documentId: leased.documentId, leaseId, outcome: "failed", failure: "gate_refused", now });
+        continue;
+      }
+      const retrieval = await disclosure.vault.prepareRetrieval(record.documentId, now);
+      return {
+        leaseId,
+        expiresAt: new Date(now.getTime() + input.leaseSeconds * 1000).toISOString(),
+        documentId: record.documentId,
+        conversationId: leased.conversationId,
+        documentType: record.documentType,
+        contentType: record.contentType,
+        contentHash: record.contentHash,
+        retrieval: { url: retrieval.url, method: "GET", expiresAt: retrieval.expiresAt.toISOString() },
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Records how a reading ended, and seeds the interview from it.
+   *
+   * `false` when the caller does not hold the lease: it lapsed and another
+   * reader took the document, or the reading was already reported. Nothing
+   * of a refused report is written.
+   */
+  public async reportReading(input: { readonly documentId: string; readonly report: ReadingReport }): Promise<boolean> {
+    const readings = this.#options.readings;
+    if (readings === undefined) return false;
+    const now = this.#options.now();
+    const held = await readings.held(input.documentId, input.report.leaseId, now);
+    if (held === null) return false;
+    if (input.report.outcome === "read") {
+      for (const list of input.report.lists ?? []) {
+        await this.#seedWalkFromReading(held.conversationId, held.documentId, list.fieldKey, list.entries);
+      }
+    }
+    return readings.complete({
+      documentId: input.documentId,
+      leaseId: input.report.leaseId,
+      outcome: input.report.outcome,
+      ...(input.report.failure === undefined ? {} : { failure: input.report.failure }),
+      now,
+    });
+  }
+
+  /**
+   * The entries a document gave, as the walk the interview would have held
+   * had the student typed them (ADR-0148 §9; P233's seeding, from a document).
+   *
+   *   any               yes — the document lists some
+   *   item{n}.<part>    each part the document stated, with the document as
+   *                     its origin and the span it was read from as its words
+   *   item{n}.another   yes, for every entry but the last; the last is asked,
+   *                     so the student can add what the CV left out
+   *
+   * A part the document did not give — missing, unparsed, or the student's to
+   * state (ADR-0149) — has no reading, and the walk asks it. A field the
+   * student has already begun or confirmed, or a list spec this profile does
+   * not have, is left alone: the document does not overrule a statement.
+   */
+  async #seedWalkFromReading(conversationId: string, documentId: string, fieldKey: string, entries: readonly WireEntryReading[]): Promise<void> {
+    const spec = FIELD_SPECS[fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
+    if (spec === undefined || !isList(spec)) return;
+    const events = await this.#options.conversations.since(conversationId, 0);
+    if (events.some((event: ConversationEvent) => (event.kind === "value_confirmed" || event.kind === "value_proposed" || event.kind === "value_part_read") && event.fieldKey === fieldKey)) return;
+    const offered = entries.filter((entry) => Object.keys(entry.fields).length > 0);
+    if (offered.length === 0) return;
+    const append = async (partKey: string, proposal: ProposedValue<unknown>): Promise<void> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "value_part_read", fieldKey, partKey, proposal: encodeValue(proposal) } });
+    };
+    await append("any", proposeValue({ value: true, origin: "document", verbatim: "yes", confidence: 1, documentId }));
+    for (const [position, entry] of offered.entries()) {
+      for (const part of spec.item.parts) {
+        const reading = walkPartFromDocument(part.partKey, entry.fields, entry.spans);
+        if (reading === null) continue;
+        await append(`item${String(position)}.${part.partKey}`, proposeValue({ value: reading.value, origin: "document", verbatim: reading.verbatim, confidence: entry.confidence, documentId }));
+      }
+      if (position < offered.length - 1) {
+        await append(`item${String(position)}.another`, proposeValue({ value: true, origin: "document", verbatim: "yes", confidence: 1, documentId }));
+      }
+    }
+  }
+
   public async reportWork(input: {
     readonly runId: string;
     readonly report: WorkReport;

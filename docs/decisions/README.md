@@ -118,7 +118,7 @@ ADR status uses exactly that vocabulary:
 | [0089](./0089-national-id-leaves-the-supported-document-types.md) | A national ID leaves the supported document types, and its gates leave with it | Accepted · supersedes 0088 §1 |
 | [0090](./0090-the-gates-run-before-a-byte-is-accepted.md) | The document transport: the gates run before a byte is accepted | Accepted · answers 0067's B4 |
 | [0091](./0091-robots-txt-is-read-obeyed-and-kept.md) | robots.txt is read, obeyed and kept; and requests are paced | Accepted · conditions 0014 |
-| [0092](./0092-the-document-never-enters-a-process-we-run.md) | The document never enters a process we run | Accepted · continues 0090, on two conditions |
+| [0092](./0092-the-document-never-enters-a-process-we-run.md) | The document never enters a process we run | Accepted · continues 0090, on two conditions; the CV reader built as the second fetching process in P246 |
 | [0093](./0093-an-upload-url-cannot-be-minted-unbound.md) | An upload URL cannot be minted unbound | Accepted · continues 0092, completes 0090 |
 | [0094](./0094-document-metadata-is-durable-and-the-transport-starts.md) | Document metadata is durable, and the transport starts in production | Accepted · continues 0093 |
 | [0095](./0095-the-page-makes-the-put-and-the-cors-rule-is-exercised.md) | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes | Accepted · continues 0094 and 0092 |

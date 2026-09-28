@@ -4906,6 +4906,26 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P246 — the reader: fetch, read, forget, and the interview asks only the rest
+
+> *"A separate process whose only job is reading a CV. It fetches the document, produces text,
+> and forgets it."*
+
+The second process ADR-0092 names is built. It claims a confirmed CV from the plane, fetches it
+once through a URL good for a minute, refuses bytes that do not hash to what it was told, reads
+them through the real libraries and the model ADR-0018 names, reports what the document gave and
+keeps nothing; its configuration refuses every key and store the runner's refuses. The plane
+seeds the interview from the report the way P233 seeded a demand: every part the document gave
+becomes a reading with the document as its origin and the CV's own words, and the interview asks
+what the document did not give. ADR-0149's flag sits inside: a part marked the student's is never
+in a request, and a test with a recording client holds it. The end state, with the stand-in and
+one qualification: the country asked first, then the one optional part the fixture mapping reads,
+then *another?*, then the playback. The same on his CV, live, is his run.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P245 — invention is caught, inference is not, and a section ends where the letter begins
 
 > *"Grounding does not catch it because the span is real — what is missing is that the student

@@ -1351,6 +1351,95 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
+  /internal/v1/readings/claims:
+    post:
+      operationId: claimReading
+      tags: [readings]
+      security: [{ serviceMutualTls: [] }]
+      summary: The CV reader asks for a document to read.
+      description: >-
+        ADR-0148 §9, ADR-0092 as amended. The reader PULLS, as the runner does:
+        a process that fetches students' documents has one inbound surface,
+        which is none. The plane answers with a lease and a sixty-second
+        retrieval URL minted AFTER the storage gate — the document is a CV,
+        held under the CV-reading purpose, and neither purged nor superseded.
+        The reader holds a URL for a minute, never a key (ADR-0042 kept).
+
+        204 is the ordinary answer: most polls find no CV waiting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClaimReadingRequest" }
+      responses:
+        "200":
+          description: One document to read, leased to this reader.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: A lease and a retrieval URL are capabilities with deadlines.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ClaimedReading" } }
+        "204":
+          description: Nothing to read. A successful poll, not a failure.
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "503":
+          description: This deployment hands out no readings.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/readings/{documentId}/report:
+    parameters:
+      - name: documentId
+        in: path
+        required: true
+        schema: { type: string, maxLength: 200 }
+        description: An identifier, not a capability. The capability is the `leaseId`, in the body.
+    post:
+      operationId: reportReading
+      tags: [readings]
+      security: [{ serviceMutualTls: [] }]
+      summary: The CV reader says what the document gave.
+      description: >-
+        ADR-0148 §9, ADR-0149. What crosses is what the interview would have
+        held had the student typed it: for each list, each entry as the parts
+        the document stated — parsed, with the span each was read from — and
+        the parts the interview asks for. A part that is the student's to
+        state is never here, because it was never asked of the document.
+        Nothing else of the document is on this contract.
+
+        The plane seeds the interview's walk from it: the entries become part
+        readings on the log, with the document as their origin, and the
+        interview asks only what the document did not give. The student
+        confirms the whole list, entry by entry, as ADR-0148 §6–§7 say.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReadingReport" }
+      responses:
+        "204":
+          description: Recorded, and the lease is given back.
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: >-
+            Certificate missing or not permitted, OR this caller does not hold
+            the lease. A reader reading this stops rather than retrying.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "503":
+          description: This deployment hands out no readings.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
 components:
   securitySchemes:
     conversationSession:
@@ -2917,6 +3006,145 @@ components:
     # per-occurrence human-readable string is the field into which a helpful
     # handler interpolates the thing that was wrong, and on a password
     # endpoint the thing that was wrong is the password.
+    ClaimReadingRequest:
+      type: object
+      additionalProperties: false
+      required: [holder]
+      description: Who is asking, for how long. ADR-0148 §9.
+      properties:
+        holder:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Which reader. For an operator reading the table; never a credential.
+        leaseSeconds:
+          type: integer
+          minimum: 1
+          maximum: 600
+          default: 300
+          description: Clamped by the server. A reading of a long CV is a minute or two of model calls.
+
+    ClaimedReading:
+      type: object
+      additionalProperties: false
+      required: [leaseId, expiresAt, documentId, conversationId, documentType, contentType, contentHash, retrieval]
+      description: >-
+        One document to read, after the storage gate. The reader hashes what
+        it fetches and refuses a mismatch. Nothing here is a byte of it.
+      properties:
+        leaseId: { type: string }
+        expiresAt: { type: string, format: date-time }
+        documentId: { type: string }
+        conversationId: { type: string, description: The conversation whose interview the reading seeds. }
+        documentType: { type: string }
+        contentType: { type: string }
+        contentHash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        retrieval:
+          type: object
+          additionalProperties: false
+          required: [url, method, expiresAt]
+          properties:
+            url: { type: string, format: uri, description: A short-lived GET the plane minted. HTTPS only. }
+            method: { type: string, enum: [GET] }
+            expiresAt: { type: string, format: date-time }
+
+    ReadingOutcome:
+      type: string
+      enum: [read, failed]
+
+    ReadingFailure:
+      type: string
+      description: A closed set. None carries anything of the document.
+      enum: [retrieval_failed, content_changed, unreadable, model_unavailable, reader_fault]
+
+    ReadingFieldValue:
+      description: >-
+        A part's value as the profile holds it: text, a number, a yes/no, or a
+        small structure of them (a month and a year; a job's end). Bounded in
+        depth and size, so a value cannot carry a document.
+      oneOf:
+        - { type: string, maxLength: 4000 }
+        - { type: number }
+        - { type: boolean }
+        - type: object
+          maxProperties: 8
+          additionalProperties:
+            oneOf:
+              - { type: string, maxLength: 4000 }
+              - { type: number }
+              - { type: boolean }
+              - type: object
+                maxProperties: 8
+                additionalProperties:
+                  oneOf:
+                    - { type: string, maxLength: 4000 }
+                    - { type: number }
+                    - { type: boolean }
+
+    EntryReading:
+      type: object
+      additionalProperties: false
+      required: [index, fields, spans, confidence, toAsk]
+      description: >-
+        One entry — one job, one qualification — as the document stated it,
+        and what it did not. A part that is the student's to state (ADR-0149)
+        is in `toAsk`, never in `fields`.
+      properties:
+        index: { type: integer, minimum: 1, maximum: 50, description: One-based, in document order. }
+        fields:
+          type: object
+          maxProperties: 24
+          additionalProperties: { $ref: "#/components/schemas/ReadingFieldValue" }
+          description: Every document part the document stated, parsed, by part key.
+        spans:
+          type: object
+          maxProperties: 24
+          additionalProperties: { type: string, minLength: 1, maxLength: 4000 }
+          description: The words each field was read from, by the same key — the student's own words for the playback. One per field, no more.
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        toAsk:
+          type: array
+          maxItems: 24
+          items: { type: string, pattern: "^[a-zA-Z][a-zA-Z0-9]{0,31}$" }
+          description: The parts the interview asks, in the plan's order.
+
+    ListReading:
+      type: object
+      additionalProperties: false
+      required: [fieldKey, entries, dropped]
+      properties:
+        fieldKey: { type: string, maxLength: 64, pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$" }
+        entries:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/EntryReading" }
+        dropped: { type: integer, minimum: 0, maximum: 50, description: Entries cut and not offered — an invented span, or two date ranges cut as one. A count. }
+
+    ReadingReport:
+      type: object
+      additionalProperties: false
+      required: [leaseId, outcome]
+      description: >-
+        How a reading ended. `read` carries `lists` and no `failure`; `failed`
+        carries `failure` and no `lists`. A half-written report is refused.
+      properties:
+        leaseId: { type: string }
+        outcome: { $ref: "#/components/schemas/ReadingOutcome" }
+        failure: { $ref: "#/components/schemas/ReadingFailure" }
+        lists:
+          type: array
+          maxItems: 8
+          items: { $ref: "#/components/schemas/ListReading" }
+        usage:
+          type: object
+          additionalProperties: false
+          required: [calls, inputTokens, outputTokens]
+          description: The provider's own figures for the calls this reading made.
+          properties:
+            calls: { type: integer, minimum: 0 }
+            inputTokens: { type: integer, minimum: 0 }
+            outputTokens: { type: integer, minimum: 0 }
+
     Problem:
       type: object
       additionalProperties: false

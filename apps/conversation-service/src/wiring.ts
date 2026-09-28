@@ -27,6 +27,7 @@ import { effectiveFor, parseRetentionSchedule, validateHistory, validateSchedule
 import type { DocumentIntakePort } from "./document-intake-store.js";
 import { PostgresDocumentIntakePort, assertDocumentStoreIsDurable } from "./document-intake-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
+import { PostgresDocumentReadingStore } from "./document-reading-store.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import type { DocumentVault } from "@askimate/aas-documents";
 import { S3DocumentVault } from "./s3-document-vault.js";
@@ -240,6 +241,10 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     // store, in every deployment that has the table — the service and the
     // worker build the same driver, so both name the same documents.
     heldDocuments: new PostgresDocumentRecordStore(wiring.pool),
+    // ADR-0148 §9, P246: which CV waits to be read, and how its reading ended.
+    // In every deployment that has the table; the reader claims through the
+    // service, which alone has the vault to mint a retrieval with.
+    readings: new PostgresDocumentReadingStore(wiring.pool),
     ...(wiring.disclosure === undefined ? {} : { disclosure: wiring.disclosure }),
     now: wiring.now,
   });

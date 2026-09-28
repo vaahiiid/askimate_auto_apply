@@ -210,3 +210,36 @@ Not built: any change to `packages/documents`, to the transport routes, to `pack
 the boundary rules, or to any AWS resource.
 
 **Declared-but-unreachable surface: six, unchanged.**
+
+## Amended by ADR-0148 §9, built in P246: the CV reader, the second process that fetches a document
+
+Vahid, 2026-09-26: *"A separate process whose only job is reading a CV. It fetches the document,
+produces text, and forgets it. Amend ADR-0092 to name a second such process rather than carrying an
+exception … a service with one job and a clear boundary is the shape this system already uses for
+filling."*
+
+**The rule stands as one rule**, and now names two processes:
+
+```
+after the storage gate (a CV, held under the CV-reading purpose, not purged):
+  conversation service mints a short-lived pre-signed GET
+  CV reader ──GET──▶ S3                        the reader holds a URL for a minute, not a key
+  CV reader ──report──▶ conversation service   what the document GAVE: values and their words
+```
+
+- **`apps/cv-reader`** claims one document at a time from the plane
+  (`POST /internal/v1/readings/claims`), fetches it once through the URL it was handed, refuses
+  bytes that do not hash to what the plane said, reads it through the real PDF or Word library and
+  the model ADR-0018 names, reports (`POST /internal/v1/readings/{documentId}/report`), and keeps
+  nothing. Its configuration refuses every database URL, the KMS key, the envelope cache and the
+  bucket name, as the runner's does; `pnpm run boundaries` forbids it `@askimate/aas-documents`,
+  the case store, the secrets, `pg` and a browser.
+- **The conversation service still holds no document.** What the report carries is what the
+  interview would have held had the student typed it — a value and the words it was read from —
+  and the contract's parser refuses anything longer than a few lines per field. The plane's table
+  (`document_readings`, migration 0030) holds which document was sent in which conversation, who
+  holds its lease, and how the reading ended: no byte, no line, no value.
+- **The gate is the storage gate, not the transmission gate.** Reading is the purpose the CV was
+  stored for (the STORE_CV determination, ADR-0148 §10); `mayTransmit` is for a portal and does not
+  run here. The retrieval is minted only after the document is found to be a CV, held under that
+  purpose, neither purged nor superseded, with the bytes the reading was asked for.

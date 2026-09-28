@@ -34,6 +34,7 @@ import {
   REJECTION_REASONS,
   SECRET_LIFECYCLES,
 } from "./vocabulary.js";
+import { READING_FAILURES, READING_OUTCOMES } from "./reading.js";
 
 type Json = Record<string, unknown>;
 
@@ -176,6 +177,10 @@ describe("the published contract and the code do not drift", () => {
     }
   });
 
+  it("agrees on the CV reader's outcomes and failures (ADR-0148 §9)", () => {
+    expect(enumOf(CONVERSATION, "ReadingOutcome").sort()).toEqual([...READING_OUTCOMES].sort());
+    expect(enumOf(CONVERSATION, "ReadingFailure").sort()).toEqual([...READING_FAILURES].sort());
+  });
   it("agrees on the lifecycle words", () => {
     expect(enumOf(SECURE, "SecretLifecycle").sort()).toEqual(
       [...SECRET_LIFECYCLES].sort(),

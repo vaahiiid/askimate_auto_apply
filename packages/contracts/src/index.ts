@@ -219,6 +219,28 @@ export {
   parseWorkReport,
 } from "./work.js";
 
+// ── The CV reader's contract (ADR-0148 §9, ADR-0149, ADR-0092 as amended) ──
+export type {
+  ClaimReadingRequest,
+  ClaimedReading,
+  ReadingFailure,
+  ReadingOutcome,
+  ReadingReport,
+  WireEntryReading,
+  WireFieldValue,
+  WireListReading,
+} from "./reading.js";
+export {
+  MAX_ENTRIES_PER_LIST,
+  MAX_LISTS_PER_READING,
+  MAX_PARTS_PER_ENTRY,
+  MAX_SPAN_LENGTH,
+  READING_FAILURES,
+  READING_OUTCOMES,
+  parseClaimedReading,
+  parseReadingReport,
+} from "./reading.js";
+
 // ── Specialist interventions (ADR-0048) ──────────────────────────────────
 export type {
   OpenIntervention,

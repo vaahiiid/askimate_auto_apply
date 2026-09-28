@@ -399,6 +399,23 @@ reader process — and the section boundary, which ends at the letter now under 
 asked for. The reader process comes next; the run that proves it is the same one, his CV live,
 ending with three qualifications asking for their country and nothing else.
 
+**The reader process, as built (P246).** `apps/cv-reader`: the second process ADR-0092 names —
+claims one CV from the plane, fetches it once through a sixty-second URL, refuses bytes that do
+not hash to what the plane said, reads it through the real extractors and the model ADR-0018
+names, reports what the document gave, and keeps nothing. On the plane: `document_readings`
+(migration 0030), asked for by the confirm route when a CV's bytes are in the bucket; the claim
+runs the storage gate and mints the retrieval; the report becomes the interview's own walk —
+`value_part_read` events with the document as their origin and the span each was read from as
+its words, `any` yes, `another` yes for every entry but the last — so the interview asks only what
+the document did not give, and the student confirms the whole list entry by entry (§6–§7). The
+source flag of ADR-0149 sits inside it: a part marked the student's is never in a request, and
+the reader names it in `toAsk`. **Proven against the deterministic client only**: the reader on
+the fixture CV, the plane's claim and report against Postgres, and the end state — a
+qualification seeded from a report, the interview asking for the country first, then the one
+optional part the fixture mapping reads (the award date, *say none*), then *another?*, then the
+playback. On a mapping that reads no award date, the country is asked and nothing else. Whether
+the Bedrock client reads his CV into these parts is his run, the same measurement, `--live`.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

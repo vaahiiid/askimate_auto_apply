@@ -43,6 +43,8 @@ export interface ConversationConfig {
   readonly secureServiceToken: string;
   readonly serviceCertSecure: string;
   readonly serviceCertRunner: string;
+  /** The CV reader's certificate (ADR-0148 §9). Optional: a deployment without a reader presents none. */
+  readonly serviceCertReader: string | undefined;
   readonly catalogue: CatalogueSource;
   /** Where reviewed entries and their approvals live. Required by `registry`. */
   readonly catalogueDir?: string;
@@ -146,6 +148,7 @@ export function conversationConfigFrom(
       secureServiceToken: r.string("AAS_SECURE_SERVICE_TOKEN"),
       serviceCertSecure: r.string("AAS_SERVICE_CERT_SECURE"),
       serviceCertRunner: r.string("AAS_SERVICE_CERT_RUNNER"),
+      serviceCertReader: r.optionalString("AAS_SERVICE_CERT_READER"),
       ...catalogueConfig,
       oidc:
         issuer !== undefined &&
