@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.239.0] — 2026-09-28
+
+**P243 — his `--live` run reached Bedrock's Messages-API endpoint with the other Bedrock service's id; the banner had named the configuration as the destination (row 101, ADR-0018 amended).**
+
+- **Fixed** the Bedrock client's base URL: given from the region at construction, so
+  `ANTHROPIC_BEDROCK_MANTLE_BASE_URL` can no longer move it; a test sets the variable to
+  api.anthropic.com and reads the pinned URL back. `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL`
+  never could, measured.
+- **Added** `BedrockModelClient.destination`: the service, the pinned base URL, and the URL of every
+  request that left the client, failed ones included.
+- **Changed** the demo banner to claim nothing before the call — it says nothing has been called
+  and where the client is built to go — and the demos and `measure-cv` to print, after the run and
+  on its failure path, what actually left the client, then the usage.
+- **Added** `modelIdShape`: an id with an inference-profile prefix, a version suffix or an ARN is
+  the InvokeModel service's shape, named before a run; a shape is not availability, and the label
+  says so.
+- **Changed** `verify-bedrock` to say its lists are the InvokeModel service's, and to print what the
+  client calls (the Messages-API endpoint, no list call, documented ids) with each configured id's
+  shape. `docs/measure-cv-reading.md` corrected likewise. The demo scripts' colour constants,
+  missing their escape byte, print as colour.
+
+---
+
 ## [0.238.0] — 2026-09-28
 
 **P242 — stage three's first six hours: the cut is the model's, as line ranges, held by structure (ADR-0148 §9).**

@@ -174,6 +174,39 @@ export interface BedrockClientOptions {
    * a paragraph and small enough that a runaway response cannot cost much.
    */
   readonly maxTokens?: number;
+  /**
+   * The `fetch` the SDK sends requests through. Tests only: it lets a test see
+   * the request the client actually made, with no network. Every request is
+   * recorded in `destination.requests` whichever fetch carries it.
+   */
+  readonly fetch?: typeof globalThis.fetch;
+}
+
+/**
+ * Where this client's requests go — as built, and as actually called.
+ *
+ * P243, row 101. Vahid's `--live` run printed a banner naming Bedrock and then
+ * an error in the Claude API's own shape, and the banner had printed the
+ * CONFIGURATION, before the call, rather than the DESTINATION, after it. This
+ * is the destination: the endpoint fixed at construction, and the URL of every
+ * request that left the client, in order, whether or not a response came back.
+ */
+export interface BedrockDestination {
+  /**
+   * The service, by the name it is signed for. `bedrock-mantle` is "Claude in
+   * Amazon Bedrock": the Messages-API endpoint, which is not the InvokeModel
+   * service (`bedrock-runtime`) that `verify-bedrock` lists models from.
+   */
+  readonly service: "bedrock-mantle";
+  /** Fixed from the region at construction. No environment variable moves it. */
+  readonly baseURL: string;
+  /** The URL of every request that left the client, in order — failed ones included. */
+  readonly requests: readonly string[];
+}
+
+/** The Messages-API endpoint of Amazon Bedrock, in one region. */
+export function mantleBaseURL(region: string): string {
+  return `https://bedrock-mantle.${region}.api.aws/anthropic`;
 }
 
 /**
@@ -192,11 +225,25 @@ export class BedrockModelClient implements ModelClient {
   #inputTokens = 0;
   #outputTokens = 0;
   #cacheReadTokens = 0;
+  readonly #requests: string[] = [];
 
   public constructor(options: BedrockClientOptions) {
     this.#config = options.config;
     this.#maxTokens = options.maxTokens ?? 2_048;
-    this.#client = new AnthropicBedrockMantle({ awsRegion: options.config.region });
+    const carry = options.fetch ?? globalThis.fetch;
+    this.#client = new AnthropicBedrockMantle({
+      awsRegion: options.config.region,
+      // Pinned. Left out, the SDK reads ANTHROPIC_BEDROCK_MANTLE_BASE_URL and a
+      // shell variable would move every student document this client carries
+      // to another host without a word (P243, row 101).
+      baseURL: mantleBaseURL(options.config.region),
+      // Recorded before it leaves, so a request that gets no answer is still on
+      // the record: the failed call is the one whose destination is evidence.
+      fetch: (input, init) => {
+        this.#requests.push(input instanceof Request ? input.url : String(input));
+        return carry(input, init);
+      },
+    });
   }
 
   /** Real usage, from the provider. */
@@ -207,6 +254,11 @@ export class BedrockModelClient implements ModelClient {
       outputTokens: this.#outputTokens,
       cacheReadTokens: this.#cacheReadTokens,
     };
+  }
+
+  /** Where the requests go, and where they went. See `BedrockDestination`. */
+  public get destination(): BedrockDestination {
+    return { service: "bedrock-mantle", baseURL: this.#client.baseURL, requests: [...this.#requests] };
   }
 
   public get region(): string {

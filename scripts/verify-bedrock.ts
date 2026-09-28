@@ -22,6 +22,18 @@
  * Three calls, all `List`/`Get`: STS caller identity, ListFoundationModels,
  * ListInferenceProfiles. It requests no model access, invokes no model, and
  * costs nothing.
+ *
+ * ── Two services answer to "Bedrock", and this lists the other one ────────
+ *
+ * P243, row 101. The two `List` calls above are the InvokeModel service's
+ * (`bedrock-runtime`; ids with `eu.`/`global.` prefixes and version suffixes).
+ * The client (`packages/llm/src/bedrock.ts`) calls the Messages-API endpoint
+ * ("Claude in Amazon Bedrock", `bedrock-mantle.<region>.api.aws`), which serves
+ * a different model list under ids of the form `anthropic.<model>` and has no
+ * list call of its own. On 2026-09-28 an id this script listed as ACTIVE was
+ * handed to the client and the endpoint answered "does not exist". So the
+ * script now says which service each section is about, and section 4 says
+ * what the client calls and where its list lives.
  */
 
 import {
@@ -34,9 +46,12 @@ import {
 import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 
 import {
+  MESSAGES_API_MODELS_PAGE,
   MODEL_WORKLOADS,
   REGION_ENV_VAR,
   WORKLOAD_ENV_VARS,
+  mantleBaseURL,
+  modelIdShape,
   type ModelWorkload,
 } from "@askimate/aas-llm";
 
@@ -110,7 +125,11 @@ async function main(): Promise<void> {
   }
 
   // ── What is available? ──────────────────────────────────────────────────
-  heading("2 · Anthropic models this account can see");
+  heading("2 · Anthropic models this account can see — on the InvokeModel service (bedrock-runtime)");
+  console.log(
+    `  ${DIM}This list and the next are the InvokeModel service's. The client calls a different\n` +
+      `  service; section 4 says which, and what that one takes.${RESET}\n`,
+  );
 
   const bedrock = new BedrockClient({ region });
 
@@ -144,7 +163,7 @@ async function main(): Promise<void> {
   }
 
   // ── Inference profiles ──────────────────────────────────────────────────
-  heading("3 · Inference profiles");
+  heading("3 · Inference profiles — on the InvokeModel service");
   console.log(
     `  ${DIM}Newer models are often reachable only through a profile ID rather than a bare\n` +
       `  model ID. If a model above will not invoke, its profile is usually why.${RESET}\n`,
@@ -168,8 +187,35 @@ async function main(): Promise<void> {
     console.log(`    ${DIM}${profile.inferenceProfileName ?? ""} · ${profile.status ?? "?"}${RESET}`);
   }
 
+  // ── What the client actually calls ──────────────────────────────────────
+  heading("4 · What the client calls, and what that service takes");
+  console.log(
+    `  ${BOLD}${mantleBaseURL(region)}${RESET}\n` +
+      `  ${DIM}The Messages-API endpoint ("Claude in Amazon Bedrock", signed for bedrock-mantle). It is\n` +
+      `  NOT the InvokeModel service sections 2 and 3 listed. Its ids are of the form anthropic.<model>,\n` +
+      `  with no eu./global. prefix and no version suffix, and it has no list call: what it serves is\n` +
+      `  read from the documentation, and proven only by a call.\n` +
+      `  ${MESSAGES_API_MODELS_PAGE}${RESET}\n`,
+  );
+  for (const workload of MODEL_WORKLOADS) {
+    const variable = WORKLOAD_ENV_VARS[workload];
+    const value = process.env[variable]?.trim();
+    if (value === undefined || value.length === 0) {
+      console.log(`  ${DIM}·${RESET} ${variable} ${DIM}unset${RESET}`);
+      continue;
+    }
+    const shape = modelIdShape(value);
+    const verdict =
+      shape === "invoke_model"
+        ? `${RED}✗${RESET} the shape of an InvokeModel id — the client's endpoint does not take these`
+        : shape === "messages_api"
+          ? `${AMBER}·${RESET} the documented shape — whether it is served is proven by a call, not here`
+          : `${AMBER}·${RESET} a shape this script does not recognise`;
+    console.log(`  ${verdict}\n    ${DIM}${variable}=${value}${RESET}`);
+  }
+
   // ── What to choose against ──────────────────────────────────────────────
-  heading("4 · What each workload needs");
+  heading("5 · What each workload needs");
 
   for (const workload of MODEL_WORKLOADS) {
     console.log(`  ${BOLD}${workload}${RESET}  ${DIM}${WORKLOAD_ENV_VARS[workload]}${RESET}`);
@@ -180,15 +226,15 @@ async function main(): Promise<void> {
   }
 
   // ── The configuration to write ──────────────────────────────────────────
-  heading("5 · What to set once you have chosen");
+  heading("6 · What to set once you have chosen");
 
   console.log(
-    `  ${DIM}Deliberately not filled in. Choose from section 2/3 against the criteria in\n` +
-      `  section 4, then record the choice and the reasoning in ADR-0018.${RESET}\n`,
+    `  ${DIM}Deliberately not filled in. Choose an id the client's endpoint documents (section 4)\n` +
+      `  against the criteria in section 5, then record the choice and the reasoning in ADR-0018.${RESET}\n`,
   );
   console.log(`  export ${REGION_ENV_VAR}=${region}`);
   for (const workload of MODEL_WORKLOADS) {
-    console.log(`  export ${WORKLOAD_ENV_VARS[workload]}=<model-or-profile-id>`);
+    console.log(`  export ${WORKLOAD_ENV_VARS[workload]}=anthropic.<model>`);
   }
 
   console.log(

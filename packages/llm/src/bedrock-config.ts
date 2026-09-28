@@ -113,6 +113,46 @@ export function bedrockConfigFrom(
   };
 }
 
+/**
+ * The shape of a model id — a fact about the string, and nothing more.
+ *
+ * P243, row 101. Two AWS services answer to the word "Bedrock", and they take
+ * different ids:
+ *
+ *   invoke_model   the InvokeModel / Converse service (`bedrock-runtime`), whose
+ *                  ids carry a version suffix (`…-v1:0`), an inference-profile
+ *                  prefix (`eu.`, `us.`, `global.`, …) or an ARN. This is the
+ *                  service `verify-bedrock` lists.
+ *   messages_api   the Messages-API endpoint ("Claude in Amazon Bedrock",
+ *                  `bedrock-mantle`), whose documented ids are `anthropic.<model>`
+ *                  with no prefix and no version. This is the service the
+ *                  client calls.
+ *
+ * A shape says which service documents ids of that form. It does NOT say the id
+ * is served: `anthropic.claude-sonnet-4-6` has the second shape and the endpoint
+ * answered "does not exist" to it on 2026-09-28. Availability is measured by a
+ * call; this only stops an id of one service being handed to the other without
+ * a word.
+ */
+export type ModelIdShape = "invoke_model" | "messages_api" | "unknown";
+
+/**
+ * Where the Messages-API endpoint's model list lives. It has no list call —
+ * its Models API is not served (ADR-0018) — so the documentation is the list,
+ * and a call is the only proof.
+ */
+export const MESSAGES_API_MODELS_PAGE =
+  "https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock#supported-models";
+
+export function modelIdShape(id: string): ModelIdShape {
+  const trimmed = id.trim();
+  if (trimmed.startsWith("arn:aws:bedrock:")) return "invoke_model";
+  if (/^(global|us|eu|apac|jp|au)\.anthropic\./.test(trimmed)) return "invoke_model";
+  if (/-v\d+(:\d+)?$/.test(trimmed) || /:\d+$/.test(trimmed)) return "invoke_model";
+  if (/^anthropic\.claude-[a-z0-9-]+$/.test(trimmed)) return "messages_api";
+  return "unknown";
+}
+
 /** True when the environment carries a complete configuration. */
 export function isBedrockConfigured(
   env: Readonly<Record<string, string | undefined>>,

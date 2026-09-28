@@ -375,6 +375,16 @@ a date range: the scoped cut finds the two jobs and the qualification; unscoped,
 entry inside the letter, and the detector says so. Whether the Bedrock client cuts a real CV
 well is what his `--live` run is for, and it needs credentials the page now describes.
 
+**His `--live` run did not reach a model (P243, row 101).** The banner said *"LIVE — Amazon
+Bedrock, eu-west-2"* and the endpoint answered *"The model 'eu.anthropic.claude-sonnet-4-6' does
+not exist"*, in the Claude API's own error shape. The request went where the client was built to
+go — `bedrock-mantle.eu-west-2.api.aws`, the Messages-API endpoint of Amazon Bedrock — and not to
+api.anthropic.com; but the id came from `verify-bedrock`, which lists the *other* Bedrock service
+(InvokeModel), whose ids the Messages-API endpoint does not take. ADR-0018 carries the amendment.
+The measurement waits on his choice of an id that endpoint serves, or of the other service; the
+banner now names nothing before the call and the record of what was called is printed after it,
+on the failure path as well.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

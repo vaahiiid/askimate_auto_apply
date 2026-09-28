@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { unwrapProposed } from "@askimate/aas-domain";
 
@@ -8,8 +8,10 @@ import {
   WORKLOAD_ENV_VARS,
   bedrockConfigFrom,
   isBedrockConfigured,
+  modelIdShape,
 } from "./bedrock-config.js";
 import { clampConfidence, toProposal } from "./bedrock-reading.js";
+import { BedrockModelClient, mantleBaseURL } from "./bedrock.js";
 import { isNotUnderstood } from "./client.js";
 
 const COMPLETE_ENV = {
@@ -196,5 +198,123 @@ describe("confidence from a model that misbehaves", () => {
 
   it("keeps a sane figure untouched", () => {
     expect(clampConfidence(0.87)).toBe(0.87);
+  });
+});
+
+// ── Where the client's requests actually go (P243, row 101) ──────────────
+//
+// Vahid's `--live` run of 2026-09-28 printed "LIVE — Amazon Bedrock, eu-west-2"
+// and then a 404 in the Claude API's own error shape, with a `req_…` id. His
+// guess was an environment variable routing the client away from Bedrock. The
+// tests here hold two things: no environment variable can move the destination,
+// and the client can say, AFTER a call, what it actually called — including a
+// call that failed, because that is the one whose destination matters.
+
+const CONFIG = {
+  region: "eu-west-2",
+  models: {
+    interview: "some-model",
+    interpretation: "some-model",
+    document_extraction: "some-model",
+    navigation: "some-model",
+  },
+} as const;
+
+const NOT_FOUND = {
+  type: "error",
+  request_id: "req_test",
+  error: { type: "not_found_error", message: "The model 'some-model' does not exist" },
+};
+
+/** A fetch that never touches a network: it records the URL and answers as Bedrock did for him. */
+function recordingFetch(seen: string[], body: unknown, status: number): typeof globalThis.fetch {
+  return (input: string | URL | Request): Promise<Response> => {
+    seen.push(input instanceof Request ? input.url : String(input));
+    return Promise.resolve(
+      new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
+    );
+  };
+}
+
+describe("where the Bedrock client's requests go (P243)", () => {
+  const saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const name of ["ANTHROPIC_BEDROCK_MANTLE_BASE_URL", "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]) {
+      saved[name] = process.env[name];
+    }
+    // Signing needs a credential; these are not credentials of anything. No
+    // request leaves the process: the fetch below is the only one the client has.
+    process.env["AWS_ACCESS_KEY_ID"] = "AKIATESTNOTREAL0000000";
+    process.env["AWS_SECRET_ACCESS_KEY"] = "not-a-real-secret";
+    delete process.env["AWS_SESSION_TOKEN"];
+  });
+  afterEach(() => {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  it("is built for the Messages-API endpoint of Amazon Bedrock, in the configured region", () => {
+    const client = new BedrockModelClient({ config: CONFIG });
+    expect(client.destination.service).toBe("bedrock-mantle");
+    expect(client.destination.baseURL).toBe("https://bedrock-mantle.eu-west-2.api.aws/anthropic");
+    expect(mantleBaseURL("us-east-1")).toBe("https://bedrock-mantle.us-east-1.api.aws/anthropic");
+    // Nothing has been called: the record says so rather than the banner guessing.
+    expect(client.destination.requests).toEqual([]);
+  });
+
+  it("CANNOT be moved by an environment variable — his first guess, closed", () => {
+    // The SDK reads this variable when no base URL is given. The client gives one.
+    process.env["ANTHROPIC_BEDROCK_MANTLE_BASE_URL"] = "https://api.anthropic.com";
+    process.env["ANTHROPIC_BASE_URL"] = "https://api.anthropic.com";
+    process.env["ANTHROPIC_API_KEY"] = "sk-ant-not-real";
+    const client = new BedrockModelClient({ config: CONFIG });
+    expect(client.destination.baseURL).toBe("https://bedrock-mantle.eu-west-2.api.aws/anthropic");
+  });
+
+  it("records what it actually called, after the call, INCLUDING a call that failed", async () => {
+    const seen: string[] = [];
+    const client = new BedrockModelClient({ config: CONFIG, fetch: recordingFetch(seen, NOT_FOUND, 404) });
+
+    await expect(
+      client.interpretAnswer({
+        fieldKey: "surname",
+        label: "surname",
+        utterance: "Mohammadi",
+        expectedShape: "a surname",
+        parse: (text: string) => text,
+      }),
+    ).rejects.toThrow(/does not exist/);
+
+    // The request left the client and went where it was built to go — and the
+    // record survives the failure, which is the one time it is evidence.
+    expect(seen).toEqual(["https://bedrock-mantle.eu-west-2.api.aws/anthropic/v1/messages"]);
+    expect(client.destination.requests).toEqual(seen);
+    // No response was counted: usage says what came back, the record says what went out.
+    expect(client.usage.calls).toBe(0);
+  });
+});
+
+describe("the shape of a model id, as a fact about the string (P243)", () => {
+  it("knows an InvokeModel inference profile or versioned id when it sees one", () => {
+    expect(modelIdShape("eu.anthropic.claude-sonnet-4-6")).toBe("invoke_model");
+    expect(modelIdShape("global.anthropic.claude-opus-4-6-v1")).toBe("invoke_model");
+    expect(modelIdShape("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("invoke_model");
+    expect(modelIdShape("arn:aws:bedrock:eu-west-2:123456789012:inference-profile/eu.anthropic.claude-sonnet-4-6")).toBe("invoke_model");
+  });
+
+  it("knows the form the Messages-API endpoint documents — and says nothing about whether it is served", () => {
+    expect(modelIdShape("anthropic.claude-sonnet-5")).toBe("messages_api");
+    expect(modelIdShape("anthropic.claude-haiku-4-5")).toBe("messages_api");
+    // His second try. The shape is the documented one; the endpoint still answered 404.
+    // A shape is not availability, and the label must not claim it is.
+    expect(modelIdShape("anthropic.claude-sonnet-4-6")).toBe("messages_api");
+  });
+
+  it("labels nothing it does not recognise", () => {
+    expect(modelIdShape("claude-sonnet-5")).toBe("unknown");
+    expect(modelIdShape("some-model")).toBe("unknown");
+    expect(modelIdShape("")).toBe("unknown");
   });
 });

@@ -54,6 +54,26 @@ describe("the published command, spawned the way Vahid runs it (P240)", () => {
     expect(live.out).toContain("Bedrock is not configured");
     expect(live.out).not.toContain("entries:");
   }, 60_000);
+
+  it("on the failure path, still says what left the client — here nothing, because it failed before a call (P243)", () => {
+    // A file that does not exist fails inside the run, after the client is
+    // built and before any request. No network is reached: nothing was called,
+    // and the report says exactly that instead of a banner's claim.
+    const failed = run(["--live", join(ROOT, "no-such-directory", "no-such-cv.pdf")], {
+      AAS_BEDROCK_REGION: "eu-west-2",
+      AAS_BEDROCK_MODEL_INTERVIEW: "anthropic.claude-sonnet-5",
+      AAS_BEDROCK_MODEL_INTERPRETATION: "anthropic.claude-sonnet-5",
+      AAS_BEDROCK_MODEL_DOCUMENT_EXTRACTION: "eu.anthropic.claude-sonnet-4-6",
+      AAS_BEDROCK_MODEL_NAVIGATION: "anthropic.claude-sonnet-5",
+    });
+    expect(failed.code).toBe(1);
+    expect(failed.out).toContain("nothing has been called yet");
+    // The id he tried first, flagged before the run by its shape — not by a call.
+    expect(failed.out).toContain("has the shape of an InvokeModel id");
+    expect(failed.out).toContain("called: No request left the client (built for https://bedrock-mantle.eu-west-2.api.aws/anthropic, service bedrock-mantle)");
+    expect(failed.out).toContain("usage: 0 call(s)");
+    expect(failed.out).toContain("no-such-cv.pdf");
+  }, 60_000);
 });
 
 describe("the CV reading measured, structure only (P240)", () => {

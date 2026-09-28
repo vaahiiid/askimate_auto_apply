@@ -21,18 +21,20 @@ export type {
 export { MeteredModelClient, isNotUnderstood } from "./client.js";
 export { DeterministicModelClient } from "./deterministic.js";
 
-export type { BedrockConfig, ModelWorkload } from "./bedrock-config.js";
+export type { BedrockConfig, ModelIdShape, ModelWorkload } from "./bedrock-config.js";
 export {
   BedrockConfigurationError,
+  MESSAGES_API_MODELS_PAGE,
   MODEL_WORKLOADS,
   REGION_ENV_VAR,
   WORKLOAD_ENV_VARS,
   bedrockConfigFrom,
   isBedrockConfigured,
+  modelIdShape,
 } from "./bedrock-config.js";
 
 export type { ReadingToolInput } from "./bedrock-reading.js";
 export { clampConfidence, toProposal } from "./bedrock-reading.js";
 
-export type { BedrockClientOptions } from "./bedrock.js";
-export { BedrockEmptyResponseError, BedrockModelClient } from "./bedrock.js";
+export type { BedrockClientOptions, BedrockDestination } from "./bedrock.js";
+export { BedrockEmptyResponseError, BedrockModelClient, mantleBaseURL } from "./bedrock.js";

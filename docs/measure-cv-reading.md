@@ -28,14 +28,36 @@ Nothing the script does writes a document's text anywhere.
 
 ```sh
 cd askimate_auto_apply
-pnpm run verify-bedrock                      # read-only: which models this account can use
-export AAS_BEDROCK_REGION=…                  # and the four AAS_BEDROCK_MODEL_* variables verify-bedrock names
+pnpm run verify-bedrock                      # read-only: the account, and what each Bedrock service takes
+export AAS_BEDROCK_REGION=…                  # and the four AAS_BEDROCK_MODEL_* variables — see "Two services" below
 pnpm run measure-cv -- --live --out ~/cv-measure/report.json ~/cv-measure/my-cv.pdf ~/cv-measure/other.docx
 ```
 
 Without `--live` the same command runs the deterministic stand-in, which reads only a line
 labelled *Position:* — useful as the contrast, and it costs nothing. `--live` with the
 variables unset is an error, never a silent fallback.
+
+With `--live`, the first line says that **nothing has been called yet** and where the client is
+built to go. The destination is printed **after** the run, from the client's own record of every
+request that left it — on a failed run too, where it is the evidence: `called: 1 request(s) went
+to https://bedrock-mantle.eu-west-2.api.aws/anthropic/v1/messages …`, or `called: No request left
+the client …` when the run failed before one. (P243, row 101.)
+
+## Two services answer to "Bedrock", and the ids are not interchangeable
+
+The client calls the **Messages-API endpoint** of Amazon Bedrock ("Claude in Amazon Bedrock",
+`https://bedrock-mantle.<region>.api.aws/anthropic`). Its ids are of the form
+`anthropic.<model>` — `anthropic.claude-sonnet-5`, `anthropic.claude-haiku-4-5` — with **no**
+`eu.`/`global.` prefix and **no** version suffix, and it has no list call: its model table is the
+[documentation page](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock#supported-models),
+and a call is the only proof. Sonnet 4.6 is not on that table (read 2026-09-28).
+
+`verify-bedrock` sections 2 and 3 list the **other** service — InvokeModel (`bedrock-runtime`),
+whose ids carry profile prefixes and versions (`eu.anthropic.claude-sonnet-4-6`). An id from those
+sections handed to the client is answered with *"does not exist"*; that was the first `--live`
+run. Section 4 of the script says what the client calls, and flags a configured id whose shape is
+the other service's, before anything is spent. Which service, and which model, is Vahid's choice,
+recorded in ADR-0018.
 
 ## What comes out, and what never does
 
@@ -85,19 +107,21 @@ What to get, from whoever administers that account:
    under a profile named in `AWS_PROFILE`. Never in a file the repository can see, never in the
    chat.
 2. **Permissions on that credential.** For `verify-bedrock`: `sts:GetCallerIdentity`,
-   `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles`. For the measurement:
-   `bedrock:InvokeModel` (and `bedrock:InvokeModelWithResponseStream`) on the model or the
-   inference profile it will use. `AmazonBedrockFullAccess` covers all of it for a measurement;
-   a narrower policy is right for anything that stays.
+   `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles`. For the measurement, on the
+   service the client calls, the documentation names `bedrock-mantle:CreateInference` on the model
+   ARNs (its IAM-role path); whether `AmazonBedrockFullAccess` covers `bedrock-mantle:*` is not
+   established here — the first call says. (`bedrock:InvokeModel` is the other service's action;
+   it is what P242 wrote here, and it was written as if there were one service.)
 3. **Model access, in the console — a lead time, not a command.** Anthropic models on Bedrock
    have to be enabled for the account and region under *Bedrock → Model access*; for Anthropic
    the first request asks for use-case details, and access is usually granted within minutes but
-   can take longer. Some models are reachable only through a cross-region **inference profile**
-   (an id beginning `eu.` or `global.`), which is what `AAS_BEDROCK_MODEL_*` must then name.
-   `verify-bedrock` prints exactly what the account can see, and picks nothing.
+   can take longer. On the InvokeModel service some models are reachable only through a
+   cross-region **inference profile** (`eu.`, `global.`); the Messages-API endpoint the client
+   calls takes no such prefix. `verify-bedrock` prints what the account can see on the one and
+   what the other takes, and picks nothing.
 4. **Then, in the shell** (never committed): `AWS_REGION=eu-west-2`, `AAS_BEDROCK_REGION=eu-west-2`,
-   and the four `AAS_BEDROCK_MODEL_*` variables set to ids `verify-bedrock` listed, one workload
-   at a time; the measurement uses `AAS_BEDROCK_MODEL_DOCUMENT_EXTRACTION`.
+   and the four `AAS_BEDROCK_MODEL_*` variables set to ids of the service the client calls, one
+   workload at a time; the measurement uses `AAS_BEDROCK_MODEL_DOCUMENT_EXTRACTION`.
 
 The part that is a lead time is 3, and only if the account has never enabled Anthropic models.
 Everything else is minutes once someone with the console is in front of it.

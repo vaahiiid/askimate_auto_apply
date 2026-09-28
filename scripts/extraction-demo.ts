@@ -35,7 +35,7 @@ import type {
   SegmentationRequest,
 } from "@askimate/aas-llm";
 import { DeterministicModelClient } from "@askimate/aas-llm";
-import { demoModel, usageLine } from "./model-for-demo.js";
+import { demoModel, destinationLine, usageLine } from "./model-for-demo.js";
 import { PASSPORT_TEXT, bytesOf } from "@askimate/aas-extraction/fixtures";
 import {
   PlainTextExtractor,
@@ -230,6 +230,7 @@ async function main(): Promise<void> {
       `the contrast IS the demonstration (ADR-0016).${RESET}\n`,
   );
 
+  console.log(`  ${DIM}Called: ${RESET}${destinationLine(demo)}`);
   console.log(`  ${DIM}Usage: ${RESET}${usageLine(demo)}\n`);
 }
 

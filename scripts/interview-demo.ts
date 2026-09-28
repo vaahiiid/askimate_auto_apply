@@ -18,7 +18,7 @@
 import { studentId, isFieldUnavailable, provenanceOf, unwrapConfirmed } from "@askimate/aas-domain";
 import { MeteredModelClient } from "@askimate/aas-llm";
 
-import { demoModel, usageLine } from "./model-for-demo.js";
+import { demoModel, destinationLine, usageLine } from "./model-for-demo.js";
 import { emptyProfile, resolveField, FIELD_LABELS } from "@askimate/aas-profile";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 import {
@@ -159,6 +159,7 @@ async function main(): Promise<void> {
   }
   console.log(`\n  Documents: ${state.collectedDocuments.join(", ")}`);
   console.log(`\n${DIM}  Model calls this run: ${String(model.usage.calls)}${RESET}`);
+  console.log(`${DIM}  Called: ${RESET}${destinationLine(demo)}`);
   console.log(`${DIM}  Usage: ${RESET}${usageLine(demo)}`);
   console.log(`${DIM}  Nothing was submitted. No portal was contacted.${RESET}\n`);
 }

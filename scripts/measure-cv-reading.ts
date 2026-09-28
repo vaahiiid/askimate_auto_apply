@@ -34,7 +34,7 @@ import type { ModelClient } from "@askimate/aas-llm";
 import type { DocumentText, ListReading } from "@askimate/aas-extraction";
 import { cutDocument, fullText, planFor, readListEntries, sectionOf, textExtractorFor, DOCX_CONTENT_TYPE, PDF_CONTENT_TYPE } from "@askimate/aas-extraction";
 
-import { demoModel, usageLine } from "./model-for-demo.js";
+import { demoModel, destinationLine, usageLine } from "./model-for-demo.js";
 
 /** One document, measured. Structure only. */
 export interface DocumentMeasurement {
@@ -219,19 +219,25 @@ async function main(argv: readonly string[], now: () => Date): Promise<void> {
   console.log(model.description);
   console.log("");
   const measurements: DocumentMeasurement[] = [];
-  for (const path of files) {
-    const contentType = contentTypeOf(path);
-    if (contentType === undefined) {
-      console.error(`${path}: only a .pdf with a text layer or a .docx is read; skipped`);
-      continue;
+  try {
+    for (const path of files) {
+      const contentType = contentTypeOf(path);
+      if (contentType === undefined) {
+        console.error(`${path}: only a .pdf with a text layer or a .docx is read; skipped`);
+        continue;
+      }
+      const contents = new Uint8Array(await readFile(path));
+      const measured = await measureDocument({ name: basename(path), contentType, contents }, model.client);
+      measurements.push(measured);
+      console.log(renderMeasurement(measured));
+      console.log("");
     }
-    const contents = new Uint8Array(await readFile(path));
-    const measured = await measureDocument({ name: basename(path), contentType, contents }, model.client);
-    measurements.push(measured);
-    console.log(renderMeasurement(measured));
-    console.log("");
+  } finally {
+    // On the failure path as well: where the request went is the evidence a
+    // failed call leaves, and a cleanup that swallowed it would destroy it (P243).
+    console.log(`called: ${destinationLine(model)}`);
+    console.log(`usage: ${usageLine(model)}`);
   }
-  console.log(usageLine(model));
   if (outPath !== undefined) {
     await writeFile(outPath, `${JSON.stringify({ live: model.live, measuredAt: now().toISOString(), documents: measurements }, null, 2)}\n`);
     console.log(`\nwritten: ${outPath} (structure only — no value, no span, no line of any document)`);

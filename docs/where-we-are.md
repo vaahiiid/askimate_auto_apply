@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P243 — the request went to Bedrock, with the other Bedrock's id
+
+> *"The banner should name what it actually called, after the call rather than before it."*
+
+His `--live` run got a 404 in the Claude API's own shape, and his guess was a shell variable
+routing the client away from Bedrock. Read from the client and the SDK, and measured: the request
+went to `bedrock-mantle.eu-west-2.api.aws`, the Messages-API endpoint of Amazon Bedrock, which
+answers in that shape; nothing in his shell could have moved it, and the one variable that could
+have — set by nobody — is pinned out now. The 404 was true: `verify-bedrock` lists the InvokeModel
+service, the client calls the Messages-API endpoint, and an id verified on the one was handed to
+the other. The banner had printed the configuration as if it were the destination; now it claims
+nothing before the call, and the destination is printed after it from the client's own record,
+on the failure path too. The running services build no Bedrock client, so none had the exposure.
+Which service and which model is his to say, and the measurement waits on that word.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P242 — the cut as line ranges, and what holds it
 
 > *"A merge that cannot hide a line and a split that loses its employer are both caught by
