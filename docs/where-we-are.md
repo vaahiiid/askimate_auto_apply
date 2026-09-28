@@ -4906,6 +4906,26 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P245 — invention is caught, inference is not, and a section ends where the letter begins
+
+> *"Grounding does not catch it because the span is real — what is missing is that the student
+> never stated it."*
+
+His CV, live, through the service he chose: seven jobs from 28 lines, one date range each, no
+merge, no split, nothing from the letter. The cut holds on a real document. What fell was around
+it: every qualification dropped for a country nobody writes on a CV, and a model asked for it
+would answer Iran with a real span to stand on. That is ADR-0149, in his words — some parts are
+the student's to state and are never asked of a document, and grounding catches invention, not
+inference — with the reviewer's question at authoring and the fourth limit on ADR-0016. And the
+education section that ran over his letter ends at the letter now, under three guards: found by
+both its opening and its closing, opening inside the section, and never leaving a stub. The flag
+and the reader that honours it come with the reader process; then his CV again, ending with
+three qualifications asking for their country and nothing else.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P244 — one service, one list, and London that resolves to London
 
 > *"verify-bedrock and the client must read the same list. … An endpoint whose routing we cannot

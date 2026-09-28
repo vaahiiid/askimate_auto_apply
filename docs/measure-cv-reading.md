@@ -60,8 +60,12 @@ id, which is why it is the one used (ADR-0012, amended). The first measurement r
 For each document: pages, lines, characters. For each of the two lists (jobs, qualifications),
 since P242 the CUT comes first, because that is what stage three depends on:
 
-- the section as a **line range** (`lines 15–23`), or NOT FOUND, in which case the cut ran over
-  the whole document;
+- the section as a **line range** (`lines 15–23`) and what ended it — the next heading, the
+  cover letter's opening, or the end of the document — or NOT FOUND, in which case the cut ran
+  over the whole document. Since P245 a letter that follows a section with no heading between
+  ends the section at its opening, and only when the letter is found by both its opening and its
+  closing and opens inside that section; a CV with no letter, or a letter the finder does not
+  know, keeps its last section to the end of the document and says so;
 - the cut: how many entries, how many read whole, how many non-blank section lines no entry
   claims, how many entry lines lie outside the section, how many overlapping pairs and how many
   ranges outside the document were refused;

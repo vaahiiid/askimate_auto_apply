@@ -387,6 +387,18 @@ on the failure path as well. **Decided in P244, his words:** the InvokeModel ser
 verifier and the client read one list (ADR-0018), and London that resolves to London (ADR-0012);
 the measurement runs with `eu.anthropic.claude-sonnet-4-6`, and it is his run.
 
+**His live run, 2026-09-28 (P245).** 62 calls, 13,589 tokens in, 8,647 out. Employment: seven
+entries cut from 28 lines, six read whole, one date range each, no overlap, no range outside the
+document, no letter line in any entry — *"the segmentation works … That is the thing stage three
+depended on and it holds on a real document."* Education: three entries cut, all three dropped
+for `countryCode`; 19 of 22 section lines unassigned because the letter followed the section
+with no heading between. Two things followed, neither about the cut: ADR-0149 — some parts are
+the student's to state, never asked of a document, because grounding catches invention and not
+inference; the source flag and the incomplete entry that asks for the rest are built inside the
+reader process — and the section boundary, which ends at the letter now under the guards he
+asked for. The reader process comes next; the run that proves it is the same one, his CV live,
+ending with three qualifications asking for their country and nothing else.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

@@ -14,6 +14,8 @@ import { PlainTextExtractor } from "./text.js";
 import type { DocumentText } from "./text.js";
 
 const PROSE = readFileSync(new URL("./fixtures/cv-prose.txt", import.meta.url), "utf8");
+/** The same CV with the letter AFTER the last section and no heading after it — Vahid's own layout (P245). */
+const LETTER_LAST = readFileSync(new URL("./fixtures/cv-prose-letter-last.txt", import.meta.url), "utf8");
 const model = new DeterministicModelClient();
 
 async function plain(body: string): Promise<DocumentText> {
@@ -107,6 +109,59 @@ describe("the cut held by structure: the checks and the two detectors", () => {
     const cut = await cutDocument(target("employment.history"), text, cuttingAs([{ from: 6, to: 8 }, { from: 16, to: 18 }]));
     expect(cut.entries[0]?.letterLines, "three lines of the letter inside entry 1").toBe(3);
     expect(cut.entries[1]?.letterLines).toBe(0);
+  });
+
+  // ── Where a section ends when a letter follows it (P245) ──────────────
+  //
+  // Vahid's live run, 2026-09-28: the education section ran 39–60 and the
+  // letter began at 45, so more than half of "education" was letter and 19
+  // of 22 lines were unassigned. *"the section boundary is wrong and the
+  // model had to work around it. Worth fixing where the section ends rather
+  // than relying on the cut to be careful."* And the guard he asked for:
+  // *"Make sure clipping at the letter cannot clip a real section short."*
+
+  it("ends a section at the letter's opening when the letter follows it with no heading between (P245)", async () => {
+    const text = await plain(LETTER_LAST);
+    // The letter opens at line 23; the section is 18–22, not 18–29.
+    expect(letterRangeOf(linesOf(text))).toEqual({ from: 23, to: 28 });
+    expect(sectionRangeOf(text, ["education"])).toEqual({ from: 18, to: 22 });
+    expect(sectionRangeOf(text, ["employment"]), "a section closed by a heading is untouched").toEqual({ from: 8, to: 16 });
+    const cut = await cutDocument(target("education.prior_qualifications"), text, model);
+    expect(cut.checks.section).toEqual({ from: 18, to: 22 });
+    expect(cut.checks.sectionEndedAt).toBe("letter");
+    expect(cut.entries.map((e) => [e.from, e.to])).toEqual([[19, 21]]);
+    expect(cut.checks.unassignedSectionLines, "no letter line counted against the section").toBe(0);
+    expect(cut.entries[0]?.letterLines).toBe(0);
+  });
+
+  it("CANNOT clip a real section short: no letter, an opening with no closing, or an opening it does not know", async () => {
+    // No letter at all: a last section runs to the end of the document, and says so.
+    const plainEnd = await plain(LETTER_LAST.slice(0, LETTER_LAST.indexOf("Dear Hiring Manager")).trimEnd() + "\n");
+    expect(sectionRangeOf(plainEnd, ["education"])).toEqual({ from: 18, to: 22 });
+    expect((await cutDocument(target("education.prior_qualifications"), plainEnd, model)).checks.sectionEndedAt).toBe("document_end");
+
+    // An opening with no closing after it is not a letter: a line that merely
+    // begins "Dear" cannot cut a section short.
+    const noClose = await plain(LETTER_LAST.replace("Yours sincerely,\n", ""));
+    expect(letterRangeOf(linesOf(noClose))).toBeNull();
+    // One line fewer than the document with its closing, and the section runs to the end.
+    expect(sectionRangeOf(noClose, ["education"])).toEqual({ from: 18, to: 28 });
+
+    // An opening the finder does not know: not found, not clipped, and the
+    // report says "none found" rather than a wrong range.
+    const unknown = await plain(LETTER_LAST.replace("Dear Hiring Manager,", "To the admissions team,"));
+    expect(letterRangeOf(linesOf(unknown))).toBeNull();
+    const cut = await cutDocument(target("education.prior_qualifications"), unknown, model);
+    expect(cut.checks.section).toEqual({ from: 18, to: 29 });
+    expect(cut.checks.sectionEndedAt).toBe("document_end");
+    expect(cut.checks.letter).toBeNull();
+  });
+
+  it("a letter BEFORE the sections clips nothing: the opening must lie inside the section it would end", async () => {
+    const text = await plain(PROSE);
+    expect(sectionRangeOf(text, ["employment"])).toEqual({ from: 15, to: 23 });
+    const cut = await cutDocument(target("employment.history"), text, model);
+    expect(cut.checks.sectionEndedAt).toBe("heading");
   });
 
   it("the stand-in, unscoped by a heading, would start an entry inside the letter — which the detector names", async () => {

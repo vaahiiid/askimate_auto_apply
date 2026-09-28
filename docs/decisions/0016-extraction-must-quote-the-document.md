@@ -74,6 +74,17 @@ Limits 1 and 2 are exactly what the student's confirmation is good at, which is 
 still produces a `ProposedValue` and nothing more. The two mechanisms cover different failures and
 neither replaces the other.
 
+4. **It does not prove the value was stated.** Added 2026-09-28 (P245, ADR-0149), on Vahid's
+   words: *"Asked for the country of 'University of Tehran', a model answers Iran and finds a span
+   to ground it. Grounding does not catch it because the span is real — what is missing is that
+   the student never stated it."* Grounding catches **invention** — a span from nowhere. It does
+   not catch **inference** — a value derived from something real that does not say it. A part a
+   document does not state is the student's to state, never asked of a document, and marked so in
+   the plan at authoring; the span check cannot tell a read value from a derived one at run time.
+   [ADR-0149](./0149-some-parts-are-the-students-to-state-grounding-catches-invention-not-inference.md)
+   carries the rule. This limit is the one the student's confirmation is *weakest* at: a right
+   guess is confirmed as true, because the student confirms what they know, not what they said.
+
 ## Alternatives rejected
 
 **Trust a confidence threshold.** A confabulated reading is not a low-confidence one — it is

@@ -26,9 +26,12 @@ import type { ModelClient, NotUnderstood, Segmentation } from "@askimate/aas-llm
 import { isNotUnderstood } from "@askimate/aas-llm";
 
 import type { ListTarget } from "./plans.js";
-import { sectionRangeOf } from "./sections.js";
+import { letterRangeOf, sectionBoundsOf } from "./sections.js";
+import type { SectionEnd } from "./sections.js";
 import { fullText } from "./text.js";
 import type { DocumentText } from "./text.js";
+
+export { letterRangeOf } from "./sections.js";
 
 export interface LineRange {
   readonly from: number;
@@ -43,6 +46,8 @@ export interface CutChecks {
   readonly overlapping: readonly (readonly [number, number])[];
   /** The section found by heading, or `null`. */
   readonly section: LineRange | null;
+  /** What closed the section: the next heading, the letter's opening (P245), or the document's end; `null` with no section. */
+  readonly sectionEndedAt: SectionEnd | null;
   /** Lines of the section assigned to no entry. */
   readonly unassignedSectionLines: number;
   /** Lines assigned to an entry that lie outside the section (0 where no section was found). */
@@ -81,26 +86,6 @@ export function dateRangeCount(lines: readonly string[]): number {
   return lines.reduce((count, line) => count + (line.match(DATE_RANGE) ?? []).length, 0);
 }
 
-const LETTER_OPENS = /^\s*(dear\b|to whom it may concern|hiring manager|dear sir|dear madam)/i;
-const LETTER_CLOSES = /^\s*(yours (sincerely|faithfully|truly)|kind regards|best regards|warm regards|regards|sincerely|best wishes|respectfully)\b/i;
-
-/**
- * The cover letter, by its opening ("Dear …") and its closing ("Yours
- * sincerely" and the like), as a line range; `null` where either is absent.
- * Deterministic and narrow on purpose: a letter it does not recognise is not
- * flagged, and a job it mistakes for a letter would need both an opening and
- * a closing, which a job does not have.
- */
-export function letterRangeOf(lines: readonly string[]): LineRange | null {
-  const from = lines.findIndex((line) => LETTER_OPENS.test(line));
-  if (from < 0) return null;
-  const closeAt = lines.slice(from).findIndex((line) => LETTER_CLOSES.test(line));
-  if (closeAt < 0) return null;
-  // The line after the closing carries the name; take it in when it is short.
-  const to = from + closeAt + (lines[from + closeAt + 1] !== undefined && (lines[from + closeAt + 1] ?? "").trim().length <= 60 ? 1 : 0);
-  return { from: from + 1, to: to + 1 };
-}
-
 function overlapOf(a: LineRange, b: LineRange): number {
   return Math.max(0, Math.min(a.to, b.to) - Math.max(a.from, b.from) + 1);
 }
@@ -118,7 +103,9 @@ export function linesOf(text: DocumentText): readonly string[] {
 export async function cutDocument(target: ListTarget, text: DocumentText, model: ModelClient): Promise<Cut> {
   const lines = linesOf(text);
   const kind: "jobs" | "qualifications" = target.fieldKey === "employment.history" ? "jobs" : "qualifications";
-  const section = sectionRangeOf(text, target.headings);
+  const bounds = sectionBoundsOf(text, target.headings);
+  const section = bounds === null ? null : { from: bounds.from, to: bounds.to };
+  const sectionEndedAt = bounds === null ? null : bounds.endedAt;
   const first = target.parts[0];
   const request = {
     documentId: text.documentId,
@@ -140,6 +127,7 @@ export async function cutDocument(target: ListTarget, text: DocumentText, model:
         outsideDocument: [],
         overlapping: [],
         section,
+        sectionEndedAt,
         unassignedSectionLines: section === null ? 0 : lines.slice(section.from - 1, section.to).filter((line) => line.trim().length > 0).length,
         linesOutsideSection: 0,
         letter,
@@ -182,6 +170,6 @@ export async function cutDocument(target: ListTarget, text: DocumentText, model:
     kind,
     none: null,
     entries,
-    checks: { outsideDocument, overlapping, section, unassignedSectionLines, linesOutsideSection, letter },
+    checks: { outsideDocument, overlapping, section, sectionEndedAt, unassignedSectionLines, linesOutsideSection, letter },
   };
 }

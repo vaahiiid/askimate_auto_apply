@@ -53,6 +53,8 @@ export interface ListMeasurement {
   readonly sectionLines: number;
   /** The section as a line range, for him to check against his own document. */
   readonly section: { readonly from: number; readonly to: number } | null;
+  /** What closed the section: the next heading, the cover letter's opening (P245), or the document's end. */
+  readonly sectionEndedAt: "heading" | "letter" | "document_end" | null;
   /** The model said the document lists none, in its words. */
   readonly none: string | null;
   /** The cut, held to its checks (stage three). Line numbers only. */
@@ -119,6 +121,7 @@ export async function measureText(name: string, contentType: string, text: Docum
       sectionFound: section.length > 0,
       sectionLines: section.length,
       section: cut.checks.section,
+      sectionEndedAt: cut.checks.sectionEndedAt,
       none: cut.none,
       cut: {
         outsideDocument: cut.checks.outsideDocument.length,
@@ -180,7 +183,9 @@ export function renderMeasurement(measured: DocumentMeasurement): string {
     out.push(
       list.section === null
         ? `section: NOT FOUND under ${list.headings.map((h) => `"${h}"`).join(", ")} — the cut ran over the whole document`
-        : `section: lines ${String(list.section.from)}–${String(list.section.to)} (${String(list.sectionLines)} non-blank)`,
+        : `section: lines ${String(list.section.from)}–${String(list.section.to)} (${String(list.sectionLines)} non-blank) — ended at ${
+            list.sectionEndedAt === "letter" ? "the cover letter's opening" : list.sectionEndedAt === "heading" ? "the next heading" : "the end of the document"
+          }`,
     );
     if (list.none !== null) out.push(`cut: NONE — ${list.none}`);
     out.push(

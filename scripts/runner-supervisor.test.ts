@@ -343,6 +343,12 @@ async function keepPolling(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Waits until `done` holds or `deadlineMs` passes; the assertion that follows says which. */
+async function keepPollingUntil(done: () => boolean, deadlineMs: number): Promise<void> {
+  const until = Date.now() + deadlineMs;
+  while (!done() && Date.now() < until) await keepPolling(50);
+}
+
 async function intentsFor(runId: string): Promise<{ action: string; outcome: string | null }[]> {
   const rows = await pool.query<{ action: string; outcome: string | null }>(
     "SELECT action, outcome FROM workflow_action_intents WHERE run_id = $1",
@@ -616,7 +622,11 @@ describeIfDatabase("P17 — a runner dies holding the work", () => {
       return Promise.resolve({ kind: "succeeded" } as const);
     });
     try {
-      await keepPolling(500);
+      // Until it has polled six times, or ten seconds — not a fixed half
+      // second: under a full census the poll interval stretches, and the
+      // P245 census read 1 turn in 500 ms and called this red. The claim is
+      // "it kept polling", and ten seconds without six turns is a stall.
+      await keepPollingUntil(() => heir.turns.length > 5, 10_000);
     } finally {
       await heir.supervisor.stop();
     }

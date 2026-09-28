@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.241.0] — 2026-09-28
+
+**P245 — ADR-0149: some parts are the student's to state, and grounding catches invention, not inference; a section ends at the letter that follows it, guarded.**
+
+- **Added** ADR-0149, in Vahid's words: a part a document does not state is never asked of a
+  document, even when the document appears to imply it; the reviewer's question *"could a model
+  derive this rather than read it?"* at authoring; `countryCode` and `basis` on the CV plan marked
+  as his to state; the source flag and the reader that honours it to be built inside stage three's
+  reader process. ADR-0016 gains its fourth limit. Row 102 holds the other plans' parts.
+- **Changed** `sectionBoundsOf`: a section ends at the cover letter's opening when the letter
+  follows it with no heading between — only a letter found by both its opening and its closing,
+  opening inside that section; a section left with no line is none. `Cut.checks.sectionEndedAt`
+  says which of heading, letter or document end closed it; `measure-cv` prints it. The letter
+  finder moved to `sections.ts` and is re-exported unchanged.
+
+---
+
 ## [0.240.0] — 2026-09-28
 
 **P244 — the client moved to the InvokeModel service on Vahid's word, so the verifier and the client read one list; the residency reasoning recorded (ADR-0012 and ADR-0018 amended; row 101 closed).**

@@ -1,0 +1,28 @@
+Niloofar Hosseini
+niloofar@example.test · Tehran
+
+Profile
+An analyst who likes small teams and clear numbers.
+
+Employment
+
+Data analyst, Pardis Analytics Ltd, Tehran
+September 2021 – Present
+Built reporting pipelines and dashboards for retail clients. Led two junior analysts.
+
+Junior developer, Nikan Software, Tehran
+June 2019 – August 2021
+Maintained a customer records system in Python and wrote its first tests.
+
+Education
+
+BSc Computer Science, University of Tehran
+September 2015 – June 2019
+Grade 17.2 on the 20-point scale.
+
+Dear Hiring Manager,
+
+I am writing to apply for the analyst position advertised on your site. Between 2019 and 2021 I built the reporting that a small software company ran on, and from September 2021 to present I have led a small analytics team. I would welcome the chance to bring that to your team.
+
+Yours sincerely,
+Niloofar Hosseini
