@@ -19,6 +19,16 @@ not shipped artefacts.
 
 ---
 
+## [0.243.0] — 2026-09-29
+
+**P247 — his live run of the reader's pipeline recorded: the clipping, the flag and the no-drop hold on a real CV; the CV path fills employment, not education (row 104).**
+
+- **Records only.** ADR-0148 §9 carries the measurement and his reading of it; row 104 holds the
+  product finding and the two parts looked at — a year alone asked as a whole date under
+  ADR-0112, and a qualification's dates asked by the field spec regardless of any portal.
+
+---
+
 ## [0.242.0] — 2026-09-28
 
 **P246 — the CV reader: the second process that fetches a document (ADR-0092 as amended), the source flag of ADR-0149 inside it, and the interview seeded from what the document gave.**

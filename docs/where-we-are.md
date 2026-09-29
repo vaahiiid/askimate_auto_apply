@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P247 — it holds on a real CV, and it fills the half nobody expected
+
+> *"It fills employment almost completely and education barely at all."*
+
+His CV through the reader's pipeline, live: the education section ends at the letter, nothing is
+dropped, and the two parts marked the student's were never in a request. Seven jobs would ask
+their basis and nothing else. Three qualifications would each ask five things, because a CV
+lists a degree as one line, and that is the finding worth recording: the CV path fills the
+employment section and barely touches education, and anyone planning from "the CV fills it in"
+would be wrong about half of it. Two of the five looked at: a year alone is refused as a whole
+date and asked, which is right under ADR-0112 and could be narrower; the dates are starred on
+Sheffield's page and asked by the spec regardless. No code. The sentence that tells the student
+what was read is printed for his word.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P246 — the reader: fetch, read, forget, and the interview asks only the rest
 
 > *"A separate process whose only job is reading a CV. It fetches the document, produces text,

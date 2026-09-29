@@ -160,7 +160,9 @@ describe("the synthetic profile for Run A (P150)", () => {
     expect(output).toContain("19 value(s)");
     expect(output).toContain(renderValues(fixture()));
     expect(output).toContain("Nothing written.");
-  });
+  // A spawned tsx process compiling the script: under a full census this
+  // took over five seconds and was called red (P247). Sixty, as its siblings.
+  }, 60_000);
 
   it("refuses a fixture that names a field the registry does not hold, or names one twice", () => {
     expect(readFixture(JSON.stringify({ entries: [{ key: "identity.shoe_size", value: 42 }] }))).toEqual({

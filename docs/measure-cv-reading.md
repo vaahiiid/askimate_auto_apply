@@ -90,6 +90,11 @@ process claims a confirmed CV from the plane, fetches it once, reads it exactly 
 does, and reports what the document gave; the plane seeds the interview from the report, and the
 interview asks only *would ask*. This script is the measurement; the reader is the deployment.
 
+**What the first live run showed (P247).** On a real CV the jobs come out almost complete and the
+qualifications do not: a CV lists a degree as one line, so each qualification *would ask* the
+country, the start, the end, the grade and the grade scale. The CV path fills the employment
+section; plan for education from that, not from "the CV fills it in" (row 104).
+
 Without `--live`, the cut is the stand-in's — crude but real: the scope is cut into blocks at
 blank lines and at labelled lines, and a block that carries a date range ("Sep 2019 – Aug 2021",
 "2021 – Present") is an entry. It reads no part of a prose entry, because it reads labelled lines

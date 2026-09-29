@@ -416,6 +416,39 @@ optional part the fixture mapping reads (the award date, *say none*), then *anot
 playback. On a mapping that reads no award date, the country is asked and nothing else. Whether
 the Bedrock client reads his CV into these parts is his run, the same measurement, `--live`.
 
+**His live run through the reader's pipeline (P247, 2026-09-29).** The same CV, the same client:
+68 calls, 16,795 tokens in, 9,705 out. Employment, lines 10–37, ended at the next heading: seven
+entries, six complete, none dropped, one date range each; entry 6 incomplete because its one line
+carries no duties; `basis` marked the student's to state on every entry. Education, lines 39–44,
+**ended at the cover letter**: three entries, three section lines unassigned (was 19); every entry
+read the award title, the subject, the institution and the level; `countryCode` marked the
+student's to state on every entry. His reading: *"The section clipping works, nothing is dropped
+any more, and the flag holds on a real document: basis and countryCode were never in a request."*
+
+**What the measurement showed about the feature, in his words:** *"it fills employment almost
+completely and education barely at all."* Each qualification would ask five things — the country,
+the start, the end, the grade and the grade scale — because a CV, like most, lists a degree as one
+line: title, institution, year. *"A student who uploads a CV to save typing still answers fifteen
+questions about three degrees. That is still better than typing everything … But it changes what
+the CV path is for … anyone planning from 'the CV fills it in' would be wrong about half of it."*
+Recorded as what the measurement showed: the value of the CV path is different for the two
+sections, and it is the employment section it fills.
+
+**Two of the five, looked at (his question).** *"read but not that value: end"* on two entries
+means the model quoted a real, grounded span for the end and the plan's parser refused the text:
+the CV states a year alone, and a month and a year is what the profile holds. ADR-0112's rule —
+never a year with a month we chose — is what refuses it, so the part is asked rather than guessed.
+The question the interview asks is the whole date; it could ask for the month only, keeping the
+year the document stated, which is a narrower question and his to decide (row 104). Whether a
+qualification's start and end are needed: Sheffield's education page stars *Start:* and *End:*
+and leaves *Date of Award:* unstarred, as the reviewer's notes on the mapping record; so the
+portal requires them, and the mapping reads them because the page does. Independently of any
+portal, the interview asks them because the field spec requires them: a part the spec requires is
+always asked, since the profile is filled once for many portals (ADR-0111), and only a part the
+spec leaves optional is withheld when no mapped slot reads it. If a portal is ever met that does
+not require a qualification's dates, the question of asking them anyway is ADR-0111's, not the
+mapping's.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation
