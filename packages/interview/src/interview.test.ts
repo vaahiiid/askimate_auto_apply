@@ -1461,10 +1461,15 @@ describe("a part read in part narrows the question: which month of 2019? (P248)"
     expect(held === undefined ? undefined : unwrapProposed(held).lacking).toBeUndefined();
     expect(held === undefined ? undefined : unwrapProposed(held).verbatim, "the student's word and the document's, both").toBe("June (2019 from the document)");
 
-    // Then the walk goes on as it would have: another?, then the whole list once.
+    // Then the walk goes on as it would have: another? — asked, after entries a
+    // document gave, as the question a document cannot answer (P251, ADR-0151) —
+    // then the whole list once.
     const next = await nextAction(state, model);
     expect(next.kind).toBe("ask");
-    if (next.kind === "ask") expect(next.partKey).toBe("item0.another");
+    if (next.kind === "ask") {
+      expect(next.partKey).toBe("item0.another");
+      expect(next.say).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+    }
     state = (await receiveAnswer(state, FIELD, "no", model)).state;
     const done = await nextAction(state, model);
     expect(done.kind).toBe("confirm");

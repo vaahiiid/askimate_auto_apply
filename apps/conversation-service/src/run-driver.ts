@@ -131,7 +131,7 @@ import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mapping";
 import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
-import { readStudentMessage, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
+import { readStudentMessage, readUseRequest, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
@@ -208,7 +208,7 @@ import type {
 } from "@askimate/aas-contracts";
 import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
 import { admits, type Admission } from "@askimate/aas-catalogue";
-import { SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
+import { CV_LIST_FIELDS, SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { WorkFailure } from "@askimate/aas-contracts";
 import type { ClaimedReading, ReadingReport, WireEntryReading, WireFieldValue, WirePartialReading } from "@askimate/aas-contracts";
 import type { DocumentReadingStore } from "./document-reading-store.js";
@@ -497,6 +497,16 @@ export type PendingDecision =
   | {
       readonly decision: "consent_choice";
       readonly question: ConsentBannerReading;
+    }
+  /**
+   * P251, ADR-0151. The interview reached the first field the student's CV
+   * could fill, and asks before reading anything from it. The answer is a
+   * `use_document` naming this document with a yes or a no. No hash.
+   */
+  | {
+      readonly decision: "use_document";
+      readonly documentId: string;
+      readonly question: string;
     };
 
 /** A portal's consent notice as the reviewed blueprint records it, for the student (ADR-0131). */
@@ -1293,6 +1303,34 @@ function rejectionsSinceConfirmed(events: readonly ConversationEvent[], fieldKey
  */
 /** The question asked when deletion is mentioned and the reader cannot tell what of (row 98). Its prefix is how the answer to it is recognised. */
 const DELETION_QUESTION = "Do you want me to delete a document?";
+
+// ── The CV, on the student's word (P251, ADR-0151) ────────────────────────
+//
+// Vahid, 2026-09-29: *"Ask first. Before reading anything from it… If they
+// say yes, read it… A no deletes it… Ask when employment comes up, not on
+// upload… One yes covering both lists."*
+const USE_DOCUMENT_QUESTION = "I have your CV. Do you want me to fill in your jobs and qualifications from it, or would you rather tell me yourself?";
+const USE_DOCUMENT_HOW = "You can answer yes or no, or press one of the buttons.";
+const READING_THE_CV = "Reading your CV now — it takes a minute or two. I'll ask you the rest in the meantime.";
+const STILL_READING_THE_CV = "I'm still reading your CV; I'll carry on the moment it's done.";
+const DECLINED_THE_CV = "You said no, so I have deleted your CV. I will ask you about your jobs and qualifications as usual.";
+const THE_CV_IS_GONE = "Your CV was deleted when you said no earlier, so I cannot use it now. If you would like me to, upload it again from the documents panel and I will ask you again.";
+const NO_CV_HELD = "I do not hold a CV for you. If you upload one from the documents panel, I will ask whether to use it when we reach your jobs.";
+
+/** The CV's fields last while the reader works (P251): the interview asks the rest meanwhile, and nobody waits on the machine. */
+function deferWhileReading(fields: readonly ProfileFieldKey[], inFlight: boolean): readonly ProfileFieldKey[] {
+  if (!inFlight) return fields;
+  const cv = new Set<string>(CV_LIST_FIELDS);
+  return [...fields.filter((field) => !cv.has(field)), ...fields.filter((field) => cv.has(field))];
+}
+
+/** A plain yes or no, for the CV question typed rather than pressed (P251). `null` for anything else. */
+function yesOrNo(text: string): boolean | null {
+  const said = text.trim().toLowerCase().replace(/[.!]+$/, "");
+  if (/^(yes|yes please|yeah|yep|sure|ok|okay|please do|go ahead|use it|fill it in|from the cv|from my cv|yes use it|yes from my cv)$/.test(said)) return true;
+  if (/^(no|nope|no thanks|no thank you|i'd rather tell you|i would rather tell you|i'll tell you|i will tell you|myself|i'd rather not|don't|do not|no don't)$/.test(said)) return false;
+  return null;
+}
 const DELETION_WAY_BACK = "If you did not mean a deletion, say so and we will carry on where we were.";
 
 /** A document type in a person's words: "CV", "academic transcript". */
@@ -3054,6 +3092,10 @@ export class RunDriver {
     const events = await this.#options.conversations.since(input.conversationId, 0);
     const secret = latestSecretRequest(events);
     const deployment = deploymentOf(input.entry);
+    // P251: while the reader works on a CV the student said yes to, its two
+    // fields go last, so the interview asks the rest and nobody waits.
+    const reading = await this.#options.readings?.heldFor(input.conversationId);
+    const readingInFlight = reading !== undefined && reading !== null && (reading.state === "pending" || reading.state === "leased");
     // P233, ADR-0148 §11: while the portal's demand for a part is open, the
     // run reads the profile WITHOUT that field, so the plan blocks on it and
     // the interview asks — for the one part, from a walk seeded below.
@@ -3101,7 +3143,7 @@ export class RunDriver {
         interview: interviewFrom({
           studentRef: input.studentRef,
           profile: profileView,
-          requiredFields: requiredFieldsFor(input.entry.blueprint, usable.mappingSet),
+          requiredFields: deferWhileReading(requiredFieldsFor(input.entry.blueprint, usable.mappingSet), readingInFlight),
           // P231, ADR-0148 §4: which parts of a list or composite this portal
           // reads, and which it requires — derived, never authored. A part the
           // portal has DEMANDED is required by that evidence (P233).
@@ -3874,6 +3916,13 @@ export class RunDriver {
     conversationId: string,
     step: RunStep,
   ): Promise<PendingDecision | null> {
+    // P251, ADR-0151: the CV question, while it stands. Derived from the
+    // readings table, never from the client.
+    const offered = await this.#options.readings?.heldFor(conversationId);
+    if (offered !== undefined && offered !== null && offered.state === "offered") {
+      return { decision: "use_document", documentId: offered.documentId, question: USE_DOCUMENT_QUESTION };
+    }
+
     // ADR-0131: the consent question, in the banner's own words. No hash —
     // the answer is a choice of the student's own, not agreement to
     // something shown.
@@ -4187,6 +4236,18 @@ export class RunDriver {
     const record = await this.#options.stores.runs.load(makeRunId(input.runId));
     if (entry === null || record === null || record.caseId !== bound.caseId) {
       return { ok: false, reason: "no_case" };
+    }
+
+    // ── The student's word on their CV (P251, ADR-0151) ───────────────────
+    //
+    // Before the run's situation is asked, as the owed act is: the question
+    // stands on the readings table, and the answer moves it there.
+    if (input.decision.kind === "use_document") {
+      const held = await this.#options.readings?.heldFor(input.conversationId);
+      if (held === undefined || held === null || held.state !== "offered") return { ok: false, reason: "not_asked" };
+      if (held.documentId !== input.decision.documentId) return { ok: false, reason: "refused" };
+      await this.answerDocumentUse(input.conversationId, input.decision.use);
+      return { ok: true };
     }
 
     // ── The student's word on something they owe (ADR-0108) ──────────────
@@ -4988,6 +5049,13 @@ export class RunDriver {
     // deletes nothing and carries on where the interview was.
     if (await this.#declinedTheDeletionQuestion(input.conversationId, answer)) return;
 
+    // ── The CV question, answered in words rather than pressed (P251) ────
+    //
+    // While the question stands, a plain yes or no is the decision; anything
+    // else is asked again with the way to answer. And "actually, use my CV"
+    // at any time gets the honest answer for where the CV is (ADR-0151).
+    if (await this.#answeredTheDocumentQuestionInWords(input.conversationId, answer)) return;
+
     const situated = await this.#interviewSituation(input.conversationId);
     if (situated === null) return;
     const now = this.#options.now();
@@ -5408,6 +5476,31 @@ export class RunDriver {
       // Either way this run is not short of something for the student to do,
       // and asking again would be the service talking over itself.
       if (openQuestion(events) !== null || openProposal(events) !== null) return null;
+
+      // ── The CV, before its first field (P251, ADR-0151) ─────────────────
+      //
+      // The interview has reached a field the student's CV could fill. A CV
+      // nobody has asked about is asked about now, in context, instead of
+      // the field's question; one already asked about waits for the answer;
+      // one being read is said to be, once, and the field waits for the
+      // report. Nothing is read before the yes.
+      if ((CV_LIST_FIELDS as readonly string[]).includes(action.fieldKey)) {
+        const held = await this.#options.readings?.heldFor(conversationId);
+        if (held !== undefined && held !== null) {
+          const say = async (content: string): Promise<void> => {
+            await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+          };
+          if (held.state === "held") {
+            await this.#options.readings?.ask(held.documentId, this.#options.now());
+            await say(USE_DOCUMENT_QUESTION);
+            return null;
+          }
+          if (held.state === "offered") return null;
+          const lastSaid = [...events].reverse().find((event) => event.kind === "message" && event.actor === "assistant");
+          if (lastSaid?.kind !== "message" || lastSaid.content !== STILL_READING_THE_CV) await say(STILL_READING_THE_CV);
+          return null;
+        }
+      }
 
       // The asking writes its own count (ADR-0145): the last written attempt
       // for this field plus one. Nothing else counts an asking.
@@ -7652,6 +7745,80 @@ export class RunDriver {
         }),
       },
     });
+    // And on with the interview (P251): the CV's fields were waiting on this
+    // report, so the next question — the first thing the CV did not give — is
+    // asked now rather than at the student's next message.
+    await this.#askAfterWriting(held.conversationId);
+    return true;
+  }
+
+  /**
+   * The student's word on their CV (P251, ADR-0151). Yes: the reader may
+   * claim it, the student is told, and the interview carries on with what
+   * the CV cannot fill while it is read. No: the CV is deleted — held under
+   * one purpose they have just refused, it is held for nothing — and they
+   * are told what went, plainly (row 98); then the interview asks as usual.
+   */
+  public async answerDocumentUse(conversationId: string, use: boolean): Promise<boolean> {
+    const readings = this.#options.readings;
+    if (readings === undefined) return false;
+    const held = await readings.heldFor(conversationId);
+    if (held === null || held.state !== "offered") return false;
+    const now = this.#options.now();
+    const decided = await readings.decide(held.documentId, use, now);
+    if (decided === null) return false;
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    if (use) {
+      await say(READING_THE_CV);
+    } else {
+      await this.#options.disclosure?.vault.purgeContents(held.documentId, now);
+      await say(DECLINED_THE_CV);
+    }
+    await this.#askAfterWriting(conversationId);
+    return true;
+  }
+
+  /**
+   * A typed answer to the CV question, or a request to use the CV (P251).
+   * `true` when the message was that and has been dealt with.
+   */
+  async #answeredTheDocumentQuestionInWords(conversationId: string, answer: StudentAnswer): Promise<boolean> {
+    const readings = this.#options.readings;
+    if (readings === undefined) return false;
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    const held = await readings.heldFor(conversationId);
+    if (held !== null && held.state === "offered") {
+      const decision = yesOrNo(answer);
+      if (decision === null) {
+        const wantsIt = readUseRequest(answer);
+        if (wantsIt === null) {
+          await say(`${USE_DOCUMENT_QUESTION} ${USE_DOCUMENT_HOW}`);
+          return true;
+        }
+        await this.answerDocumentUse(conversationId, wantsIt);
+        return true;
+      }
+      await this.answerDocumentUse(conversationId, decision);
+      return true;
+    }
+    const wantsIt = readUseRequest(answer);
+    if (wantsIt !== true) return false;
+    // "Actually, use my CV" — the honest answer for where the CV is.
+    if (held !== null && held.state === "held") {
+      await readings.ask(held.documentId, this.#options.now());
+      await this.answerDocumentUse(conversationId, true);
+      return true;
+    }
+    if (held !== null) {
+      await say(held.state === "pending" || held.state === "leased" ? "I am reading your CV now; I will tell you what it gave as soon as it is done." : "I have already read your CV and filled in what it gave.");
+      return true;
+    }
+    const declined = await readings.declinedFor(conversationId);
+    await say(declined === null ? NO_CV_HELD : THE_CV_IS_GONE);
     return true;
   }
 

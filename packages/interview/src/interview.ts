@@ -397,7 +397,23 @@ function nextListQuestion(
     const another = itemKey(index, ANOTHER);
     if (!readings.has(another)) {
       const label = `another ${spec.itemLabel}`;
-      return { part: yesNoPart(another, label, spec.anotherRationale), suffix: label };
+      // P251, ADR-0151: after entries a document gave, the question a document
+      // cannot answer. Vahid: *"a CV that gave seven jobs should end with 'is
+      // that all of them, or are there others not on your CV?' — because the
+      // document cannot tell us what it left out, and only they can."*
+      const fromDocument = [...ofItem.values()].some((reading) => unwrapProposed(reading).origin === "document");
+      const part = yesNoPart(another, label, spec.anotherRationale);
+      if (!fromDocument) return { part, suffix: label };
+      const count = index + 1;
+      return {
+        part: {
+          ...part,
+          exactly:
+            `That is the ${String(count)} ${count === 1 ? spec.itemLabel : `${spec.itemLabel}s`} I read from your CV. ` +
+            `Is that all of them, or are there others not on your CV? Please answer yes if there is another to add, or no if that is all.`,
+        },
+        suffix: label,
+      };
     }
     if (values.get(another) !== true) return undefined;
   }

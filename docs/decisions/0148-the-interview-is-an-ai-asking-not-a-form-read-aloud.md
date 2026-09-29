@@ -476,6 +476,16 @@ the walk itself is his, by hand, on the runbook's steps, and needs the vault's C
 profile in `~/.aws`. The cost is a product fact now written down: `2 + 6 × jobs + 8 ×
 qualifications` calls a CV.
 
+**§9 and §10 as reshaped by ADR-0151 (P251).** The CV is no longer read on upload. It is held; when
+the interview reaches the first field it could fill, the student is asked — *"I have your CV. Do
+you want me to fill in your jobs and qualifications from it, or would you rather tell me
+yourself?"* — and only a yes makes it the reader's. A no deletes it and says so. After the
+entries it gave, the walk asks the question a CV cannot answer: *"is that all of them, or are there
+others not on your CV?"* His words for why are in ADR-0151: *"Uploading a file is not consent to
+take its contents as the whole answer… A CV is a selective document. People leave jobs off it."*
+The reading, the seeding and the sentence are unchanged; what changed is what the student is asked
+before and after.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

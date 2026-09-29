@@ -64,6 +64,7 @@ export const STUDENT_DECISIONS = [
   "consent_choice",
   "choose_reading",
   "correct_entry",
+  "use_document",
 ] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
@@ -159,6 +160,19 @@ export type StudentDecision =
       readonly choice: string;
     }
   /**
+   * P251, ADR-0151. Whether the student wants a document they uploaded used
+   * to fill in what it can, or would rather answer themselves. Vahid:
+   * *"Uploading a file is not consent to take its contents as the whole
+   * answer."* Names the document; `use: false` deletes it, because a
+   * document held under one purpose the student has refused is held for
+   * nothing. No hash: a choice of their own, not agreement to something shown.
+   */
+  | {
+      readonly kind: "use_document";
+      readonly documentId: string;
+      readonly use: boolean;
+    }
+  /**
    * P225, ADR-0146. The student picked one of the readings their answer was
    * offered as. Agreement to something shown, so it carries the hash of the
    * offer, as a confirmation carries its playback's; and it names the reading
@@ -212,6 +226,11 @@ export function parseStudentDecision(body: unknown): StudentDecision | null {
   if (kind === "consent_choice") {
     const choice = readString(body, "choice");
     return choice === null ? null : { kind, choice };
+  }
+  if (kind === "use_document") {
+    const documentId = readString(body, "documentId");
+    const use = (body as Record<string, unknown>)["use"];
+    return documentId === null || typeof use !== "boolean" ? null : { kind, documentId, use };
   }
   const contentHash = readString(body, "contentHash");
   if (contentHash === null) return null;

@@ -1,6 +1,6 @@
 # ADR-0150 — A reading is confirmed as a table; the sentence stands in while the only surface is text
 
-**Status:** **Accepted** — Vahid's decision, 2026-09-29, in his own words (P248)
+**Status:** **Accepted** — Vahid's decision, 2026-09-29, in his own words (P248) · **amended the same day by ADR-0151 (P251):** the reading follows the student's yes, not the upload; the completeness question — *"is that all of them, or are there others not on your CV?"* — belongs in the sentence's walk and in the table alike
 **Depends on:** [ADR-0148](./0148-the-interview-is-an-ai-asking-not-a-form-read-aloud.md) §9,
 [ADR-0149](./0149-some-parts-are-the-students-to-state-grounding-catches-invention-not-inference.md),
 [ADR-0112](./0112-a-qualification-has-dates.md) (amended by this phase)

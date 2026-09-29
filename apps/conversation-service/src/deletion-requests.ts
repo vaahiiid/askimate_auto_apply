@@ -202,3 +202,20 @@ export function readDeletionRequest(text: string): DeletionReading | null {
   // never an answer (row 98).
   return { scope: "unclear" };
 }
+
+/**
+ * A request to USE the uploaded CV — "actually, use my CV", "fill it in from
+ * my CV", "read my CV" — or not to: "don't use my CV", "I'd rather tell you"
+ * (P251, ADR-0151). `true`, `false`, or `null` when the message is not about
+ * that. Deterministic, like the deletion reader above; a negated use is a no.
+ */
+export function readUseRequest(text: string): boolean | null {
+  const said = normalised(text);
+  if (said.length === 0) return null;
+  const document = /\b(cv|resume|curriculum vitae|the document|what i uploaded|the file)\b/.test(said);
+  if (!document) return null;
+  const use = /\b(use|read|take|fill (?:it |them |this |that )?in from|go from|work from|get (?:it |them )?from|pull (?:it |them )?from)\b/.test(said);
+  if (!use) return null;
+  const negated = /\b(don'?t|do not|dont|never|rather not|no need to|without)\b/.test(said);
+  return !negated;
+}

@@ -1718,6 +1718,7 @@ components:
         - $ref: "#/components/schemas/HashedPendingDecision"
         - $ref: "#/components/schemas/ConsentQuestion"
         - $ref: "#/components/schemas/ReadingChoice"
+        - $ref: "#/components/schemas/UseDocumentQuestion"
       description: >-
         ADR-0061. What the run is waiting for the student to do. Three carry
         the hash that decision must carry; the fourth (ADR-0131) carries the
@@ -1811,6 +1812,23 @@ components:
             properties:
               index: { type: integer, minimum: 1 }
               label: { type: string, maxLength: 200 }
+
+    UseDocumentQuestion:
+      type: object
+      additionalProperties: false
+      required: [decision, documentId, question]
+      description: >-
+        P251, ADR-0151. The interview has reached the first field the student's
+        uploaded document could fill, and asks before reading anything from it.
+        Vahid: "Uploading a file is not consent to take its contents as the
+        whole answer." The answer is a `use_document` decision naming this
+        document with a yes or a no; a no deletes the document and says so.
+      properties:
+        decision:
+          type: string
+          enum: [use_document]
+        documentId: { type: string, pattern: "^[0-9A-Z]{26}$" }
+        question: { type: string, maxLength: 500 }
 
     ConsentQuestion:
       type: object
@@ -1911,6 +1929,7 @@ components:
         - $ref: "#/components/schemas/AttachedMyselfDecision"
         - $ref: "#/components/schemas/ExistingAccountDecision"
         - $ref: "#/components/schemas/ConsentChoiceDecision"
+        - $ref: "#/components/schemas/UseDocumentDecision"
         - $ref: "#/components/schemas/ChooseReadingDecision"
         - $ref: "#/components/schemas/CorrectEntryDecision"
 
@@ -2040,6 +2059,24 @@ components:
         kind:
           type: string
           enum: [existing_account]
+
+    UseDocumentDecision:
+      type: object
+      additionalProperties: false
+      required: [kind, documentId, use]
+      description: >-
+        P251, ADR-0151. Whether the document named is to be used to fill in
+        what it can (`use: true` — the reader is then asked to read it) or not
+        (`use: false` — the document is deleted, the student is told, and the
+        interview asks them as usual). Accepted only while the run's pending
+        decision is the `use_document` question for this document; `not_asked`
+        otherwise. No hash: a choice of the student's own.
+      properties:
+        kind:
+          type: string
+          enum: [use_document]
+        documentId: { type: string, pattern: "^[0-9A-Z]{26}$" }
+        use: { type: boolean }
 
     ConsentChoiceDecision:
       type: object

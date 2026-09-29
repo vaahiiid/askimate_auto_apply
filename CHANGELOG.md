@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.247.0] — 2026-09-29
+
+**P251 — a document is used only on the student's word; a no deletes it and says so; the walk ends with the question a CV cannot answer (ADR-0151).**
+
+- **Changed** the CV path: a confirmed CV is held, not read. When the interview reaches the first
+  field the CV could fill, it asks in Vahid's words — *I have your CV. Do you want me to fill in
+  your jobs and qualifications from it, or would you rather tell me yourself?* — as the run's
+  pending decision (`use_document`) and in the chat; one yes covers both lists.
+- **Added** the yes path: the reader may claim; the student is told; the CV's fields are deferred
+  while it is read; the report's sentence is followed by the next question in the same breath.
+- **Added** the no path: the CV is purged, the row ends `declined`, the student is told what went and
+  that they will be asked as usual; a later request to use it is answered as gone.
+- **Added** the completeness question after entries a document gave: *Is that all of them, or are
+  there others not on your CV?*
+- **Added** migration 0032 (`held`, `offered`, `declined`, `decided_at`), `CV_LIST_FIELDS` on the
+  contract, the page's two buttons with the consequence of a no beside them, the message reader's
+  request to use the CV.
+
+---
+
 ## [0.246.0] — 2026-09-29
 
 **P250 — the local stack refuses a gap between what was asked and what came up, and announces its processes' own words (row 106).**

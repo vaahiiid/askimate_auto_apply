@@ -237,6 +237,7 @@ export {
   MAX_PARTS_PER_ENTRY,
   MAX_SPAN_LENGTH,
   READING_FAILURES,
+  CV_LIST_FIELDS,
   READING_OUTCOMES,
   parseClaimedReading,
   parseReadingReport,

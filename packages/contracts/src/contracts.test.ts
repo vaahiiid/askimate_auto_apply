@@ -466,6 +466,12 @@ describe("the wire vocabulary is internally coherent", () => {
     expect(parseStudentDecision({ kind: "consent_choice", choice: "reject" })).toEqual({ kind: "consent_choice", choice: "reject" });
     expect(parseStudentDecision({ kind: "consent_choice" })).toBeNull();
     expect(parseStudentDecision({ kind: "consent_choice", choice: "" })).toBeNull();
+    // P251, ADR-0151: whether to use an uploaded document — the document, and a yes or a no, and nothing else.
+    expect(parseStudentDecision({ kind: "use_document", documentId: "01JQDOC0000000000000000001", use: true })).toEqual({ kind: "use_document", documentId: "01JQDOC0000000000000000001", use: true });
+    expect(parseStudentDecision({ kind: "use_document", documentId: "01JQDOC0000000000000000001", use: false })).toEqual({ kind: "use_document", documentId: "01JQDOC0000000000000000001", use: false });
+    expect(parseStudentDecision({ kind: "use_document", documentId: "01JQDOC0000000000000000001" })).toBeNull();
+    expect(parseStudentDecision({ kind: "use_document", documentId: "01JQDOC0000000000000000001", use: "yes" })).toBeNull();
+    expect(parseStudentDecision({ kind: "use_document", use: true })).toBeNull();
     expect(parseStudentDecision({ kind: "existing_account", contentHash: "sha256:abc" })).toEqual({ kind: "existing_account" });
   });
 

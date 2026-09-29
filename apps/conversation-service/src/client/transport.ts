@@ -89,6 +89,12 @@ export type PendingDecision =
       readonly decision: "choose_reading";
       readonly contentHash: string;
       readonly readings: readonly { readonly id: string; readonly label: string }[];
+    }
+  /** P251, ADR-0151. The interview reached the first field the student's CV could fill and asks before reading it. */
+  | {
+      readonly decision: "use_document";
+      readonly documentId: string;
+      readonly question: string;
     };
 
 /** A portal's consent banner as the reviewed blueprint records it (ADR-0131). */
@@ -252,6 +258,9 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
         const question = parseConsentBanner(raw["question"]);
         if (question === null) return null;
         pending = { decision: "consent_choice", question };
+      } else if (raw["decision"] === "use_document") {
+        if (typeof raw["documentId"] !== "string" || typeof raw["question"] !== "string") return null;
+        pending = { decision: "use_document", documentId: raw["documentId"], question: raw["question"] };
       } else if (raw["decision"] === "choose_reading") {
         const list = raw["readings"];
         if (!Array.isArray(list) || typeof raw["contentHash"] !== "string") return null;
@@ -273,7 +282,7 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
           }
         }
         pending = {
-          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" | "choose_reading" }>["decision"],
+          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" | "choose_reading" | "use_document" }>["decision"],
           contentHash: String(raw["contentHash"]),
           ...(entries.length === 0 ? {} : { entries }),
         };
@@ -469,7 +478,7 @@ export function reapply(
 export function decide(
   conversationId: string,
   runId: string,
-  decision: { readonly kind: string; readonly contentHash?: string; readonly item?: string; readonly choice?: string; readonly entry?: number },
+  decision: { readonly kind: string; readonly contentHash?: string; readonly item?: string; readonly choice?: string; readonly entry?: number; readonly documentId?: string; readonly use?: boolean },
 ): Promise<Outcome<unknown>> {
   return send(
     `/v1/conversations/${conversationId}/runs/${runId}/decision`,

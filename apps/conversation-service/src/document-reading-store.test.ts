@@ -36,6 +36,13 @@ afterAll(async () => {
   if (HAVE_DATABASE) await pool.end();
 });
 
+/** A document the student said yes to, ready for a reader (P251): held, asked, decided. */
+async function ready(store: DocumentReadingStore, input: { documentId: string; conversationId: string; studentId: string; contentHash: string; now: Date }): Promise<void> {
+  await store.request(input);
+  await store.ask(input.documentId, input.now);
+  await store.decide(input.documentId, true, input.now);
+}
+
 /** The same contract, both implementations: what a reader may take and what it may say. */
 function holds(name: string, make: () => DocumentReadingStore, run: (fn: (test: string) => void) => void): void {
   run((test) => {
@@ -43,8 +50,8 @@ function holds(name: string, make: () => DocumentReadingStore, run: (fn: (test: 
       const id = (n: number): string => `01JQREAD${String(test.length).padStart(2, "0")}${String(n).padStart(16, "0")}`.slice(0, 26).padEnd(26, "0").replace(/[^0-9A-Z]/g, "0");
       it("claims the oldest waiting document, then finds nothing more", async () => {
         const store = make();
-        await store.request({ documentId: id(1), conversationId: "conv_1", studentId: "stu_1", contentHash: HASH, now: NOW });
-        await store.request({ documentId: id(2), conversationId: "conv_1", studentId: "stu_1", contentHash: HASH, now: LATER });
+        await ready(store, { documentId: id(1), conversationId: "conv_1", studentId: "stu_1", contentHash: HASH, now: NOW });
+        await ready(store, { documentId: id(2), conversationId: "conv_1", studentId: "stu_1", contentHash: HASH, now: LATER });
         const first = await store.claim({ holder: "reader-a", leaseId: "rl_1", now: LATER, leaseSeconds: 300 });
         expect(first?.documentId).toBe(id(1));
         expect(first?.state).toBe("leased");
@@ -55,7 +62,7 @@ function holds(name: string, make: () => DocumentReadingStore, run: (fn: (test: 
 
       it("asking twice for one document changes nothing, and a leased one is not handed out again while the lease lives", async () => {
         const store = make();
-        await store.request({ documentId: id(3), conversationId: "conv_2", studentId: "stu_2", contentHash: HASH, now: NOW });
+        await ready(store, { documentId: id(3), conversationId: "conv_2", studentId: "stu_2", contentHash: HASH, now: NOW });
         await store.claim({ holder: "reader-a", leaseId: "rl_1", now: NOW, leaseSeconds: 300 });
         await store.request({ documentId: id(3), conversationId: "conv_9", studentId: "stu_9", contentHash: HASH, now: LATER });
         expect((await store.readingFor(id(3)))?.conversationId, "the first request stands").toBe("conv_2");
@@ -64,7 +71,7 @@ function holds(name: string, make: () => DocumentReadingStore, run: (fn: (test: 
 
       it("hands a document whose lease LAPSED to the next reader, and refuses the old lease's report", async () => {
         const store = make();
-        await store.request({ documentId: id(4), conversationId: "conv_3", studentId: "stu_3", contentHash: HASH, now: NOW });
+        await ready(store, { documentId: id(4), conversationId: "conv_3", studentId: "stu_3", contentHash: HASH, now: NOW });
         await store.claim({ holder: "reader-a", leaseId: "rl_old", now: NOW, leaseSeconds: 60 });
         const afterLapse = new Date(NOW.getTime() + 61_000);
         const taken = await store.claim({ holder: "reader-b", leaseId: "rl_new", now: afterLapse, leaseSeconds: 300 });
@@ -77,9 +84,34 @@ function holds(name: string, make: () => DocumentReadingStore, run: (fn: (test: 
         expect(ended?.readAt?.toISOString()).toBe(afterLapse.toISOString());
       });
 
+      it("holds a confirmed document for the student's word: nothing is claimable until the yes, and a no ends it declined (P251, ADR-0151)", async () => {
+        const store = make();
+        await store.request({ documentId: id(6), conversationId: "conv_5", studentId: "stu_5", contentHash: HASH, now: NOW });
+        expect((await store.readingFor(id(6)))?.state).toBe("held");
+        // The table is shared across the file in Postgres, so what a claim finds is whatever ELSE waits — never this held one.
+        expect((await store.claim({ holder: "reader-a", leaseId: "rl_h", now: LATER, leaseSeconds: 300 }))?.documentId, "held is not the reader's").not.toBe(id(6));
+        // Deciding before asking is nothing: no question stands.
+        expect(await store.decide(id(6), true, NOW)).toBeNull();
+        expect((await store.heldFor("conv_5"))?.state).toBe("held");
+        expect((await store.ask(id(6), NOW))?.state).toBe("offered");
+        expect(await store.ask(id(6), NOW), "asked once").toBeNull();
+        expect((await store.heldFor("conv_5"))?.state).toBe("offered");
+        const declined = await store.decide(id(6), false, LATER);
+        expect(declined?.state).toBe("declined");
+        expect(declined?.decidedAt?.toISOString()).toBe(LATER.toISOString());
+        expect(await store.heldFor("conv_5"), "a declined document is not held").toBeNull();
+        expect((await store.declinedFor("conv_5"))?.documentId).toBe(id(6));
+        expect(await store.claim({ holder: "reader-a", leaseId: "rl_d", now: new Date(LATER.getTime() + 7_200_000), leaseSeconds: 300 }).then((r) => r?.documentId === id(6)), "never read").toBe(false);
+        // And a yes on another makes it the reader's.
+        await store.request({ documentId: id(7), conversationId: "conv_5", studentId: "stu_5", contentHash: HASH, now: LATER });
+        await store.ask(id(7), LATER);
+        expect((await store.decide(id(7), true, LATER))?.state).toBe("pending");
+        expect((await store.heldFor("conv_5"))?.documentId).toBe(id(7));
+      });
+
       it("records a failure by its closed word, and never hands a finished reading out again", async () => {
         const store = make();
-        await store.request({ documentId: id(5), conversationId: "conv_4", studentId: "stu_4", contentHash: HASH, now: NOW });
+        await ready(store, { documentId: id(5), conversationId: "conv_4", studentId: "stu_4", contentHash: HASH, now: NOW });
         await store.claim({ holder: "reader-a", leaseId: "rl_1", now: NOW, leaseSeconds: 300 });
         // Reported inside the lease: a minute after the claim, not ten.
         expect(await store.complete({ documentId: id(5), leaseId: "rl_1", outcome: "failed", failure: "content_changed", now: new Date(NOW.getTime() + 60_000) })).toBe(true);
@@ -104,13 +136,13 @@ describeIfDatabase("a reading keeps its structure (P248, migration 0031)", () =>
     // takes the OLDEST waiting row, and the table is shared across the file.
     const long_ago = new Date("2000-01-01T00:00:00Z");
     const structure = { lists: [{ fieldKey: "employment.history", seeded: true, entries: [{ index: 1, read: ["position"], missing: ["duties"], partial: { end: ["month"] }, student: ["basis"] }], unread: 1 }] };
-    await store.request({ documentId: "01JQREADSTRUCT000000000001", conversationId: "c", studentId: "s", contentHash: HASH, now: long_ago });
+    await ready(store, { documentId: "01JQREADSTRUCT000000000001", conversationId: "c", studentId: "s", contentHash: HASH, now: long_ago });
     const leased = await store.claim({ holder: "reader-1", leaseId: "rl_s1", now, leaseSeconds: 60 });
     expect(leased?.documentId).toBe("01JQREADSTRUCT000000000001");
     expect(await store.complete({ documentId: "01JQREADSTRUCT000000000001", leaseId: "rl_s1", outcome: "read", structure, now })).toBe(true);
     expect((await store.readingFor("01JQREADSTRUCT000000000001"))?.structure).toEqual(structure);
     // A failed reading carries a word and no structure, whatever the caller passed.
-    await store.request({ documentId: "01JQREADSTRUCT000000000002", conversationId: "c", studentId: "s", contentHash: HASH, now: long_ago });
+    await ready(store, { documentId: "01JQREADSTRUCT000000000002", conversationId: "c", studentId: "s", contentHash: HASH, now: long_ago });
     const leasedSecond = await store.claim({ holder: "reader-1", leaseId: "rl_s2", now, leaseSeconds: 60 });
     expect(leasedSecond?.documentId).toBe("01JQREADSTRUCT000000000002");
     expect(await store.complete({ documentId: "01JQREADSTRUCT000000000002", leaseId: "rl_s2", outcome: "failed", failure: "unreadable", structure, now })).toBe(true);
@@ -118,6 +150,13 @@ describeIfDatabase("a reading keeps its structure (P248, migration 0031)", () =>
     await expect(
       pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, structure) VALUES ('01JQREADSTRUCT000000000003', 'c', 's', $1, 'pending', now(), '{}')", [HASH]),
     ).rejects.toThrow(/document_readings_only_a_reading_has_a_structure/);
+    // P251: a no says when, and a document nobody answered about carries no answer.
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at) VALUES ('01JQREADSTRUCT000000000004', 'c', 's', $1, 'declined', now())", [HASH]),
+    ).rejects.toThrow(/document_readings_a_no_says_when/);
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, decided_at) VALUES ('01JQREADSTRUCT000000000005', 'c', 's', $1, 'held', now(), now())", [HASH]),
+    ).rejects.toThrow(/document_readings_a_no_says_when/);
   });
 });
 

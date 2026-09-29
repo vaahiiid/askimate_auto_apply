@@ -38,6 +38,16 @@ export type ReadingOutcome = (typeof READING_OUTCOMES)[number];
 export const READING_FAILURES = ["retrieval_failed", "content_changed", "unreadable", "model_unavailable", "reader_fault"] as const;
 export type ReadingFailure = (typeof READING_FAILURES)[number];
 
+/**
+ * The profile fields a CV fills (P251): the list targets of the extraction
+ * package's CV plan, named here so the plane can ask before any reading —
+ * *"I have your CV. Do you want me to fill in your jobs and qualifications
+ * from it…"* — when the interview reaches the first of them, and defer them
+ * while the reader works. The extraction package's test holds its plan to
+ * this list, so the two cannot drift apart unnoticed.
+ */
+export const CV_LIST_FIELDS = ["employment.history", "education.prior_qualifications"] as const;
+
 export const MAX_LISTS_PER_READING = 8;
 export const MAX_ENTRIES_PER_LIST = 50;
 export const MAX_PARTS_PER_ENTRY = 24;

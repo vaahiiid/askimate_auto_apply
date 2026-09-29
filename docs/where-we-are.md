@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P251 — ask first, delete on a no, and ask what the CV cannot say
+
+> *"Uploading a file is not consent to take its contents as the whole answer."*
+
+His product correction, built. The CV is held, not read, until the interview reaches the first
+field it could fill and asks, in his words, whether to use it; one yes for both lists, typed or
+pressed. A yes hands it to the reader and the interview carries on with the rest meanwhile; the
+report's sentence is followed by the next question in the same breath. A no deletes the CV and says
+so, plainly, and a later "actually, use my CV" is answered as gone. After the entries it gave, the
+walk asks what a CV cannot answer: is that all of them, or are there others not on your CV? The
+reading, the seeding and the sentence are unchanged. What the page draws is typechecked and waits
+for his walk.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P250 — the stack says what its processes said, or nothing
 
 > *"Announcing six services while the one thing I asked for is absent is the same class as the

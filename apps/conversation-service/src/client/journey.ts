@@ -443,6 +443,26 @@ function drawPending(): void {
       );
       panel.append(line);
     }
+  } else if (pending !== null && pending.decision === "use_document") {
+    // P251, ADR-0151. The interview has reached the first field the CV could
+    // fill, and asks before reading anything from it: two buttons, the same
+    // yes or no the chat takes. A no deletes the CV, and the chat says so.
+    const heading = document.createElement("h2");
+    text(heading, "Your CV — your call");
+    const words = document.createElement("p");
+    text(words, pending.question);
+    const consequence = document.createElement("p");
+    text(consequence, "If you say no, I delete the CV and ask you about your jobs and qualifications as usual.");
+    const { documentId } = pending;
+    panel.append(heading, words, consequence);
+    panel.append(
+      button("Fill them in from my CV", () => {
+        void answerUse(documentId, true);
+      }),
+      button("I'd rather tell you myself", () => {
+        void answerUse(documentId, false);
+      }, "quiet"),
+    );
   } else if (pending !== null && pending.decision === "choose_reading") {
     // P225. Their answer read more than one way; the sentence in the chat
     // names the readings, and here is one button per reading. The pick sends
@@ -469,7 +489,7 @@ function drawPending(): void {
       panel.append(heading, body);
     }
 
-    const labels: Readonly<Record<Exclude<api.PendingDecision, { decision: "consent_choice" | "choose_reading" }>["decision"], string>> = {
+    const labels: Readonly<Record<Exclude<api.PendingDecision, { decision: "consent_choice" | "choose_reading" | "use_document" }>["decision"], string>> = {
       authorise: "Yes — this is right, fill it in",
       confirm_value: "Yes, that's right",
       confirm_handoff: "Done — I have completed that",
@@ -1198,6 +1218,17 @@ async function answerConsent(choice: string): Promise<void> {
   if (id === null || runId === undefined) return;
   view.notice = "";
   const recorded = await api.decide(id, runId, { kind: "consent_choice", choice });
+  if (!recorded.ok) report(recorded.code);
+  await refresh();
+}
+
+/** The student's word on their CV (P251): use it, or not — and a no deletes it. */
+async function answerUse(documentId: string, use: boolean): Promise<void> {
+  const id = view.conversationId;
+  const runId = view.run.run?.runId;
+  if (id === null || runId === undefined) return;
+  view.notice = "";
+  const recorded = await api.decide(id, runId, { kind: "use_document", documentId, use });
   if (!recorded.ok) report(recorded.code);
   await refresh();
 }

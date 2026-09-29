@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readDeletionRequest, readStudentMessage } from "./deletion-requests.js";
+import { readUseRequest, readDeletionRequest, readStudentMessage } from "./deletion-requests.js";
 
 describe("a student asking for a document to be deleted, the way a person says it (ADR-0148 §10)", () => {
   // Vahid, 2026-09-27: *"'Delete my CV', 'remove that document', 'get rid of
@@ -97,5 +97,19 @@ describe("a student asking for a document to be deleted, the way a person says i
     expect(readStudentMessage("Delete my CV")).toEqual({ kind: "deletion", reading: { scope: "type", documentType: "cv" } });
     expect(readStudentMessage("don't delete my CV")).toEqual({ kind: "deletion", reading: { scope: "not_a_request" } });
     expect(readStudentMessage("Software engineer")).toEqual({ kind: "answer", answer: "Software engineer" });
+  });
+});
+
+describe("a request to USE the CV, or not to (P251, ADR-0151)", () => {
+  it("reads 'use my CV' in a person's words as a yes, a negated one as a no, and anything else as not about that", () => {
+    for (const yes of ["actually, use my CV", "Use my cv please", "fill it in from my résumé", "read my CV", "take them from the document", "go from what I uploaded"]) {
+      expect(readUseRequest(yes), yes).toBe(true);
+    }
+    for (const no of ["don't use my CV", "do not read my cv", "I'd rather not use the document"]) {
+      expect(readUseRequest(no), no).toBe(false);
+    }
+    for (const other of ["yes", "no", "Data analyst", "delete my CV", "I used to work at a bank", ""]) {
+      expect(readUseRequest(other), other).toBeNull();
+    }
   });
 });

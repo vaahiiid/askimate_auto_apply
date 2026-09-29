@@ -20,7 +20,12 @@ import type { Pool } from "pg";
 
 import type { ReadingStructure } from "./reading-account.js";
 
-export type ReadingState = "pending" | "leased" | "read" | "failed";
+/**
+ * `held`: confirmed into the vault, nobody asked. `offered`: the interview
+ * put the question (P251, ADR-0151). `pending`: the student said yes; the
+ * reader may claim. `declined`: the student said no; the document is gone.
+ */
+export type ReadingState = "held" | "offered" | "pending" | "leased" | "read" | "failed" | "declined";
 
 export interface DocumentReading {
   readonly documentId: string;
@@ -37,10 +42,12 @@ export interface DocumentReading {
   readonly failure: string | null;
   /** What the report was made of — entries, parts, gaps — on a reading that was read (P248, migration 0031). Part keys and counts; never a value or a span. */
   readonly structure: ReadingStructure | null;
+  /** When the student answered the question, yes or no (P251, migration 0032). */
+  readonly decidedAt: Date | null;
 }
 
 export interface DocumentReadingStore {
-  /** Asks for a document to be read. A document already asked for is left as it is. */
+  /** Holds a confirmed document for the student's word — nothing is read until they say so (P251). A document already held is left as it is. */
   request(input: {
     readonly documentId: string;
     readonly conversationId: string;
@@ -48,7 +55,15 @@ export interface DocumentReadingStore {
     readonly contentHash: string;
     readonly now: Date;
   }): Promise<void>;
-  /** Leases the oldest document waiting, or one whose lease lapsed; `null` when none. */
+  /** The question was put: `held` becomes `offered`. `null` when the document is not held. */
+  ask(documentId: string, now: Date): Promise<DocumentReading | null>;
+  /** The student's word on an offered document: yes makes it `pending` for the reader, no ends it `declined`. `null` when no question stands. */
+  decide(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null>;
+  /** The document this conversation holds that is not yet ended — held, offered, pending or leased — the latest if several; `null` when none. */
+  heldFor(conversationId: string): Promise<DocumentReading | null>;
+  /** The latest document this conversation declined, or `null`: the honest answer to "actually, use my CV" after a no. */
+  declinedFor(conversationId: string): Promise<DocumentReading | null>;
+  /** Leases the oldest document waiting (`pending`), or one whose lease lapsed; `null` when none. */
   claim(input: {
     readonly holder: string;
     readonly leaseId: string;
@@ -82,6 +97,7 @@ interface Row {
   readonly read_at: Date | null;
   readonly failure: string | null;
   readonly structure: ReadingStructure | null;
+  readonly decided_at: Date | null;
 }
 
 function readingOf(row: Row): DocumentReading {
@@ -98,11 +114,12 @@ function readingOf(row: Row): DocumentReading {
     readAt: row.read_at,
     failure: row.failure,
     structure: row.structure,
+    decidedAt: row.decided_at,
   };
 }
 
 const COLUMNS =
-  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure";
+  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure, decided_at";
 
 /** The `document_readings` table (migration 0030). */
 export class PostgresDocumentReadingStore implements DocumentReadingStore {
@@ -115,10 +132,50 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
   public async request(input: { documentId: string; conversationId: string; studentId: string; contentHash: string; now: Date }): Promise<void> {
     await this.#pool.query(
       `INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at)
-            VALUES ($1, $2, $3, $4, 'pending', $5)
+            VALUES ($1, $2, $3, $4, 'held', $5)
        ON CONFLICT (document_id) DO NOTHING`,
       [input.documentId, input.conversationId, input.studentId, input.contentHash, input.now],
     );
+  }
+
+  public async ask(documentId: string, _now: Date): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `UPDATE document_readings SET state = 'offered' WHERE document_id = $1 AND state = 'held' RETURNING ${COLUMNS}`,
+      [documentId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async decide(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `UPDATE document_readings SET state = $2, decided_at = $3 WHERE document_id = $1 AND state = 'offered' RETURNING ${COLUMNS}`,
+      [documentId, use ? "pending" : "declined", now],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async heldFor(conversationId: string): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `SELECT ${COLUMNS} FROM document_readings
+        WHERE conversation_id = $1 AND state IN ('held', 'offered', 'pending', 'leased')
+        ORDER BY requested_at DESC LIMIT 1`,
+      [conversationId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async declinedFor(conversationId: string): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `SELECT ${COLUMNS} FROM document_readings
+        WHERE conversation_id = $1 AND state = 'declined'
+        ORDER BY decided_at DESC LIMIT 1`,
+      [conversationId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
   }
 
   public async claim(input: { holder: string; leaseId: string; now: Date; leaseSeconds: number }): Promise<DocumentReading | null> {
@@ -186,7 +243,7 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
         conversationId: input.conversationId,
         studentId: input.studentId,
         contentHash: input.contentHash,
-        state: "pending",
+        state: "held",
         requestedAt: input.now,
         leaseId: null,
         holder: null,
@@ -194,9 +251,41 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
         readAt: null,
         failure: null,
         structure: null,
+        decidedAt: null,
       });
     }
     return Promise.resolve();
+  }
+
+  public ask(documentId: string, _now: Date): Promise<DocumentReading | null> {
+    const row = this.#rows.get(documentId);
+    if (row === undefined || row.state !== "held") return Promise.resolve(null);
+    const offered: DocumentReading = { ...row, state: "offered" };
+    this.#rows.set(documentId, offered);
+    return Promise.resolve(offered);
+  }
+
+  public decide(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null> {
+    const row = this.#rows.get(documentId);
+    if (row === undefined || row.state !== "offered") return Promise.resolve(null);
+    const decided: DocumentReading = { ...row, state: use ? "pending" : "declined", decidedAt: now };
+    this.#rows.set(documentId, decided);
+    return Promise.resolve(decided);
+  }
+
+  public heldFor(conversationId: string): Promise<DocumentReading | null> {
+    const open = new Set<ReadingState>(["held", "offered", "pending", "leased"]);
+    const found = [...this.#rows.values()]
+      .filter((row) => row.conversationId === conversationId && open.has(row.state))
+      .sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())[0];
+    return Promise.resolve(found ?? null);
+  }
+
+  public declinedFor(conversationId: string): Promise<DocumentReading | null> {
+    const found = [...this.#rows.values()]
+      .filter((row) => row.conversationId === conversationId && row.state === "declined")
+      .sort((a, b) => (b.decidedAt?.getTime() ?? 0) - (a.decidedAt?.getTime() ?? 0))[0];
+    return Promise.resolve(found ?? null);
   }
 
   public claim(input: { holder: string; leaseId: string; now: Date; leaseSeconds: number }): Promise<DocumentReading | null> {

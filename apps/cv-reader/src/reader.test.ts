@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { ClaimedReading, ReadingReport } from "@askimate/aas-contracts";
+import { CV_LIST_FIELDS } from "@askimate/aas-contracts";
+import { planFor } from "@askimate/aas-extraction";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 
 import { httpReadingIntake } from "./intake.js";
@@ -84,6 +86,11 @@ describe("one document, read and forgotten (ADR-0148 §9, ADR-0149)", () => {
     const notPdf = new TextEncoder().encode("not a pdf");
     const notPdfHash = createHash("sha256").update(notPdf).digest("hex");
     expect((await readDocument({ claim: claimFor({ contentHash: notPdfHash }), model, fetch: bucket(() => new Response(notPdf, { status: 200 })) })).failure).toBe("unreadable");
+  });
+
+  it("reads exactly the lists the plane asks about before reading: the plan's list targets are CV_LIST_FIELDS (P251)", () => {
+    const targets = (planFor("cv")?.targets ?? []).filter((target) => target.kind === "list").map((target) => (target as { fieldKey: string }).fieldKey);
+    expect([...targets].sort()).toEqual([...CV_LIST_FIELDS].sort());
   });
 
   it("carries no line of the document beyond the words of each field", async () => {

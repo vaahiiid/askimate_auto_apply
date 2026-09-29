@@ -131,6 +131,7 @@ beforeAll(async () => {
     "0029_the_portal_demands_a_part",
     "0030_a_document_is_read_by_the_reader",
     "0031_a_reading_keeps_its_structure",
+    "0032_a_document_is_used_on_the_students_word",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
