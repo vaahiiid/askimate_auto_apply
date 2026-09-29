@@ -37,6 +37,7 @@ AAS_LOCAL_REDIS_URL=redis://127.0.0.1:6379 \
 AAS_LOCAL_PORT_BASE=4870 \
 scripts/local-stack.sh start
 
+scripts/local-stack.sh verify   # what the processes say they came up with, against what was asked (P250)
 scripts/local-stack.sh status
 scripts/local-stack.sh stop
 ```
@@ -116,9 +117,16 @@ export AAS_BEDROCK_MODEL_NAVIGATION=eu.anthropic.claude-sonnet-4-6
 AAS_LOCAL_DOCUMENTS=vault AAS_LOCAL_READER_MODEL=bedrock scripts/local-stack.sh start
 ```
 
-`start` refuses with exit 2, before creating anything, if the bucket or the key ARN is missing.
-The summary ends with `documents  vault (bucket …)` and `cv reader … model: bedrock`; the reader's
-first log line names the InvokeModel service and its URL before any call.
+`start` refuses with exit 2, before creating anything, if the bucket or the key ARN is missing, or
+if any exported `AAS_LOCAL_*` is one the script does not read (P250: a setting is refused, never
+ignored). Once the six are up, `start` reads what each process **says** it came up with — the
+service's `documents=s3` or `documents=none`, the reader's `bedrock-runtime` or `stand-in` — against
+what was asked, and on any gap stops the stack, keeps the logs, and exits 2 with the process's own
+line in the message. The summary is headed *up: (each line is what the process itself said, not
+what the shell asked for)* and ends with `documents  s3 (bucket …)` and `cv reader … model: bedrock`;
+`scripts/local-stack.sh verify` repeats that reading on a running stack. Vahid, on the start that
+announced six services with the vault absent: *"the same class as the banner that said Bedrock and
+called somewhere else."*
 
 **What to expect, step by step:**
 

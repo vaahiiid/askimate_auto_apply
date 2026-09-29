@@ -9,6 +9,11 @@
 #                                    both, build the student page and the secure
 #                                    control, start the six processes, wait
 #                                    until each says it is up, print where they are
+#   scripts/local-stack.sh verify    (P250) reads what the running processes SAY
+#                                    they came up with — the service's documents
+#                                    word, the reader's model — against what the
+#                                    shell asked for, and exits 2 on any gap.
+#                                    start runs it before announcing anything.
 #   scripts/local-stack.sh status    which are running, and whether they answer
 #   scripts/local-stack.sh stop      SIGTERM each, wait for an orderly exit
 #   scripts/local-stack.sh finish-stopped <conversationId>
@@ -96,6 +101,51 @@ CDP_URL="http://127.0.0.1:$CDP_PORT"
 APPS="conversation-service secure-service secure-filler browser-runner worker cv-reader"
 READER_MODEL="${AAS_LOCAL_READER_MODEL:-stand-in}"
 DOCUMENTS="${AAS_LOCAL_DOCUMENTS:-none}"
+
+check_known_settings() {
+  # Every AAS_LOCAL_* this script reads, and no other: an exported setting
+  # it does not know is refused rather than ignored (P250). Vahid, on a
+  # stack that ignored AAS_LOCAL_DOCUMENTS: *"the vault option was accepted
+  # silently and produced nothing."*
+  local known=" AAS_LOCAL_DIR AAS_LOCAL_ADMIN_DATABASE_URL AAS_LOCAL_REDIS_URL AAS_LOCAL_PORT_BASE AAS_LOCAL_DB_PREFIX AAS_LOCAL_CATALOGUE AAS_LOCAL_DOCUMENTS AAS_LOCAL_READER_MODEL "
+  local name
+  for name in $(compgen -A variable | grep '^AAS_LOCAL_' || true); do
+    case "$known" in
+      *" $name "*) ;;
+      *) echo "$name is exported and this script does not read it — refusing to start on a setting that would be ignored" >&2; exit 2 ;;
+    esac
+  done
+}
+
+# What the processes SAY they came up with, from their own first lines —
+# never what the shell asked for (P250). A start that was asked for the vault
+# and comes up with documents=none refuses; the summary prints these words.
+service_word() {
+  grep -m1 'conversation service listening' "$DIR/conversation-service.log" 2>/dev/null || true
+}
+reader_word() {
+  grep -m1 'cv reader .* polling' "$DIR/cv-reader.log" 2>/dev/null || true
+}
+service_documents() {
+  local line; line="$(service_word)"
+  case "$line" in *"documents=s3"*) echo "s3" ;; *"documents=none"*) echo "none" ;; *) echo "unknown" ;; esac
+}
+reader_model() {
+  local line; line="$(reader_word)"
+  case "$line" in *"bedrock-runtime"*) echo "bedrock" ;; *"stand-in"*) echo "stand-in" ;; *) echo "unknown" ;; esac
+}
+verify_asked() {
+  local rc=0
+  if [ "$DOCUMENTS" = "vault" ] && [ "$(service_documents)" != "s3" ]; then
+    echo "REFUSED: AAS_LOCAL_DOCUMENTS=vault was asked, but the conversation service came up without the transport — its own line: $(service_word | sed 's/^$/(nothing logged yet)/') — see $DIR/conversation-service.log" >&2
+    rc=2
+  fi
+  if [ "$READER_MODEL" = "bedrock" ] && [ "$(reader_model)" != "bedrock" ]; then
+    echo "REFUSED: AAS_LOCAL_READER_MODEL=bedrock was asked, but the cv reader came up on something else — its own line: $(reader_word | sed 's/^$/(nothing logged yet)/') — see $DIR/cv-reader.log" >&2
+    rc=2
+  fi
+  return $rc
+}
 
 check_documents() {
   # Refused up front, before a database is created or a process started: a
@@ -287,6 +337,7 @@ wait_for() {
 }
 
 cmd_start() {
+  check_known_settings
   check_documents
   mkdir -p "$DIR"
   for app in $APPS; do
@@ -316,18 +367,36 @@ cmd_start() {
   wait_for "the runner's browser"     "curl -fsS $CDP_URL/json/version" 90
   wait_for "the worker"               "grep -q 'worker running' $DIR/worker.log" 90
   wait_for "the CV reader"            "grep -q 'cv reader reader-local-1 polling' $DIR/cv-reader.log" 90
+  # Announce nothing that did not come up as asked: the processes' own words
+  # decide, and a gap stops the stack (logs kept in $DIR) and exits 2.
+  if ! verify_asked; then
+    echo "stopping the stack: it is not what was asked for. The logs are kept in $DIR" >&2
+    cmd_stop >/dev/null
+    exit 2
+  fi
   cat <<SUMMARY
-up:
+up: (each line is what the process itself said, not what the shell asked for)
   conversation service  $CONVERSATION_URL   (student page and API; dev session ON)
   secure service        $SECURE_URL
   fill agent            $AGENT_URL
   runner                polling $CONVERSATION_URL, browser CDP at $CDP_URL
   worker                advancing runs
-  cv reader             polling $CONVERSATION_URL for a confirmed CV; model: $READER_MODEL
-  documents             $DOCUMENTS${AAS_DOCUMENTS_BUCKET:+ (bucket $AAS_DOCUMENTS_BUCKET, region ${AAS_DOCUMENTS_REGION:-eu-west-2})}
+  cv reader             polling $CONVERSATION_URL for a confirmed CV; model: $(reader_model)
+  documents             $(service_documents)${AAS_DOCUMENTS_BUCKET:+ (bucket $AAS_DOCUMENTS_BUCKET, region ${AAS_DOCUMENTS_REGION:-eu-west-2})}
   catalogue             $CATALOGUE${AAS_CATALOGUE_DIR:+ ($AAS_CATALOGUE_DIR)}
   state                 $DIR  (env files 600, logs, pids, public/, secure-assets/)
 SUMMARY
+}
+
+cmd_verify() {
+  if [ ! -f "$DIR/conversation-service.log" ]; then
+    echo "no logs at $DIR — run start first" >&2; exit 2
+  fi
+  if verify_asked; then
+    echo "verified: documents=$(service_documents), cv reader model=$(reader_model) — as asked"
+  else
+    exit 2
+  fi
 }
 
 cmd_status() {
@@ -396,9 +465,10 @@ cmd_finish_stopped() {
 
 case "${1:-}" in
   start) cmd_start ;;
+  verify) cmd_verify ;;
   status) cmd_status ;;
   stop) cmd_stop ;;
   finish-stopped) shift; cmd_finish_stopped "${1:-}" ;;
   raise-missing) shift; cmd_raise_missing "${1:-}" ;;
-  *) echo "usage: scripts/local-stack.sh start|status|stop|finish-stopped <conversationId>|raise-missing <conversationId>" >&2; exit 2 ;;
+  *) echo "usage: scripts/local-stack.sh start|verify|status|stop|finish-stopped <conversationId>|raise-missing <conversationId>" >&2; exit 2 ;;
 esac

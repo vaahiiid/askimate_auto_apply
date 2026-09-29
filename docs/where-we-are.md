@@ -4906,6 +4906,22 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P250 — the stack says what its processes said, or nothing
+
+> *"Announcing six services while the one thing I asked for is absent is the same class as the
+> banner that said Bedrock and called somewhere else."*
+
+His start asked for the vault and came up without it, and the script announced six services
+anyway. The script he ran was the one before P249, which did not know the setting and ignored it
+silently; the one on `main` reads the transport's own names. The principle is built regardless: an
+unknown setting is refused, and after start the script reads what the service and the reader say
+they came up with and refuses any gap, keeping the logs and quoting the line. The summary now
+prints the processes' words, not the shell's. Made to fail once on purpose and read.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P249 — the pipeline is proven on a real document; the path a student walks is next, and his
 
 > *"The month works… What is not proven is the path a student actually walks."*

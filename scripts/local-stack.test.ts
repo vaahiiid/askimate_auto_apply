@@ -13,7 +13,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -113,6 +113,50 @@ afterAll(async () => {
   }
 });
 
+describe("the stack announces what its processes SAY they came up with, and refuses a gap (P250)", () => {
+  // Vahid, 2026-09-29, on a start given AAS_LOCAL_DOCUMENTS=vault that came
+  // up with documents=none and announced six services: *"the vault option
+  // was accepted silently and produced nothing… a start that is given
+  // AAS_LOCAL_DOCUMENTS=vault and comes up with documents=none should
+  // refuse, not proceed. Announcing six services while the one thing I
+  // asked for is absent is the same class as the banner that said Bedrock
+  // and called somewhere else."*
+  const VAULT = { AAS_LOCAL_DOCUMENTS: "vault", AAS_DOCUMENTS_BUCKET: "b", AAS_DOCUMENTS_KMS_KEY_ARN: "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000" };
+
+  it("verify exits 2 when the service's own line says documents=none though the vault was asked, and when the reader's says stand-in though bedrock was", async () => {
+    // Made to fail on purpose: fabricated logs in which each process says the opposite of what was asked.
+    const scratch = await mkdtemp(join(tmpdir(), "aas-local-stack-verify-"));
+    try {
+      await writeFile(join(scratch, "conversation-service.log"), "conversation service listening on 4970 (catalogue=fixtures, dev-session=true, identity=none, documents=none)\n");
+      await writeFile(join(scratch, "cv-reader.log"), "cv reader reader-local-1 polling http://127.0.0.1:4970 — model: the deterministic stand-in (not for production)\n");
+      const refused = await scriptWith({ ...VAULT, AAS_LOCAL_READER_MODEL: "bedrock" }, "verify", scratch);
+      expect(refused.code).toBe(2);
+      expect(refused.output).toContain("REFUSED: AAS_LOCAL_DOCUMENTS=vault was asked");
+      expect(refused.output).toContain("documents=none");
+      expect(refused.output).toContain("REFUSED: AAS_LOCAL_READER_MODEL=bedrock was asked");
+      expect(refused.output).toContain("stand-in");
+      // Nothing asked beyond the defaults: the same logs verify.
+      const fine = await scriptWith({}, "verify", scratch);
+      expect(fine.code, fine.output).toBe(0);
+      expect(fine.output).toContain("verified: documents=none, cv reader model=stand-in");
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("refuses an exported AAS_LOCAL_* it does not read, rather than ignoring it", async () => {
+    const scratch = await mkdtemp(join(tmpdir(), "aas-local-stack-unknown-"));
+    try {
+      const refused = await scriptWith({ AAS_LOCAL_DOCUMENT: "vault" }, "start", scratch);
+      expect(refused.code).toBe(2);
+      expect(refused.output).toContain("AAS_LOCAL_DOCUMENT is exported and this script does not read it");
+      expect(existsSync(join(scratch, "conversation-service.env"))).toBe(false);
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
+
 describe("the local stack refuses a document vault it was not told enough about (P249)", () => {
   it("exits 2 naming the missing variable, before creating a database or starting a process", async () => {
     const scratch = await mkdtemp(join(tmpdir(), "aas-local-stack-vault-"));
@@ -135,9 +179,21 @@ describe("the local stack refuses a document vault it was not told enough about 
 describeIfBoth("the local stack, started by its own script", () => {
   it("creates and migrates both databases, starts the five processes, and each answers where the script says", async () => {
     dir = await mkdtemp(join(tmpdir(), "aas-local-stack-"));
-    const started = await script("start", dir);
+    // Asked for the vault with a bucket nothing will be sent to: the service
+    // builds its transport without touching AWS, and the summary must carry
+    // the service's OWN word for it (P250), not the shell's.
+    const started = await scriptWith(
+      { AAS_LOCAL_DOCUMENTS: "vault", AAS_DOCUMENTS_BUCKET: "aas-local-stack-test-bucket", AAS_DOCUMENTS_KMS_KEY_ARN: "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000" },
+      "start",
+      dir,
+    );
     expect(started.code, started.output).toBe(0);
-    expect(started.output).toContain("up:");
+    expect(started.output).toContain("up: (each line is what the process itself said");
+    expect(started.output).toContain("documents             s3 (bucket aas-local-stack-test-bucket");
+    expect(started.output).toContain("model: stand-in");
+    const verified = await scriptWith({ AAS_LOCAL_DOCUMENTS: "vault", AAS_DOCUMENTS_BUCKET: "aas-local-stack-test-bucket", AAS_DOCUMENTS_KMS_KEY_ARN: "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000" }, "verify", dir);
+    expect(verified.code, verified.output).toBe(0);
+    expect(verified.output).toContain("verified: documents=s3, cv reader model=stand-in");
     // Nothing configured is printed: not the admin URL, not the secret.
     expect(started.output).not.toContain(TEST_DATABASE_URL);
     expect(started.output).not.toMatch(/AAS_SESSION_SECRET|[0-9a-f]{64}/);

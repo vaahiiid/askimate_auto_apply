@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.246.0] — 2026-09-29
+
+**P250 — the local stack refuses a gap between what was asked and what came up, and announces its processes' own words (row 106).**
+
+- **Added** `verify_asked`: after the six are up, `start` reads the conversation service's own
+  `documents=` word and the CV reader's own model word against `AAS_LOCAL_DOCUMENTS` and
+  `AAS_LOCAL_READER_MODEL`; a gap stops the stack, keeps the logs, and exits 2 quoting the process's
+  line. The summary prints those words. `scripts/local-stack.sh verify` repeats the reading.
+- **Added** a refusal of any exported `AAS_LOCAL_*` the script does not read — a setting is refused,
+  never ignored.
+- **Changed** the stack test to start with the vault asked and a bucket nothing is sent to, proving
+  `documents=s3` from the service's own line; the check is made to fail on purpose with fabricated
+  logs.
+
+---
+
 ## [0.245.0] — 2026-09-29
 
 **P249 — the local stack can be handed the document vault; the reader refuses the transport's real names; the CV path walked by hand is written up with its cost.**
