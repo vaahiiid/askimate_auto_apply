@@ -809,7 +809,10 @@ describeIfDatabase("P16 — the supervisor inherits every stop condition", () =>
       return Promise.resolve({ kind: "succeeded" } as const);
     });
     try {
-      await keepPolling(400);
+      // Until six turns, not for a fixed 400 ms: the sibling wait at the
+      // heir's test was made this way in P247 and this one went red the
+      // same way in P250's census, one turn short under load.
+      await keepPollingUntil(() => after.turns.length > 5, 10_000);
     } finally {
       await after.supervisor.stop();
     }
