@@ -49,6 +49,7 @@ export function start(options: StartOptions): Promise<RunningReader> {
     perform: (claim) => readDocument({ claim, model, ...(options.fetch === undefined ? {} : { fetch: options.fetch }) }),
     ...(config.idleIntervalMs === undefined ? {} : { idleIntervalMs: config.idleIntervalMs }),
     ...(config.busyIntervalMs === undefined ? {} : { busyIntervalMs: config.busyIntervalMs }),
+    holdProcess: true,
     onTurn: (result) => {
       // The outcome in the contract's closed words, and counts. Never a
       // value, never a span: this process has just read a student's CV.

@@ -45,6 +45,15 @@ export interface ReaderSupervisorOptions {
   readonly busyIntervalMs?: number;
   /** Where a turn's outcome goes. The result, never an error object. */
   readonly onTurn?: (result: TurnResult) => void;
+  /**
+   * Keep the process alive between turns. Off by default so a test that
+   * starts a supervisor and forgets it cannot hold vitest open; ON in the
+   * process, because this loop is the only thing the reader runs — found
+   * the first time it ran as one (P248, row 103): it logged its opening
+   * line, took one turn, and exited, its timers unreferenced and nothing
+   * else — no pool, no browser, no listener — holding the event loop.
+   */
+  readonly holdProcess?: boolean;
 }
 
 export interface RunningReaderSupervisor {
@@ -84,7 +93,7 @@ export function startReaderSupervisor(options: ReaderSupervisorOptions): Running
           scheduleNext(idleMs);
         });
     }, after);
-    timer.unref();
+    if (options.holdProcess !== true) timer.unref();
   };
   scheduleNext(0);
 

@@ -60,6 +60,7 @@ export {
   isConfirmed,
   isFieldUnavailable,
   modelText,
+  isReadInPart,
   proposeValue,
   provenanceOf,
   unwrapConfirmed,

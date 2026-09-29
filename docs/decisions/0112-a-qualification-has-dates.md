@@ -1,6 +1,6 @@
 # ADR-0112 — A qualification has dates: a start and an end as month and year, and an award date held on its own
 
-**Status:** Accepted, **one build-note claim withdrawn 2026-09-22 (P185)** — the months are not three-letter names; the decision about a qualification's dates stands · 2026-09-14 · decides blocker 27 · continues 0111 (the shape of a month-and-year, the end that is never a blank) and 0103 (gap 3)
+**Status:** Accepted, **one build-note claim withdrawn 2026-09-22 (P185)** — the months are not three-letter names; the decision about a qualification's dates stands · **amended 2026-09-29 (P248, ADR-0150):** the rule forbids supplying a month, not asking for one — a year a document gives alone is kept and the month asked · 2026-09-14 · decides blocker 27 · continues 0111 (the shape of a month-and-year, the end that is never a blank) and 0103 (gap 3)
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-14. The shape confirmed by him on 2026-09-15, all four parts as proposed, with one condition on the extraction; built in P134.
 
 ## Context
@@ -138,6 +138,23 @@ and `end` mapped to the end selects in every case.
 - Not built, said so: the interview cannot yet ask for any list-valued field (P129); the
   extraction proposes nothing for a qualification a transcript describes as expected or
   discontinued, since no label there reads those, and the interview is where they are said.
+
+## Amended 2026-09-29 (P248) — the rule forbids supplying the month, not asking for it
+
+His first live reading of his own CV (P247) met this rule where a CV states a degree's end as a
+year alone: the parser refused *"2019"*, rightly, and the interview asked for the whole date,
+year included. His words: *"'Which month of 2019?' keeps what the document gave and asks only
+what it did not. Asking for the whole date when we already have the year makes the student
+retype something we are looking at. ADR-0112 forbids supplying the month, not asking for it, and
+the narrower question is the more honest one anyway — it shows we read their document rather
+than pretending we did not."*
+
+So the rule reads, unchanged in what it forbids: a month and a year, or nothing; never a year
+with a month we chose. And, added: a year the document gives alone is held as a reading in part
+— the year, and the month named as lacking — and the interview asks for the month with the year
+in the question. The student may state the whole date instead, and their statement wins. The
+mechanism, on the part rather than on dates, is ADR-0150's; today only the month-and-year parts
+carry it.
 
 ## Consequences
 

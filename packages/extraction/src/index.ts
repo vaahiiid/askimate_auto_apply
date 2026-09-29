@@ -34,6 +34,7 @@ export type {
   ListEntryPart,
   ListTarget,
   PartSource,
+  PartialReading,
   ScalarTarget,
 } from "./plans.js";
 export {

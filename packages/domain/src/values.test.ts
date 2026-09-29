@@ -49,6 +49,7 @@ import type {
 import {
   fieldUnavailable,
   isConfirmed,
+  isReadInPart,
   isFieldUnavailable,
   modelText,
   proposeValue,
@@ -138,6 +139,18 @@ describe("the wall between model output and form fields", () => {
     expect(() =>
       proposeValue({ value: 1, origin: "conversation", verbatim: "x", confidence: 0.5, derivedFrom: "identity.nationality" }),
     ).toThrow(/Only a derived proposal/);
+  });
+
+  it("lets a proposal be read IN PART — what the source gave, and what it lacks — and never lets one pass as a value (P248)", () => {
+    // Vahid, 2026-09-29: *"'Which month of 2019?' keeps what the document
+    // gave and asks only what it did not."* A partial proposal names what
+    // is lacking; a reader treats it as a question, never a value.
+    const inPart = proposeValue({ value: { year: 2019 }, origin: "document", verbatim: "2019", confidence: 0.9, documentId: "doc_1", lacking: ["month"] });
+    expect(unwrapProposed(inPart).lacking).toEqual(["month"]);
+    expect(isReadInPart(inPart)).toBe(true);
+    expect(isReadInPart(proposeValue({ value: { year: 2019, month: 6 }, origin: "document", verbatim: "June 2019", confidence: 0.9 }))).toBe(false);
+    // Nothing lacking is not "in part": the empty list is refused rather than stored as a whole value in disguise.
+    expect(() => proposeValue({ value: { year: 2019 }, origin: "document", verbatim: "2019", confidence: 0.9, lacking: [] })).toThrow(/lacking/);
   });
 
   it("preserves non-string value types", () => {

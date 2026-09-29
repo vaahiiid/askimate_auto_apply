@@ -64,7 +64,7 @@ const BLUEPRINT = "bp-gated-portal";
 const EMAIL = "niloofar@example.test";
 const PASSWORD = "Theirs-Tr0ub4dor-3-horses!";
 const STATEMENT = "Please apply to Gated University for me.";
-const APPS = ["conversation-service", "secure-service", "secure-filler", "browser-runner", "worker"] as const;
+const APPS = ["conversation-service", "secure-service", "secure-filler", "browser-runner", "worker", "cv-reader"] as const;
 
 const HAVE_DATABASE = await databaseReachable();
 if (!HAVE_DATABASE) announceSkip("P121 — the journey through the five processes the local-stack script starts");

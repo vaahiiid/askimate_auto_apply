@@ -89,8 +89,27 @@ export interface WireEntryReading {
   readonly spans: Readonly<Record<string, string>>;
   /** The lowest confidence among the parts read, 0 to 1. */
   readonly confidence: number;
-  /** The parts the interview asks: missing from the document, read but not that value, or the student's to state. In the plan's order. */
+  /** The parts the interview asks: missing from the document, read but not that value, read in part, or the student's to state. In the plan's order. */
   readonly toAsk: readonly string[];
+  /**
+   * Which of `toAsk` are the student's to state (ADR-0149) — never asked of
+   * the document, so not "things it did not say" (P248). Vahid: *"a student
+   * reading the first version would think their CV was deficient for not
+   * stating whether a job was full-time. It is not — we never asked it to."*
+   */
+  readonly student: readonly string[];
+  /**
+   * Parts read IN PART (P248): the components the document gave and the ones
+   * the interview asks — a year without its month. Each is in `toAsk`, not in
+   * `fields`, and has its words in `spans`, so the question can say what the
+   * document gave. Absent when none.
+   */
+  readonly partial?: Readonly<Record<string, WirePartialReading>>;
+}
+
+export interface WirePartialReading {
+  readonly have: Readonly<Record<string, WireFieldValue>>;
+  readonly lacking: readonly string[];
 }
 
 export interface WireListReading {
@@ -195,24 +214,74 @@ function parseEntry(value: unknown): WireEntryReading | null {
     if (parsed === null) return null;
     fields[key] = parsed;
   }
-  const spans: Record<string, string> = {};
-  for (const [key, span] of Object.entries(rawSpans as Record<string, unknown>)) {
-    // A span names a field that was read: words without a value would be
-    // document text with nothing to be the words OF.
-    if (!(key in fields)) return null;
-    if (!isString(span) || span.length === 0 || span.length > MAX_SPAN_LENGTH) return null;
-    spans[key] = span;
-  }
-  // Every field carries its words: a value with no span is a value the
-  // student cannot be shown the source of, which the playback needs.
-  for (const key of Object.keys(fields)) if (!(key in spans)) return null;
-
   const toAsk = record["toAsk"];
   if (!Array.isArray(toAsk) || toAsk.length > MAX_PARTS_PER_ENTRY) return null;
   if (!toAsk.every((key) => isString(key) && PART_KEY.test(key))) return null;
   if (toAsk.some((key) => key in fields)) return null;
+  const asked = new Set(toAsk as string[]);
 
-  return { index, fields, spans, confidence, toAsk: toAsk as string[] };
+  // The student's parts are among those asked (P248): a part both the
+  // document's and the student's is a contradiction, as is one nobody asks.
+  const student = record["student"];
+  if (!Array.isArray(student) || student.length > MAX_PARTS_PER_ENTRY) return null;
+  if (!student.every((key) => isString(key) && asked.has(key))) return null;
+
+  // A part read in part is asked, is not a field, gives something and lacks
+  // something — else it would be a value, or a missing part.
+  const partial: Record<string, WirePartialReading> = {};
+  const rawPartial = record["partial"];
+  if (rawPartial !== undefined) {
+    if (typeof rawPartial !== "object" || rawPartial === null || Array.isArray(rawPartial)) return null;
+    for (const [key, inner] of Object.entries(rawPartial as Record<string, unknown>)) {
+      if (!asked.has(key) || key in fields) return null;
+      const parsed = parsePartial(inner);
+      if (parsed === null) return null;
+      partial[key] = parsed;
+    }
+  }
+
+  const spans: Record<string, string> = {};
+  for (const [key, span] of Object.entries(rawSpans as Record<string, unknown>)) {
+    // A span names a part that was read, whole or in part: words without a
+    // value would be document text with nothing to be the words OF.
+    if (!(key in fields) && !(key in partial)) return null;
+    if (!isString(span) || span.length === 0 || span.length > MAX_SPAN_LENGTH) return null;
+    spans[key] = span;
+  }
+  // Every part read carries its words: a value with no span is a value the
+  // student cannot be shown the source of, which the playback needs; a part
+  // read in part with no span is a question that cannot say what it read.
+  for (const key of [...Object.keys(fields), ...Object.keys(partial)]) if (!(key in spans)) return null;
+
+  return {
+    index,
+    fields,
+    spans,
+    confidence,
+    toAsk: toAsk as string[],
+    student: student as string[],
+    ...(Object.keys(partial).length === 0 ? {} : { partial }),
+  };
+}
+
+function parsePartial(value: unknown): WirePartialReading | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const rawHave = record["have"];
+  if (typeof rawHave !== "object" || rawHave === null || Array.isArray(rawHave)) return null;
+  const have: Record<string, WireFieldValue> = {};
+  const entries = Object.entries(rawHave as Record<string, unknown>);
+  if (entries.length === 0 || entries.length > MAX_PARTS_PER_ENTRY) return null;
+  for (const [key, inner] of entries) {
+    if (!PART_KEY.test(key)) return null;
+    const parsed = parseFieldValue(inner, 0);
+    if (parsed === null) return null;
+    have[key] = parsed;
+  }
+  const lacking = record["lacking"];
+  if (!Array.isArray(lacking) || lacking.length === 0 || lacking.length > MAX_PARTS_PER_ENTRY) return null;
+  if (!lacking.every((key) => isString(key) && PART_KEY.test(key) && !(key in have))) return null;
+  return { have, lacking: lacking as string[] };
 }
 
 function parseList(value: unknown): WireListReading | null {

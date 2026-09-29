@@ -121,6 +121,42 @@ describe("reading a CV: the jobs and the qualifications, each entry grounded (AD
     expect(studied.entries[0]?.fields["awardTitle"]).toBe("BSc");
   });
 
+  it("keeps a year alone as read IN PART — the year it gave, the month it lacks — never as a whole date and never as a guess (P248)", async () => {
+    // Vahid, 2026-09-29: *"'Which month of 2019?' keeps what the document
+    // gave and asks only what it did not… ADR-0112 forbids supplying the
+    // month, not asking for it."* A CV states a degree as one line with a
+    // year; the plan's date parser refuses a year alone (ADR-0112), and
+    // until P248 that refusal threw the year away with the month.
+    const text = await plain("Education\nQualification: BSc\nSubject: Computer science\nInstitution: University of Tehran\nStart: 2015\nEnd: 2019\nGrade: 17.2\nGrade scale: 20-point\n");
+    const studied = await read(text, "education.prior_qualifications");
+    const entry = studied.entries[0];
+    expect(entry?.dropped).toBeNull();
+    const start = entry?.parts.find((part) => part.partKey === "start");
+    expect(start?.status).toBe("partial");
+    const end = entry?.parts.find((part) => part.partKey === "end");
+    expect(end?.status).toBe("partial");
+    expect(entry?.partial).toEqual({
+      start: { have: { year: 2015 }, lacking: ["month"] },
+      end: { have: { kind: "completed", year: 2019 }, lacking: ["month"] },
+    });
+    // Not a value: the interview asks the month. But the words are kept, so
+    // the question can say what the document gave.
+    expect(entry?.fields).not.toHaveProperty("start");
+    expect(entry?.fields).not.toHaveProperty("end");
+    expect(entry?.spans["end"]).toBe("End: 2019");
+    expect(entry?.spans["start"]).toBe("Start: 2015");
+    // And "Expected 2027" keeps the kind it stated.
+    const expected = await read(await plain("Education\nQualification: MSc\nEnd: Expected 2027\n"), "education.prior_qualifications");
+    expect(expected.entries[0]?.partial).toEqual({ end: { have: { kind: "expected", year: 2027 }, lacking: ["month"] } });
+    // A job's end the same way: the kind is "ended", which the walk reads as "not still there".
+    const jobs = await read(await plain("Employment\nPosition: Analyst\nEmployer: Pardis\nStart: 2018\nEnd: 2019\n"), "employment.history");
+    expect(jobs.entries[0]?.partial).toEqual({ startDate: { have: { year: 2018 }, lacking: ["month"] }, end: { have: { kind: "ended", year: 2019 }, lacking: ["month"] } });
+    // A text that is neither a date nor a year is UNPARSED, as before: nothing is read in part from "soon".
+    const soon = await read(await plain("Employment\nPosition: Analyst\nEnd: soon\n"), "employment.history");
+    expect(soon.entries[0]?.parts.find((part) => part.partKey === "end")?.status).toBe("unparsed");
+    expect(soon.entries[0]?.partial).toEqual({});
+  });
+
   it("reports nothing to list — not an error — when the CV has no such section", async () => {
     const text = await plain("Niloofar Hosseini\nA short note with no sections at all.\n");
     const found = await read(text, "employment.history");

@@ -22,4 +22,5 @@ export {
 
 export type { FieldSpec } from "./field-specs.js";
 export { FIELD_SPECS, isComposite, isList } from "./field-specs.js";
-export type { FieldPart, ListFieldSpec } from "./field-specs.js";
+export type { FieldPart, ListFieldSpec, PartComponents } from "./field-specs.js";
+export { YEAR_MONTH_COMPONENTS } from "./field-specs.js";

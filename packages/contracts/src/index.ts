@@ -229,6 +229,7 @@ export type {
   WireEntryReading,
   WireFieldValue,
   WireListReading,
+  WirePartialReading,
 } from "./reading.js";
 export {
   MAX_ENTRIES_PER_LIST,

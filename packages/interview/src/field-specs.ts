@@ -119,6 +119,40 @@ export interface FieldPart<P> {
    * to fill the shape.
    */
   readonly optional?: boolean;
+  /**
+   * The value's named components, where it has them (P248): what lets a
+   * reading IN PART — a year without its month — narrow the question to the
+   * component lacking, and read the answer together with what was held.
+   * Expressible for any part whose value has components; today only the
+   * month-and-year parts have one, because a date is the only such value.
+   */
+  readonly components?: PartComponents<P>;
+}
+
+/**
+ * How a part whose value has named components is asked for one of them, and
+ * read from the answer together with the rest (P248). Vahid, 2026-09-29:
+ * *"where a parser refuses a value because one component is missing, ask for
+ * that component rather than the whole."*
+ */
+export interface PartComponents<P> {
+  /**
+   * Reads the student's answer to the narrowed question together with the
+   * components already held. `fromHeld` names the components taken from
+   * what was held — empty when the student stated the whole value, which
+   * wins: their statement over the document's. `null` when the answer is
+   * neither the component nor the whole.
+   */
+  readonly parse: (raw: string, have: Readonly<Record<string, unknown>>) => { readonly value: P; readonly fromHeld: readonly string[] } | null;
+  /**
+   * The narrowed question, said exactly so — `about` names the part as the
+   * student knows it ("qualification 1 — end date"), `words` are what it was
+   * read from. `null` when what is held is not enough to narrow by, and the
+   * part is then asked whole.
+   */
+  readonly question: (input: { readonly have: Readonly<Record<string, unknown>>; readonly lacking: readonly string[]; readonly words: string; readonly about: string }) => string | null;
+  /** What the narrowed answer should look like, for the interpretation. */
+  readonly expectedShape: (lacking: readonly string[]) => string;
 }
 
 /** The parts answered so far, by `partKey`. An omitted optional part holds {@link OMITTED}. */
@@ -445,6 +479,41 @@ const yearMonth = (raw: string): YearMonth | null => {
   }
 
   return null;
+};
+
+/** A month on its own — "June", "jun", "6", "06" — for the narrowed question (P248). */
+const monthAlone = (raw: string): number | null => {
+  const value = raw.trim().toLowerCase().replace(/\.$/, "");
+  const numeric = /^(0?[1-9]|1[0-2])$/.exec(value);
+  if (numeric !== null) return Number(numeric[1]);
+  if (!/^[a-z]{3,9}$/.test(value)) return null;
+  const index = MONTH_NAMES.findIndex((month) => month === value || (month.startsWith(value) && value.length >= 3));
+  return index === -1 ? null : index + 1;
+};
+
+/**
+ * A month and a year as components (P248): a document that gave the year
+ * alone leaves the month to ask, and the answer is the month — or the whole
+ * date, if the student states one, which wins.
+ */
+export const YEAR_MONTH_COMPONENTS: PartComponents<YearMonth> = {
+  parse: (raw, have) => {
+    const whole = yearMonth(raw);
+    if (whole !== null) return { value: whole, fromHeld: [] };
+    const year = have["year"];
+    if (typeof year !== "number") return null;
+    const month = monthAlone(raw);
+    return month === null ? null : { value: { year, month }, fromHeld: ["year"] };
+  },
+  question: ({ have, lacking, words, about }) => {
+    const year = have["year"];
+    if (typeof year !== "number" || lacking.length !== 1 || lacking[0] !== "month") return null;
+    return (
+      `For ${about}, the document I read gives "${words}": the year, ${String(year)}, but not the month. ` +
+      `Which month of ${String(year)} was it? If the date was different, tell me the month and the year.`
+    );
+  },
+  expectedShape: () => "a month, e.g. June or 06 — or the month and the year, if the date was different",
 };
 
 /** Symbols this reads. A symbol nobody listed is asked again, never assumed. */
@@ -1423,6 +1492,7 @@ export const FIELD_SPECS: Partial<{
           rationale: "When you started — the month and the year.",
           expectedShape: "a month and a year, e.g. September 2019 or 2019-09",
           parse: yearMonth,
+          components: YEAR_MONTH_COMPONENTS,
         },
         {
           partKey: "still",
@@ -1441,6 +1511,7 @@ export const FIELD_SPECS: Partial<{
           rationale: "When it ended — the month and the year.",
           expectedShape: "a month and a year, e.g. June 2021 or 2021-06",
           parse: yearMonth,
+          components: YEAR_MONTH_COMPONENTS,
           askWhen: (answered) => answered.get("still") === false,
         },
         {
@@ -1545,6 +1616,7 @@ export const FIELD_SPECS: Partial<{
           rationale: "When you moved there — the month and the year.",
           expectedShape: "a month and a year, e.g. September 2015 or 2015-09",
           parse: yearMonth,
+          components: YEAR_MONTH_COMPONENTS,
         },
         {
           partKey: "still",
@@ -1561,6 +1633,7 @@ export const FIELD_SPECS: Partial<{
           rationale: "When you left — the month and the year.",
           expectedShape: "a month and a year, e.g. August 2022 or 2022-08",
           parse: yearMonth,
+          components: YEAR_MONTH_COMPONENTS,
           askWhen: (answered) => answered.get("still") === false,
         },
       ],
@@ -1642,6 +1715,7 @@ export const FIELD_SPECS: Partial<{
           rationale: "When you started — the month and the year.",
           expectedShape: "a month and a year, e.g. September 2008 or 2008-09",
           parse: yearMonth,
+          components: YEAR_MONTH_COMPONENTS,
         },
         {
           partKey: "endKind",
@@ -1660,6 +1734,7 @@ export const FIELD_SPECS: Partial<{
           rationale: "When it ended, or is expected to — the month and the year.",
           expectedShape: "a month and a year, e.g. June 2012 or 2012-06",
           parse: yearMonth,
+          components: YEAR_MONTH_COMPONENTS,
         },
         {
           partKey: "award",
@@ -1670,6 +1745,7 @@ export const FIELD_SPECS: Partial<{
             "there is no award date.",
           expectedShape: "a month and a year, e.g. July 2022, or none",
           parse: yearMonth,
+          components: YEAR_MONTH_COMPONENTS,
           optional: true,
         },
         {

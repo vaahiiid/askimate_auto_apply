@@ -1098,7 +1098,7 @@ describe("what a reading may carry, and what it may not", () => {
     contentHash: "b".repeat(64),
     retrieval: { url: "https://vault.test/cv", method: "GET", expiresAt: "2026-09-28T20:01:00Z" },
   };
-  const ENTRY = { index: 1, fields: { subject: "Computer science", end: { kind: "completed", date: { year: 2019, month: 6 } } }, spans: { subject: "Subject: Computer science", end: "End: June 2019" }, confidence: 0.9, toAsk: ["countryCode"] };
+  const ENTRY = { index: 1, fields: { subject: "Computer science", end: { kind: "completed", date: { year: 2019, month: 6 } } }, spans: { subject: "Subject: Computer science", end: "End: June 2019" }, confidence: 0.9, toAsk: ["countryCode"], student: ["countryCode"] };
 
   it("accepts a claim field by field, and refuses one without a hash, a retrieval, or an https URL", () => {
     expect(parseClaimedReading(CLAIM)).toEqual(CLAIM);
@@ -1119,6 +1119,39 @@ describe("what a reading may carry, and what it may not", () => {
     expect(parseReadingReport({ ...report, lists: [{ ...report.lists[0], entries: [{ ...ENTRY, toAsk: ["subject"] }] }] })).toBeNull();
   });
 
+  it("carries which of the parts to ask are the student's, and a part read IN PART with its words — and refuses either where it contradicts the rest (P248)", () => {
+    // Vahid, 2026-09-29: *"'Things it did not say' and 'things that are
+    // yours to tell me' are different kinds of missing."* The report says
+    // which is which; and a year without its month travels as what it gave.
+    const entry = {
+      ...ENTRY,
+      fields: { subject: "Computer science" },
+      spans: { subject: "Subject: Computer science", start: "Start: 2015" },
+      toAsk: ["countryCode", "start", "grade"],
+      student: ["countryCode"],
+      partial: { start: { have: { year: 2015 }, lacking: ["month"] } },
+    };
+    const report = { leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [entry], dropped: 0 }] };
+    expect(parseReadingReport(report)).toEqual(report);
+    const withEntry = (changed: Record<string, unknown>): unknown => ({ ...report, lists: [{ ...report.lists[0], entries: [{ ...entry, ...changed }] }] });
+    // A student's part is one that is asked; naming one that is not is a contradiction.
+    expect(parseReadingReport(withEntry({ student: ["grade", "subject"] }))).toBeNull();
+    expect(parseReadingReport(withEntry({ student: ["level"] }))).toBeNull();
+    // A part read in part is asked, is not a field, and has its words.
+    expect(parseReadingReport(withEntry({ partial: { grade: { have: { year: 2015 }, lacking: ["month"] } }, spans: { subject: "Subject: Computer science", grade: "Grade: 2015" }, toAsk: ["countryCode", "grade"] }))).not.toBeNull();
+    expect(parseReadingReport(withEntry({ partial: { subject: { have: { year: 2015 }, lacking: ["month"] } } }))).toBeNull();
+    expect(parseReadingReport(withEntry({ partial: { level: { have: { year: 2015 }, lacking: ["month"] } } }))).toBeNull();
+    expect(parseReadingReport(withEntry({ spans: { subject: "Subject: Computer science" } }))).toBeNull();
+    // Nothing lacking is a whole value, which belongs in `fields`; nothing given is a missing part.
+    expect(parseReadingReport(withEntry({ partial: { start: { have: { year: 2015 }, lacking: [] } } }))).toBeNull();
+    expect(parseReadingReport(withEntry({ partial: { start: { have: {}, lacking: ["month"] } } }))).toBeNull();
+    // Words for a part neither read nor read in part are document text with nothing to be the words of.
+    expect(parseReadingReport(withEntry({ spans: { ...entry.spans, grade: "Grade: 17" } }))).toBeNull();
+    // Before P248 a report carried neither; one without `student` is refused, so the split is never silently "nothing is the student's".
+    const { student: _dropped, ...withoutStudent } = entry;
+    expect(parseReadingReport({ ...report, lists: [{ ...report.lists[0], entries: [withoutStudent] }] })).toBeNull();
+  });
+
   it("is symmetric: `read` carries lists and no failure, `failed` carries a closed failure and no lists", () => {
     expect(parseReadingReport({ leaseId: "rl_1", outcome: "read" })).toBeNull();
     expect(parseReadingReport({ leaseId: "rl_1", outcome: "read", lists: [], failure: "unreadable" })).toBeNull();
@@ -1128,7 +1161,7 @@ describe("what a reading may carry, and what it may not", () => {
   });
 
   it("bounds a value: no arrays, no deep structures, no text longer than a few lines", () => {
-    const withValue = (value: unknown): unknown => ({ leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "employment.history", entries: [{ index: 1, fields: { duties: value }, spans: { duties: "Duties: …" }, confidence: 1, toAsk: [] }], dropped: 0 }] });
+    const withValue = (value: unknown): unknown => ({ leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "employment.history", entries: [{ index: 1, fields: { duties: value }, spans: { duties: "Duties: …" }, confidence: 1, toAsk: [], student: [] }], dropped: 0 }] });
     expect(parseReadingReport(withValue("x".repeat(4000)))).not.toBeNull();
     expect(parseReadingReport(withValue("x".repeat(4001)))).toBeNull();
     expect(parseReadingReport(withValue(["a", "b"]))).toBeNull();

@@ -14490,6 +14490,154 @@ const QUALIFICATIONS_REQUIRED: CatalogueEntry = {
   },
 };
 
+describeIfDatabase("a reading says what it got and did not get, keeps its structure, and asks for the month of a year it read (P248)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-29. The sentence, with his split: *"I read your CV and
+  // filled in seven jobs and three qualifications from it. I still need a
+  // few things it did not say: … And a few that are yours to tell me: …"*
+  // The month: *"'Which month of 2019?' keeps what the document gave and asks
+  // only what it did not."* The shape: *"keep the report's structure intact
+  // rather than collapsing it into prose — the table needs the parts, the
+  // entries and the gaps."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX24801";
+  const documentId = "01JQDOCREAD000000000000002";
+  const contentHash = "e".repeat(64);
+  let owner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+
+  function readingVault(records: DocumentRecord[]): DocumentVault & { readonly records: DocumentRecord[] } {
+    const base = fakeVault(records);
+    return {
+      ...base,
+      records: base.records,
+      prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }),
+    };
+  }
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function partsRead(): Promise<readonly { part: string | null; proposal: unknown }[]> {
+    const rows = await pool.query<{ part_key: string | null; proposal: unknown }>(
+      "SELECT part_key, proposal FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_read' ORDER BY ordinal ASC",
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ part: row.part_key, proposal: row.proposal }));
+  }
+  async function askedCount(): Promise<number> {
+    return Number((await pool.query<{ n: string }>("SELECT count(*) AS n FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_asked'", [conversation])).rows[0]?.n ?? 0);
+  }
+
+  // A degree as a CV states it: one line with a year.
+  const ENTRY = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science, University of Tehran, 2015–2019", subject: "BSc Computer Science, University of Tehran, 2015–2019", institution: "BSc Computer Science, University of Tehran, 2015–2019", level: "BSc Computer Science, University of Tehran, 2015–2019", start: "September 2015", end: "2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode", "end"],
+    student: ["countryCode"],
+    partial: { end: { have: { kind: "completed", year: 2019 }, lacking: ["month"] } },
+  };
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    vault = readingVault([
+      { documentId, studentId: owner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+    ]);
+    const built = instance();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      await built.driver.requestReading({ documentId, conversationId: conversation, studentId: owner, contentHash });
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("seeds the end read in part as what it gave — completed, 2019 — with the month named as lacking, and says the sentence with his split", async () => {
+    const built = instance();
+    try {
+      const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed?.documentId).toBe(documentId);
+      const accepted = await built.driver.reportReading({
+        documentId,
+        report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [ENTRY], dropped: 1 }] },
+      });
+      expect(accepted).toBe(true);
+      // The structure is on the row: entries, parts, gaps — keys and counts, no value or span.
+      const stored = await pool.query<{ structure: unknown }>("SELECT structure FROM document_readings WHERE document_id = $1", [documentId]);
+      expect(stored.rows[0]?.structure).toEqual({
+        lists: [{ fieldKey: "education.prior_qualifications", seeded: true, entries: [{ index: 1, read: ["awardTitle", "subject", "institution", "level", "start", "grade", "gradeScale"], missing: [], partial: { end: ["month"] }, student: ["countryCode"] }], unread: 1 }],
+      });
+      expect(JSON.stringify(stored.rows[0]?.structure)).not.toContain("Tehran");
+    } finally {
+      await built.pool.end();
+    }
+    const parts = await partsRead();
+    const endKind = JSON.stringify(parts.find((row) => row.part === "item0.endKind")?.proposal);
+    expect(endKind, "how it ended is whole").toContain('"completed"');
+    const endDate = parts.find((row) => row.part === "item0.endDate")?.proposal as { value: unknown; lacking?: unknown; verbatim: string };
+    expect(endDate.value).toEqual({ year: 2019 });
+    expect(endDate.lacking).toEqual(["month"]);
+    expect(endDate.verbatim).toBe("2019");
+    expect((await assistantSaid()).at(-1)).toBe(
+      "I read your CV and filled in one qualification; one I could not read whole, so I will ask you about it. " +
+        "I still need a few things it did not say: for each qualification, the month it ended. " +
+        "And a few that are yours to tell me: for each qualification, the country.",
+    );
+  }, 120_000);
+
+  it("then asks for the country, then WHICH MONTH of 2019 — not the date — and reads June with the year it held", async () => {
+    const askedBefore = await askedCount();
+    const built = instance();
+    try {
+      const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    } finally {
+      await built.pool.end();
+    }
+    expect((await assistantSaid()).at(-1)?.toLowerCase(), "the country first (ADR-0149)").toContain("country");
+    await say("Iran");
+    const month = (await assistantSaid()).at(-1) ?? "";
+    expect(month).toContain("Which month of 2019");
+    expect(month, "what it was read from").toContain('"2019"');
+    expect(month).toContain("qualification 1");
+    await say("June");
+    // Then the optional award date the fixture mapping reads (P246), then another?
+    expect((await assistantSaid()).at(-1)?.toLowerCase()).toContain("award");
+    await say("none");
+    expect((await assistantSaid()).at(-1)?.toLowerCase()).toContain("another qualification");
+    await say("no");
+    const playback = (await assistantSaid()).at(-1) ?? "";
+    expect(playback).toContain("June (2019 from the document)");
+    expect(playback).toContain("Is that right?");
+    expect((await askedCount()) - askedBefore, "four questions: the country, the month, the award date, another?").toBe(4);
+    const built2 = instance();
+    try {
+      const reading = await built2.driver.runFor(conversation);
+      expect(reading?.pending?.decision).toBe("confirm_value");
+    } finally {
+      await built2.pool.end();
+    }
+  }, 300_000);
+});
+
 describeIfDatabase("a CV read by the reader seeds the interview, which asks only what the document did not give (P246)", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPX24601";
   const documentId = "01JQDOCREAD000000000000001";
@@ -14594,7 +14742,7 @@ describeIfDatabase("a CV read by the reader seeds the interview, which asks only
     try {
       const accepted = await built.driver.reportReading({
         documentId,
-        report: { leaseId: "rl_not_mine", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: REPORT_FIELDS, spans: REPORT_SPANS, confidence: 0.9, toAsk: ["countryCode"] }], dropped: 0 }] },
+        report: { leaseId: "rl_not_mine", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: REPORT_FIELDS, spans: REPORT_SPANS, confidence: 0.9, toAsk: ["countryCode"], student: ["countryCode"] }], dropped: 0 }] },
       });
       expect(accepted).toBe(false);
       expect(await partsRead()).toEqual([]);
@@ -14611,7 +14759,7 @@ describeIfDatabase("a CV read by the reader seeds the interview, which asks only
         report: {
           leaseId,
           outcome: "read",
-          lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: REPORT_FIELDS, spans: REPORT_SPANS, confidence: 0.9, toAsk: ["countryCode"] }], dropped: 0 }],
+          lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: REPORT_FIELDS, spans: REPORT_SPANS, confidence: 0.9, toAsk: ["countryCode"], student: ["countryCode"] }], dropped: 0 }],
           usage: { calls: 12, inputTokens: 3000, outputTokens: 900 },
         },
       });

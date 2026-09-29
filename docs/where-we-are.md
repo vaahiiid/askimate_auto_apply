@@ -4906,6 +4906,26 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P248 — two kinds of missing, the month not the date, and the reader runs
+
+> *"'Things it did not say' and 'things that are yours to tell me' are different kinds of
+> missing."*
+
+His four decisions, built. The student is told what the CV gave and, in two clauses, what it did
+not say and what is theirs to tell — the split that keeps a CV from looking deficient for a thing
+nobody asked it. A year the CV gives alone is no longer thrown away with the month: it is held as
+a reading in part, and the interview asks *which month of 2019?* with the words it read in the
+question, and takes a whole date instead if the student states one. The mechanism sits on the
+part and works for anything with named components; only dates have them today, and that is said.
+The report's structure survives the sentence on the reading's row, because the table is what the
+confirmation becomes (ADR-0150). And the local stack starts the reader: the first time it ran as a
+process it exited after one poll, which the stack's own test found by going red. Proven against
+the deterministic client and the fixture stack; his CV is the next live run.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P247 — it holds on a real CV, and it fills the half nobody expected
 
 > *"It fills employment almost completely and education barely at all."*

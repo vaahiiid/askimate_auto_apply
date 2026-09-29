@@ -24,7 +24,7 @@ import { isNotUnderstood } from "@askimate/aas-llm";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 import { checkGrounding } from "./grounding.js";
-import type { DocumentDateKind, ExtractionPlan, ExtractionTarget, PartSource } from "./plans.js";
+import type { DocumentDateKind, ExtractionPlan, ExtractionTarget, PartSource, PartialReading } from "./plans.js";
 import { planFor } from "./plans.js";
 import type { DocumentText } from "./text.js";
 import { sectionOf } from "./sections.js";
@@ -81,11 +81,15 @@ export interface ListPartReading {
    *   read        read, grounded and parsed — in `fields`;
    *   missing     the model found nothing; the interview asks (ADR-0149);
    *   unparsed    read and grounded, and the plan's parser refused the text; asked, never guessed;
+   *   partial     read and grounded, not that value, but some of its components — a year
+   *               without its month; the interview asks for what is lacking (P248);
    *   ungrounded  a span the document does not contain — the ENTRY is dropped (ADR-0016);
    *   skipped     not reached, the entry having been dropped;
    *   student     the student's to state: never asked of the document (ADR-0149).
    */
-  readonly status: "read" | "missing" | "unparsed" | "ungrounded" | "skipped" | "student";
+  readonly status: "read" | "missing" | "unparsed" | "partial" | "ungrounded" | "skipped" | "student";
+  /** On `partial` only: the components the text gave, and the ones it lacks — in `partial` on the entry too. */
+  readonly lacking?: readonly string[];
   /** The length of the span quoted, for a measurement, which must carry no line of the document. */
   readonly spanLength?: number;
   /** The span the model quoted and the document does not contain — on `ungrounded` only, for the report's `claimedSpan`. */
@@ -101,8 +105,10 @@ export interface ListEntryReading {
   readonly parts: readonly ListPartReading[];
   /** The parsed value of every `document` part that read — the entry as far as the document states it. Empty when dropped. */
   readonly fields: Readonly<Record<string, unknown>>;
-  /** The span each read part was read from, by part key — the student's own words for the playback. Empty when dropped. */
+  /** The span each read part — whole or in part — was read from, by part key: the student's own words for the playback, and for the narrowed question. Empty when dropped. */
   readonly spans: Readonly<Record<string, string>>;
+  /** Every `document` part read IN PART: the components the document gave and the ones the interview asks (P248). Empty when dropped. */
+  readonly partial: Readonly<Record<string, PartialReading>>;
   readonly lowestConfidence: number;
   /** Why the entry is not offered at all: an invented span, or two date ranges cut as one. `null` for an entry that stands. */
   readonly dropped: string | null;
@@ -146,6 +152,7 @@ export async function readListEntries(
     const block = entry.join("\n");
     const fields: Record<string, unknown> = {};
     const spans: Record<string, string> = {};
+    const partial: Record<string, PartialReading> = {};
     const parts: ListPartReading[] = [];
     let lowestConfidence = 1;
     // The merge detector first (segments.ts): two date ranges in one entry is
@@ -193,7 +200,18 @@ export async function readListEntries(
       }
       const value = part.parse(grounded.value);
       if (value === null || value === undefined) {
-        // Real text, not this value: "BSc" is not a level. Asked, never guessed.
+        // Real text, not this value — but perhaps some of it: "2019" is not a
+        // month and a year, and it is a year (P248). The components it gave
+        // are kept with their words, and the interview asks for the rest.
+        const inPart = part.components?.(grounded.value) ?? null;
+        if (inPart !== null) {
+          parts.push({ partKey: part.partKey, source: "document", status: "partial", spanLength: grounded.verbatim.length, lacking: inPart.lacking, reason: `The text read gives ${Object.keys(inPart.have).join(", ")} and not ${inPart.lacking.join(", ")}.` });
+          partial[part.partKey] = inPart;
+          spans[part.partKey] = grounded.verbatim;
+          lowestConfidence = Math.min(lowestConfidence, grounded.confidence);
+          continue;
+        }
+        // "BSc" is not a level. Asked, never guessed.
         parts.push({ partKey: part.partKey, source: "document", status: "unparsed", spanLength: grounded.verbatim.length, reason: `The text read is not ${part.expectedShape}.` });
         continue;
       }
@@ -208,6 +226,7 @@ export async function readListEntries(
       parts,
       fields: dropped === null ? fields : {},
       spans: dropped === null ? spans : {},
+      partial: dropped === null ? partial : {},
       lowestConfidence,
       dropped,
     });

@@ -30,7 +30,7 @@
  */
 
 import type { ModelText, ProposedValue } from "@askimate/aas-domain";
-import { proposeValue, unwrapProposed } from "@askimate/aas-domain";
+import { isReadInPart, proposeValue, unwrapProposed } from "@askimate/aas-domain";
 import type { ModelClient, NotUnderstood } from "@askimate/aas-llm";
 import { isNotUnderstood } from "@askimate/aas-llm";
 import type {
@@ -243,7 +243,37 @@ const NO_READINGS: PartReadings = new Map();
 
 /** The values alone, which is what `askWhen` and `assemble` are given. */
 function valuesOf(readings: PartReadings): PartAnswers {
-  return new Map([...readings].map(([partKey, reading]) => [partKey, unwrapProposed(reading).value]));
+  // A reading in part is not a value (P248): it is left out here, so nothing
+  // assembles a year alone, and nothing decides "still there?" from it.
+  return new Map([...readings].filter(([, reading]) => !isReadInPart(reading)).map(([partKey, reading]) => [partKey, unwrapProposed(reading).value]));
+}
+
+/** Whether the walk holds an answer for this part — a reading in part is a question still open (P248). */
+function answered(readings: PartReadings, partKey: string): boolean {
+  const reading = readings.get(partKey);
+  return reading !== undefined && !isReadInPart(reading);
+}
+
+/**
+ * The part narrowed to what a reading in part lacks (P248): the question
+ * said exactly so, with what was read in it, and the answer read together
+ * with what was held. The part itself where nothing was read in part, or
+ * where what was read is not enough to narrow by.
+ */
+function narrowed(part: FieldPart<unknown>, held: ProposedValue<unknown> | undefined, about: string): FieldPart<unknown> {
+  if (held === undefined || !isReadInPart(held) || part.components === undefined) return part;
+  const reading = unwrapProposed(held);
+  const have = (typeof reading.value === "object" && reading.value !== null ? reading.value : {}) as Readonly<Record<string, unknown>>;
+  const lacking = reading.lacking ?? [];
+  const exactly = part.components.question({ have, lacking, words: reading.verbatim, about });
+  if (exactly === null) return part;
+  const components = part.components;
+  return {
+    ...part,
+    exactly,
+    expectedShape: components.expectedShape(lacking),
+    parse: (raw) => components.parse(raw, have)?.value ?? null,
+  };
 }
 
 /** Names a question for the attempt count: the field, or one part of it. */
@@ -263,9 +293,9 @@ function nextPart(
   readings: PartReadings,
   rule?: PartRule,
 ): FieldPart<unknown> | undefined {
-  const answered = valuesOf(readings);
+  const answers = valuesOf(readings);
   return spec.parts.find(
-    (part) => !readings.has(part.partKey) && (part.askWhen?.(answered) ?? true) && isAsked(part, rule),
+    (part) => !answered(readings, part.partKey) && (part.askWhen?.(answers) ?? true) && isAsked(part, rule),
   );
 }
 
@@ -354,12 +384,14 @@ function nextListQuestion(
   }
   if (values.get(ANY) !== true) return undefined;
   for (let index = 0; ; index++) {
-    const part = nextPart(spec.item, readingsOfItem(readings, index), rule);
+    const ofItem = readingsOfItem(readings, index);
+    const part = nextPart(spec.item, ofItem, rule);
     if (part !== undefined) {
+      // The part's NAME, never its key (P228, row 92): "job 1 — employer".
+      const suffix = `${spec.itemLabel} ${String(index + 1)} — ${part.label}`;
       return {
-        part: { ...part, partKey: itemKey(index, part.partKey) },
-        // The part's NAME, never its key (P228, row 92): "job 1 — employer".
-        suffix: `${spec.itemLabel} ${String(index + 1)} — ${part.label}`,
+        part: { ...narrowed(part, ofItem.get(part.partKey), suffix), partKey: itemKey(index, part.partKey) },
+        suffix,
       };
     }
     const another = itemKey(index, ANOTHER);
@@ -397,7 +429,7 @@ function nextQuestionOf(
   if (isList(spec)) return nextListQuestion(spec, readings, rule);
   const part = nextPart(spec, readings, rule);
   // The part's NAME, never its key (P228, row 92): "Home address — street".
-  return part === undefined ? undefined : { part, suffix: part.label };
+  return part === undefined ? undefined : { part: narrowed(part, readings.get(part.partKey), part.label), suffix: part.label };
 }
 
 /** What a field is currently waiting to be asked. */
@@ -716,6 +748,21 @@ export async function receiveAnswer(
     };
   }
 
+  // An answer to a narrowed question (P248) is read together with what was
+  // held, and says so in its words — "June (2019 from the document)" — so
+  // the playback shows the student both halves. A whole date the student
+  // stated is theirs alone.
+  const held = state.partial.get(fieldKey)?.get(question.partKey);
+  if (held !== undefined && isReadInPart(held) && question.components !== undefined && interpreted.value !== OMITTED) {
+    const partial = unwrapProposed(held);
+    const have = (typeof partial.value === "object" && partial.value !== null ? partial.value : {}) as Readonly<Record<string, unknown>>;
+    const together = question.components.parse(utterance, have);
+    if (together !== null && together.fromHeld.length > 0) {
+      const { lacking: _open, ...whole } = unwrapProposed(interpreted);
+      const combined = proposeValue({ ...whole, verbatim: `${whole.verbatim} (${partial.verbatim} from the document)` });
+      return withPartRead(state, spec, fieldKey, question.partKey, combined, transcript, attempts);
+    }
+  }
   return withPartRead(state, spec, fieldKey, question.partKey, interpreted, transcript, attempts);
 }
 

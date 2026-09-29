@@ -3084,11 +3084,13 @@ components:
     EntryReading:
       type: object
       additionalProperties: false
-      required: [index, fields, spans, confidence, toAsk]
+      required: [index, fields, spans, confidence, toAsk, student]
       description: >-
         One entry — one job, one qualification — as the document stated it,
         and what it did not. A part that is the student's to state (ADR-0149)
-        is in `toAsk`, never in `fields`.
+        is in `toAsk` and in `student`, never in `fields`. A part read in
+        part — a year without its month — is in `partial` and in `toAsk`,
+        with its words in `spans` (P248).
       properties:
         index: { type: integer, minimum: 1, maximum: 50, description: One-based, in document order. }
         fields:
@@ -3100,13 +3102,43 @@ components:
           type: object
           maxProperties: 24
           additionalProperties: { type: string, minLength: 1, maxLength: 4000 }
-          description: The words each field was read from, by the same key — the student's own words for the playback. One per field, no more.
+          description: The words each part was read from, whole or in part, by the same key — the student's own words for the playback. One per part read, no more.
         confidence: { type: number, minimum: 0, maximum: 1 }
         toAsk:
           type: array
           maxItems: 24
           items: { type: string, pattern: "^[a-zA-Z][a-zA-Z0-9]{0,31}$" }
           description: The parts the interview asks, in the plan's order.
+        student:
+          type: array
+          maxItems: 24
+          items: { type: string, pattern: "^[a-zA-Z][a-zA-Z0-9]{0,31}$" }
+          description: Which of `toAsk` are the student's to state — never asked of the document, so not something it failed to say.
+        partial:
+          type: object
+          maxProperties: 24
+          additionalProperties: { $ref: "#/components/schemas/PartialReading" }
+          description: Parts read in part, by part key — each in `toAsk`, not in `fields`, with its words in `spans`.
+
+    PartialReading:
+      type: object
+      additionalProperties: false
+      required: [have, lacking]
+      description: >-
+        The components of a value the document gave, and the ones it did
+        not — a year without its month. Never a value: nothing supplies a
+        component (ADR-0112); the interview asks for `lacking`.
+      properties:
+        have:
+          type: object
+          minProperties: 1
+          maxProperties: 24
+          additionalProperties: { $ref: "#/components/schemas/ReadingFieldValue" }
+        lacking:
+          type: array
+          minItems: 1
+          maxItems: 24
+          items: { type: string, pattern: "^[a-zA-Z][a-zA-Z0-9]{0,31}$" }
 
     ListReading:
       type: object

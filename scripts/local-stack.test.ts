@@ -1,9 +1,10 @@
 /**
  * The local-stack runbook, proved (P120): `scripts/local-stack.sh` stands the
- * five deployables up as REAL child processes on one machine against a real
+ * deployables up as REAL child processes on one machine against a real
  * Postgres and a real Redis, migrated; the three services answer `/healthz`,
  * the runner's browser answers at the CDP endpoint the Fill Agent would dial,
- * the worker reports itself running; and `stop` brings all five down.
+ * the worker reports itself running, the CV reader reports itself polling
+ * (P248, row 103: six since then, five before); and `stop` brings all down.
  *
  * Against the fixture catalogue here. The same script with
  * `AAS_LOCAL_CATALOGUE=registry` and a reviewed entry is the Sheffield variant
@@ -133,7 +134,8 @@ describeIfBoth("the local stack, started by its own script", () => {
 
     const checked = await script("status", dir);
     expect(checked.code, checked.output).toBe(0);
-    for (const app of ["conversation-service", "secure-service", "secure-filler", "browser-runner", "worker"]) {
+    expect(started.output, "the sixth process, the CV reader (P248)").toContain("cv reader");
+    for (const app of ["conversation-service", "secure-service", "secure-filler", "browser-runner", "worker", "cv-reader"]) {
       expect(checked.output).toContain(`${app}: running`);
     }
   }, 300_000);

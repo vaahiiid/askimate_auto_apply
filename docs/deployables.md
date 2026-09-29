@@ -1,4 +1,4 @@
-# The five deployables — responsibility, configuration, startup, shutdown
+# The deployables — responsibility, configuration, startup, shutdown (five, and a sixth since P246)
 
 **P18, 2026-09-03.** The architecture check Vahid asked for before implementation:
 *"map the five deployables and their startup responsibilities clearly … Do not
@@ -11,7 +11,7 @@ and trust levels), amended by [ADR-0052](./decisions/0052-the-system-acts-when-n
 and [ADR-0045](./decisions/0045-the-runner-pulls-leased-work.md) fixing the two
 boundaries most easily eroded by a careless entry point.
 
-## The count, and why it stays five
+## The count, and why it stayed five — and the sixth that was decided
 
 | # | Process | Plane / trust level | Inbound | Databases |
 |---|---|---|---|---|
@@ -20,8 +20,12 @@ boundaries most easily eroded by a careless entry point.
 | 3 | **Fill Agent** | Secure | internal only | **none** |
 | 4 | **Automation Runner** | Browser | **CDP only** (ADR-0045) | **none** |
 | 5 | **Background Worker** | Conversation | **nothing** (ADR-0052) | conversation |
+| 6 | **CV Reader** (P246; [ADR-0092](./decisions/0092-a-document-is-fetched-by-the-process-that-uses-it.md) as amended by ADR-0148 §9) | its own, below the conversation plane | **nothing**: it polls the Conversation Service | **none** |
 
-**No sixth process is introduced.** Two things that might have become one are
+**No sixth process was introduced at P18**, and the one that exists since P246
+is the second process that fetches a document, decided in Vahid's words —
+*"A separate process whose only job is reading a CV. It fetches the document,
+produces text, and forgets it."* Two things that might have become one are
 deliberately not:
 
 - **Migrations are a COMMAND MODE of the owning service, not a process.**
@@ -225,6 +229,37 @@ start the loops.
 
 **Shutdown.** Stop the loops, release held job leases so the next worker does not
 wait a full lease period, end the pool, exit 0.
+
+## 6 · CV Reader — `aas-cv-reader`
+
+**Responsibility.** ADR-0092 as amended by ADR-0148 §9 (P246): claims a
+confirmed CV from the Conversation Service under a lease, fetches it once
+through the sixty-second retrieval the plane minted, turns it into text, cuts
+and reads each list entry by entry through the model, and reports what the
+document gave and what it did not — values and their words, a part read in
+part, and which parts are the student's to state (ADR-0149). Then it forgets
+everything. It holds no database, no bucket, no vault and no cache; its
+config refuses each of those variables by name.
+
+| Variable | Required | Notes |
+|---|---|---|
+| `AAS_CONVERSATION_INTERNAL_URL` + `AAS_READER_SERVICE_TOKEN` | yes | the plane, and the identity it presents (`AAS_SERVICE_CERT_READER` on the service). |
+| `AAS_READER_HOLDER` | yes | which reader holds a lease. |
+| `AAS_READER_MODEL` | no | `stand-in` outside production only; otherwise Bedrock, and the `AAS_BEDROCK_*` variables are required. |
+| `AAS_READER_IDLE_MS` / `_BUSY_MS` / `_LEASE_SECONDS` | no | polling and the lease it asks for; the plane clamps the lease. |
+
+**It must never be given** `AAS_CONVERSATION_DATABASE_URL`,
+`AAS_SECURE_DATABASE_URL`, `AAS_SECURE_KMS_KEY_ID`, `AAS_ENVELOPE_CACHE_URL`
+or `AAS_DOCUMENT_BUCKET`: it refuses to start with any of them set.
+
+**Startup checks.** Configuration → the model's configuration → start polling;
+its first log line names the model it will call and where, before any call.
+
+**Shutdown.** Stop polling, wait for the turn in flight (a reading
+half-reported is a lease that lapses and a document read twice), exit 0.
+
+The local stack starts it since P248 (row 103): `scripts/local-stack.sh`,
+with the stand-in unless `AAS_LOCAL_READER_MODEL=bedrock`.
 
 ## What still blocks production, after P18
 

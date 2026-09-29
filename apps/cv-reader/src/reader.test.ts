@@ -53,13 +53,16 @@ describe("one document, read and forgotten (ADR-0148 §9, ADR-0149)", () => {
     expect(jobs?.dropped).toBe(0);
     expect(jobs?.entries[0]?.fields).toMatchObject({ position: "Data analyst", employer: "Pardis Analytics Ltd", end: { kind: "current" } });
     expect(jobs?.entries[0]?.spans["position"]).toContain("Position: Data analyst");
-    // The basis is the student's to state: never asked of the document, so it is asked of the student.
+    // The basis is the student's to state: never asked of the document, so it is asked of the student — and the report says it is the student's (P248).
     expect(jobs?.entries[0]?.toAsk).toEqual(["basis"]);
+    expect(jobs?.entries[0]?.student).toEqual(["basis"]);
+    expect(jobs?.entries[0]?.partial).toBeUndefined();
     const studied = report.lists?.find((list) => list.fieldKey === "education.prior_qualifications");
     expect(studied?.entries).toHaveLength(1);
     expect(studied?.entries[0]?.fields).not.toHaveProperty("countryCode");
     // Vahid's end state: a qualification asking for its country, and nothing else.
     expect(studied?.entries[0]?.toAsk).toEqual(["countryCode"]);
+    expect(studied?.entries[0]?.student).toEqual(["countryCode"]);
     // The stand-in has no usage figures; a Bedrock client's are the provider's.
     expect(report.usage).toBeUndefined();
   });

@@ -105,6 +105,19 @@ export interface DocumentDateTarget extends TargetCommon {
  */
 export type PartSource = "document" | "student";
 
+/**
+ * A part read IN PART (P248): the components of the value the document gave,
+ * and the ones it did not. Vahid, 2026-09-29: *"'Which month of 2019?' keeps
+ * what the document gave and asks only what it did not. Asking for the whole
+ * date when we already have the year makes the student retype something we
+ * are looking at."* Not a value: nothing here supplies a component (ADR-0112);
+ * the interview asks for `lacking`, with `have` in the question.
+ */
+export interface PartialReading {
+  readonly have: Readonly<Record<string, unknown>>;
+  readonly lacking: readonly string[];
+}
+
 /** One part of one entry of a list, read by its label inside the entry's own lines — or never read at all. */
 export interface ListEntryPart extends Omit<TargetCommon, "required"> {
   readonly partKey: string;
@@ -115,6 +128,13 @@ export interface ListEntryPart extends Omit<TargetCommon, "required"> {
    * is not that value — the part is then asked, never guessed.
    */
   readonly parse: (raw: string) => unknown;
+  /**
+   * Tried only when `parse` refused: the components the text DOES give, where
+   * the value has named ones — a year without its month. Expressible for any
+   * part whose value has components; today only the month-and-year parts have
+   * one, because a date is the only such value on a CV (P248).
+   */
+  readonly components?: (raw: string) => PartialReading | null;
 }
 
 /**
@@ -626,6 +646,28 @@ const endOfQualification = (raw: string): string | null => {
   return yearMonth(date) === null ? null : `${kind}|${date}`;
 };
 
+/** A year alone: the one component a CV usually gives, with the month it lacks named (P248). */
+const yearOnly = (raw: string): PartialReading | null => {
+  const value = raw.trim();
+  return /^(19\d{2}|20\d{2})$/.test(value) ? { have: { year: Number(value) }, lacking: ["month"] } : null;
+};
+
+/** A job that ended in a year the CV names without a month: ended, that year, month to be asked. */
+const jobEndComponents = (raw: string): PartialReading | null => {
+  const year = yearOnly(raw);
+  return year === null ? null : { have: { kind: "ended", ...year.have }, lacking: year.lacking };
+};
+
+/** "Completed 2019" / "Expected 2027" / "2019": the kind it stated and the year, month to be asked. */
+const qualificationEndComponents = (raw: string): PartialReading | null => {
+  const value = raw.trim();
+  const kinded = /^(completed|expected|discontinued|finished|graduated|left)[\s,:-]*(.+)$/i.exec(value);
+  const kind = kinded === null ? "completed" : { finished: "completed", graduated: "completed", left: "discontinued" }[kinded[1]?.toLowerCase() ?? ""] ?? (kinded[1]?.toLowerCase() ?? "completed");
+  const year = yearOnly(kinded === null ? value : (kinded[2] ?? ""));
+  if (year === null || (kind !== "completed" && kind !== "expected" && kind !== "discontinued")) return null;
+  return { have: { kind, ...year.have }, lacking: year.lacking };
+};
+
 /** A job's end as the profile holds it: not yet ended, or a month and a year. */
 const jobEnd = (raw: string): EmploymentEntry["end"] | null => {
   const read = endOfJob(raw);
@@ -667,8 +709,8 @@ const CV: ExtractionPlan = {
         { partKey: "position", labels: ["Position", "Job title", "Title", "Role"], hint: "the job title of one job", expectedShape: "a job title", source: "document", parse: trimmed },
         { partKey: "employer", labels: ["Employer", "Company", "Organisation", "Organization"], hint: "who the job was with", expectedShape: "an employer's name", source: "document", parse: trimmed },
         { partKey: "employerAddress", labels: ["Employer address", "Address", "Location"], hint: "where the employer is", expectedShape: "an address or a place", source: "document", parse: trimmed },
-        { partKey: "startDate", labels: ["Start", "Start date", "From"], hint: "when the job began, as a month and a year", expectedShape: "a month and a year", source: "document", parse: yearMonth },
-        { partKey: "end", labels: ["End", "End date", "To", "Until"], hint: "when the job ended, or that it has not", expectedShape: "a month and a year, or 'Present'", source: "document", parse: jobEnd },
+        { partKey: "startDate", labels: ["Start", "Start date", "From"], hint: "when the job began, as a month and a year", expectedShape: "a month and a year", source: "document", parse: yearMonth, components: yearOnly },
+        { partKey: "end", labels: ["End", "End date", "To", "Until"], hint: "when the job ended, or that it has not", expectedShape: "a month and a year, or 'Present'", source: "document", parse: jobEnd, components: jobEndComponents },
         { partKey: "duties", labels: ["Duties", "Responsibilities", "Description", "Summary"], hint: "what the job involved, in the student's words", expectedShape: "a description", source: "document", parse: trimmed },
         // The student's to state (ADR-0149): a CV does not say full-time.
         { partKey: "basis", labels: ["Basis", "Type", "Hours"], hint: "full-time or part-time", expectedShape: "full-time or part-time", source: "student", parse: oneOf(EMPLOYMENT_BASIS) },
@@ -691,8 +733,8 @@ const CV: ExtractionPlan = {
         // the other would be deriving (ADR-0149), so the parser refuses
         // anything but the closed vocabulary, and the interview asks.
         { partKey: "level", labels: ["Level"], hint: "the level, only where the document states one: bachelor's degree, master's degree, doctorate, diploma, certificate", expectedShape: "a level of qualification, in those words", source: "document", parse: oneOf(QUALIFICATION_LEVELS) },
-        { partKey: "start", labels: ["Start", "Start date", "From"], hint: "when it began, as a month and a year", expectedShape: "a month and a year", source: "document", parse: yearMonth },
-        { partKey: "end", labels: ["End", "End date", "To", "Until", "Completed"], hint: "when it ended, or is expected to", expectedShape: "a month and a year, with 'expected' or 'discontinued' where so", source: "document", parse: qualificationEnd },
+        { partKey: "start", labels: ["Start", "Start date", "From"], hint: "when it began, as a month and a year", expectedShape: "a month and a year", source: "document", parse: yearMonth, components: yearOnly },
+        { partKey: "end", labels: ["End", "End date", "To", "Until", "Completed"], hint: "when it ended, or is expected to", expectedShape: "a month and a year, with 'expected' or 'discontinued' where so", source: "document", parse: qualificationEnd, components: qualificationEndComponents },
         { partKey: "grade", labels: ["Grade", "Result", "Classification"], hint: "the grade as printed", expectedShape: "a grade", source: "document", parse: trimmed },
         { partKey: "gradeScale", labels: ["Grade scale", "Scale"], hint: "the scale the grade is on", expectedShape: "UK honours, 20-point, GPA out of 4, or percentage", source: "document", parse: oneOf(GRADE_SCALES) },
       ],

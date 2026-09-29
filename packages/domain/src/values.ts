@@ -191,9 +191,24 @@ export interface ProposedValueFields<T> {
   readonly documentId?: string;
   /** The confirmed field a `derived` proposal was read off. Present exactly when the origin is `derived`. */
   readonly derivedFrom?: string;
+  /**
+   * A proposal read IN PART (P248): `value` holds the components the source
+   * gave, and these are the ones it did not — a year without its month. Not
+   * a value: nothing supplies a component (ADR-0112); the interview asks for
+   * them, with what was read in the question. Vahid, 2026-09-29: *"'Which
+   * month of 2019?' keeps what the document gave and asks only what it did
+   * not."* Absent on a whole proposal; never empty.
+   */
+  readonly lacking?: readonly string[];
 }
 
 export type ProposedValue<T> = Brand<ProposedValueFields<T>, "ProposedValue">;
+
+/** True for a proposal read in part: something to ask, never a value to hold or play back. */
+export function isReadInPart(proposed: ProposedValue<unknown>): boolean {
+  const lacking = (proposed as unknown as ProposedValueFields<unknown>).lacking;
+  return lacking !== undefined && lacking.length > 0;
+}
 
 /**
  * Mints a `ProposedValue`.
@@ -208,9 +223,15 @@ export function proposeValue<T>(input: {
   readonly confidence: number;
   readonly documentId?: string;
   readonly derivedFrom?: string;
+  readonly lacking?: readonly string[];
 }): ProposedValue<T> {
   if (!(input.confidence >= 0 && input.confidence <= 1)) {
     throw new RangeError(`confidence must be between 0 and 1, received: ${String(input.confidence)}`);
+  }
+  // A proposal in part names what it lacks. An empty list would be a whole
+  // value that every reader treats as one, wearing the wrong label.
+  if (input.lacking !== undefined && input.lacking.length === 0) {
+    throw new RangeError("A proposal read in part must name what is lacking; nothing lacking is a whole value.");
   }
   // A derived proposal names its source, and only a derived one does: a
   // student confirming "studied in the UK" is shown which qualification said
@@ -229,6 +250,7 @@ export function proposeValue<T>(input: {
     confidence: input.confidence,
     ...(input.documentId !== undefined ? { documentId: input.documentId } : {}),
     ...(input.derivedFrom !== undefined ? { derivedFrom: input.derivedFrom } : {}),
+    ...(input.lacking !== undefined ? { lacking: [...input.lacking] } : {}),
   } as unknown as ProposedValue<T>;
 }
 

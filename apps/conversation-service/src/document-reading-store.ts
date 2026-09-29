@@ -18,6 +18,8 @@
 
 import type { Pool } from "pg";
 
+import type { ReadingStructure } from "./reading-account.js";
+
 export type ReadingState = "pending" | "leased" | "read" | "failed";
 
 export interface DocumentReading {
@@ -33,6 +35,8 @@ export interface DocumentReading {
   readonly readAt: Date | null;
   /** The contract's closed word, or the gate's. Never a sentence. */
   readonly failure: string | null;
+  /** What the report was made of — entries, parts, gaps — on a reading that was read (P248, migration 0031). Part keys and counts; never a value or a span. */
+  readonly structure: ReadingStructure | null;
 }
 
 export interface DocumentReadingStore {
@@ -59,6 +63,7 @@ export interface DocumentReadingStore {
     readonly leaseId: string;
     readonly outcome: "read" | "failed";
     readonly failure?: string;
+    readonly structure?: ReadingStructure;
     readonly now: Date;
   }): Promise<boolean>;
   readingFor(documentId: string): Promise<DocumentReading | null>;
@@ -76,6 +81,7 @@ interface Row {
   readonly lease_expires_at: Date | null;
   readonly read_at: Date | null;
   readonly failure: string | null;
+  readonly structure: ReadingStructure | null;
 }
 
 function readingOf(row: Row): DocumentReading {
@@ -91,11 +97,12 @@ function readingOf(row: Row): DocumentReading {
     leaseExpiresAt: row.lease_expires_at,
     readAt: row.read_at,
     failure: row.failure,
+    structure: row.structure,
   };
 }
 
 const COLUMNS =
-  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure";
+  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure";
 
 /** The `document_readings` table (migration 0030). */
 export class PostgresDocumentReadingStore implements DocumentReadingStore {
@@ -144,12 +151,19 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
     return row === undefined ? null : readingOf(row);
   }
 
-  public async complete(input: { documentId: string; leaseId: string; outcome: "read" | "failed"; failure?: string; now: Date }): Promise<boolean> {
+  public async complete(input: { documentId: string; leaseId: string; outcome: "read" | "failed"; failure?: string; structure?: ReadingStructure; now: Date }): Promise<boolean> {
     const rows = await this.#pool.query(
       `UPDATE document_readings
-          SET state = $3, read_at = $4, failure = $5, lease_id = NULL, holder = NULL, lease_expires_at = NULL
+          SET state = $3, read_at = $4, failure = $5, structure = $6, lease_id = NULL, holder = NULL, lease_expires_at = NULL
         WHERE document_id = $1 AND state = 'leased' AND lease_id = $2 AND lease_expires_at > $4`,
-      [input.documentId, input.leaseId, input.outcome, input.now, input.outcome === "failed" ? (input.failure ?? "reader_fault") : null],
+      [
+        input.documentId,
+        input.leaseId,
+        input.outcome,
+        input.now,
+        input.outcome === "failed" ? (input.failure ?? "reader_fault") : null,
+        input.outcome === "read" && input.structure !== undefined ? JSON.stringify(input.structure) : null,
+      ],
     );
     return (rows.rowCount ?? 0) === 1;
   }
@@ -179,6 +193,7 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
         leaseExpiresAt: null,
         readAt: null,
         failure: null,
+        structure: null,
       });
     }
     return Promise.resolve();
@@ -206,7 +221,7 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
     return Promise.resolve(live ? row : null);
   }
 
-  public async complete(input: { documentId: string; leaseId: string; outcome: "read" | "failed"; failure?: string; now: Date }): Promise<boolean> {
+  public async complete(input: { documentId: string; leaseId: string; outcome: "read" | "failed"; failure?: string; structure?: ReadingStructure; now: Date }): Promise<boolean> {
     const row = await this.held(input.documentId, input.leaseId, input.now);
     if (row === null) return false;
     this.#rows.set(input.documentId, {
@@ -214,6 +229,7 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
       state: input.outcome,
       readAt: input.now,
       failure: input.outcome === "failed" ? (input.failure ?? "reader_fault") : null,
+      structure: input.outcome === "read" && input.structure !== undefined ? input.structure : null,
       leaseId: null,
       holder: null,
       leaseExpiresAt: null,

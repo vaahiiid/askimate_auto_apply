@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #
-# The local stack (P120): the five deployables, on one machine, against a
-# Postgres and a Redis you already run — migrated, started, checked, stopped.
+# The local stack (P120): the deployables, on one machine, against a Postgres
+# and a Redis you already run — migrated, started, checked, stopped. Five
+# processes until P248; six with the CV reader (ADR-0092 as amended, P246),
+# which until then was the one process the stack knew nothing of (row 103).
 #
 #   scripts/local-stack.sh start     create the two databases if absent, migrate
 #                                    both, build the student page and the secure
-#                                    control, start the five processes, wait
+#                                    control, start the six processes, wait
 #                                    until each says it is up, print where they are
 #   scripts/local-stack.sh status    which are running, and whether they answer
 #   scripts/local-stack.sh stop      SIGTERM each, wait for an orderly exit
@@ -39,6 +41,15 @@
 #   AAS_CATALOGUE_DIR              required with registry: entries/ + approvals.json
 #   AAS_PORTAL_ORIGINS             optional blueprintId=origin pairs (a deployment fact)
 #   AAS_CHROMIUM_PATH              optional; Playwright's Chromium otherwise
+#   AAS_LOCAL_READER_MODEL         stand-in | bedrock                    (stand-in)
+#                                  stand-in reads a line labelled "Position:" and
+#                                  nothing of a real CV; bedrock reads through the
+#                                  InvokeModel service and is his spend. With
+#                                  bedrock, AAS_BEDROCK_REGION and the four
+#                                  AAS_BEDROCK_MODEL_* must be exported (ids that
+#                                  `pnpm run verify-bedrock` listed), and the AWS
+#                                  credential comes from ~/.aws through AWS_PROFILE:
+#                                  no key is ever written to an env file here.
 #
 # What this is NOT: production. The dev session route is mounted, the vault's
 # keys are wrapped by a local master key both secure-plane processes are handed
@@ -69,7 +80,8 @@ SECURE_URL="http://127.0.0.1:$SECURE_PORT"
 AGENT_URL="http://127.0.0.1:$AGENT_PORT"
 CDP_URL="http://127.0.0.1:$CDP_PORT"
 
-APPS="conversation-service secure-service secure-filler browser-runner worker"
+APPS="conversation-service secure-service secure-filler browser-runner worker cv-reader"
+READER_MODEL="${AAS_LOCAL_READER_MODEL:-stand-in}"
 
 database_url() {
   # The admin URL with its path replaced: same server, same credentials.
@@ -123,6 +135,7 @@ AAS_SECURE_INTERNAL_URL=$SECURE_URL
 AAS_SECURE_SERVICE_TOKEN=conversation-service
 AAS_SERVICE_CERT_SECURE=secure-service
 AAS_SERVICE_CERT_RUNNER=browser-runner
+AAS_SERVICE_CERT_READER=cv-reader
 AAS_DEV_SESSION=1
 AAS_PUBLIC_DIR=$DIR/public
 $catalogue_lines
@@ -165,6 +178,33 @@ AAS_SECURE_INTERNAL_URL=$SECURE_URL
 AAS_SECURE_SERVICE_TOKEN=conversation-service
 $catalogue_lines
 ${AAS_PORTAL_ORIGINS:+AAS_PORTAL_ORIGINS=$AAS_PORTAL_ORIGINS}
+ENV
+  # The CV reader (P248, row 103): the second process that fetches a document
+  # (ADR-0092 as amended). It is handed the plane's URL and its own identity
+  # and NOTHING of either database, the vault or the cache — its config
+  # refuses those by name. The model is the stand-in unless asked for
+  # Bedrock, and then the credential is the AWS profile's, read from ~/.aws
+  # by the SDK: a key is never written here (Vahid: credentials never enter a
+  # file).
+  local reader_model_lines="AAS_READER_MODEL=$READER_MODEL"
+  if [ "$READER_MODEL" = "bedrock" ]; then
+    for variable in AAS_BEDROCK_REGION AAS_BEDROCK_MODEL_INTERVIEW AAS_BEDROCK_MODEL_INTERPRETATION AAS_BEDROCK_MODEL_DOCUMENT_EXTRACTION AAS_BEDROCK_MODEL_NAVIGATION; do
+      [ -n "${!variable:-}" ] || { echo "AAS_LOCAL_READER_MODEL=bedrock needs $variable exported (an id that 'pnpm run verify-bedrock' listed)" >&2; exit 2; }
+      reader_model_lines="$reader_model_lines
+$variable=${!variable}"
+    done
+    [ -n "${AWS_PROFILE:-}" ] && reader_model_lines="$reader_model_lines
+AWS_PROFILE=$AWS_PROFILE"
+    [ -n "${AWS_REGION:-}" ] && reader_model_lines="$reader_model_lines
+AWS_REGION=$AWS_REGION"
+  elif [ "$READER_MODEL" != "stand-in" ]; then
+    echo "AAS_LOCAL_READER_MODEL must be stand-in or bedrock, not '$READER_MODEL'" >&2; exit 2
+  fi
+  cat > "$DIR/cv-reader.env" <<ENV
+AAS_CONVERSATION_INTERNAL_URL=$CONVERSATION_URL
+AAS_READER_SERVICE_TOKEN=cv-reader
+AAS_READER_HOLDER=reader-local-1
+$reader_model_lines
 ENV
 }
 # The worker's catalogue lines above carry the SAME origins as the service's.
@@ -228,6 +268,7 @@ cmd_start() {
   wait_for "the fill agent"           "curl -fsS $AGENT_URL/healthz" 90
   wait_for "the runner's browser"     "curl -fsS $CDP_URL/json/version" 90
   wait_for "the worker"               "grep -q 'worker running' $DIR/worker.log" 90
+  wait_for "the CV reader"            "grep -q 'cv reader reader-local-1 polling' $DIR/cv-reader.log" 90
   cat <<SUMMARY
 up:
   conversation service  $CONVERSATION_URL   (student page and API; dev session ON)
@@ -235,6 +276,7 @@ up:
   fill agent            $AGENT_URL
   runner                polling $CONVERSATION_URL, browser CDP at $CDP_URL
   worker                advancing runs
+  cv reader             polling $CONVERSATION_URL for a confirmed CV; model: $READER_MODEL
   catalogue             $CATALOGUE${AAS_CATALOGUE_DIR:+ ($AAS_CATALOGUE_DIR)}
   state                 $DIR  (env files 600, logs, pids, public/, secure-assets/)
 SUMMARY

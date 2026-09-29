@@ -449,6 +449,21 @@ spec leaves optional is withheld when no mapped slot reads it. If a portal is ev
 not require a qualification's dates, the question of asking them anyway is ADR-0111's, not the
 mapping's.
 
+**What §9 says to the student, and what it keeps (P248, ADR-0150).** On his word the sentence
+went in with his split — *"I read your CV and filled in seven jobs and three qualifications from
+it. I still need a few things it did not say: … And a few that are yours to tell me: …"* — said
+once, as the assistant's message, when the report is seeded; a failed reading and an entry not
+read whole have their own sentences, as printed. The year a CV gives alone is no longer asked as
+a whole date: it is held as a reading in part and the interview asks *which month of 2019?*, with
+the words it was read from in the question (ADR-0112 amended). The report's structure — every
+entry, the parts it gave, the parts it did not and of which kind, the entries not read whole — is
+kept on the reading's row (migration 0031) in part keys and counts, because *"the table is what
+the confirmation becomes"* and a sentence would lose it. And the local stack starts the reader
+(row 103 closed): run as a process for the first time, it exited after its first poll — its
+timers unreferenced, nothing else holding the loop — which is the kind of thing row 103 said only
+the real path would find, and it was found by the stack's own test going red on
+*cv-reader: not running*.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

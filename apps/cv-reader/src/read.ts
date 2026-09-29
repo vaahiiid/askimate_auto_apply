@@ -19,7 +19,7 @@
 
 import { createHash } from "node:crypto";
 
-import type { ClaimedReading, ReadingFailure, ReadingReport, WireEntryReading, WireFieldValue, WireListReading } from "@askimate/aas-contracts";
+import type { ClaimedReading, ReadingFailure, ReadingReport, WireEntryReading, WireFieldValue, WireListReading, WirePartialReading } from "@askimate/aas-contracts";
 import { planFor, readListEntries, textExtractorFor } from "@askimate/aas-extraction";
 import type { ListReading } from "@askimate/aas-extraction";
 import type { ModelClient } from "@askimate/aas-llm";
@@ -41,7 +41,11 @@ export function readingOf(reading: ListReading, parts: readonly { readonly partK
       fields: entry.fields as Record<string, WireFieldValue>,
       spans: entry.spans,
       confidence: entry.lowestConfidence,
-      toAsk: order.filter((key) => entry.parts.some((part) => part.partKey === key && (part.status === "missing" || part.status === "unparsed" || part.status === "student"))),
+      toAsk: order.filter((key) => entry.parts.some((part) => part.partKey === key && (part.status === "missing" || part.status === "unparsed" || part.status === "partial" || part.status === "student"))),
+      // The two kinds of missing, told apart (P248): the student's own, and
+      // what the document gave in part.
+      student: order.filter((key) => entry.parts.some((part) => part.partKey === key && part.status === "student")),
+      ...(Object.keys(entry.partial).length === 0 ? {} : { partial: entry.partial as Record<string, WirePartialReading> }),
     }));
   return {
     fieldKey: reading.fieldKey,

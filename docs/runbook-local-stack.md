@@ -1,4 +1,4 @@
-# Runbook: the local stack — the five deployables on one machine
+# Runbook: the local stack — the deployables on one machine (six since P248)
 
 **Date:** 2026-09-13 (P120; P121) · **Proved by:** `scripts/local-stack.test.ts`, which runs the
 script below against a real Postgres and Redis, checks every endpoint, and stops it; and
@@ -45,7 +45,7 @@ scripts/local-stack.sh stop
 plane's own migration command, builds the student page and the secure control into
 `.local-stack/public/` and `.local-stack/secure-assets/` (`scripts/local-stack-assets.ts`, the
 same two builders the browser tests use), writes one env file per process (mode 600) into
-`.local-stack/`, starts the five with `nohup`, logs each to `.local-stack/<app>.log`, and waits
+`.local-stack/`, starts the six with `nohup`, logs each to `.local-stack/<app>.log`, and waits
 until:
 
 | Process | Where | Up when |
@@ -55,6 +55,7 @@ until:
 | Fill Agent | `http://127.0.0.1:<base+2>` | `GET /healthz` answers |
 | Automation Runner | polls the Conversation Service; its browser listens at `http://127.0.0.1:<base+9>` | `GET /json/version` answers at the CDP endpoint |
 | Background Worker | listens on nothing | its log says `worker running` |
+| CV Reader (P248, row 103) | polls the Conversation Service for a confirmed CV | its log says `cv reader reader-local-1 polling …`, and which model: the stand-in, or Bedrock's InvokeModel service and its URL |
 
 The admin URL, the session secret and the local master key are never printed; the secret and
 the key are generated once into `.local-stack/session.secret` and `.local-stack/master.key`
@@ -76,6 +77,7 @@ for an orderly exit — the runner's waits for a turn in flight, so up to a minu
 | `AAS_CATALOGUE_DIR` | — | required with `registry`: `entries/*.json` and `approvals.json` (ADR-0057) |
 | `AAS_PORTAL_ORIGINS` | — | optional `blueprintId=origin` pairs: which instance of a portal to run against, a deployment fact outside the reviewed artefact. Written into the Conversation Service's env file AND the Worker's: the two must serve one catalogue (ADR-0041), and P121 found what happens when they do not |
 | `AAS_CHROMIUM_PATH` | Playwright's | the runner's browser |
+| `AAS_LOCAL_READER_MODEL` | `stand-in` | the CV reader's model. `stand-in` reads a line labelled *Position:* and nothing of a real CV, so a local run with it shows the path — claim, fetch, report, the sentence — and reads no prose. `bedrock` reads through the InvokeModel service and is Vahid's spend: `AAS_BEDROCK_REGION` and the four `AAS_BEDROCK_MODEL_*` must be exported (ids `pnpm run verify-bedrock` listed), the credential is the AWS profile's in `~/.aws` named by `AWS_PROFILE`, and **no key is written to an env file** — the script refuses to start rather than copy one |
 
 ## The Sheffield variant — what changes, and what this repository cannot do
 

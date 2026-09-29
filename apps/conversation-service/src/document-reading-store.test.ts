@@ -96,6 +96,31 @@ function holds(name: string, make: () => DocumentReadingStore, run: (fn: (test: 
 holds("in memory", () => new InMemoryDocumentReadingStore(), (fn) => fn("memory"));
 holds("Postgres", () => new PostgresDocumentReadingStore(pool), (fn) => (HAVE_DATABASE ? fn("postgres") : undefined));
 
+describeIfDatabase("a reading keeps its structure (P248, migration 0031)", () => {
+  it("stores the structure a reading was read into, reads it back, and refuses one on a reading that was not read", async () => {
+    const store = new PostgresDocumentReadingStore(pool);
+    const now = new Date("2026-09-29T12:00:00Z");
+    // Requested long before anything else this file leaves pending: a claim
+    // takes the OLDEST waiting row, and the table is shared across the file.
+    const long_ago = new Date("2000-01-01T00:00:00Z");
+    const structure = { lists: [{ fieldKey: "employment.history", seeded: true, entries: [{ index: 1, read: ["position"], missing: ["duties"], partial: { end: ["month"] }, student: ["basis"] }], unread: 1 }] };
+    await store.request({ documentId: "01JQREADSTRUCT000000000001", conversationId: "c", studentId: "s", contentHash: HASH, now: long_ago });
+    const leased = await store.claim({ holder: "reader-1", leaseId: "rl_s1", now, leaseSeconds: 60 });
+    expect(leased?.documentId).toBe("01JQREADSTRUCT000000000001");
+    expect(await store.complete({ documentId: "01JQREADSTRUCT000000000001", leaseId: "rl_s1", outcome: "read", structure, now })).toBe(true);
+    expect((await store.readingFor("01JQREADSTRUCT000000000001"))?.structure).toEqual(structure);
+    // A failed reading carries a word and no structure, whatever the caller passed.
+    await store.request({ documentId: "01JQREADSTRUCT000000000002", conversationId: "c", studentId: "s", contentHash: HASH, now: long_ago });
+    const leasedSecond = await store.claim({ holder: "reader-1", leaseId: "rl_s2", now, leaseSeconds: 60 });
+    expect(leasedSecond?.documentId).toBe("01JQREADSTRUCT000000000002");
+    expect(await store.complete({ documentId: "01JQREADSTRUCT000000000002", leaseId: "rl_s2", outcome: "failed", failure: "unreadable", structure, now })).toBe(true);
+    expect((await store.readingFor("01JQREADSTRUCT000000000002"))?.structure).toBeNull();
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, structure) VALUES ('01JQREADSTRUCT000000000003', 'c', 's', $1, 'pending', now(), '{}')", [HASH]),
+    ).rejects.toThrow(/document_readings_only_a_reading_has_a_structure/);
+  });
+});
+
 describeIfDatabase("the table refuses what the store never writes", () => {
   it("REFUSES a lease with a holder and no expiry, a failure on a reading that did not fail, and an unknown state", async () => {
     await expect(

@@ -210,14 +210,15 @@ import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
 import { admits, type Admission } from "@askimate/aas-catalogue";
 import { SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { WorkFailure } from "@askimate/aas-contracts";
-import type { ClaimedReading, ReadingReport, WireEntryReading, WireFieldValue } from "@askimate/aas-contracts";
+import type { ClaimedReading, ReadingReport, WireEntryReading, WireFieldValue, WirePartialReading } from "@askimate/aas-contracts";
 import type { DocumentReadingStore } from "./document-reading-store.js";
+import { readingSentence, structureOf } from "./reading-account.js";
 import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
 import type { ProposedValue } from "@askimate/aas-domain";
-import { proposeValue, provenanceOf, unwrapProposed } from "@askimate/aas-domain";
+import { isReadInPart, proposeValue, provenanceOf, unwrapProposed } from "@askimate/aas-domain";
 
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
@@ -1497,18 +1498,31 @@ export function walkPartFromDocument(
   partKey: string,
   fields: Readonly<Record<string, WireFieldValue>>,
   spans: Readonly<Record<string, string>>,
-): { readonly value: unknown; readonly verbatim: string } | null {
+  partial: Readonly<Record<string, WirePartialReading>> = {},
+): { readonly value: unknown; readonly verbatim: string; readonly lacking?: readonly string[] } | null {
   const end = fields["end"];
   const endWords = spans["end"] ?? "";
   const endObject = typeof end === "object" ? end : undefined;
-  if (partKey === "still" && endObject !== undefined && typeof endObject["kind"] === "string") {
-    return { value: endObject["kind"] === "current", verbatim: endWords };
+  // An end read in part (P248) — "2019" — still says two things whole: that
+  // the job ended, or how the qualification ended. Only the date is in part.
+  const endInPart = partial["end"];
+  const endKind = endObject !== undefined && typeof endObject["kind"] === "string" ? endObject["kind"] : endInPart !== undefined && typeof endInPart.have["kind"] === "string" ? endInPart.have["kind"] : undefined;
+  if (partKey === "still" && endKind !== undefined) {
+    return { value: endKind === "current", verbatim: endWords };
   }
-  if (partKey === "endKind" && endObject !== undefined && typeof endObject["kind"] === "string" && endObject["kind"] !== "current" && endObject["kind"] !== "ended") {
-    return { value: endObject["kind"], verbatim: endWords };
+  if (partKey === "endKind" && endKind !== undefined && endKind !== "current" && endKind !== "ended") {
+    return { value: endKind, verbatim: endWords };
   }
   if (partKey === "endDate" && endObject !== undefined && typeof endObject["date"] === "object") {
     return { value: endObject["date"], verbatim: endWords };
+  }
+  if (partKey === "endDate" && endInPart !== undefined) {
+    const { kind: _kind, ...date } = endInPart.have;
+    return { value: date, verbatim: endWords, lacking: endInPart.lacking };
+  }
+  const inPart = partial[partKey];
+  if (inPart !== undefined && partKey !== "end") {
+    return { value: inPart.have, verbatim: spans[partKey] ?? "", lacking: inPart.lacking };
   }
   const value = fields[partKey];
   if (value === undefined || partKey === "end") return null;
@@ -5291,7 +5305,13 @@ export class RunDriver {
     const has = after.partial.get(fieldKey);
     if (has === undefined) return;
 
-    const fresh = [...has].filter(([partKey]) => had?.has(partKey) !== true);
+    // A part is fresh when the walk did not hold it — or held it only IN PART
+    // (P248): the answer to "which month of 2019?" replaces the year alone
+    // with the whole date, and is the reading the log must carry from now on.
+    const fresh = [...has].filter(([partKey, reading]) => {
+      const before = had?.get(partKey);
+      return before === undefined || (isReadInPart(before) && !isReadInPart(reading));
+    });
     /* c8 ignore next -- unreachable: an understood answer adds exactly one part */
     if (fresh.length !== 1) return;
     const [partKey, proposal] = fresh[0]!;
@@ -7595,18 +7615,44 @@ export class RunDriver {
     const now = this.#options.now();
     const held = await readings.held(input.documentId, input.report.leaseId, now);
     if (held === null) return false;
+    const seeded = new Set<string>();
     if (input.report.outcome === "read") {
       for (const list of input.report.lists ?? []) {
-        await this.#seedWalkFromReading(held.conversationId, held.documentId, list.fieldKey, list.entries);
+        if (await this.#seedWalkFromReading(held.conversationId, held.documentId, list.fieldKey, list.entries)) seeded.add(list.fieldKey);
       }
     }
-    return readings.complete({
+    // The structure is kept on the row (P248, migration 0031): the table the
+    // confirmation becomes needs the entries, the parts and the gaps, and a
+    // sentence would lose them.
+    const structure = input.report.outcome === "read" ? structureOf(input.report, seeded) : undefined;
+    const done = await readings.complete({
       documentId: input.documentId,
       leaseId: input.report.leaseId,
       outcome: input.report.outcome,
       ...(input.report.failure === undefined ? {} : { failure: input.report.failure }),
+      ...(structure === undefined ? {} : { structure }),
       now,
     });
+    if (!done) return false;
+    // Said once, in his words and his split, because today the only surface
+    // is text: what the document gave, what it did not say, and what is the
+    // student's to tell. Derived from the structure, never from the log.
+    await this.#options.conversations.append({
+      conversationId: held.conversationId,
+      event: {
+        kind: "message",
+        actor: "assistant",
+        content: readingSentence({
+          outcome: input.report.outcome,
+          ...(structure === undefined ? {} : { structure }),
+          itemLabel: (fieldKey) => {
+            const spec = FIELD_SPECS[fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
+            return spec !== undefined && isList(spec) ? spec.itemLabel : null;
+          },
+        }),
+      },
+    });
+    return true;
   }
 
   /**
@@ -7620,31 +7666,45 @@ export class RunDriver {
    *                     so the student can add what the CV left out
    *
    * A part the document did not give — missing, unparsed, or the student's to
-   * state (ADR-0149) — has no reading, and the walk asks it. A field the
-   * student has already begun or confirmed, or a list spec this profile does
-   * not have, is left alone: the document does not overrule a statement.
+   * state (ADR-0149) — has no reading, and the walk asks it. A part it gave IN
+   * PART — a year without its month (P248) — is held as a reading that names
+   * what it lacks, and the walk asks for that alone, with the year in the
+   * question. A field the student has already begun or confirmed, or a list
+   * spec this profile does not have, is left alone: the document does not
+   * overrule a statement. `true` when the walk was seeded.
    */
-  async #seedWalkFromReading(conversationId: string, documentId: string, fieldKey: string, entries: readonly WireEntryReading[]): Promise<void> {
+  async #seedWalkFromReading(conversationId: string, documentId: string, fieldKey: string, entries: readonly WireEntryReading[]): Promise<boolean> {
     const spec = FIELD_SPECS[fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
-    if (spec === undefined || !isList(spec)) return;
+    if (spec === undefined || !isList(spec)) return false;
     const events = await this.#options.conversations.since(conversationId, 0);
-    if (events.some((event: ConversationEvent) => (event.kind === "value_confirmed" || event.kind === "value_proposed" || event.kind === "value_part_read") && event.fieldKey === fieldKey)) return;
+    if (events.some((event: ConversationEvent) => (event.kind === "value_confirmed" || event.kind === "value_proposed" || event.kind === "value_part_read") && event.fieldKey === fieldKey)) return false;
     const offered = entries.filter((entry) => Object.keys(entry.fields).length > 0);
-    if (offered.length === 0) return;
+    if (offered.length === 0) return false;
     const append = async (partKey: string, proposal: ProposedValue<unknown>): Promise<void> => {
       await this.#options.conversations.append({ conversationId, event: { kind: "value_part_read", fieldKey, partKey, proposal: encodeValue(proposal) } });
     };
     await append("any", proposeValue({ value: true, origin: "document", verbatim: "yes", confidence: 1, documentId }));
     for (const [position, entry] of offered.entries()) {
       for (const part of spec.item.parts) {
-        const reading = walkPartFromDocument(part.partKey, entry.fields, entry.spans);
+        const reading = walkPartFromDocument(part.partKey, entry.fields, entry.spans, entry.partial ?? {});
         if (reading === null) continue;
-        await append(`item${String(position)}.${part.partKey}`, proposeValue({ value: reading.value, origin: "document", verbatim: reading.verbatim, confidence: entry.confidence, documentId }));
+        await append(
+          `item${String(position)}.${part.partKey}`,
+          proposeValue({
+            value: reading.value,
+            origin: "document",
+            verbatim: reading.verbatim,
+            confidence: entry.confidence,
+            documentId,
+            ...(reading.lacking === undefined ? {} : { lacking: reading.lacking }),
+          }),
+        );
       }
       if (position < offered.length - 1) {
         await append(`item${String(position)}.another`, proposeValue({ value: true, origin: "document", verbatim: "yes", confidence: 1, documentId }));
       }
     }
+    return true;
   }
 
   public async reportWork(input: {

@@ -107,7 +107,7 @@ describe("POST /internal/v1/readings/:documentId/report", () => {
   const READ: ReadingReport = {
     leaseId: "rl_1",
     outcome: "read",
-    lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: { subject: "Computer science" }, spans: { subject: "Subject: Computer science" }, confidence: 0.9, toAsk: ["countryCode"] }], dropped: 0 }],
+    lists: [{ fieldKey: "education.prior_qualifications", entries: [{ index: 1, fields: { subject: "Computer science" }, spans: { subject: "Subject: Computer science" }, confidence: 0.9, toAsk: ["countryCode"], student: ["countryCode"] }], dropped: 0 }],
   };
 
   it("records a report, passing the document id from the path and the lease from the body", async () => {
@@ -128,7 +128,7 @@ describe("POST /internal/v1/readings/:documentId/report", () => {
       { leaseId: "rl_1", outcome: "read" },
       { leaseId: "rl_1", outcome: "failed" },
       { leaseId: "rl_1", outcome: "read", lists: [], failure: "unreadable" },
-      { leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "employment.history", entries: [{ index: 1, fields: { position: "x" }, spans: {}, confidence: 1, toAsk: [] }], dropped: 0 }] },
+      { leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "employment.history", entries: [{ index: 1, fields: { position: "x" }, spans: {}, confidence: 1, toAsk: [], student: [] }], dropped: 0 }] },
     ]) {
       const response = await post("/internal/v1/readings/01JQDOC0000000000000000001/report", body);
       expect(response.status, JSON.stringify(body)).toBe(400);

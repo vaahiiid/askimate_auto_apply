@@ -76,19 +76,25 @@ since P242 the CUT comes first, because that is what stage three depends on:
   **LETTER TEXT INSIDE THE ENTRY** with the count of lines where the cut put the letter into a job
   — the failure named rather than discovered;
 - then, inside each entry, the reading: the parts **read**, **missing from the document**, **read
-  but not that value** (real text the plan's parser refused — "BSc" for a level), **the student's
-  to state** (never asked of the document, ADR-0149), and **would ask** — what the interview asks
-  for this entry, in the plan's order. An entry is COMPLETE when every document part read,
-  INCOMPLETE when the interview has something to ask, DROPPED for an invented span or two date
-  ranges cut as one. On a real CV the qualifications read *would ask: countryCode* and nothing
-  else: that is the end state (P246).
+  but not that value** (real text the plan's parser refused — "BSc" for a level), **read in part**
+  (since P248: a year without its month — *end (gives kind, year; would ask month)* — held, and
+  the month asked with the year in the question, ADR-0150), **the student's to state** (never
+  asked of the document, ADR-0149), and **would ask** — what the interview asks for this entry,
+  in the plan's order. An entry is COMPLETE when every document part read, INCOMPLETE when the
+  interview has something to ask, DROPPED for an invented span or two date ranges cut as one. On
+  a real CV the qualifications read *would ask: countryCode* and nothing else: that is the end
+  state (P246).
 
 Then the provider's own usage figures.
 
 The same reading runs in production through `apps/cv-reader` (ADR-0092 as amended, P246): the
 process claims a confirmed CV from the plane, fetches it once, reads it exactly as this script
-does, and reports what the document gave; the plane seeds the interview from the report, and the
-interview asks only *would ask*. This script is the measurement; the reader is the deployment.
+does, and reports what the document gave; the plane seeds the interview from the report, keeps
+the report's structure on the reading's row, tells the student what it got and did not get in
+his words (ADR-0150), and the interview asks only *would ask*. This script is the measurement;
+the reader is the deployment. Since P248 the local stack starts the reader too
+(`scripts/local-stack.sh`, `AAS_LOCAL_READER_MODEL=stand-in|bedrock`), so the real path — upload,
+claim, read, sentence, the walk — can be driven on one machine.
 
 **What the first live run showed (P247).** On a real CV the jobs come out almost complete and the
 qualifications do not: a CV lists a degree as one line, so each qualification *would ask* the

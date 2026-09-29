@@ -85,6 +85,8 @@ export interface ListMeasurement {
     readonly missing: readonly string[];
     /** Document parts read as real text the plan's parser refused — "BSc" for a level: asked, never guessed. */
     readonly unparsed: readonly string[];
+    /** Document parts read IN PART — a year without its month: the components it gave and the ones the interview asks (P248). Never a value. */
+    readonly partial: readonly { readonly partKey: string; readonly have: readonly string[]; readonly lacking: readonly string[] }[];
     /** The student's to state: never asked of the document (ADR-0149). */
     readonly student: readonly string[];
     readonly ungrounded: readonly { readonly partKey: string; readonly spanLength: number; readonly reason: string }[];
@@ -155,12 +157,13 @@ export async function measureText(name: string, contentType: string, text: Docum
           read: keys("read"),
           missing: keys("missing"),
           unparsed: keys("unparsed"),
+          partial: Object.entries(entry.partial).map(([partKey, inPart]) => ({ partKey, have: Object.keys(inPart.have), lacking: [...inPart.lacking] })),
           student: keys("student"),
           ungrounded: entry.parts
             .filter((part) => part.status === "ungrounded")
             .map((part) => ({ partKey: part.partKey, spanLength: part.spanLength ?? 0, reason: part.reason ?? "" })),
           skipped: keys("skipped"),
-          wouldAsk: entry.dropped === null ? entry.parts.filter((part) => part.status === "missing" || part.status === "unparsed" || part.status === "student").map((part) => part.partKey) : [],
+          wouldAsk: entry.dropped === null ? entry.parts.filter((part) => part.status === "missing" || part.status === "unparsed" || part.status === "partial" || part.status === "student").map((part) => part.partKey) : [],
           droppedBecause: entry.dropped,
         };
       }),
@@ -207,6 +210,7 @@ export function renderMeasurement(measured: DocumentMeasurement): string {
       out.push(`  read: ${entry.read.length === 0 ? "none" : entry.read.join(", ")}`);
       if (entry.missing.length > 0) out.push(`  missing from the document: ${entry.missing.join(", ")}`);
       if (entry.unparsed.length > 0) out.push(`  read but not that value: ${entry.unparsed.join(", ")}`);
+      if (entry.partial.length > 0) out.push(`  read in part: ${entry.partial.map((inPart) => `${inPart.partKey} (gives ${inPart.have.join(", ")}; would ask ${inPart.lacking.join(", ")})`).join(", ")}`);
       if (entry.student.length > 0) out.push(`  the student's to state (never asked of the document): ${entry.student.join(", ")}`);
       if (entry.droppedBecause === null) out.push(`  would ask: ${entry.wouldAsk.length === 0 ? "nothing" : entry.wouldAsk.join(", ")}`);
       for (const bad of entry.ungrounded) out.push(`  ungrounded: ${bad.partKey} (span of ${String(bad.spanLength)} characters) — ${bad.reason}`);

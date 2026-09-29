@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.244.0] — 2026-09-29
+
+**P248 — the sentence with his split, the month-only question, the kept structure, and the reader in the local stack (ADR-0150; ADR-0112 amended).**
+
+- **Added** the sentence the student reads once a CV has been read, in Vahid's words and his split:
+  what the document gave, what it did not say, and what is theirs to tell; its two other forms for
+  a failed reading and an entry not read whole. Derived from the report's structure, never from
+  the log (`reading-account.ts`).
+- **Added** a reading in part: a year a document gives alone is held with its month named as
+  lacking (`packages/domain`, `lacking`), the plan part carries `components`, the report carries
+  `partial` and `student`, and the interview narrows the question to *which month of 2019?* and
+  reads the answer together with the held year (`FieldPart.components`, `YEAR_MONTH_COMPONENTS`).
+  General on the part; dates only today.
+- **Added** migration 0031: `document_readings.structure`, on a reading that was read — entries,
+  parts, gaps by kind, entries not read whole; keys and counts, never a value or a span.
+- **Added** the CV reader to `scripts/local-stack.sh` as the sixth process, with the stand-in
+  unless `AAS_LOCAL_READER_MODEL=bedrock`; no credential is written to an env file.
+- **Fixed** the reader exiting after its first poll when run as a process (its timers were
+  unreferenced); and the driver not re-recording a part it already held, which lost the month's
+  answer on the next turn.
+- **Changed** the measurement to print *read in part*; `docs/deployables.md` names the sixth
+  process; the runbook the sixth row.
+
+---
+
 ## [0.243.0] — 2026-09-29
 
 **P247 — his live run of the reader's pipeline recorded: the clipping, the flag and the no-drop hold on a real CV; the CV path fills employment, not education (row 104).**

@@ -7,13 +7,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { studentId, unwrapConfirmed, provenanceOf, isFieldUnavailable } from "@askimate/aas-domain";
+import { studentId, unwrapConfirmed, unwrapProposed, provenanceOf, isFieldUnavailable, proposeValue } from "@askimate/aas-domain";
 import { DeterministicModelClient, MeteredModelClient } from "@askimate/aas-llm";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 import { PROFILE_FIELD_KEYS, emptyProfile, resolveField } from "@askimate/aas-profile";
 
 import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
-import { FIELD_SPECS, isComposite, isList } from "./field-specs.js";
+import { FIELD_SPECS, OMITTED, isComposite, isList } from "./field-specs.js";
 import type { InterviewState, PartPolicy, PartRule } from "./interview.js";
 import {
   chooseReading,
@@ -1402,6 +1402,112 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
       expect(action.say.toLowerCase()).toContain("job 1");
       expect(action.say.toLowerCase()).toContain("job title");
     }
+  });
+});
+
+describe("a part read in part narrows the question: which month of 2019? (P248)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-29: *"'Which month of 2019?' keeps what the document
+  // gave and asks only what it did not. Asking for the whole date when we
+  // already have the year makes the student retype something we are
+  // looking at. ADR-0112 forbids supplying the month, not asking for it,
+  // and the narrower question is the more honest one anyway — it shows we
+  // read their document rather than pretending we did not."*
+  //
+  // The walk holds a reading that names what it lacks; the part is still
+  // asked, for the lacking component only, with what was read in the
+  // question; the answer is read together with what was held.
+  // ═══════════════════════════════════════════════════════════════════════
+  const FIELD = "education.prior_qualifications" as const;
+  const document = (value: unknown, verbatim: string, lacking?: readonly string[]) =>
+    proposeValue({ value, origin: "document", verbatim, confidence: 0.9, documentId: "doc_cv", ...(lacking === undefined ? {} : { lacking }) });
+
+  function seeded(): InterviewState {
+    const readings = new Map<string, ReturnType<typeof document>>([
+      ["any", document(true, "yes")],
+      ["item0.awardTitle", document("BSc", "BSc Computer Science")],
+      ["item0.subject", document("Computer science", "BSc Computer Science")],
+      ["item0.institution", document("University of Tehran", "University of Tehran")],
+      ["item0.countryCode", document("IR", "Iran")],
+      ["item0.level", document("Bachelor's degree", "BSc")],
+      ["item0.start", document({ year: 2015, month: 9 }, "September 2015")],
+      ["item0.endKind", document("completed", "2019")],
+      // The year the CV gave, the month it did not.
+      ["item0.endDate", document({ year: 2019 }, "2019", ["month"])],
+      ["item0.award", document(OMITTED, "none")],
+      ["item0.grade", document("17.2", "17.2")],
+      ["item0.gradeScale", document("twenty_point", "20-point")],
+    ]);
+    const state = start([FIELD]);
+    return { ...state, partial: new Map([[FIELD, readings]]) };
+  }
+
+  it("asks for the month only, saying what was read, and reads the answer together with the year", async () => {
+    let state = seeded();
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("ask");
+    if (action.kind !== "ask") return;
+    expect(action.partKey, "the end date is still the open part").toBe("item0.endDate");
+    expect(action.say).toContain("2019");
+    expect(action.say.toLowerCase()).toContain("which month");
+    expect(action.say, "the words it was read from").toContain('"2019"');
+    expect(action.say).toContain("qualification 1");
+
+    const outcome = await receiveAnswer(state, FIELD, "June", model);
+    expect(outcome.kind).toBe("understood");
+    state = outcome.state;
+    const held = state.partial.get(FIELD)?.get("item0.endDate");
+    expect(held === undefined ? undefined : unwrapProposed(held).value).toEqual({ year: 2019, month: 6 });
+    expect(held === undefined ? undefined : unwrapProposed(held).lacking).toBeUndefined();
+    expect(held === undefined ? undefined : unwrapProposed(held).verbatim, "the student's word and the document's, both").toBe("June (2019 from the document)");
+
+    // Then the walk goes on as it would have: another?, then the whole list once.
+    const next = await nextAction(state, model);
+    expect(next.kind).toBe("ask");
+    if (next.kind === "ask") expect(next.partKey).toBe("item0.another");
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const done = await nextAction(state, model);
+    expect(done.kind).toBe("confirm");
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const value = resolveField(confirmed.state.profile, FIELD);
+    if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
+    expect((unwrapConfirmed(value) as readonly { end: unknown }[])[0]?.end).toEqual({ kind: "completed", date: { year: 2019, month: 6 } });
+  });
+
+  it("takes a whole date the student states instead — their statement wins — and asks again for what is neither a month nor a date", async () => {
+    const state = seeded();
+    const whole = await receiveAnswer(state, FIELD, "July 2018", model);
+    expect(whole.kind).toBe("understood");
+    const held = whole.state.partial.get(FIELD)?.get("item0.endDate");
+    expect(held === undefined ? undefined : unwrapProposed(held).value).toEqual({ year: 2018, month: 7 });
+
+    const neither = await receiveAnswer(state, FIELD, "soon", model);
+    expect(neither.kind).toBe("not_understood");
+    const again = await nextAction(neither.state, model);
+    expect(again.kind).toBe("ask");
+    if (again.kind === "ask") expect(again.partKey).toBe("item0.endDate");
+  });
+
+  it("never assembles a reading in part as a value: a part the portal does not read is left out, not filled with a year alone", async () => {
+    // The award date is optional and the policy asks nothing optional, so the
+    // end date's partial reading... is not the case here: the end date is
+    // required. What a partial must never do is stand in for a value when its
+    // part is not asked — so a partial award date, on a policy that reads no
+    // award, assembles as no award.
+    let state = seeded();
+    const readings = new Map(state.partial.get(FIELD));
+    readings.set("item0.endDate", document({ year: 2019, month: 6 }, "June 2019"));
+    readings.set("item0.award", document({ year: 2019 }, "2019", ["month"]));
+    const policy: PartPolicy = new Map([[FIELD, { asked: new Set<string>(["end"]), required: new Set<string>() }]]);
+    state = { ...state, partial: new Map([[FIELD, readings]]), partPolicy: policy };
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("ask");
+    if (action.kind === "ask") expect(action.partKey, "the award is not asked on this policy, partial or not").toBe("item0.another");
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const value = resolveField(confirmed.state.profile, FIELD);
+    if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
+    expect((unwrapConfirmed(value) as readonly { award?: unknown }[])[0]).not.toHaveProperty("award");
   });
 });
 
