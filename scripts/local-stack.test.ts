@@ -12,6 +12,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -56,10 +57,15 @@ interface Finished {
 }
 
 function script(command: string, dir: string, ...rest: readonly string[]): Promise<Finished> {
+  return scriptWith({}, command, dir, ...rest);
+}
+
+function scriptWith(extra: Readonly<Record<string, string>>, command: string, dir: string, ...rest: readonly string[]): Promise<Finished> {
   return new Promise((resolve) => {
     const child = spawn("bash", ["scripts/local-stack.sh", command, ...rest], {
       cwd: ROOT,
       env: {
+        ...extra,
         PATH: process.env["PATH"] ?? "",
         HOME: process.env["HOME"] ?? "",
         ...(process.env["PLAYWRIGHT_BROWSERS_PATH"] === undefined ? {} : { PLAYWRIGHT_BROWSERS_PATH: process.env["PLAYWRIGHT_BROWSERS_PATH"] }),
@@ -105,6 +111,25 @@ afterAll(async () => {
   } finally {
     await admin.end();
   }
+});
+
+describe("the local stack refuses a document vault it was not told enough about (P249)", () => {
+  it("exits 2 naming the missing variable, before creating a database or starting a process", async () => {
+    const scratch = await mkdtemp(join(tmpdir(), "aas-local-stack-vault-"));
+    try {
+      const refused = await scriptWith({ AAS_LOCAL_DOCUMENTS: "vault" }, "start", scratch);
+      expect(refused.code).toBe(2);
+      expect(refused.output).toContain("AAS_DOCUMENTS_BUCKET");
+      expect(refused.output, "nothing was started").not.toContain("up:");
+      expect(existsSync(join(scratch, "conversation-service.pid"))).toBe(false);
+      expect(existsSync(join(scratch, "conversation-service.env"))).toBe(false);
+      const wrong = await scriptWith({ AAS_LOCAL_DOCUMENTS: "sometimes" }, "start", scratch);
+      expect(wrong.code).toBe(2);
+      expect(wrong.output).toContain("AAS_LOCAL_DOCUMENTS");
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
 
 describeIfBoth("the local stack, started by its own script", () => {

@@ -41,6 +41,19 @@
 #   AAS_CATALOGUE_DIR              required with registry: entries/ + approvals.json
 #   AAS_PORTAL_ORIGINS             optional blueprintId=origin pairs (a deployment fact)
 #   AAS_CHROMIUM_PATH              optional; Playwright's Chromium otherwise
+#   AAS_LOCAL_DOCUMENTS            none | vault                          (none)
+#                                  none: the document routes answer
+#                                  service_unavailable and no CV can be
+#                                  uploaded. vault: the Conversation Service is
+#                                  handed the real transport (P249, the CV path
+#                                  walked by hand): AAS_DOCUMENTS_BUCKET and
+#                                  AAS_DOCUMENTS_KMS_KEY_ARN must be exported,
+#                                  AAS_RETENTION_SCHEDULE_DIR defaults to
+#                                  config/retention, and the AWS credential
+#                                  comes from ~/.aws through AWS_PROFILE, as the
+#                                  reader's does: no key is written to a file.
+#                                  The bucket needs a CORS rule for the page's
+#                                  origin (docs/provisioning-request-document-vault.md).
 #   AAS_LOCAL_READER_MODEL         stand-in | bedrock                    (stand-in)
 #                                  stand-in reads a line labelled "Position:" and
 #                                  nothing of a real CV; bedrock reads through the
@@ -82,6 +95,38 @@ CDP_URL="http://127.0.0.1:$CDP_PORT"
 
 APPS="conversation-service secure-service secure-filler browser-runner worker cv-reader"
 READER_MODEL="${AAS_LOCAL_READER_MODEL:-stand-in}"
+DOCUMENTS="${AAS_LOCAL_DOCUMENTS:-none}"
+
+check_documents() {
+  # Refused up front, before a database is created or a process started: a
+  # vault half-described is a service that starts without the transport and
+  # answers service_unavailable to every upload, which reads like the code
+  # is broken when it is the shell that was.
+  case "$DOCUMENTS" in
+    none) ;;
+    vault)
+      for variable in AAS_DOCUMENTS_BUCKET AAS_DOCUMENTS_KMS_KEY_ARN; do
+        [ -n "${!variable:-}" ] || { echo "AAS_LOCAL_DOCUMENTS=vault needs $variable exported (docs/provisioning-request-document-vault.md)" >&2; exit 2; }
+      done
+      ;;
+    *) echo "AAS_LOCAL_DOCUMENTS must be none or vault, not '$DOCUMENTS'" >&2; exit 2 ;;
+  esac
+}
+
+documents_lines() {
+  # The transport, for the Conversation Service's env file. The worker is
+  # not handed it: the confirm, the retrieval and the purge are the
+  # service's, and the worker's sweep is a DELETE over metadata (ADR-0096).
+  [ "$DOCUMENTS" = "vault" ] || return 0
+  cat <<LINES
+AAS_DOCUMENTS_BUCKET=$AAS_DOCUMENTS_BUCKET
+AAS_DOCUMENTS_KMS_KEY_ARN=$AAS_DOCUMENTS_KMS_KEY_ARN
+AAS_DOCUMENTS_REGION=${AAS_DOCUMENTS_REGION:-eu-west-2}
+AAS_RETENTION_SCHEDULE_DIR=${AAS_RETENTION_SCHEDULE_DIR:-config/retention}
+${AWS_PROFILE:+AWS_PROFILE=$AWS_PROFILE}
+${AWS_REGION:+AWS_REGION=$AWS_REGION}
+LINES
+}
 
 database_url() {
   # The admin URL with its path replaced: same server, same credentials.
@@ -140,6 +185,7 @@ AAS_DEV_SESSION=1
 AAS_PUBLIC_DIR=$DIR/public
 $catalogue_lines
 ${AAS_PORTAL_ORIGINS:+AAS_PORTAL_ORIGINS=$AAS_PORTAL_ORIGINS}
+$(documents_lines)
 ENV
   cat > "$DIR/secure-service.env" <<ENV
 AAS_PORT=$SECURE_PORT
@@ -241,6 +287,7 @@ wait_for() {
 }
 
 cmd_start() {
+  check_documents
   mkdir -p "$DIR"
   for app in $APPS; do
     if alive "$app"; then echo "$app is already running (pid $(cat "$DIR/$app.pid")); stop it first" >&2; exit 1; fi
@@ -277,6 +324,7 @@ up:
   runner                polling $CONVERSATION_URL, browser CDP at $CDP_URL
   worker                advancing runs
   cv reader             polling $CONVERSATION_URL for a confirmed CV; model: $READER_MODEL
+  documents             $DOCUMENTS${AAS_DOCUMENTS_BUCKET:+ (bucket $AAS_DOCUMENTS_BUCKET, region ${AAS_DOCUMENTS_REGION:-eu-west-2})}
   catalogue             $CATALOGUE${AAS_CATALOGUE_DIR:+ ($AAS_CATALOGUE_DIR)}
   state                 $DIR  (env files 600, logs, pids, public/, secure-assets/)
 SUMMARY

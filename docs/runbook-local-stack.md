@@ -77,7 +77,68 @@ for an orderly exit — the runner's waits for a turn in flight, so up to a minu
 | `AAS_CATALOGUE_DIR` | — | required with `registry`: `entries/*.json` and `approvals.json` (ADR-0057) |
 | `AAS_PORTAL_ORIGINS` | — | optional `blueprintId=origin` pairs: which instance of a portal to run against, a deployment fact outside the reviewed artefact. Written into the Conversation Service's env file AND the Worker's: the two must serve one catalogue (ADR-0041), and P121 found what happens when they do not |
 | `AAS_CHROMIUM_PATH` | Playwright's | the runner's browser |
+| `AAS_LOCAL_DOCUMENTS` | `none` | `vault` hands the Conversation Service the real transport: `AAS_DOCUMENTS_BUCKET` and `AAS_DOCUMENTS_KMS_KEY_ARN` exported (refused up front otherwise), `AAS_DOCUMENTS_REGION` (eu-west-2), `AAS_RETENTION_SCHEDULE_DIR` (`config/retention`), and the AWS profile's name; never a key. `none` leaves the document routes answering `service_unavailable` |
 | `AAS_LOCAL_READER_MODEL` | `stand-in` | the CV reader's model. `stand-in` reads a line labelled *Position:* and nothing of a real CV, so a local run with it shows the path — claim, fetch, report, the sentence — and reads no prose. `bedrock` reads through the InvokeModel service and is Vahid's spend: `AAS_BEDROCK_REGION` and the four `AAS_BEDROCK_MODEL_*` must be exported (ids `pnpm run verify-bedrock` listed), the credential is the AWS profile's in `~/.aws` named by `AWS_PROFILE`, and **no key is written to an env file** — the script refuses to start rather than copy one |
+
+## Walking the CV path by hand (P249)
+
+Vahid, 2026-09-29: *"start the stack, upload this CV as a student, and see the sentence, the
+questions it does not ask, and the month question with the year in it."* Everything before this
+went through `measure-cv`; this is the path a student walks. It needs the real document transport,
+because a CV is bytes and the local stack holds no bytes: the vault is the bucket
+(`docs/provisioning-request-document-vault.md`), and the page uploads to it directly.
+
+**What must exist first, all yours (AWS is your act):**
+
+1. The bucket and the customer-managed key from 2026-09-09, with a **CORS rule for the page's
+   origin** — `http://127.0.0.1:<base>` (4870 by default), methods `PUT` and `GET`, headers `*`.
+   Without it the browser's PUT is refused by the browser before it leaves, and the page says the
+   upload failed.
+2. A credential that can `PutObject`/`GetObject`/`HeadObject`/`DeleteObject` on the bucket and
+   `GenerateDataKey`/`Decrypt` on the key, **and** `bedrock:InvokeModel` on the model — held in
+   `~/.aws/credentials` (or SSO) under a profile named in `AWS_PROFILE`. The stack passes the
+   profile's *name* to two processes and never a key: `env -i` strips the shell's variables, so
+   an exported `AWS_ACCESS_KEY_ID` is not seen and is not copied.
+3. Model access for `eu.anthropic.claude-sonnet-4-6` in `eu-west-2`, as for `measure-cv`.
+
+**What to run:**
+
+```sh
+export AWS_PROFILE=<your profile>            # the name; the key stays in ~/.aws
+export AWS_REGION=eu-west-2
+export AAS_DOCUMENTS_BUCKET=<the bucket>
+export AAS_DOCUMENTS_KMS_KEY_ARN=arn:aws:kms:eu-west-2:<account>:key/<id>
+export AAS_BEDROCK_REGION=eu-west-2
+export AAS_BEDROCK_MODEL_INTERVIEW=eu.anthropic.claude-sonnet-4-6
+export AAS_BEDROCK_MODEL_INTERPRETATION=eu.anthropic.claude-sonnet-4-6
+export AAS_BEDROCK_MODEL_DOCUMENT_EXTRACTION=eu.anthropic.claude-sonnet-4-6
+export AAS_BEDROCK_MODEL_NAVIGATION=eu.anthropic.claude-sonnet-4-6
+AAS_LOCAL_DOCUMENTS=vault AAS_LOCAL_READER_MODEL=bedrock scripts/local-stack.sh start
+```
+
+`start` refuses with exit 2, before creating anything, if the bucket or the key ARN is missing.
+The summary ends with `documents  vault (bucket …)` and `cv reader … model: bedrock`; the reader's
+first log line names the InvokeModel service and its URL before any call.
+
+**What to expect, step by step:**
+
+| Step | What you do | What you should see | Where to look if not |
+|---|---|---|---|
+| 1 | Open `http://127.0.0.1:4870`, start an application on the fixture entry | The first question, from the deterministic stand-in (the stack's interview is not Bedrock: its words are templates; the CV's sentence and the month question are said exactly so, either way) | `.local-stack/conversation-service.log` |
+| 2 | On the documents panel choose **CV**, read the upload sentence (P236), pick your CV, upload, confirm | The panel lists the CV as held. Within a few seconds the reader claims it: `.local-stack/cv-reader.log` says `reading <id>: read — employment.history 7 entries, 0 dropped; education.prior_qualifications 3 entries, 0 dropped (68 calls)` | A refused PUT is CORS or the credential; a `gate_refused` in the reader log is the vault's record not matching (type, purpose, hash) |
+| 3 | Nothing — the sentence arrives on its own; the page listens to the conversation's event stream | For the shape your third run measured (a start the CV does not give, an end it gives as a year), the code says exactly: *I read your CV and filled in seven jobs and three qualifications from it. I still need a few things it did not say: for one job, what you did there; and for each qualification, when it started, the grade and its scale, the month it ended. And a few that are yours to tell me: for each job, whether it was full-time or part-time; and for each qualification, the country.* | `SELECT structure FROM document_readings` in `aas_local_conversation`: the entries, parts and gaps the sentence was made from |
+| 4 | Answer the interview as it comes to the employment field | It asks nothing the CV gave: for each job only *full-time or part-time*, and for job 6 what you did there; then *another job?*; then the seven played back once | `value_part_read` rows with `origin: "document"` in `conversation_events` |
+| 5 | The education field | For each qualification: the country first (ADR-0149); then the start date, whole, because the CV gives none; then *For qualification 1 — end date, the document I read gives "2019": the year, 2019, but not the month. Which month of 2019 was it? If the date was different, tell me the month and the year.*; the grade; its scale; the award date (*say none*); then *another?*; then the three played back, each end as *June (2019 from the document)* | the same rows; a month refused is asked again, a whole date typed instead wins |
+
+**What it costs.** The reading is one segmentation call per list plus one call per document part
+per entry: `2 + 6 × jobs + 8 × qualifications`. Your CV is 2 + 42 + 24 = **68 calls**, 16,795
+tokens in and 9,705 out (P247, P249). At Anthropic's first-party rate for Claude Sonnet 4.6
+($3 per million in, $15 per million out) that is about **$0.20 per CV**; Bedrock's list price for
+the same model is on AWS's pricing page and is what the account is charged. The interview itself
+costs nothing in the stack (the stand-in); in a deployment each question and each answer is a
+call too. Sixty-eight calls a CV is a product fact, not a defect: the shape is one call per part
+so every value is grounded on its own, and reading an entry's parts in one call is a change with
+its own risks (ADR-0016) and its own measurement.
 
 ## The Sheffield variant — what changes, and what this repository cannot do
 

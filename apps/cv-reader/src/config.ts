@@ -39,7 +39,11 @@ export function readerConfigFrom(env: Readonly<Record<string, string | undefined
       "AAS_SECURE_DATABASE_URL",
       "AAS_SECURE_KMS_KEY_ID",
       "AAS_ENVELOPE_CACHE_URL",
-      "AAS_DOCUMENT_BUCKET",
+      // The transport's own names (the conversation service's config): the
+      // bucket and the key the vault is encrypted under. P249 found this
+      // list guarding `AAS_DOCUMENT_BUCKET`, a name nothing sets.
+      "AAS_DOCUMENTS_BUCKET",
+      "AAS_DOCUMENTS_KMS_KEY_ARN",
     ]) {
       if (env[forbidden] !== undefined) {
         r.refuse(

@@ -24,7 +24,11 @@ describe("what the CV reader is told, and what it refuses (ADR-0092, ADR-0148 §
   });
 
   it("REFUSES a database URL, a KMS key, an envelope cache and a bucket — this process holds no key and reaches no store", () => {
-    for (const forbidden of ["AAS_CONVERSATION_DATABASE_URL", "AAS_SECURE_DATABASE_URL", "AAS_SECURE_KMS_KEY_ID", "AAS_ENVELOPE_CACHE_URL", "AAS_DOCUMENT_BUCKET"]) {
+    // P249: the transport's variables are AAS_DOCUMENTS_BUCKET and
+    // AAS_DOCUMENTS_KMS_KEY_ARN (the conversation service's config). Until
+    // P249 this list guarded AAS_DOCUMENT_BUCKET — a name nothing sets — so
+    // the one refusal that mattered would have said nothing.
+    for (const forbidden of ["AAS_CONVERSATION_DATABASE_URL", "AAS_SECURE_DATABASE_URL", "AAS_SECURE_KMS_KEY_ID", "AAS_ENVELOPE_CACHE_URL", "AAS_DOCUMENTS_BUCKET", "AAS_DOCUMENTS_KMS_KEY_ARN"]) {
       expect(() => readerConfigFrom({ ...COMPLETE, [forbidden]: "set" }), forbidden).toThrow(/must not be set on the CV reader/);
     }
   });

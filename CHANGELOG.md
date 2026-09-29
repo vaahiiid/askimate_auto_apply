@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.245.0] — 2026-09-29
+
+**P249 — the local stack can be handed the document vault; the reader refuses the transport's real names; the CV path walked by hand is written up with its cost.**
+
+- **Added** `AAS_LOCAL_DOCUMENTS=vault` to `scripts/local-stack.sh`: the Conversation Service is
+  handed the bucket, the key ARN, the region, the retention directory and the AWS profile's name;
+  refused with exit 2 before anything starts when the bucket or the key is missing; never a key in
+  a file.
+- **Fixed** the CV reader's refusal list, which guarded `AAS_DOCUMENT_BUCKET` — a name nothing
+  sets — and now refuses `AAS_DOCUMENTS_BUCKET` and `AAS_DOCUMENTS_KMS_KEY_ARN`.
+- **Changed** the runbook: the walk step by step, what to expect, where to look, and the cost of a
+  reading (`2 + 6 × jobs + 8 × qualifications` calls). His third live run recorded in ADR-0148 §9.
+
+---
+
 ## [0.244.0] — 2026-09-29
 
 **P248 — the sentence with his split, the month-only question, the kept structure, and the reader in the local stack (ADR-0150; ADR-0112 amended).**

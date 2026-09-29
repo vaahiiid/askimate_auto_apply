@@ -464,6 +464,18 @@ timers unreferenced, nothing else holding the loop — which is the kind of thin
 the real path would find, and it was found by the stack's own test going red on
 *cv-reader: not running*.
 
+**His third live run (P249, 2026-09-29), after the month.** The same CV, the same client, 68
+calls as before. His words: *"The month works. All three qualifications now read 'read in part:
+end (gives kind, year; would ask month)'… So the pipeline is proven end to end on a real document.
+Seven jobs, three qualifications, nothing dropped, nothing invented, and the two parts that are
+mine to state were never in a request."* And what is not: *"What is not proven is the path a
+student actually walks. Everything so far went through measure-cv."* The local stack could not
+walk it either: its conversation service started with `documents=none`, so no CV could be
+uploaded, and the reader's refusal list guarded a variable name nothing sets. Both fixed in P249;
+the walk itself is his, by hand, on the runbook's steps, and needs the vault's CORS rule and a
+profile in `~/.aws`. The cost is a product fact now written down: `2 + 6 × jobs + 8 ×
+qualifications` calls a CV.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

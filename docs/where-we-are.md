@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P249 — the pipeline is proven on a real document; the path a student walks is next, and his
+
+> *"The month works… What is not proven is the path a student actually walks."*
+
+His third live run: three qualifications read in part, the month to ask, 68 calls, nothing
+dropped or invented. Then the honest look at the walk he asked for: the local stack could not
+take an upload at all — its service started with no document transport — and the reader's one
+refusal that mattered guarded a name nothing sets. Both fixed; the stack now takes the vault by
+name and the profile's name, and never a key. The runbook says what to run and what to see at
+each step, and what a reading costs: two calls plus six a job plus eight a qualification, about
+twenty cents a CV at the first-party rate. The walk is his, on his account, once the bucket has
+its CORS rule.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P248 — two kinds of missing, the month not the date, and the reader runs
 
 > *"'Things it did not say' and 'things that are yours to tell me' are different kinds of
