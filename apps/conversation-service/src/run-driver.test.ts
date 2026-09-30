@@ -51,6 +51,7 @@ import {
   isTerminalWorkflowStatus,
   proposeValue,
   provenanceOf,
+  interventionId as makeInterventionId,
   runId as makeRunId,
   studentId,
   unwrapConfirmed,
@@ -114,7 +115,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { answeredQuestion, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
+import { NothingToHaveHappenedError, answeredQuestion, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
@@ -4488,6 +4489,50 @@ describeIfDatabase("the internal specialist routes", () => {
     });
   }, 300_000);
 
+  it("P257: the refusal names the field that failed, and only that", async () => {
+    // Until P257 the route answered a fixed five pointers whatever had failed,
+    // naming neither the missing field nor the three the list left out. Vahid
+    // sent `outcome: "resolved"` and no `signature`, `scope` or `kind`, twice,
+    // and was told `/specialistId` both times (row 114).
+    await withServer(async (base) => {
+      const noSignature: Record<string, unknown> = { ...goodBody };
+      delete noSignature["signature"];
+      const one = await fetch(
+        `${base}/internal/v1/interventions/${interventionId}/resolution`,
+        { method: "POST", headers: CERT, body: JSON.stringify(noSignature) },
+      );
+      expect(one.status).toBe(400);
+      expect(await one.json()).toMatchObject({ code: "validation_failed", pointers: ["/signature"] });
+
+      const his: Record<string, unknown> = { ...goodBody, outcome: "resolved" };
+      delete his["signature"];
+      delete his["scope"];
+      delete his["kind"];
+      const two = await fetch(
+        `${base}/internal/v1/interventions/${interventionId}/resolution`,
+        { method: "POST", headers: CERT, body: JSON.stringify(his) },
+      );
+      expect(two.status).toBe(400);
+      expect(await two.json()).toMatchObject({
+        code: "validation_failed",
+        pointers: ["/outcome", "/scope", "/kind", "/signature"],
+      });
+
+      // A scope or kind the domain does not name is refused, not stored.
+      const unnamed = await fetch(
+        `${base}/internal/v1/interventions/${interventionId}/resolution`,
+        { method: "POST", headers: CERT, body: JSON.stringify({ ...goodBody, scope: "this_case", kind: "stop_on_askings" }) },
+      );
+      expect(unnamed.status).toBe(400);
+      expect(await unnamed.json()).toMatchObject({ code: "validation_failed", pointers: ["/scope", "/kind"] });
+    });
+    const after = await pool.query<{ resolved_at: Date | null }>(
+      "SELECT resolved_at FROM interventions WHERE intervention_id = $1",
+      [interventionId],
+    );
+    expect(after.rows[0]?.resolved_at, "refused means unchanged").toBeNull();
+  }, 300_000);
+
   it("records a resolution, and answers 409 to a second one", async () => {
     await withServer(async (base) => {
       const first = await fetch(
@@ -6613,6 +6658,69 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
     expect(raised.rowCount).toBe(1);
     expect(raised.rows[0]?.reason).toBe("information_unobtainable");
     expect(raised.rows[0]?.target).toBe("interview:identity.date_of_birth");
+  }, 300_000);
+
+  it("P257: didHappen true on an interview stop is REFUSED — nothing was attempted, so nothing can have happened — and the stop stays open", async () => {
+    const held = await pool.query<{ intervention_id: string }>(
+      "SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+      [runId],
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await expect(
+        instance.driver.resolveIntervention({
+          interventionId: makeInterventionId(held.rows[0]?.intervention_id ?? ""),
+          resolution: {
+            specialistId: "specialist_vahid",
+            actionsTaken: "Read the log.",
+            resolvedAt: NOW,
+            resolution: "The question stands; ask again.",
+            outcome: "resume",
+          },
+          reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
+          didHappen: true,
+        }),
+      ).rejects.toBeInstanceOf(NothingToHaveHappenedError);
+    } finally {
+      await instance.pool.end();
+    }
+    const run = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(run.rows[0]?.status, "refused means unchanged").toBe("escalated");
+    const stop = await pool.query<{ resolved_at: Date | null }>("SELECT resolved_at FROM interventions WHERE run_id = $1", [runId]);
+    expect(stop.rows[0]?.resolved_at, "the stop is still open").toBeNull();
+  }, 300_000);
+
+  it("P257: a person resolves the interview stop with nothing attempted on a portal, and the run is running again with the student told", async () => {
+    // An interview stop records no intent: there is no portal action to
+    // record. `didHappen` is therefore false — nothing happened out there —
+    // and the resolution must not depend on an intent row that was never
+    // written. Vahid's run of 2026-09-30 is this case (row 112).
+    const held = await pool.query<{ intervention_id: string }>(
+      "SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+      [runId],
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(held.rows[0]?.intervention_id ?? ""),
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Read the log.",
+          resolution: "The question stands; ask again.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    const run = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(run.rows[0]?.status, "released by the resolution").toBe("running");
+    const stop = await pool.query<{ resolved_at: Date | null }>("SELECT resolved_at FROM interventions WHERE run_id = $1", [runId]);
+    expect(stop.rows[0]?.resolved_at, "the stop is closed").not.toBeNull();
+    expect(await lastSaid(), "the student is told it is moving again").toContain("it is moving again");
   }, 300_000);
 });
 

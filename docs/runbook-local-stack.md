@@ -151,16 +151,29 @@ credential the stack uses (`AAS_SERVICE_CERT_*`, the value in your env file, nev
 curl -s http://127.0.0.1:4870/internal/v1/interventions -H "x-service-cert: $AAS_SERVICE_CERT_READER"
 curl -s -X POST http://127.0.0.1:4870/internal/v1/interventions/<id>/resolution \
   -H "x-service-cert: $AAS_SERVICE_CERT_READER" -H 'content-type: application/json' \
-  -d '{"specialistId":"vahid","actionsTaken":"read the log; the stop counted askings, not failed answers","resolution":"resumed after P256","outcome":"resume","didHappen":true,"scope":"this_case","kind":"stop_on_askings","signature":"p256"}'
+  -d '{"specialistId":"vahid","actionsTaken":"read the log; the stop counted askings, not failed answers","resolution":"resumed after P256; the UK question stands","outcome":"resume","didHappen":false,"scope":"this_case_only","kind":"guidance","signature":"interview:residence.in_uk_now:askings-counted-as-failures"}'
 ```
 
-Every field is a non-empty string but `outcome`, which is `resume` or `abandon`, and `didHappen`, a
-boolean; `actionsTaken` and `resolution` are your words and are kept as the record of the
-resolution.
+Eight fields, all required (P257, row 114 — until 0.253.0 this example carried a `scope` and a
+`kind` the domain does not name, and a `didHappen` that claimed a portal action on an interview
+stop; the route now refuses all three, and before 0.253.0 it could not resolve an interview stop
+at all):
+
+| Field | Allowed | For an interview stop |
+|---|---|---|
+| `specialistId`, `actionsTaken`, `resolution` | any non-empty string; `actionsTaken` and `resolution` are your words and are kept as the record | — |
+| `outcome` | `resume` or `abandon` — nothing else; `resolved` is not a value | `resume` puts the run back to `running`; `abandon` ends it |
+| `didHappen` | `true` or `false`, a boolean, not a string | **`false`.** It answers *did the portal action the stop was about actually happen?* An interview stop recorded no portal action, so nothing can have happened; `true` there is refused as `/didHappen` |
+| `scope` | `this_case_only`, `this_course`, `this_institution`, `this_portal`, `general` | how widely what you learned applies; narrow by default |
+| `kind` | `blueprint_correction`, `mapping_correction`, `workflow_rule`, `guidance` | `guidance` unless a blueprint, a mapping or a rule is to change |
+| `signature` | any non-empty string: a short, matchable description of the situation | e.g. `interview:residence.in_uk_now:askings-counted-as-failures` |
+
+A refusal is `400 validation_failed` with `pointers` naming the fields that failed, and only those.
 
 The run is `running` again; the UK question stands open; your yes goes through, and its
-failed-answer count is one. Do this **after** pulling `main` at 0.252.0, or the next message
-stops it again on the old count. Before resolving, read what fired the third asking:
+failed-answer count is one. Do this **after** pulling `main` at 0.253.0: 0.252.0 stops it again on
+the old count, and anything before 0.253.0 closes the stop and then throws, leaving the run
+`escalated` with no second adjudication admitted. Before resolving, read what fired the third asking:
 
 ```sql
 select e.ordinal, e.kind, e.field_key, e.attempt, e.actor, left(mb.content, 90) as said

@@ -306,3 +306,27 @@ racing the run's own recovery cannot produce two.
 - Two documents describe a world that P1–P9 replaced (`docs/where-we-are.md`, 2026-08-26;
   `docs/roadmap-and-priorities.md`, 2026-08-27, which still says `RunState` *"is never written
   anywhere"*). They are corrected as part of the work this ADR governs.
+
+## Amended 2026-09-30 (P257): the fact before the record, and a stop that recorded no action
+
+Found when Vahid's first resolution of a real stop — the interview stop on his run of 2026-09-30
+(row 112) — was refused twice at the route, and the test written to resolve one went red for a
+different reason than the refusal.
+
+1. **The intent is completed before the intervention is closed.** Until P257 the order was the
+   reverse, and a completion that threw left the stop resolved, the run `escalated`, and a second
+   adjudication refused as a 409: a run nobody could release. A second adjudication is now refused
+   before the ledger is touched.
+2. **A stop that recorded no action has nothing to have happened.** An interview that could not
+   obtain an answer and a document the system cannot take raise an intervention without an intent
+   (there is no portal action to record). `didHappen: false` completes nothing, because there is
+   nothing; `didHappen: true` is refused, because it is a claim about an action never begun, and the
+   record would say more than what happened. The route answers `validation_failed` on `/didHappen`.
+3. **`scope` and `kind` are closed sets on the wire, equal to the domain's.** They crossed as any
+   non-empty string into a JSONB column with no CHECK; the runbook's own example carried words the
+   domain does not name. `contract-drift.test.ts` holds the wire's lists equal to the domain's.
+4. **A refusal names what failed.** The route reported a fixed five pointers whatever had failed,
+   naming neither the missing field nor the three the list omitted.
+
+None of this changes the decision above: a resolution still carries no position, still never
+authorises a repeat, and `route_fallback` is still refused.

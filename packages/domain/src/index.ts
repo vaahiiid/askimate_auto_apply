@@ -191,6 +191,8 @@ export type {
 } from "./learning.js";
 export {
   NON_USABLE_LIFECYCLE_STATES,
+  RESOLUTION_KINDS,
+  REUSABILITY_SCOPES,
   asReusable,
   canTransitionLifecycle,
   failurePointOf,

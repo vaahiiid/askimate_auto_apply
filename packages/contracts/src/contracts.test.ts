@@ -39,6 +39,7 @@ import {
 } from "./vocabulary.js";
 import { parseStudentDecision } from "./decisions.js";
 import { parseRunPreview } from "./runs.js";
+import { parseResolutionSubmission, resolutionSubmissionProblems } from "./interventions.js";
 
 const MARKER = "SECRET-PASSWORD-DO-NOT-LEAK-123!";
 const REQUEST_ID = `sr_${"a".repeat(32)}`;
@@ -1175,5 +1176,52 @@ describe("what a reading may carry, and what it may not", () => {
     expect(parseReadingReport(withValue(["a", "b"]))).toBeNull();
     expect(parseReadingReport(withValue({ a: { b: { c: { d: 1 } } } }))).toBeNull();
     expect(parseReadingReport(withValue({ kind: "ended", date: { year: 2021, month: 8 } }))).not.toBeNull();
+  });
+});
+
+describe("a resolution's refusal names what failed (P257, row 114)", () => {
+  const whole = {
+    specialistId: "vahid",
+    actionsTaken: "Read the log.",
+    resolution: "The question stands.",
+    outcome: "resume",
+    didHappen: false,
+    scope: "this_case_only",
+    kind: "guidance",
+    signature: "interview:residence.in_uk_now",
+  };
+
+  it("names nothing for a whole submission, and parses it", () => {
+    expect(resolutionSubmissionProblems(whole)).toEqual([]);
+    expect(parseResolutionSubmission(whole)).toEqual(whole);
+  });
+
+  it("names only the field that failed", () => {
+    const { signature: _dropped, ...noSignature } = whole;
+    expect(resolutionSubmissionProblems(noSignature)).toEqual(["/signature"]);
+    expect(parseResolutionSubmission(noSignature)).toBeNull();
+    expect(resolutionSubmissionProblems({ ...whole, outcome: "resolved" })).toEqual(["/outcome"]);
+    expect(resolutionSubmissionProblems({ ...whole, didHappen: "false" })).toEqual(["/didHappen"]);
+  });
+
+  it("refuses a scope or kind the domain does not name, rather than storing the word", () => {
+    expect(resolutionSubmissionProblems({ ...whole, scope: "this_case" })).toEqual(["/scope"]);
+    expect(resolutionSubmissionProblems({ ...whole, kind: "stop_on_askings" })).toEqual(["/kind"]);
+    expect(parseResolutionSubmission({ ...whole, scope: "this_case" })).toBeNull();
+  });
+
+  it("names all eight for nothing at all, in the order the contract lists them", () => {
+    expect(resolutionSubmissionProblems({})).toEqual([
+      "/specialistId",
+      "/actionsTaken",
+      "/resolution",
+      "/outcome",
+      "/didHappen",
+      "/scope",
+      "/kind",
+      "/signature",
+    ]);
+    expect(resolutionSubmissionProblems(null)).toHaveLength(8);
+    expect(resolutionSubmissionProblems("a string")).toHaveLength(8);
   });
 });

@@ -35,7 +35,9 @@ import {
   RUN_STATUSES,
   RUN_STEP_KINDS,
   SECRET_LIFECYCLES,
+  WIRE_RESOLUTION_KINDS,
   WIRE_RESOLUTION_OUTCOMES,
+  WIRE_REUSABILITY_SCOPES,
   WORK_APPROACHES,
   WORK_FAILURES,
   WORK_KINDS,
@@ -44,7 +46,9 @@ import {
 } from "@askimate/aas-contracts";
 import { AUTHENTICATION_APPROACHES } from "@askimate/aas-account";
 import {
+  RESOLUTION_KINDS,
   RESOLUTION_OUTCOMES,
+  REUSABILITY_SCOPES,
   WORKFLOW_PHASES,
   WORKFLOW_STATUSES,
 } from "@askimate/aas-domain";
@@ -457,6 +461,15 @@ describe("resolution outcomes, on the wire and in the domain", () => {
     expect(parseWireResolutionOutcome("resume")).toBe("resume");
     expect(parseWireResolutionOutcome("abandon")).toBe("abandon");
     expect(parseWireResolutionOutcome("route_fallback")).toBeNull();
+  });
+
+  it("the wire's scopes and kinds are the domain's, exactly (P257)", () => {
+    // Unlike the outcomes there is nothing deliberately withheld here: every
+    // scope and kind the domain names may be asserted by a specialist, and
+    // none the domain does not name may reach the JSONB column, which has no
+    // CHECK of its own.
+    expect([...WIRE_REUSABILITY_SCOPES]).toEqual([...REUSABILITY_SCOPES]);
+    expect([...WIRE_RESOLUTION_KINDS]).toEqual([...RESOLUTION_KINDS]);
   });
 });
 

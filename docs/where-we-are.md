@@ -4906,6 +4906,34 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P257 — the exact call, and what the route did with it
+
+*2026-09-30.* His two attempts at the resolution route were refused with the same five pointers.
+The contract says eight fields: `specialistId`, `actionsTaken`, `resolution`, `signature` (any
+non-empty string), `outcome` (`resume` or `abandon` — `resolved` is not a value), `didHappen` (a
+boolean), `scope` (`this_case_only`, `this_course`, `this_institution`, `this_portal`, `general`)
+and `kind` (`blueprint_correction`, `mapping_correction`, `workflow_rule`, `guidance`). For an
+interview stop `didHappen` is `false`: it answers whether the portal action the stop was about
+happened, and an interview stop was about none.
+
+The route was listing everything, as he suspected — a fixed five, which named neither the field
+that had failed nor the three the list left out. Fixed: `resolutionSubmissionProblems` names what
+failed, and the route reports that.
+
+The test written to resolve an interview stop found what the refusal had been hiding: the driver
+closed the intervention and *then* completed the intent, and an interview stop records no intent,
+so the completion threw after the stop was closed. Had his call parsed, his run would have been
+left `escalated` with the stop resolved and a 409 on every further attempt. Now the intent is
+completed first, a second adjudication is refused before the ledger, and a stop with no intent
+takes `false` and refuses `true`. `scope` and `kind` are closed sets end to end; the runbook's
+example had carried two words nothing names, and they would have been stored.
+
+Row 113: the two stops from 18 September, open twelve days, told once and never again.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P256 — one thing to answer at a time
 
 > *"Whatever else is true, the student should never have two things to answer at once."*

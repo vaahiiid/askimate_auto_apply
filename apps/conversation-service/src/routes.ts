@@ -38,6 +38,7 @@ import {
   parseReadingReport,
   parseWorkReport,
   parseResolutionSubmission,
+  resolutionSubmissionProblems,
   parsePriorOutcome,
   parseStudentDecision,
   renderSseResumeFrame,
@@ -92,6 +93,7 @@ import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
 import type { RunOutcome, RunReading, RunRefusal, WorkDocumentRefusal } from "./run-driver.js";
+import { NothingToHaveHappenedError } from "./run-driver.js";
 import type { ClaimedReading, ReadingReport, WorkDocument } from "@askimate/aas-contracts";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
@@ -1918,13 +1920,15 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           problem(res, "service_unavailable");
           return;
         }
-        const submission = parseResolutionSubmission(req.body);
+        const problems = resolutionSubmissionProblems(req.body);
+        const submission = problems.length === 0 ? parseResolutionSubmission(req.body) : null;
         if (submission === null) {
+          // The pointers name what FAILED, and only that (P257, row 114).
           // `route_fallback` lands here too, and that is correct: it is absent
           // from the wire's closed set because ADR-0048 §4 rejects it rather
           // than implementing it partly.
           problem(res, "validation_failed", {
-            pointers: ["/specialistId", "/actionsTaken", "/resolution", "/outcome", "/didHappen"],
+            pointers: problems.length > 0 ? problems : ["/"],
           });
           return;
         }
@@ -1936,11 +1940,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           resolvedAt: options.now(),
           outcome: submission.outcome,
         };
-        const reusability = {
+        // Typed end to end since P257: the wire's closed sets are the
+        // domain's, so nothing here is asserted.
+        const reusability: ReusabilityAssessment = {
           scope: submission.scope,
           kind: submission.kind,
           signature: submission.signature,
-        } as ReusabilityAssessment;
+        };
 
         try {
           const resolved = await options.runs.resolveIntervention({
@@ -1964,6 +1970,14 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           }
           if (error instanceof ResolutionOutcomeNotImplementedError) {
             problem(res, "validation_failed", { pointers: ["/outcome"] });
+            return;
+          }
+          if (error instanceof NothingToHaveHappenedError) {
+            // A stop that recorded no action (an interview stop, a document
+            // the system cannot take) has nothing a person could have found
+            // done. `didHappen: true` there is a claim about nothing, and the
+            // record would say more than what happened (P257).
+            problem(res, "validation_failed", { pointers: ["/didHappen"] });
             return;
           }
           throw error;

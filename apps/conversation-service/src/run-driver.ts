@@ -57,7 +57,7 @@ import type {
   InterventionStore,
   StoredIntervention,
 } from "@askimate/aas-case-store/interventions";
-import { InterventionNotFoundError } from "@askimate/aas-case-store/interventions";
+import { InterventionAlreadyResolvedError, InterventionNotFoundError } from "@askimate/aas-case-store/interventions";
 import {
   askimateActor,
   blueprintVersion,
@@ -1592,6 +1592,24 @@ function partReadingsOf(
  * the ONE value the document stated, with that value's own words. `null`
  * where the document gave nothing for this part, so the walk asks.
  */
+/**
+ * `didHappen: true` on a stop that recorded no action (P257).
+ *
+ * An interview stop and a document the system cannot accept raise an
+ * intervention without an intent: nothing was attempted on a portal, so there
+ * is nothing a person could have found done. The route answers this as a
+ * validation failure on `/didHappen`.
+ */
+export class NothingToHaveHappenedError extends Error {
+  public constructor(interventionId: string) {
+    super(
+      `Intervention ${interventionId} recorded no action, so nothing can have happened: ` +
+        `didHappen must be false.`,
+    );
+    this.name = "NothingToHaveHappenedError";
+  }
+}
+
 export function walkPartFromDocument(
   partKey: string,
   fields: Readonly<Record<string, WireFieldValue>>,
@@ -6478,14 +6496,24 @@ export class RunDriver {
     }
     const held = await interventions.find(input.interventionId);
     if (held === null) throw new InterventionNotFoundError(input.interventionId);
+    // A second adjudication is refused HERE, before the ledger is touched:
+    // the store would refuse it too, but only after the intent below had been
+    // told a second, different outcome.
+    if (held.resolution !== undefined) {
+      throw new InterventionAlreadyResolvedError(
+        input.interventionId,
+        held.resolution.specialistId,
+        held.resolution.resolvedAt,
+      );
+    }
 
-    const resolved = await interventions.resolve({
-      interventionId: input.interventionId,
-      resolution: input.resolution,
-      reusability: input.reusability,
-    });
-
-    // ── The fact, in the one place that holds facts ────────────────────
+    // ── The fact first, in the one place that holds facts ──────────────
+    //
+    // Before the intervention is marked resolved, not after (P257). Until
+    // then the order was resolve, then complete, and a completion that threw
+    // left the stop closed with the run still `escalated` and no second
+    // adjudication admitted — the state Vahid's run of 2026-09-30 would
+    // have been left in had his call parsed.
     //
     // `succeeded` when the specialist found the action HAD landed, so the run
     // moves past it. `failed_cleanly` when they established it had not — which
@@ -6493,12 +6521,29 @@ export class RunDriver {
     // and there is deliberately no verdict meaning retry. A run whose account
     // creation cleanly did not happen needs a new attempt somebody decides to
     // make, not one this code makes on their behalf.
-    await this.#options.stores.runs.completeIntent(
-      held.runId,
-      held.idempotencyKey,
-      input.didHappen ? "succeeded" : "failed_cleanly",
-      input.resolution.resolvedAt,
-    );
+    //
+    // A stop that recorded no intent — the interview could not obtain an
+    // answer, a document the system cannot take — has no action to have
+    // happened. `false` completes nothing, because there is nothing; `true`
+    // is refused, because it claims something about an action that was never
+    // begun, and the record would say more than what happened.
+    const intent = await this.#options.stores.runs.findIntent(held.runId, held.idempotencyKey);
+    if (intent === null) {
+      if (input.didHappen) throw new NothingToHaveHappenedError(input.interventionId);
+    } else {
+      await this.#options.stores.runs.completeIntent(
+        held.runId,
+        held.idempotencyKey,
+        input.didHappen ? "succeeded" : "failed_cleanly",
+        input.resolution.resolvedAt,
+      );
+    }
+
+    const resolved = await interventions.resolve({
+      interventionId: input.interventionId,
+      resolution: input.resolution,
+      reusability: input.reusability,
+    });
 
     const record = await this.#options.stores.runs.load(held.runId);
     if (record !== null && record.status !== "running") {

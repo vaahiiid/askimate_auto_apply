@@ -79,28 +79,32 @@ export interface InterventionContext {
  * narrowest to widest, and the default assumption is narrow — over-generalising
  * a fix is how a learning system starts making things worse.
  */
-export type ReusabilityScope =
+export const REUSABILITY_SCOPES = [
   /** One-off. Specific to this student or this moment. Not reusable. */
-  | "this_case_only"
+  "this_case_only",
   /** Applies to this course's application flow. */
-  | "this_course"
+  "this_course",
   /** Applies to any application to this institution. */
-  | "this_institution"
+  "this_institution",
   /** Applies to any institution on this portal platform. */
-  | "this_portal"
+  "this_portal",
   /** A general rule, e.g. how to read a class of validation error. */
-  | "general";
+  "general",
+] as const;
+export type ReusabilityScope = (typeof REUSABILITY_SCOPES)[number];
 
 /** What kind of change the resolution implies. */
-export type ResolutionKind =
+export const RESOLUTION_KINDS = [
   /** The blueprint is wrong or out of date and should be corrected. */
-  | "blueprint_correction"
+  "blueprint_correction",
   /** A canonical-field-to-portal-field mapping needs adding or fixing. */
-  | "mapping_correction"
+  "mapping_correction",
   /** A rule for recognising and handling a situation. */
-  | "workflow_rule"
+  "workflow_rule",
   /** Guidance only: useful context for a human, not an automated change. */
-  | "guidance";
+  "guidance",
+] as const;
+export type ResolutionKind = (typeof RESOLUTION_KINDS)[number];
 
 export interface ReusabilityAssessment {
   readonly scope: ReusabilityScope;

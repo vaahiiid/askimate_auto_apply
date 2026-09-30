@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.253.0] — 2026-09-30
+
+**P257 — a resolution completes the fact before it closes the stop; a stop that recorded no action; the refusal names what failed (ADR-0048 amended).**
+
+- **Fixed** the order in `resolveIntervention`: the intent is completed, then the intervention is
+  closed, then the run released. The reverse order left a stop closed with the run still
+  `escalated` when the completion threw — which it did, on every interview stop, because an
+  interview stop records no intent. A second adjudication is refused before the ledger is touched.
+- **Added** the meaning of `didHappen` for a stop that recorded no action: `false` completes
+  nothing; `true` is refused (`NothingToHaveHappenedError`, `validation_failed` on `/didHappen`).
+- **Changed** the wire: `scope` and `kind` are closed sets (`WIRE_REUSABILITY_SCOPES`,
+  `WIRE_RESOLUTION_KINDS`) equal to the domain's new `REUSABILITY_SCOPES` and `RESOLUTION_KINDS`;
+  `resolutionSubmissionProblems` names the pointers that failed, and the route reports those. The
+  OpenAPI schema carries the enums.
+- **Fixed** the runbook's resolution example, which carried a `scope` and a `kind` nothing names and
+  a `didHappen: true` on an interview stop; a table now gives every field's allowed values.
+- **Recorded** row 113 (an open intervention is told once and then never again — two from
+  2026-09-18 are open twelve days on and nothing says so) and row 114 (closed: the four faults above).
+
+---
+
 ## [0.252.0] — 2026-09-30
 
 **P256 — one thing to answer at a time (ADR-0152): nothing is said over an open question; a refused field is asked next; a later CV supersedes the earlier; failed answers count, askings do not; the playback and the stop name the question.**

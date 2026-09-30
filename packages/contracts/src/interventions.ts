@@ -39,6 +39,36 @@ export type WireResolutionOutcome = (typeof WIRE_RESOLUTION_OUTCOMES)[number];
 
 export const parseWireResolutionOutcome = closedSetParser(WIRE_RESOLUTION_OUTCOMES);
 
+/**
+ * How widely a resolution applies, and what kind of change it implies, ON THE
+ * WIRE. Both mirror the domain's `REUSABILITY_SCOPES` and `RESOLUTION_KINDS`
+ * exactly, and `contract-drift.test.ts` holds them equal.
+ *
+ * Until P257 these two crossed as any non-empty string and were stored as
+ * given: a resolution could carry `scope: "this_case"` or `kind:
+ * "stop_on_askings"` — words nothing in the domain names — into a JSONB
+ * column with no CHECK, and the record would say more than what happened.
+ * The runbook's own example did exactly that.
+ */
+export const WIRE_REUSABILITY_SCOPES = [
+  "this_case_only",
+  "this_course",
+  "this_institution",
+  "this_portal",
+  "general",
+] as const;
+export type WireReusabilityScope = (typeof WIRE_REUSABILITY_SCOPES)[number];
+export const parseWireReusabilityScope = closedSetParser(WIRE_REUSABILITY_SCOPES);
+
+export const WIRE_RESOLUTION_KINDS = [
+  "blueprint_correction",
+  "mapping_correction",
+  "workflow_rule",
+  "guidance",
+] as const;
+export type WireResolutionKind = (typeof WIRE_RESOLUTION_KINDS)[number];
+export const parseWireResolutionKind = closedSetParser(WIRE_RESOLUTION_KINDS);
+
 /** One open intervention, as a specialist sees it. */
 export interface OpenIntervention {
   readonly interventionId: string;
@@ -87,8 +117,8 @@ export interface ResolutionSubmission {
    */
   readonly didHappen: boolean;
   /** How widely the fix applies. Narrow by default. */
-  readonly scope: string;
-  readonly kind: string;
+  readonly scope: WireReusabilityScope;
+  readonly kind: WireResolutionKind;
   readonly signature: string;
 }
 
@@ -99,46 +129,50 @@ function readString(body: unknown, field: string): string | null {
 }
 
 /**
- * Parses a submission, or refuses it.
+ * What is wrong with a submission, as JSON pointers — one per field that
+ * failed, and nothing for a field that did not.
+ *
+ * Empty means the body parses. The route reports this list, so a caller who
+ * sent `outcome: "resolved"` and no `signature` is told `/outcome` and
+ * `/signature`, and not — as until P257 — a fixed five that named neither the
+ * missing field nor the three the body never had to carry (Vahid's two calls
+ * of 2026-09-30, row 114).
  *
  * Everything against a closed set or a non-empty string. Deliberately absent
  * from every branch: any field a caller might send for the intervention's id,
  * the run, the resolution time, or a position. They are not read, so they
  * cannot become authoritative — the same rule `parseSecureAppend` follows.
  */
-export function parseResolutionSubmission(body: unknown): ResolutionSubmission | null {
-  const specialistId = readString(body, "specialistId");
-  const actionsTaken = readString(body, "actionsTaken");
-  const resolution = readString(body, "resolution");
-  const signature = readString(body, "signature");
-  const scope = readString(body, "scope");
-  const kind = readString(body, "kind");
-  const outcome = parseWireResolutionOutcome(
-    (body as Record<string, unknown> | null)?.["outcome"],
-  );
-  const didHappen = (body as Record<string, unknown> | null)?.["didHappen"];
-
-  if (
-    specialistId === null ||
-    actionsTaken === null ||
-    resolution === null ||
-    signature === null ||
-    scope === null ||
-    kind === null ||
-    outcome === null ||
-    typeof didHappen !== "boolean"
-  ) {
-    return null;
+export function resolutionSubmissionProblems(body: unknown): readonly string[] {
+  const fields = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
+  const problems: string[] = [];
+  for (const field of ["specialistId", "actionsTaken", "resolution"] as const) {
+    if (readString(body, field) === null) problems.push(`/${field}`);
   }
+  if (parseWireResolutionOutcome(fields["outcome"]) === null) problems.push("/outcome");
+  if (typeof fields["didHappen"] !== "boolean") problems.push("/didHappen");
+  if (parseWireReusabilityScope(fields["scope"]) === null) problems.push("/scope");
+  if (parseWireResolutionKind(fields["kind"]) === null) problems.push("/kind");
+  if (readString(body, "signature") === null) problems.push("/signature");
+  return problems;
+}
+
+/**
+ * Parses a submission, or refuses it. `null` exactly when
+ * `resolutionSubmissionProblems` names something.
+ */
+export function parseResolutionSubmission(body: unknown): ResolutionSubmission | null {
+  if (resolutionSubmissionProblems(body).length > 0) return null;
+  const fields = body as Record<string, unknown>;
   return {
-    specialistId,
-    actionsTaken,
-    resolution,
-    outcome,
-    didHappen,
-    scope,
-    kind,
-    signature,
+    specialistId: fields["specialistId"] as string,
+    actionsTaken: fields["actionsTaken"] as string,
+    resolution: fields["resolution"] as string,
+    outcome: fields["outcome"] as WireResolutionOutcome,
+    didHappen: fields["didHappen"] as boolean,
+    scope: fields["scope"] as WireReusabilityScope,
+    kind: fields["kind"] as WireResolutionKind,
+    signature: fields["signature"] as string,
   };
 }
 

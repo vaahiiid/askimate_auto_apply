@@ -247,12 +247,19 @@ export {
 export type {
   OpenIntervention,
   ResolutionSubmission,
+  WireResolutionKind,
   WireResolutionOutcome,
+  WireReusabilityScope,
 } from "./interventions.js";
 export {
+  WIRE_RESOLUTION_KINDS,
   WIRE_RESOLUTION_OUTCOMES,
+  WIRE_REUSABILITY_SCOPES,
   parseResolutionSubmission,
+  parseWireResolutionKind,
   parseWireResolutionOutcome,
+  parseWireReusabilityScope,
+  resolutionSubmissionProblems,
 } from "./interventions.js";
 
 // ── A decision only the student can make (ADR-0049) ──────────────────────

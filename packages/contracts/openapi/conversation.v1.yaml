@@ -3610,9 +3610,16 @@ components:
             The whole question. `assessIntent` stopped the run because it could
             not answer whether the action took effect; this is a person having
             opened the portal and looked.
-        scope: { type: string, description: How widely the fix applies. Narrow by default. }
-        kind: { type: string }
-        signature: { type: string }
+        scope:
+          type: string
+          enum: [this_case_only, this_course, this_institution, this_portal, general]
+          description: How widely the fix applies. Narrow by default.
+        kind:
+          type: string
+          enum: [blueprint_correction, mapping_correction, workflow_rule, guidance]
+        signature:
+          type: string
+          description: A short, matchable description of the situation this applies to.
 
   responses:
     Unauthenticated:
