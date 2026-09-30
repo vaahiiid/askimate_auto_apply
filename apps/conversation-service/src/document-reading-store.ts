@@ -244,7 +244,8 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
         RETURNING document_id`,
       [input.conversationId, input.studentId, input.by, input.now],
     );
-    return rows.rows.map((row) => row.document_id);
+    // RETURNING carries no order; the ids are sorted so the answer is one thing.
+    return rows.rows.map((row) => row.document_id).sort();
   }
 
   public async decide(documentId: string, use: boolean, now: Date, reopenedAfter?: number): Promise<DocumentReading | null> {
