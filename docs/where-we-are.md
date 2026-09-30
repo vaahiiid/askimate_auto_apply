@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P254 — the third case: a CV that arrives while its field is open
+
+> *"A document held in silence is the thing we have now ruled against three times, and leaving
+> one more case silent because it is smaller is how it comes back."*
+
+His walk found it: the CV held, the qualifications question open, nothing typed, and no question
+— the moment P251 waits for had already passed, and P252's moment would never come. The most
+likely moment in real use, and the one neither path handled. Built on his rule: at upload the
+driver reads where the interview stands with the CV's fields and says one of four things, never
+nothing. The open question yields to the CV question; entries already typed are named, and a yes
+is said plainly to start the list again, on P252's mark; a CV ahead of its field is acknowledged
+in one sentence. And the warning that stopped him spending sixty-eight calls on a reading that
+would have been discarded is now a rule for every report, in his words.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P253 — a reading before the question, named and asked about; a list that says where it came from
 
 > *"A `read` row with no decision is a fact about how this system behaved for a period, and it

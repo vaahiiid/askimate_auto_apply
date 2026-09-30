@@ -96,7 +96,7 @@ export type PendingDecision =
       readonly documentId: string;
       readonly question: string;
       /** `at_the_field` (P251); `late` (P252): a yes means confirming again; `read_before_asking` (P253): the CV was read before anyone asked, and a yes uses what was read. */
-      readonly situation: "at_the_field" | "late" | "read_before_asking";
+      readonly situation: "at_the_field" | "field_begun" | "late" | "read_before_asking";
     };
 
 /** A portal's consent banner as the reviewed blueprint records it (ADR-0131). */
@@ -263,7 +263,7 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
       } else if (raw["decision"] === "use_document") {
         const situation = raw["situation"];
         if (typeof raw["documentId"] !== "string" || typeof raw["question"] !== "string") return null;
-        if (situation !== "at_the_field" && situation !== "late" && situation !== "read_before_asking") return null;
+        if (situation !== "at_the_field" && situation !== "field_begun" && situation !== "late" && situation !== "read_before_asking") return null;
         pending = { decision: "use_document", documentId: raw["documentId"], question: raw["question"], situation };
       } else if (raw["decision"] === "choose_reading") {
         const list = raw["readings"];

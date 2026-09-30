@@ -515,7 +515,7 @@ export type PendingDecision =
       readonly situation: DocumentQuestionSituation;
     };
 
-export type DocumentQuestionSituation = "at_the_field" | "late" | "read_before_asking";
+export type DocumentQuestionSituation = "at_the_field" | "field_begun" | "late" | "read_before_asking";
 
 /** A portal's consent notice as the reviewed blueprint records it, for the student (ADR-0131). */
 export interface ConsentBannerReading {
@@ -1339,6 +1339,18 @@ const LATE_DECLINED_THE_CV = "You said no, so I have deleted your CV. Your jobs 
 const READ_BEFORE_ASKING_QUESTION = "I read your CV before I should have asked. Do you want me to use what I read, or would you rather tell me yourself?";
 const USING_WHAT_I_READ = "Thank you. I will use what I read from your CV, and ask you what it did not say.";
 const SET_ASIDE_THE_CV = "You said no, so I have deleted your CV and set aside what I read from it. I will ask you about your jobs and qualifications as usual.";
+// P254. A CV that arrives while its own field is open, or ahead of it. Vahid:
+// *"The open question yields… The honest question when entries exist names
+// them and says plainly that a yes starts the list again… A document held in
+// silence is the thing we have now ruled against three times."*
+const HELD_FOR_LATER = "I have your CV. I will ask whether to use it when we reach your jobs.";
+function begunDocumentQuestion(about: string): string {
+  return `I have your CV. You have already told me about ${about}. Do you want me to fill in your jobs and qualifications from the CV instead? That would mean starting the list again from what the CV says, and you would see it all and confirm it. Or would you rather carry on telling me yourself?`;
+}
+/** Whether an assistant line is one of the document questions, however situated (P254): what supersedes a field's open question. */
+function isDocumentQuestion(content: string): boolean {
+  return content.startsWith(USE_DOCUMENT_QUESTION) || content.startsWith(LATE_DOCUMENT_QUESTION) || content.startsWith("I have your CV. You have already told me about ");
+}
 
 /** The CV's fields last while the reader works (P251): the interview asks the rest meanwhile, and nobody waits on the machine. */
 function deferWhileReading(fields: readonly ProfileFieldKey[], inFlight: boolean): readonly ProfileFieldKey[] {
@@ -1353,8 +1365,8 @@ function yesOrNo(text: string): boolean | null {
   const said = text.trim().toLowerCase().replace(/[.!]+$/, "").replace(/[,;]/g, " ").replace(/\s+/g, " ");
   // The late question (P252) ends "go back… or leave them as they are?", and
   // its answers come in those words.
-  if (/^(yes|yes please|yeah|yep|sure|ok|okay|please do|go ahead|use it|fill it in|from the cv|from my cv|yes use it|yes from my cv|go back|yes go back|go back and use it|yes go back and use it|fill them in|yes fill them in)$/.test(said)) return true;
-  if (/^(no|nope|no thanks|no thank you|i'd rather tell you|i would rather tell you|i'll tell you|i will tell you|myself|i'd rather not|don't|do not|no don't|leave them|leave them as they are|no leave them|no leave them as they are|leave it|leave it as it is|no leave it|keep them|keep them as they are|no keep them)$/.test(said)) return false;
+  if (/^(yes|yes please|yeah|yep|sure|ok|okay|please do|go ahead|use it|fill it in|from the cv|from my cv|yes use it|yes from my cv|go back|yes go back|go back and use it|yes go back and use it|fill them in|yes fill them in|start again|yes start again|start again from my cv|yes start again from my cv|start again from the cv|use what you read|yes use what you read)$/.test(said)) return true;
+  if (/^(no|nope|no thanks|no thank you|i'd rather tell you|i would rather tell you|i'll tell you|i will tell you|myself|i'd rather not|don't|do not|no don't|leave them|leave them as they are|no leave them|no leave them as they are|leave it|leave it as it is|no leave it|keep them|keep them as they are|no keep them|carry on|carry on myself|i'll carry on myself|i will carry on myself|no carry on|no carry on myself|i'd rather carry on|i'd rather carry on myself)$/.test(said)) return false;
   return null;
 }
 const DELETION_WAY_BACK = "If you did not mean a deletion, say so and we will carry on where we were.";
@@ -1425,11 +1437,17 @@ function partsReadFrom(
   events: readonly ConversationEvent[],
   /** Documents whose parts a no set aside (P253, row 108): never read back into a walk. */
   setAside: ReadonlySet<string> = new Set(),
+  /** The ordinal of a yes that started a CV field's list again (P252's mark, P254): parts of a CV field at or before it are not this walk's. */
+  startedAgainAfter = 0,
 ): ReadonlyMap<ProfileFieldKey, ReadonlyMap<string, ProposedValue<unknown>>> {
   const walks = new Map<ProfileFieldKey, Map<string, ProposedValue<unknown>>>();
   for (const event of events) {
     if (event.kind === "value_part_read") {
       const field = event.fieldKey as ProfileFieldKey;
+      // Typed before a yes that starts the list again from the CV (P254):
+      // on the log as what was said, not in the walk the CV now seeds. The
+      // student was told so in the question, in as many words.
+      if (event.ordinal <= startedAgainAfter && (CV_LIST_FIELDS as readonly string[]).includes(field)) continue;
       // Decoded at the log boundary: JSON turned every Date into a string on
       // the way in, and a string is not a value the plan can render (P225).
       const proposal = decodeValue(event.proposal) as ProposedValue<unknown>;
@@ -1658,6 +1676,8 @@ function interviewFrom(input: {
   readonly confirmed?: ConfirmedProfile;
   /** Documents whose parts a no set aside (P253, row 108). */
   readonly setAside?: ReadonlySet<string>;
+  /** The ordinal of a yes that started a CV field's list again (P254). */
+  readonly startedAgainAfter?: number;
 }): InterviewState {
   const base = newInterview({
     studentRef: input.studentRef,
@@ -1674,7 +1694,7 @@ function interviewFrom(input: {
     // than lost with the request that read it (ADR-0140). Seeded, while the
     // portal's demand for one part is open, with every OTHER part of the
     // value the portal refused, so only the demanded part is asked (P233).
-    partial: seededWithDemands(partsReadFrom(input.events, input.setAside), input.events, input.confirmed),
+    partial: seededWithDemands(partsReadFrom(input.events, input.setAside, input.startedAgainAfter), input.events, input.confirmed),
     attempts: attemptsFrom(input.events),
     // P221: a reading set aside as an unreadable correction is asked about
     // as what it was, not as something nobody caught.
@@ -1828,6 +1848,24 @@ export function reopenedFields(events: readonly ConversationEvent[], after: numb
     else if (event.kind === "value_confirmed") open.delete(event.fieldKey as ProfileFieldKey);
   }
   return [...open];
+}
+
+/**
+ * Whether a CV field's open question has yielded to the document question
+ * (P254): the field is a CV's, and after its last asking the assistant put
+ * one of the document questions. A question so superseded does not stop the
+ * interview asking the next thing — the field's own question again after a
+ * no, the rest of the interview after a yes.
+ */
+function supersededByTheDocumentQuestion(events: readonly ConversationEvent[], fieldKey: string): boolean {
+  if (!(CV_LIST_FIELDS as readonly string[]).includes(fieldKey)) return false;
+  let askedAt = -1;
+  let supersededAt = -1;
+  for (const event of events) {
+    if (event.kind === "value_asked" && event.fieldKey === fieldKey) askedAt = event.ordinal;
+    else if (event.kind === "message" && event.actor === "assistant" && isDocumentQuestion(event.content ?? "")) supersededAt = event.ordinal;
+  }
+  return askedAt >= 0 && supersededAt > askedAt;
 }
 
 /** Whether the walk this field would carry on with holds a part the named document gave (P253, row 108). */
@@ -3166,6 +3204,7 @@ export class RunDriver {
     const profileView = withoutDemanded(profile, new Set([...demands.keys(), ...reopenedNow]));
     // P253, row 108: parts a document gave that the student said not to use.
     const setAside = new Set(await this.#options.readings?.setAsideFor(input.conversationId) ?? []);
+    const startedAgainAfter = reopened === undefined || reopened === null ? 0 : (reopened.reopenedAfter ?? 0);
 
     const base: RunState = withCheckpoint(
       beginRun({
@@ -3217,6 +3256,7 @@ export class RunDriver {
           events,
           confirmed: profile,
           setAside,
+          startedAgainAfter,
         }),
       }),
       input.record,
@@ -3986,8 +4026,8 @@ export class RunDriver {
     // readings table, never from the client.
     const offered = await this.#options.readings?.heldFor(conversationId);
     if (offered !== undefined && offered !== null && offered.state === "offered") {
-      const late = await this.#lateForTheCv(conversationId, offered.studentId);
-      return { decision: "use_document", documentId: offered.documentId, question: late ? LATE_DOCUMENT_QUESTION : USE_DOCUMENT_QUESTION, situation: late ? "late" : "at_the_field" };
+      const asked = await this.#documentQuestion(conversationId, offered.studentId);
+      return { decision: "use_document", documentId: offered.documentId, ...asked };
     }
     // P253, row 108: the honest question after a reading nobody was asked
     // about, while it stands.
@@ -5555,7 +5595,9 @@ export class RunDriver {
       // A question already stands, or a reading is waiting to be confirmed.
       // Either way this run is not short of something for the student to do,
       // and asking again would be the service talking over itself.
-      if (openQuestion(events) !== null || openProposal(events) !== null) return null;
+      if (openProposal(events) !== null) return null;
+      const open = openQuestion(events);
+      if (open !== null && !supersededByTheDocumentQuestion(events, open.fieldKey)) return null;
 
       // ── The CV, before its first field (P251, ADR-0151) ─────────────────
       //
@@ -7738,16 +7780,82 @@ export class RunDriver {
   }): Promise<void> {
     const readings = this.#options.readings;
     if (readings === undefined) return;
+    // Idempotent, and said once: a document already asked for is left as it
+    // is, and nothing below is said again for it.
+    if ((await readings.readingFor(input.documentId)) !== null) return;
     await readings.request({ ...input, now: this.#options.now() });
-    // P252, row 107: a CV whose fields are all confirmed already would meet no
-    // question — the interview reaches no field of its. So the question is
-    // put now, in the late words, rather than the CV held in silence.
-    const row = await readings.readingFor(input.documentId);
-    if (row === null || row.state !== "held") return;
-    if (!(await this.#lateForTheCv(input.conversationId, input.studentId))) return;
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId: input.conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    // Where the interview stands with the CV's own fields decides what is
+    // said now, and nothing is held in silence (P252, row 107; P254):
+    //   late     every field the CV could fill is confirmed — the interview
+    //            reaches none of them, so the question is put now, in the
+    //            late words
+    //   begun    a CV field's walk has parts, or
+    //   open     a CV field's own question stands — the moment P251 waits for
+    //            is already here or past, so the question is put now and the
+    //            open question yields to it
+    //   ahead    the CV's fields lie ahead — P251 asks when one comes up, and
+    //            the student is told so, in one sentence
+    const cv = await this.#cvSituation(input.conversationId, input.studentId);
+    if (cv.kind === "ahead") {
+      await say(HELD_FOR_LATER);
+      return;
+    }
     const asked = await readings.ask(input.documentId, this.#options.now());
     if (asked === null) return;
-    await this.#options.conversations.append({ conversationId: input.conversationId, event: { kind: "message", actor: "assistant", content: LATE_DOCUMENT_QUESTION } });
+    await say((await this.#documentQuestion(input.conversationId, input.studentId)).question);
+  }
+
+  /**
+   * Where the interview stands with the CV's own fields (P254). Derived from
+   * the blueprint, the profile and the log each time; never stored.
+   */
+  async #cvSituation(
+    conversationId: string,
+    studentId: string,
+  ): Promise<{ readonly kind: "late" } | { readonly kind: "begun"; readonly entries: readonly { readonly fieldKey: ProfileFieldKey; readonly count: number }[] } | { readonly kind: "open" } | { readonly kind: "ahead" }> {
+    if (await this.#lateForTheCv(conversationId, studentId)) return { kind: "late" };
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const walks = partsReadFrom(events);
+    const begun = CV_LIST_FIELDS.filter((field) => walks.has(field));
+    if (begun.length > 0) {
+      return {
+        kind: "begun",
+        entries: begun.map((fieldKey) => {
+          const indices = new Set<string>();
+          for (const partKey of walks.get(fieldKey)?.keys() ?? []) {
+            const item = /^item(\d+)\./.exec(partKey);
+            if (item !== null) indices.add(item[1] ?? "");
+          }
+          return { fieldKey, count: indices.size };
+        }),
+      };
+    }
+    const open = openQuestion(events);
+    if (open !== null && (CV_LIST_FIELDS as readonly string[]).includes(open.fieldKey)) return { kind: "open" };
+    return { kind: "ahead" };
+  }
+
+  /** The document question in the words its situation calls for (P251, P252, P254), and the situation's name for the wire. */
+  async #documentQuestion(conversationId: string, studentId: string): Promise<{ readonly question: string; readonly situation: DocumentQuestionSituation }> {
+    const cv = await this.#cvSituation(conversationId, studentId);
+    if (cv.kind === "late") return { question: LATE_DOCUMENT_QUESTION, situation: "late" };
+    if (cv.kind === "begun") {
+      const typed = cv.entries.filter((entry) => entry.count > 0);
+      if (typed.length > 0) {
+        const about = typed
+          .map((entry) => {
+            const spec = FIELD_SPECS[entry.fieldKey] as FieldSpec<unknown> | undefined;
+            const label = spec !== undefined && isList(spec) ? spec.itemLabel : "entry";
+            return `${String(entry.count)} ${label}${entry.count === 1 ? "" : "s"}`;
+          })
+          .join(" and ");
+        return { question: begunDocumentQuestion(about), situation: "field_begun" };
+      }
+    }
+    return { question: USE_DOCUMENT_QUESTION, situation: "at_the_field" };
   }
 
   /**
@@ -7891,8 +7999,12 @@ export class RunDriver {
     // P252: a late yes reopens the CV's fields from here — the last ordinal
     // written before the reading is seeded — so the earlier confirmation is
     // theirs until the CV's replaces it, and the seeding counts from this point.
-    const late = await this.#lateForTheCv(conversationId, held.studentId);
-    const reopenedAfter = use && late ? ((await this.#options.conversations.since(conversationId, 0)).at(-1)?.ordinal ?? 0) : undefined;
+    const cv = await this.#cvSituation(conversationId, held.studentId);
+    const late = cv.kind === "late";
+    // P254: a yes on a begun field starts its list again from the CV, on the
+    // same mark — the walk before it is not this walk's, and the seeding
+    // counts from here.
+    const reopenedAfter = use && (late || cv.kind === "begun") ? ((await this.#options.conversations.since(conversationId, 0)).at(-1)?.ordinal ?? 0) : undefined;
     const decided = await readings.decide(held.documentId, use, now, reopenedAfter);
     if (decided === null) return false;
     const say = async (content: string): Promise<void> => {
@@ -7956,9 +8068,7 @@ export class RunDriver {
       if (decision === null) {
         const wantsIt = readUseRequest(answer);
         if (wantsIt === null) {
-          const question = afterReading
-            ? READ_BEFORE_ASKING_QUESTION
-            : (await this.#lateForTheCv(conversationId, held?.studentId ?? "")) ? LATE_DOCUMENT_QUESTION : USE_DOCUMENT_QUESTION;
+          const question = afterReading ? READ_BEFORE_ASKING_QUESTION : (await this.#documentQuestion(conversationId, held?.studentId ?? "")).question;
           await say(`${question} ${USE_DOCUMENT_HOW}`);
           return true;
         }

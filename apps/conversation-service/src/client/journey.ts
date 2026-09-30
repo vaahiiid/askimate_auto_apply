@@ -458,6 +458,8 @@ function drawPending(): void {
     const { documentId, situation } = pending;
     const words_ = {
       at_the_field: { consequence: "If you say no, I delete the CV and ask you about your jobs and qualifications as usual.", yes: "Fill them in from my CV", no: "I'd rather tell you myself" },
+      // P254: entries already typed. A yes is starting the list again, and the button says so.
+      field_begun: { consequence: "If you say no, I delete the CV and you carry on telling me yourself; what you have told me so far stays. If you say yes, I start the list again from what the CV says.", yes: "Start again from my CV", no: "Carry on telling you myself" },
       late: { consequence: "If you say no, I delete the CV and your jobs and qualifications stay as you confirmed them. If you say yes, I read the CV and ask you to confirm them again.", yes: "Go back and use my CV", no: "Leave them as they are" },
       read_before_asking: { consequence: "If you say no, I delete the CV and set aside what I read from it, and ask you about your jobs and qualifications as usual.", yes: "Use what you read", no: "I'd rather tell you myself" },
     }[situation];

@@ -214,7 +214,7 @@ export function readUseRequest(text: string): boolean | null {
   if (said.length === 0) return null;
   const document = /\b(cv|resume|curriculum vitae|the document|what i uploaded|the file)\b/.test(said);
   if (!document) return null;
-  const use = /\b(use|read|take|fill (?:it |them |this |that )?in from|go from|work from|get (?:it |them )?from|pull (?:it |them )?from)\b/.test(said);
+  const use = /\b(use|read|take|fill (?:it |them |this |that )?in from|go from|work from|get (?:it |them )?from|pull (?:it |them )?from|start (?:again |over |afresh )?from)\b/.test(said);
   if (!use) return null;
   const negated = /\b(don'?t|do not|dont|never|rather not|no need to|without)\b/.test(said);
   return !negated;

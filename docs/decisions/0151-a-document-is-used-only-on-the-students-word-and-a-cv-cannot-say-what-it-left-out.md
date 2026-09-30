@@ -167,6 +167,26 @@ seeded is confirmed as `document_extracted_and_completed`, naming the document �
 *"Provenance that says 'the student said it' for a value that came from a document is wrong… it
 is our record saying something that is not so."*
 
+**Amended a third time 2026-09-30 (P254), in his words**, on the case neither the field's
+question nor the late question covers — a CV that arrives while its own field is open:
+
+> *"The open question yields, and the yes may seed past a begun field. Use P252's ordinal mark,
+> since it already means exactly this. The honest question when entries exist names them and says
+> plainly that a yes starts the list again. Do not soften 'starting the list again' — a student who
+> has typed two jobs needs to know they are choosing to redo that, not to add to it. The sentence
+> at upload when some other field is open: yes, build it. 'I have your CV. I will ask whether to
+> use it when we reach your jobs.' A document held in silence is the thing we have now ruled
+> against three times, and leaving one more case silent because it is smaller is how it comes
+> back."*
+
+Built in P254: at the upload's confirmation the driver reads where the interview stands with the
+CV's fields — late, begun, open, or ahead — and one of four things is said, never nothing. Open or
+begun: the question at once, the open question yielding to it; begun with entries typed, the
+question names them (`situation: field_begun`) and a yes starts the list again from the CV, on
+P252's mark; ahead: the one sentence above. The rule of this ADR is unchanged — nothing is read
+before a yes — and the moment of asking is now whichever comes first: the field, the upload while
+the field is open, or the upload after the field is done.
+
 ## Consequences
 
 - The runbook's walk changes: the sentence arrives when the interview reaches the qualifications

@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.250.0] — 2026-09-30
+
+**P254 — a CV that arrives while its own field is open is asked about at once; entries typed are named and a yes starts the list again; a CV ahead of its field is acknowledged (ADR-0151 amended).**
+
+- **Added** the reading of where the interview stands with the CV's fields at the upload's
+  confirmation — late, begun, open, or ahead — so that something is always said. Open or begun:
+  the CV question at once, and the field's open question yields to it, typed or pressed; a no
+  re-asks it.
+- **Added** the question for a field with entries already typed, unsoftened: *You have already
+  told me about 1 qualification… That would mean starting the list again from what the CV says* —
+  `situation: field_begun`, with its own buttons. A yes carries P252's ordinal mark; the seeding
+  passes the begun field and the parts typed before the yes are not the walk's.
+- **Added** the sentence when the CV's fields lie ahead: *I have your CV. I will ask whether to
+  use it when we reach your jobs.* Said once per document.
+- **Changed** the plain yes/no reader and the use-request reader to take *start again from my CV*
+  and *carry on myself*.
+- **Added** to CLAUDE.md, in Vahid's words: a phase report says what the next action will cost
+  when the cost is real.
+
+---
+
 ## [0.249.0] — 2026-09-30
 
 **P253 — a reading done before the question existed is legible as that and asked about honestly; a list from a CV says where it came from (rows 108, 109; ADR-0151 amended).**

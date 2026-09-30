@@ -1823,7 +1823,10 @@ components:
         Vahid: "Uploading a file is not consent to take its contents as the
         whole answer." The answer is a `use_document` decision naming this
         document with a yes or a no; a no deletes the document and says so.
-        `situation`: `at_the_field` — the question as above; `late` (P252,
+        `situation`: `at_the_field` — the question as above; `field_begun`
+        (P254) — the document arrived while a field it could fill had entries
+        typed, the question names them, and a yes starts that list again from
+        the document; `late` (P252,
         row 107) — the document arrived after every field it could fill was
         confirmed, so the question is whether to go back, and a yes means the
         student confirms those fields again; `read_before_asking` (P253, row
@@ -1837,7 +1840,7 @@ components:
         question: { type: string, maxLength: 500 }
         situation:
           type: string
-          enum: [at_the_field, late, read_before_asking]
+          enum: [at_the_field, field_begun, late, read_before_asking]
 
     ConsentQuestion:
       type: object

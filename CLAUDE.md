@@ -130,6 +130,18 @@ a `--rm`:
 This is the same family as the silence rules above. There, a check said nothing when it should
 have shouted. Here, it shouted and then deleted what it said.
 
+## A report says what the next action will cost, when the cost is real
+
+Decided by Vahid on 2026-09-30, after a report had twice this week stopped him pressing a button
+that would have spent a CV reading — sixty-eight model calls — on a measurement that would have
+proved nothing. The screen said nothing about the cost; the report did.
+
+In his words: **"say in the record that a phase report should say what a next action will cost
+when the cost is real, because it is not obvious from the screen."**
+
+So: when the next thing he might do spends money — a model call, a bucket, anything metered — the
+report says so, with the number, before he does it. A walk that costs nothing says nothing.
+
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.
