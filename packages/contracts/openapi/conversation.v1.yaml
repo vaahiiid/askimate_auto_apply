@@ -1816,19 +1816,23 @@ components:
     UseDocumentQuestion:
       type: object
       additionalProperties: false
-      required: [decision, documentId, question]
+      required: [decision, documentId, question, late]
       description: >-
         P251, ADR-0151. The interview has reached the first field the student's
         uploaded document could fill, and asks before reading anything from it.
         Vahid: "Uploading a file is not consent to take its contents as the
         whole answer." The answer is a `use_document` decision naming this
         document with a yes or a no; a no deletes the document and says so.
+        `late` (P252, row 107): the document arrived after every field it
+        could fill was confirmed, so the question is whether to go back, and a
+        yes means the student confirms those fields again.
       properties:
         decision:
           type: string
           enum: [use_document]
         documentId: { type: string, pattern: "^[0-9A-Z]{26}$" }
         question: { type: string, maxLength: 500 }
+        late: { type: boolean }
 
     ConsentQuestion:
       type: object

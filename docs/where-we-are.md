@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P252 — a late CV gets a sentence, not silence
+
+> *"Ask, do not hold silently."*
+
+Row 107, decided in his words and built. A CV that arrives after its jobs and qualifications are
+confirmed would never meet the question P251 puts at the field, so it is asked about on arrival:
+we have it, they are filled in and confirmed, go back and use the CV for them — which means
+redoing what was confirmed — or leave them as they are. A no deletes it and says so, same as the
+decline path, and nothing follows. A yes reopens the CV's fields from that point, by ordinal: the
+reading is seeded past the yes, the seeded fields are read out of the profile until confirmed
+again, and the CV's value replaces theirs only when they confirm it. Migration 0033 carries the
+ordinal and puts the one `pending` row his own walk left back to `held`. Lateness is derived each
+time it is asked, never stored. His walk, in a fresh conversation, is where the yes path is first
+seen from the beginning.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P251 — ask first, delete on a no, and ask what the CV cannot say
 
 > *"Uploading a file is not consent to take its contents as the whole answer."*

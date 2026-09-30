@@ -47,6 +47,7 @@ import {
   eventId as makeEventId,
   externalRef,
   idempotencyKeyFor,
+  isFieldUnavailable,
   isTerminalWorkflowStatus,
   proposeValue,
   provenanceOf,
@@ -14586,7 +14587,7 @@ describeIfDatabase("a CV is read only on the student's word, asked when its firs
       expect(said.at(-1)).toBe("I have your CV. Do you want me to fill in your jobs and qualifications from it, or would you rather tell me yourself?");
       expect(await readingState(NO_DOCUMENT)).toBe("offered");
       const reading = await built.driver.runFor(NO_CONVERSATION);
-      expect(reading?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: said.at(-1) });
+      expect(reading?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: said.at(-1), late: false });
       // No field question is open: the CV question is not a question about a field.
       const asked = await pool.query<{ n: string }>("SELECT count(*) AS n FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_asked'", [NO_CONVERSATION]);
       expect(Number(asked.rows[0]?.n)).toBe(0);
@@ -14641,6 +14642,189 @@ describeIfDatabase("a CV is read only on the student's word, asked when its firs
     expect(completeness).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
     await say(YES_CONVERSATION, "no");
     expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("Is that right?");
+  }, 300_000);
+});
+
+describeIfDatabase("a CV uploaded after both its fields are confirmed is asked about at once, never held in silence; a no deletes it and leaves the fields; a yes goes back and confirms again (P252, row 107)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-30, row 107: *"ask, do not hold silently. A CV uploaded
+  // after both sections are confirmed should get a sentence, not silence.
+  // Something to the effect that we have it, that the jobs and qualifications
+  // are already filled in and confirmed, and asking whether they want to go
+  // back and use the CV for either — with the honest note that it would mean
+  // redoing what they already confirmed… If they say no, delete it and say
+  // so, same as the decline path."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const NO_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX25201";
+  const YES_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX25202";
+  const NO_DOCUMENT = "01JQDOCREAD000000000000005";
+  const YES_DOCUMENT = "01JQDOCREAD000000000000006";
+  const contentHash = "a".repeat(64);
+  const LATE_QUESTION =
+    "I have your CV. Your jobs and qualifications are already filled in and confirmed. Do you want me to go back and fill them in from the CV instead? That would mean redoing what you already confirmed: I would show you what the CV says and ask you to confirm it again. Or shall I leave them as they are?";
+  let noOwner = "";
+  let yesOwner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+
+  // What they confirmed before the CV arrived — typed, theirs.
+  const CONFIRMED = {
+    level: "Bachelor's degree",
+    awardTitle: "BA",
+    subject: "History",
+    institution: "Shiraz University",
+    countryCode: "IR",
+    start: { year: 2014, month: 9 },
+    end: { kind: "completed" as const, date: { year: 2018, month: 6 } },
+    grade: "16",
+    gradeScale: "twenty_point",
+  };
+  // What the CV says instead.
+  const ENTRY_READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  };
+
+  function readingVault(records: DocumentRecord[]): DocumentVault & { readonly records: DocumentRecord[] } {
+    const base = fakeVault(records);
+    return {
+      ...base,
+      records: base.records,
+      prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }),
+    };
+  }
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(conversation: string, what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function assistantSaid(conversation: string): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function reading(documentId: string): Promise<{ state: string; reopened_after: number | null } | undefined> {
+    return (await pool.query<{ state: string; reopened_after: number | null }>("SELECT state, reopened_after FROM document_readings WHERE document_id = $1", [documentId])).rows[0];
+  }
+  async function institutionHeld(owner: string): Promise<string | undefined> {
+    const built = instance();
+    try {
+      const profile = await new PostgresConfirmedProfileStore(built.pool).load(owner, NOW);
+      const held = resolveField(profile, "education.prior_qualifications");
+      return isFieldUnavailable(held) ? undefined : unwrapConfirmed(held)[0]?.institution;
+    } finally {
+      await built.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    noOwner = await ownConversation(NO_CONVERSATION);
+    yesOwner = await ownConversation(YES_CONVERSATION);
+    vault = readingVault([
+      { documentId: NO_DOCUMENT, studentId: noOwner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+      { documentId: YES_DOCUMENT, studentId: yesOwner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+    ]);
+    const built = instance();
+    try {
+      const profiles = new PostgresConfirmedProfileStore(built.pool);
+      for (const [conversation, owner] of [[NO_CONVERSATION, noOwner], [YES_CONVERSATION, yesOwner]] as const) {
+        await confirmTheInterview(profiles, owner);
+        await confirmInto(profiles, "education.prior_qualifications", [CONFIRMED], "BA History, Shiraz University, 2014 to 2018", owner);
+        // The interview has been through: every field the fixture needs is confirmed before the CV arrives.
+        const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+        if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+        expect((await assistantSaid(conversation)).some((line) => line.toLowerCase().includes("qualification")), "nothing about qualifications was asked: they are confirmed").toBe(false);
+      }
+      // Then the CV, late.
+      await built.driver.requestReading({ documentId: NO_DOCUMENT, conversationId: NO_CONVERSATION, studentId: noOwner, contentHash });
+      await built.driver.requestReading({ documentId: YES_DOCUMENT, conversationId: YES_CONVERSATION, studentId: yesOwner, contentHash });
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("asks at once, in the late words — we have it, they are confirmed, go back or leave them — as the run's pending decision, and asks again with the way to answer when the reply is neither", async () => {
+    expect((await reading(NO_DOCUMENT))?.state, "offered on arrival, not held in silence").toBe("offered");
+    expect((await assistantSaid(NO_CONVERSATION)).at(-1)).toBe(LATE_QUESTION);
+    const built = instance();
+    try {
+      const run = await built.driver.runFor(NO_CONVERSATION);
+      expect(run?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: LATE_QUESTION, late: true });
+    } finally {
+      await built.pool.end();
+    }
+    await say(NO_CONVERSATION, "which CV?");
+    expect((await assistantSaid(NO_CONVERSATION)).at(-1)).toBe(`${LATE_QUESTION} You can answer yes or no, or press one of the buttons.`);
+    expect((await reading(NO_DOCUMENT))?.state).toBe("offered");
+  }, 120_000);
+
+  it("a NO deletes the CV and says so, and the qualifications stay as they confirmed them", async () => {
+    await say(NO_CONVERSATION, "no, leave them");
+    expect((await reading(NO_DOCUMENT))?.state).toBe("declined");
+    expect(vault.records.find((record) => record.documentId === NO_DOCUMENT)?.state, "deleted, same as the decline path").toBe("purged");
+    const said = await assistantSaid(NO_CONVERSATION);
+    const deleted = said.indexOf("You said no, so I have deleted your CV. Your jobs and qualifications stay as you confirmed them.");
+    expect(deleted, "the sentence, same as the decline path").toBeGreaterThan(-1);
+    expect(said.slice(deleted + 1).some((line) => line.toLowerCase().includes("qualification")), "no question about qualifications followed").toBe(false);
+    expect(await institutionHeld(noOwner)).toBe("Shiraz University");
+    await say(NO_CONVERSATION, "actually, use my CV");
+    expect((await assistantSaid(NO_CONVERSATION)).at(-1)).toBe("Your CV was deleted when you said no earlier, so I cannot use it now. If you would like me to, upload it again from the documents panel and I will ask you again.");
+  }, 120_000);
+
+  it("a YES reopens the CV's fields from that point: the reading is seeded over the confirmed value, the walk asks what the CV did not give and the completeness question, and the confirmed value stands until they confirm the CV's", async () => {
+    const built = instance();
+    let runId = "";
+    try {
+      const runs = await new PostgresWorkflowRunStore(built.pool).findByCase(makeCaseId(`case_${YES_CONVERSATION.toLowerCase()}`));
+      runId = runs[0]?.runId ?? "";
+      expect((await reading(YES_DOCUMENT))?.state).toBe("offered");
+      expect(await built.driver.recordDecision({ conversationId: YES_CONVERSATION, runId, decision: { kind: "use_document", documentId: YES_DOCUMENT, use: true } })).toEqual({ ok: true });
+      const row = await reading(YES_DOCUMENT);
+      expect(row?.state).toBe("pending");
+      expect(row?.reopened_after, "the row says from where the earlier confirmation stops counting").toBeGreaterThan(0);
+      expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toBe("Reading your CV now — it takes a minute or two. When it is done I will show you what it says and ask you to confirm your jobs and qualifications again.");
+      const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed?.documentId).toBe(YES_DOCUMENT);
+      expect(await built.driver.reportReading({ documentId: YES_DOCUMENT, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [ENTRY_READ], dropped: 0 }] } })).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+    const after = await assistantSaid(YES_CONVERSATION);
+    expect(after.at(-2)).toContain("I read your CV and filled in one qualification from it.");
+    expect(after.at(-1)?.toLowerCase(), "the first thing the CV did not give, asked over the confirmed value").toContain("country");
+    expect(await institutionHeld(yesOwner), "nothing replaced until they confirm").toBe("Shiraz University");
+    await say(YES_CONVERSATION, "Iran");
+    expect((await assistantSaid(YES_CONVERSATION)).at(-1)?.toLowerCase()).toContain("award");
+    await say(YES_CONVERSATION, "none");
+    expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+    await say(YES_CONVERSATION, "no");
+    const playback = (await assistantSaid(YES_CONVERSATION)).at(-1) ?? "";
+    expect(playback).toContain("University of Tehran");
+    expect(playback).toContain("Is that right?");
+    const hash = `sha256:${createHash("sha256").update(playback).digest("hex")}`;
+    const built2 = instance();
+    try {
+      expect(await built2.driver.recordDecision({ conversationId: YES_CONVERSATION, runId, decision: { kind: "confirm_value", contentHash: hash } })).toEqual({ ok: true });
+      expect(await institutionHeld(yesOwner), "the CV's, confirmed, replaces theirs").toBe("University of Tehran");
+      const run = await built2.driver.runFor(YES_CONVERSATION);
+      expect(run?.pending?.decision, "the reopening is closed by the confirmation; nothing about the CV stands").not.toBe("use_document");
+      expect(run?.pending?.decision).not.toBe("confirm_value");
+    } finally {
+      await built2.pool.end();
+    }
   }, 300_000);
 });
 

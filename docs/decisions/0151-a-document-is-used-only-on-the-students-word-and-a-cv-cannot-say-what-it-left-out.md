@@ -103,12 +103,45 @@ than pretending we can undo it."*
   interview's wording; the message reader's use request. The page's rendering is typechecked and
   not driven by a test in this phase; his walk is where it is first seen.
 
-## Not decided here
+## Not decided here — and then decided (row 107, P252)
 
-- A CV uploaded **after** both its fields are already confirmed is never asked about: the question
-  is put when a CV field comes up, and none will. The document stays held under its purpose,
+- A CV uploaded **after** both its fields are already confirmed was never asked about: the question
+  is put when a CV field comes up, and none would. The document stayed held under its purpose,
   unread, deletable by asking. Whether that upload should be refused, asked about at once, or
-  deleted with a sentence is his to say (row 107).
+  deleted with a sentence was left to him (row 107).
+
+**Amended 2026-09-30, in his words:**
+
+> *"Row 107, decided: ask, do not hold silently. A CV uploaded after both sections are confirmed
+> should get a sentence, not silence. Something to the effect that we have it, that the jobs and
+> qualifications are already filled in and confirmed, and asking whether they want to go back and
+> use the CV for either — with the honest note that it would mean redoing what they already
+> confirmed. Not refused… Not deleted without asking… And not held in silence, which is the worst
+> of the three… If they say no, delete it and say so, same as the decline path."*
+
+Built in P252:
+
+- **The question, at once.** When a CV is confirmed into the vault and every CV field the run
+  requires is already confirmed, the interview will never reach one, so the question is put on
+  arrival instead, in the late words: *"I have your CV. Your jobs and qualifications are already
+  filled in and confirmed. Do you want me to go back and fill them in from the CV instead? That
+  would mean redoing what you already confirmed: I would show you what the CV says and ask you to
+  confirm it again. Or shall I leave them as they are?"* The run's pending decision is the same
+  `use_document`, now carrying `late: true`; the page's consequence line and buttons say *go back*
+  and *leave them as they are*. Whether a CV is late is derived from the blueprint and the profile
+  each time it is asked, never stored: what is true of the fields when the words are said is what
+  the words claim.
+- **A late no** deletes the CV, same as the decline path, and says: *"You said no, so I have deleted
+  your CV. Your jobs and qualifications stay as you confirmed them."* Nothing is asked after it.
+- **A late yes** reopens the CV's fields from that point. The row records the conversation's last
+  ordinal when the yes was said (`reopened_after`, migration 0033); the reading is seeded past it,
+  so the earlier confirmation does not count as "already begun"; while a field the reading seeded
+  has no confirmation after that ordinal, the run reads the profile without it, the plan blocks,
+  and the walk asks what the CV did not give and the completeness question, then plays the CV's
+  value back. Until they confirm it, theirs stands in the store; the confirmation replaces it.
+  Ordinals, not clocks: the log is ordered by ordinal, and a clock is not.
+- **The rows P251 left behind.** A CV confirmed before migration 0032 sat `pending` with no word
+  from anyone, and would have been claimed without asking. 0033 puts such a row back to `held`.
 
 ## Consequences
 

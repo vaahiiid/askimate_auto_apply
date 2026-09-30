@@ -486,6 +486,13 @@ take its contents as the whole answer… A CV is a selective document. People le
 The reading, the seeding and the sentence are unchanged; what changed is what the student is asked
 before and after.
 
+**§10, for a CV that arrives late (P252, row 107).** A CV confirmed after every field it could fill
+is already confirmed would meet no question, and P251 held it in silence. His word, 2026-09-30:
+*"ask, do not hold silently."* So it is asked about on arrival, in words that say the fields are
+filled in and confirmed and that a yes means redoing them; a no deletes it and says so, same as
+the decline path; a yes reopens the CV's fields from that point, and their earlier confirmation
+stands until they confirm the CV's. Under ADR-0151, as amended.
+
 ## Deleting the confirmed values, sized and not decided
 
 A confirmed value lives in the profile's own rows, which can be deleted; in the conversation

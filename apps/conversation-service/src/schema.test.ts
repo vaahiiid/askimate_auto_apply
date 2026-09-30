@@ -153,6 +153,7 @@ beforeAll(async () => {
     "0030_a_document_is_read_by_the_reader",
     "0031_a_reading_keeps_its_structure",
     "0032_a_document_is_used_on_the_students_word",
+    "0033_a_late_cv_is_asked_about_at_once",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -1189,6 +1190,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0030_a_document_is_read_by_the_reader",
     "0031_a_reading_keeps_its_structure",
     "0032_a_document_is_used_on_the_students_word",
+    "0033_a_late_cv_is_asked_about_at_once",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1237,7 +1239,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       );
       expect(tagged.rowCount).toBe(1);
 
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part", "0030_a_document_is_read_by_the_reader", "0031_a_reading_keeps_its_structure", "0032_a_document_is_used_on_the_students_word"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part", "0030_a_document_is_read_by_the_reader", "0031_a_reading_keeps_its_structure", "0032_a_document_is_used_on_the_students_word", "0033_a_late_cv_is_asked_about_at_once"]);
       const after = await fresh.query<{ field_key: string; value: unknown }>(
         "SELECT field_key, value FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
         [id],
@@ -1257,6 +1259,43 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     } finally {
       await fresh.end();
       rmSync(upTo0027, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("0033 puts a pending reading nobody answered about back to held, and leaves one the student said yes to", async () => {
+    // P252. Before 0032 a confirmed CV went straight to `pending`; 0032 added
+    // the question but moved no row already waiting, so a CV confirmed under
+    // 0030 and still unread would have been read without anyone asking.
+    // Applied to a database standing at 0032 with such a row, which is the
+    // case that matters — Vahid's own walk on 2026-09-29 left one.
+    const fresh = await ownDatabase("aas_conversation_0033");
+    const upTo0032 = mkdtempSync(join(tmpdir(), "aas-0032-"));
+    try {
+      for (const name of readdirSync(MIGRATIONS_DIR)) {
+        if (name.endsWith(".sql") && name < "0033") copyFileSync(join(MIGRATIONS_DIR, name), join(upTo0032, name));
+      }
+      const applied = await migrate(fresh, upTo0032);
+      expect(applied.at(-1)).toBe("0032_a_document_is_used_on_the_students_word");
+      const hash = "b".repeat(64);
+      await fresh.query(
+        "INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at) VALUES ('01JQREAD0033000000000000A1', 'c', 's', $1, 'pending', now())",
+        [hash],
+      );
+      await fresh.query(
+        "INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, decided_at) VALUES ('01JQREAD0033000000000000A2', 'c', 's', $1, 'pending', now(), now())",
+        [hash],
+      );
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0033_a_late_cv_is_asked_about_at_once"]);
+      const after = await fresh.query<{ document_id: string; state: string; reopened_after: number | null }>(
+        "SELECT document_id, state, reopened_after FROM document_readings ORDER BY document_id",
+      );
+      expect(after.rows).toEqual([
+        { document_id: "01JQREAD0033000000000000A1", state: "held", reopened_after: null },
+        { document_id: "01JQREAD0033000000000000A2", state: "pending", reopened_after: null },
+      ]);
+    } finally {
+      await fresh.end();
+      rmSync(upTo0032, { recursive: true, force: true });
     }
   }, 60_000);
 
@@ -1318,6 +1357,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0030_a_document_is_read_by_the_reader",
     "0031_a_reading_keeps_its_structure",
     "0032_a_document_is_used_on_the_students_word",
+    "0033_a_late_cv_is_asked_about_at_once",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

@@ -90,11 +90,12 @@ export type PendingDecision =
       readonly contentHash: string;
       readonly readings: readonly { readonly id: string; readonly label: string }[];
     }
-  /** P251, ADR-0151. The interview reached the first field the student's CV could fill and asks before reading it. */
+  /** P251, ADR-0151. The interview reached the first field the student's CV could fill and asks before reading it. `late` (P252): the CV arrived after its fields were confirmed; a yes means confirming them again. */
   | {
       readonly decision: "use_document";
       readonly documentId: string;
       readonly question: string;
+      readonly late: boolean;
     };
 
 /** A portal's consent banner as the reviewed blueprint records it (ADR-0131). */
@@ -259,8 +260,8 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
         if (question === null) return null;
         pending = { decision: "consent_choice", question };
       } else if (raw["decision"] === "use_document") {
-        if (typeof raw["documentId"] !== "string" || typeof raw["question"] !== "string") return null;
-        pending = { decision: "use_document", documentId: raw["documentId"], question: raw["question"] };
+        if (typeof raw["documentId"] !== "string" || typeof raw["question"] !== "string" || typeof raw["late"] !== "boolean") return null;
+        pending = { decision: "use_document", documentId: raw["documentId"], question: raw["question"], late: raw["late"] };
       } else if (raw["decision"] === "choose_reading") {
         const list = raw["readings"];
         if (!Array.isArray(list) || typeof raw["contentHash"] !== "string") return null;

@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.248.0] — 2026-09-30
+
+**P252 — a CV that arrives after its fields are confirmed is asked about at once, never held in silence (row 107; ADR-0151 amended).**
+
+- **Added** the late question: when a CV is confirmed and every CV field the run requires is
+  already confirmed, the interview asks on arrival, in Vahid's words — *I have your CV. Your jobs
+  and qualifications are already filled in and confirmed. Do you want me to go back and fill them
+  in from the CV instead? That would mean redoing what you already confirmed…* — as the run's
+  pending `use_document` decision, now carrying `late`, and in the chat. The page's consequence
+  line and buttons say *go back* and *leave them as they are*.
+- **Added** the late no: the CV is purged, same as the decline path, and the chat says the jobs and
+  qualifications stay as confirmed. Nothing is asked after it.
+- **Added** the late yes: the CV's fields are reopened from that point. Migration 0033 adds
+  `reopened_after`, the conversation's ordinal at the yes; the reading is seeded past it; a seeded
+  field is read out of the profile until confirmed again; the confirmation replaces theirs.
+- **Changed** migration 0033 also puts a `pending` reading nobody answered about (left by a CV
+  confirmed before 0032) back to `held`, so nothing is read without the question.
+- **Changed** the plain yes/no reader to take the late question's own words (*leave them*, *go
+  back*) and to read past a comma.
+
+---
+
 ## [0.247.0] — 2026-09-29
 
 **P251 — a document is used only on the student's word; a no deletes it and says so; the walk ends with the question a CV cannot answer (ADR-0151).**

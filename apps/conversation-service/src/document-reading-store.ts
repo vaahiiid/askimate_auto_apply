@@ -44,6 +44,13 @@ export interface DocumentReading {
   readonly structure: ReadingStructure | null;
   /** When the student answered the question, yes or no (P251, migration 0032). */
   readonly decidedAt: Date | null;
+  /**
+   * The conversation's last ordinal when the student said a LATE yes — the CV
+   * arrived after its fields were confirmed, and they chose to go back (P252,
+   * migration 0033). Events at or before it are the earlier confirmation;
+   * the reading seeded after it reopens the field. `null` on every other row.
+   */
+  readonly reopenedAfter: number | null;
 }
 
 export interface DocumentReadingStore {
@@ -57,12 +64,19 @@ export interface DocumentReadingStore {
   }): Promise<void>;
   /** The question was put: `held` becomes `offered`. `null` when the document is not held. */
   ask(documentId: string, now: Date): Promise<DocumentReading | null>;
-  /** The student's word on an offered document: yes makes it `pending` for the reader, no ends it `declined`. `null` when no question stands. */
-  decide(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null>;
+  /**
+   * The student's word on an offered document: yes makes it `pending` for the
+   * reader, no ends it `declined`. `null` when no question stands.
+   * `reopenedAfter`, on a yes, marks a late one (P252): the fields the CV can
+   * fill are reopened from that ordinal.
+   */
+  decide(documentId: string, use: boolean, now: Date, reopenedAfter?: number): Promise<DocumentReading | null>;
   /** The document this conversation holds that is not yet ended — held, offered, pending or leased — the latest if several; `null` when none. */
   heldFor(conversationId: string): Promise<DocumentReading | null>;
   /** The latest document this conversation declined, or `null`: the honest answer to "actually, use my CV" after a no. */
   declinedFor(conversationId: string): Promise<DocumentReading | null>;
+  /** The latest reading a late yes reopened fields for — pending, leased or read — or `null` (P252). A failed one reopened nothing: no seeding followed. */
+  reopenedFor(conversationId: string): Promise<DocumentReading | null>;
   /** Leases the oldest document waiting (`pending`), or one whose lease lapsed; `null` when none. */
   claim(input: {
     readonly holder: string;
@@ -98,6 +112,7 @@ interface Row {
   readonly failure: string | null;
   readonly structure: ReadingStructure | null;
   readonly decided_at: Date | null;
+  readonly reopened_after: number | null;
 }
 
 function readingOf(row: Row): DocumentReading {
@@ -115,11 +130,12 @@ function readingOf(row: Row): DocumentReading {
     failure: row.failure,
     structure: row.structure,
     decidedAt: row.decided_at,
+    reopenedAfter: row.reopened_after,
   };
 }
 
 const COLUMNS =
-  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure, decided_at";
+  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure, decided_at, reopened_after";
 
 /** The `document_readings` table (migration 0030). */
 export class PostgresDocumentReadingStore implements DocumentReadingStore {
@@ -147,10 +163,10 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
     return row === undefined ? null : readingOf(row);
   }
 
-  public async decide(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null> {
+  public async decide(documentId: string, use: boolean, now: Date, reopenedAfter?: number): Promise<DocumentReading | null> {
     const rows = await this.#pool.query<Row>(
-      `UPDATE document_readings SET state = $2, decided_at = $3 WHERE document_id = $1 AND state = 'offered' RETURNING ${COLUMNS}`,
-      [documentId, use ? "pending" : "declined", now],
+      `UPDATE document_readings SET state = $2, decided_at = $3, reopened_after = $4 WHERE document_id = $1 AND state = 'offered' RETURNING ${COLUMNS}`,
+      [documentId, use ? "pending" : "declined", now, use ? (reopenedAfter ?? null) : null],
     );
     const row = rows.rows[0];
     return row === undefined ? null : readingOf(row);
@@ -171,6 +187,17 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
     const rows = await this.#pool.query<Row>(
       `SELECT ${COLUMNS} FROM document_readings
         WHERE conversation_id = $1 AND state = 'declined'
+        ORDER BY decided_at DESC LIMIT 1`,
+      [conversationId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async reopenedFor(conversationId: string): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `SELECT ${COLUMNS} FROM document_readings
+        WHERE conversation_id = $1 AND reopened_after IS NOT NULL AND state IN ('pending', 'leased', 'read')
         ORDER BY decided_at DESC LIMIT 1`,
       [conversationId],
     );
@@ -252,6 +279,7 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
         failure: null,
         structure: null,
         decidedAt: null,
+        reopenedAfter: null,
       });
     }
     return Promise.resolve();
@@ -265,10 +293,10 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
     return Promise.resolve(offered);
   }
 
-  public decide(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null> {
+  public decide(documentId: string, use: boolean, now: Date, reopenedAfter?: number): Promise<DocumentReading | null> {
     const row = this.#rows.get(documentId);
     if (row === undefined || row.state !== "offered") return Promise.resolve(null);
-    const decided: DocumentReading = { ...row, state: use ? "pending" : "declined", decidedAt: now };
+    const decided: DocumentReading = { ...row, state: use ? "pending" : "declined", decidedAt: now, reopenedAfter: use ? (reopenedAfter ?? null) : null };
     this.#rows.set(documentId, decided);
     return Promise.resolve(decided);
   }
@@ -284,6 +312,14 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
   public declinedFor(conversationId: string): Promise<DocumentReading | null> {
     const found = [...this.#rows.values()]
       .filter((row) => row.conversationId === conversationId && row.state === "declined")
+      .sort((a, b) => (b.decidedAt?.getTime() ?? 0) - (a.decidedAt?.getTime() ?? 0))[0];
+    return Promise.resolve(found ?? null);
+  }
+
+  public reopenedFor(conversationId: string): Promise<DocumentReading | null> {
+    const reopened = new Set<ReadingState>(["pending", "leased", "read"]);
+    const found = [...this.#rows.values()]
+      .filter((row) => row.conversationId === conversationId && row.reopenedAfter !== null && reopened.has(row.state))
       .sort((a, b) => (b.decidedAt?.getTime() ?? 0) - (a.decidedAt?.getTime() ?? 0))[0];
     return Promise.resolve(found ?? null);
   }

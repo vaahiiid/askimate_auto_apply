@@ -160,6 +160,43 @@ describeIfDatabase("a reading keeps its structure (P248, migration 0031)", () =>
   });
 });
 
+describeIfDatabase("a late yes reopens the CV's fields from an ordinal (P252, migration 0033)", () => {
+  it("keeps the ordinal a late yes was said at, answers reopenedFor while the reading stands, and refuses a reopening on a row the student has not answered about", async () => {
+    const store = new PostgresDocumentReadingStore(pool);
+    const now = new Date("2026-09-30T12:00:00Z");
+    // Older than anything else this file leaves waiting: a claim takes the
+    // OLDEST pending row, and the table is shared across the file.
+    const long_ago = new Date("1999-01-01T00:00:00Z");
+    const conversation = "c-late-0033";
+    // An ordinary yes reopens nothing.
+    await store.request({ documentId: "01JQREADLATE00000000000001", conversationId: conversation, studentId: "s", contentHash: HASH, now });
+    await store.ask("01JQREADLATE00000000000001", now);
+    expect((await store.decide("01JQREADLATE00000000000001", true, now))?.reopenedAfter).toBeNull();
+    expect(await store.reopenedFor(conversation)).toBeNull();
+    // A late yes says from where: the ordinal, kept through the lease and the report.
+    await store.request({ documentId: "01JQREADLATE00000000000002", conversationId: conversation, studentId: "s", contentHash: HASH, now: long_ago });
+    await store.ask("01JQREADLATE00000000000002", now);
+    expect((await store.decide("01JQREADLATE00000000000002", true, now, 41))?.reopenedAfter).toBe(41);
+    expect((await store.reopenedFor(conversation))?.documentId).toBe("01JQREADLATE00000000000002");
+    const leased = await store.claim({ holder: "reader-1", leaseId: "rl_late", now, leaseSeconds: 60 });
+    expect(leased?.documentId).toBe("01JQREADLATE00000000000002");
+    expect(leased?.reopenedAfter, "the lease carries it, so the report seeds from there").toBe(41);
+    expect(await store.complete({ documentId: leased?.documentId ?? "", leaseId: "rl_late", outcome: "read", now })).toBe(true);
+    expect((await store.reopenedFor(conversation))?.reopenedAfter, "read, and still the reopening").toBe(41);
+    // A late NO reopens nothing, whatever the caller passed.
+    await store.request({ documentId: "01JQREADLATE00000000000003", conversationId: conversation, studentId: "s", contentHash: HASH, now });
+    await store.ask("01JQREADLATE00000000000003", now);
+    expect((await store.decide("01JQREADLATE00000000000003", false, now, 50))?.reopenedAfter).toBeNull();
+    // The table: a reopening follows a yes — never a row nobody answered about.
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, reopened_after) VALUES ('01JQREADLATE00000000000004', 'c', 's', $1, 'held', now(), 3)", [HASH]),
+    ).rejects.toThrow(/document_readings_a_reopening_follows_a_yes/);
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, decided_at, reopened_after) VALUES ('01JQREADLATE00000000000005', 'c', 's', $1, 'declined', now(), now(), 3)", [HASH]),
+    ).rejects.toThrow(/document_readings_a_reopening_follows_a_yes/);
+  });
+});
+
 describeIfDatabase("the table refuses what the store never writes", () => {
   it("REFUSES a lease with a holder and no expiry, a failure on a reading that did not fail, and an unknown state", async () => {
     await expect(
