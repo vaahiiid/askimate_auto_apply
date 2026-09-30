@@ -143,6 +143,12 @@ Built in P252:
 - **The rows P251 left behind.** A CV confirmed before migration 0032 sat `pending` with no word
   from anyone, and would have been claimed without asking. 0033 puts such a row back to `held`.
 
+**Still not decided (row 108, raised on his walk of 2026-09-30):** a reading already *done*
+under the rule before this ADR — a `read` row with `decided_at` null — was never asked about, and
+0033 leaves it as it is, because the reading happened. Whether the values it seeded stand when
+the student confirmed them at the playback, and what is asked when they did not, is his to say;
+the reasoning either way is in row 108.
+
 ## Consequences
 
 - The runbook's walk changes: the sentence arrives when the interview reaches the qualifications

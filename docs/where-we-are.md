@@ -4921,6 +4921,18 @@ ordinal and puts the one `pending` row his own walk left back to `held`. Latenes
 time it is asked, never stored. His walk, in a fresh conversation, is where the yes path is first
 seen from the beginning.
 
+## His walk, 2026-09-30
+
+Blocker 41 closed by his observation, in his words: the reapplication path works end to end, a new
+case and all. The CV question did not appear, and the reason was a case neither of us had
+considered: a CV read the evening before, under the rule before P251, `read` with no `decided_at`.
+Migration 0033 rightly leaves it alone — the reading happened. What follows is not a fix but a
+question, row 108: do values seeded by a reading nobody was asked about stand once the student
+confirmed them at the playback, and what is asked when they did not? My reading and the reasons
+are in the row, marked undecided. Answering it turned up row 109: a list confirmed from a CV's
+walk is stored as conversation-origin with no document id, so the profile cannot find "the values
+that came from that reading" — only the log can.
+
 ## Declared-but-unreachable surface
 
 **Three** — unchanged.
