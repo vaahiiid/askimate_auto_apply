@@ -127,7 +127,7 @@ Built in P252:
   filled in and confirmed. Do you want me to go back and fill them in from the CV instead? That
   would mean redoing what you already confirmed: I would show you what the CV says and ask you to
   confirm it again. Or shall I leave them as they are?"* The run's pending decision is the same
-  `use_document`, now carrying `late: true`; the page's consequence line and buttons say *go back*
+  `use_document`, now carrying `situation: late`; the page's consequence line and buttons say *go back*
   and *leave them as they are*. Whether a CV is late is derived from the blueprint and the profile
   each time it is asked, never stored: what is true of the fields when the words are said is what
   the words claim.
@@ -143,11 +143,28 @@ Built in P252:
 - **The rows P251 left behind.** A CV confirmed before migration 0032 sat `pending` with no word
   from anyone, and would have been claimed without asking. 0033 puts such a row back to `held`.
 
-**Still not decided (row 108, raised on his walk of 2026-09-30):** a reading already *done*
-under the rule before this ADR — a `read` row with `decided_at` null — was never asked about, and
-0033 leaves it as it is, because the reading happened. Whether the values it seeded stand when
-the student confirmed them at the playback, and what is asked when they did not, is his to say;
-the reasoning either way is in row 108.
+**Amended again 2026-09-30 (row 108, P253), in his words**, on a reading already *done* under
+the rule before this ADR — a `read` row with `decided_at` null, which 0033 leaves as it is because
+the reading happened:
+
+> *"Values the student confirmed stand. The upload sentence disclosed that the CV would be read for
+> those sections, and a student who saw every entry played back and said yes was the author of
+> those values. Taking that back would be undoing a confirmation only they may undo. Parts never
+> confirmed get the honest question… 'I read your CV before I should have asked. Do you want me to
+> use what I read, or would you rather tell me yourself?' Do not soften it. Admitting the order
+> was wrong is the point… A no deletes the CV, same as the ordinary no. Name the state in the
+> store so nobody repairs the null later. A `read` row with no decision is a fact about how this
+> system behaved for a period, and it should be legible as that rather than as missing data."*
+
+Built in P253: `consent` on every reading row — `awaiting`, `given`, `never_asked` — and the
+name on the column's own comment (migration 0034); the question above, put before one more part
+of such a reading is used, as the pending decision (`situation: read_before_asking`) and in the
+chat; a yes uses the parts; a no purges the CV and sets its parts aside, never read back into a
+walk, while what the student said themselves stays. The row stays `read`, with the question and
+the answer on it; nothing fills `decided_at` but the answer. And row 109, with it: a list a CV
+seeded is confirmed as `document_extracted_and_completed`, naming the document — his words:
+*"Provenance that says 'the student said it' for a value that came from a document is wrong… it
+is our record saying something that is not so."*
 
 ## Consequences
 

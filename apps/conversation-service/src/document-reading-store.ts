@@ -27,6 +27,25 @@ import type { ReadingStructure } from "./reading-account.js";
  */
 export type ReadingState = "held" | "offered" | "pending" | "leased" | "read" | "failed" | "declined";
 
+/**
+ * Whether the student's word was had on this document (P253, row 108).
+ *
+ *   awaiting     held or offered: the question is not yet answered
+ *   given        the student answered — before the reading (a yes or a no),
+ *                or after it, to the honest question (`used` says which way)
+ *   never_asked  read, leased or failed with no decision: the document was
+ *                read before the question existed (before migration 0032).
+ *                Vahid: *"a fact about how this system behaved for a period,
+ *                and it should be legible as that rather than as missing
+ *                data."* Named so nobody repairs the null.
+ */
+export type ReadingConsent = "awaiting" | "given" | "never_asked";
+
+export function consentOf(state: ReadingState, decidedAt: Date | null): ReadingConsent {
+  if (state === "held" || state === "offered") return "awaiting";
+  return decidedAt === null ? "never_asked" : "given";
+}
+
 export interface DocumentReading {
   readonly documentId: string;
   readonly conversationId: string;
@@ -51,6 +70,12 @@ export interface DocumentReading {
    * the reading seeded after it reopens the field. `null` on every other row.
    */
   readonly reopenedAfter: number | null;
+  /** The student's word on this document, by name (P253, row 108). Derived from `state` and `decidedAt`. */
+  readonly consent: ReadingConsent;
+  /** When the honest question was put on a row read before anyone asked (P253, migration 0034); `null` on every other row. */
+  readonly askedAfterReadingAt: Date | null;
+  /** The answer to that question: use what was read, or not. `null` while it stands, and on every other row. */
+  readonly used: boolean | null;
 }
 
 export interface DocumentReadingStore {
@@ -77,6 +102,14 @@ export interface DocumentReadingStore {
   declinedFor(conversationId: string): Promise<DocumentReading | null>;
   /** The latest reading a late yes reopened fields for — pending, leased or read — or `null` (P252). A failed one reopened nothing: no seeding followed. */
   reopenedFor(conversationId: string): Promise<DocumentReading | null>;
+  /** The latest document this conversation read before anyone asked — `read` with no decision — or `null` (P253, row 108). Returned while the honest question stands, until it is answered. */
+  unaskedFor(conversationId: string): Promise<DocumentReading | null>;
+  /** The honest question was put, on a row read before anyone asked. `null` when the row is not that, or was asked already. */
+  askAfterReading(documentId: string, now: Date): Promise<DocumentReading | null>;
+  /** The answer to the honest question. `null` when no such question stands. The row stays `read`: the reading happened. */
+  decideAfterReading(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null>;
+  /** The documents whose parts a no set aside — read, and answered "do not use" — so the walk never reads them back (P253). */
+  setAsideFor(conversationId: string): Promise<readonly string[]>;
   /** Leases the oldest document waiting (`pending`), or one whose lease lapsed; `null` when none. */
   claim(input: {
     readonly holder: string;
@@ -113,6 +146,8 @@ interface Row {
   readonly structure: ReadingStructure | null;
   readonly decided_at: Date | null;
   readonly reopened_after: number | null;
+  readonly asked_after_reading_at: Date | null;
+  readonly used: boolean | null;
 }
 
 function readingOf(row: Row): DocumentReading {
@@ -131,11 +166,14 @@ function readingOf(row: Row): DocumentReading {
     structure: row.structure,
     decidedAt: row.decided_at,
     reopenedAfter: row.reopened_after,
+    consent: consentOf(row.state as ReadingState, row.decided_at),
+    askedAfterReadingAt: row.asked_after_reading_at,
+    used: row.used,
   };
 }
 
 const COLUMNS =
-  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure, decided_at, reopened_after";
+  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure, decided_at, reopened_after, asked_after_reading_at, used";
 
 /** The `document_readings` table (migration 0030). */
 export class PostgresDocumentReadingStore implements DocumentReadingStore {
@@ -203,6 +241,47 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
     );
     const row = rows.rows[0];
     return row === undefined ? null : readingOf(row);
+  }
+
+  public async unaskedFor(conversationId: string): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `SELECT ${COLUMNS} FROM document_readings
+        WHERE conversation_id = $1 AND state = 'read' AND decided_at IS NULL
+        ORDER BY read_at DESC LIMIT 1`,
+      [conversationId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async askAfterReading(documentId: string, now: Date): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `UPDATE document_readings SET asked_after_reading_at = $2
+        WHERE document_id = $1 AND state = 'read' AND decided_at IS NULL AND asked_after_reading_at IS NULL
+        RETURNING ${COLUMNS}`,
+      [documentId, now],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async decideAfterReading(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `UPDATE document_readings SET decided_at = $3, used = $2
+        WHERE document_id = $1 AND asked_after_reading_at IS NOT NULL AND decided_at IS NULL
+        RETURNING ${COLUMNS}`,
+      [documentId, use, now],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async setAsideFor(conversationId: string): Promise<readonly string[]> {
+    const rows = await this.#pool.query<{ document_id: string }>(
+      "SELECT document_id FROM document_readings WHERE conversation_id = $1 AND used = false ORDER BY document_id",
+      [conversationId],
+    );
+    return rows.rows.map((row) => row.document_id);
   }
 
   public async claim(input: { holder: string; leaseId: string; now: Date; leaseSeconds: number }): Promise<DocumentReading | null> {
@@ -280,6 +359,9 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
         structure: null,
         decidedAt: null,
         reopenedAfter: null,
+        consent: "awaiting",
+        askedAfterReadingAt: null,
+        used: null,
       });
     }
     return Promise.resolve();
@@ -296,7 +378,7 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
   public decide(documentId: string, use: boolean, now: Date, reopenedAfter?: number): Promise<DocumentReading | null> {
     const row = this.#rows.get(documentId);
     if (row === undefined || row.state !== "offered") return Promise.resolve(null);
-    const decided: DocumentReading = { ...row, state: use ? "pending" : "declined", decidedAt: now, reopenedAfter: use ? (reopenedAfter ?? null) : null };
+    const decided: DocumentReading = { ...row, state: use ? "pending" : "declined", decidedAt: now, reopenedAfter: use ? (reopenedAfter ?? null) : null, consent: "given" };
     this.#rows.set(documentId, decided);
     return Promise.resolve(decided);
   }
@@ -314,6 +396,38 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
       .filter((row) => row.conversationId === conversationId && row.state === "declined")
       .sort((a, b) => (b.decidedAt?.getTime() ?? 0) - (a.decidedAt?.getTime() ?? 0))[0];
     return Promise.resolve(found ?? null);
+  }
+
+  public unaskedFor(conversationId: string): Promise<DocumentReading | null> {
+    const found = [...this.#rows.values()]
+      .filter((row) => row.conversationId === conversationId && row.state === "read" && row.decidedAt === null)
+      .sort((a, b) => (b.readAt?.getTime() ?? 0) - (a.readAt?.getTime() ?? 0))[0];
+    return Promise.resolve(found ?? null);
+  }
+
+  public askAfterReading(documentId: string, now: Date): Promise<DocumentReading | null> {
+    const row = this.#rows.get(documentId);
+    if (row === undefined || row.state !== "read" || row.decidedAt !== null || row.askedAfterReadingAt !== null) return Promise.resolve(null);
+    const asked: DocumentReading = { ...row, askedAfterReadingAt: now };
+    this.#rows.set(documentId, asked);
+    return Promise.resolve(asked);
+  }
+
+  public decideAfterReading(documentId: string, use: boolean, now: Date): Promise<DocumentReading | null> {
+    const row = this.#rows.get(documentId);
+    if (row === undefined || row.askedAfterReadingAt === null || row.decidedAt !== null) return Promise.resolve(null);
+    const decided: DocumentReading = { ...row, decidedAt: now, used: use, consent: "given" };
+    this.#rows.set(documentId, decided);
+    return Promise.resolve(decided);
+  }
+
+  public setAsideFor(conversationId: string): Promise<readonly string[]> {
+    return Promise.resolve(
+      [...this.#rows.values()]
+        .filter((row) => row.conversationId === conversationId && row.used === false)
+        .map((row) => row.documentId)
+        .sort(),
+    );
   }
 
   public reopenedFor(conversationId: string): Promise<DocumentReading | null> {

@@ -912,9 +912,19 @@ function wholeOf(
   readings: PartReadings,
 ): ProposedValue<unknown> {
   const parts = [...readings].map(([partKey, reading]) => ({ partKey, ...unwrapProposed(reading) }));
+  // Where the whole came from (P253, row 109). A document that gave any part
+  // is named on the whole, so the profile can find the values a reading
+  // produced; the origin is the document's only when every part was its —
+  // a list a CV seeded always has the student's parts too (the country, the
+  // basis, the last "another"), and is the student's completion of what the
+  // document gave. `applyConfirmation` records that as its own word.
+  const fromDocument = parts.filter((part) => part.value !== OMITTED && part.origin === "document");
+  const documentId = fromDocument.find((part) => part.documentId !== undefined)?.documentId;
+  const everyPartFromDocument = fromDocument.length > 0 && parts.every((part) => part.value === OMITTED || part.origin === "document");
   return proposeValue({
     value,
-    origin: "conversation",
+    origin: everyPartFromDocument ? "document" : "conversation",
+    ...(documentId === undefined ? {} : { documentId }),
     // Each part under the NAME it was asked for by, never its key (P228,
     // row 92): "street: 12 Valiasr Street; town: Tehran", and for a list
     // "period 1 — country: Iran". `item0.countryCode: Iran` was the shape

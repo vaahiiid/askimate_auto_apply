@@ -309,6 +309,8 @@ export const WORK_PROVENANCE_SOURCES = [
   "student_stated",
   "student_entered",
   "document_extracted",
+  // P253, row 109: a document's value the student completed and confirmed.
+  "document_extracted_and_completed",
   "student_corrected",
   // ADR-0121: an operator's seed from a fixture shown first; no student
   // confirmed it. Named so it is never read as a confirmation.

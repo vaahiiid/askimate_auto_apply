@@ -197,6 +197,68 @@ describeIfDatabase("a late yes reopens the CV's fields from an ordinal (P252, mi
   });
 });
 
+describeIfDatabase("a reading done before the question existed is legible as that, and answered after (P253, row 108, migration 0034)", () => {
+  it("names consent on every row; puts the question after reading only on a never-asked read row; records the answer; lists what a no set aside; the table refuses the rest", async () => {
+    const store = new PostgresDocumentReadingStore(pool);
+    const now = new Date("2026-09-30T12:00:00Z");
+    // Older than anything else this file leaves waiting: a claim takes the OLDEST pending row.
+    const long_ago = new Date("1998-01-01T00:00:00Z");
+    const conversation = "c-0034";
+    // Awaiting: held, then offered.
+    await store.request({ documentId: "01JQREADUNASK0000000000001", conversationId: conversation, studentId: "s", contentHash: HASH, now });
+    expect((await store.readingFor("01JQREADUNASK0000000000001"))?.consent).toBe("awaiting");
+    await store.ask("01JQREADUNASK0000000000001", now);
+    expect((await store.readingFor("01JQREADUNASK0000000000001"))?.consent).toBe("awaiting");
+    // Given: a yes, before reading.
+    expect((await store.decide("01JQREADUNASK0000000000001", true, now))?.consent).toBe("given");
+    expect(await store.askAfterReading("01JQREADUNASK0000000000001", now), "not read, and asked already: nothing to put").toBeNull();
+    // Never asked: read, and no decision — the row as the rule before 0032 left it.
+    await ready(store, { documentId: "01JQREADUNASK0000000000002", conversationId: conversation, studentId: "s", contentHash: HASH, now: long_ago });
+    const leased = await store.claim({ holder: "reader-1", leaseId: "rl_unasked", now, leaseSeconds: 60 });
+    expect(leased?.documentId).toBe("01JQREADUNASK0000000000002");
+    expect(await store.complete({ documentId: "01JQREADUNASK0000000000002", leaseId: "rl_unasked", outcome: "read", now })).toBe(true);
+    await pool.query("UPDATE document_readings SET decided_at = NULL WHERE document_id = '01JQREADUNASK0000000000002'");
+    const unasked = await store.readingFor("01JQREADUNASK0000000000002");
+    expect(unasked?.consent, "a fact about how this system behaved for a period, legible as that").toBe("never_asked");
+    expect(unasked?.askedAfterReadingAt).toBeNull();
+    expect(unasked?.used).toBeNull();
+    expect((await store.unaskedFor(conversation))?.documentId).toBe("01JQREADUNASK0000000000002");
+    // The question after reading: once.
+    expect((await store.askAfterReading("01JQREADUNASK0000000000002", now))?.askedAfterReadingAt).toEqual(now);
+    expect(await store.askAfterReading("01JQREADUNASK0000000000002", now), "asked already").toBeNull();
+    expect((await store.readingFor("01JQREADUNASK0000000000002"))?.consent, "still never asked before reading; the question stands").toBe("never_asked");
+    expect((await store.unaskedFor(conversation))?.documentId, "while it stands").toBe("01JQREADUNASK0000000000002");
+    expect(await store.setAsideFor(conversation)).toEqual([]);
+    // The answer: no.
+    const answered = await store.decideAfterReading("01JQREADUNASK0000000000002", false, now);
+    expect(answered?.consent).toBe("given");
+    expect(answered?.used).toBe(false);
+    expect(answered?.decidedAt).toEqual(now);
+    expect(answered?.state, "read stays read").toBe("read");
+    expect(await store.decideAfterReading("01JQREADUNASK0000000000002", true, now), "answered already").toBeNull();
+    expect(await store.unaskedFor(conversation)).toBeNull();
+    expect(await store.setAsideFor(conversation)).toEqual(["01JQREADUNASK0000000000002"]);
+    // The table: an answer without the question, and the question on a row not read.
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, read_at, decided_at, used) VALUES ('01JQREADUNASK0000000000003', 'c', 's', $1, 'read', now(), now(), now(), true)", [HASH]),
+    ).rejects.toThrow(/document_readings_the_question_after_reading/);
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, decided_at, asked_after_reading_at) VALUES ('01JQREADUNASK0000000000004', 'c', 's', $1, 'pending', now(), now(), now())", [HASH]),
+    ).rejects.toThrow(/document_readings_the_question_after_reading/);
+  });
+
+  it("names consent in memory the same way", async () => {
+    const store = new InMemoryDocumentReadingStore();
+    const now = new Date("2026-09-30T12:00:00Z");
+    await store.request({ documentId: "01JQREADUNASK0000000000009", conversationId: "c", studentId: "s", contentHash: HASH, now });
+    expect((await store.readingFor("01JQREADUNASK0000000000009"))?.consent).toBe("awaiting");
+    await store.ask("01JQREADUNASK0000000000009", now);
+    expect((await store.decide("01JQREADUNASK0000000000009", false, now))?.consent).toBe("given");
+    expect(await store.unaskedFor("c")).toBeNull();
+    expect(await store.setAsideFor("c")).toEqual([]);
+  });
+});
+
 describeIfDatabase("the table refuses what the store never writes", () => {
   it("REFUSES a lease with a holder and no expiry, a failure on a reading that did not fail, and an unknown state", async () => {
     await expect(

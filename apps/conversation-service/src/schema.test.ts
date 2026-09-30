@@ -154,6 +154,7 @@ beforeAll(async () => {
     "0031_a_reading_keeps_its_structure",
     "0032_a_document_is_used_on_the_students_word",
     "0033_a_late_cv_is_asked_about_at_once",
+    "0034_a_reading_before_the_question_is_legible_and_asked_after",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -1191,6 +1192,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0031_a_reading_keeps_its_structure",
     "0032_a_document_is_used_on_the_students_word",
     "0033_a_late_cv_is_asked_about_at_once",
+    "0034_a_reading_before_the_question_is_legible_and_asked_after",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1239,7 +1241,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       );
       expect(tagged.rowCount).toBe(1);
 
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part", "0030_a_document_is_read_by_the_reader", "0031_a_reading_keeps_its_structure", "0032_a_document_is_used_on_the_students_word", "0033_a_late_cv_is_asked_about_at_once"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part", "0030_a_document_is_read_by_the_reader", "0031_a_reading_keeps_its_structure", "0032_a_document_is_used_on_the_students_word", "0033_a_late_cv_is_asked_about_at_once", "0034_a_reading_before_the_question_is_legible_and_asked_after"]);
       const after = await fresh.query<{ field_key: string; value: unknown }>(
         "SELECT field_key, value FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
         [id],
@@ -1285,7 +1287,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, decided_at) VALUES ('01JQREAD0033000000000000A2', 'c', 's', $1, 'pending', now(), now())",
         [hash],
       );
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0033_a_late_cv_is_asked_about_at_once"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0033_a_late_cv_is_asked_about_at_once", "0034_a_reading_before_the_question_is_legible_and_asked_after"]);
       const after = await fresh.query<{ document_id: string; state: string; reopened_after: number | null }>(
         "SELECT document_id, state, reopened_after FROM document_readings ORDER BY document_id",
       );
@@ -1358,6 +1360,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0031_a_reading_keeps_its_structure",
     "0032_a_document_is_used_on_the_students_word",
     "0033_a_late_cv_is_asked_about_at_once",
+    "0034_a_reading_before_the_question_is_legible_and_asked_after",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

@@ -121,9 +121,15 @@ export function applyConfirmation<K extends ProfileFieldKey>(input: {
     // Where it came from AND whether the agent got it right first time. A
     // correction is materially different evidence from an acceptance, and the
     // learning loop (ADR-0008) cares about the difference.
+    // A conversation-origin proposal that names a document is a value the
+    // document gave in part and the student completed (P253, row 109): the
+    // interview assembles a list that way. Neither "the student said it" nor
+    // "extracted" alone is true of it, so it has its own word.
     source: accepted
       ? proposal.origin === "conversation"
-        ? "student_stated"
+        ? proposal.documentId === undefined
+          ? "student_stated"
+          : "document_extracted_and_completed"
         : "document_extracted"
       : "student_corrected",
     confirmedAt: confirmation.respondedAt,
@@ -166,7 +172,9 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
   const rendered = countryNameFor(key, proposal.value) ?? formatValue(proposal.value, key);
   const heard =
     proposal.origin === "conversation"
-      ? `You said: "${proposal.verbatim}"`
+      ? proposal.documentId === undefined
+        ? `You said: "${proposal.verbatim}"`
+        : `From your document, with your answers: "${proposal.verbatim}"`
       : `From your document: "${proposal.verbatim}"`;
 
   return `${heard}\n\nI've recorded your ${label.toLowerCase()} as: ${rendered}\n\nIs that right?`;

@@ -90,6 +90,26 @@ describe("minting a confirmed value", () => {
     if (isDeclined(result)) expect(result.reason).toContain("not sure");
   });
 
+  it("marks a value a document gave and the student completed as document_extracted_and_completed, naming the document (row 109, P253)", () => {
+    const result = applyConfirmation({
+      key: "identity.passport" as "identity.given_name",
+      proposed: proposeValue({
+        value: "P1234567",
+        origin: "conversation",
+        verbatim: "number: P1234567; expiry: June 2031",
+        confidence: 0.9,
+        documentId: "doc_passport_1",
+      }),
+      confirmation: accepted("..."),
+    });
+    if (isDeclined(result)) return expect.unreachable("accepted");
+    const provenance = provenanceOf(result.value);
+    expect(provenance.source).toBe("document_extracted_and_completed");
+    expect(provenance.documentId).toBe("doc_passport_1");
+    // The student's own part is in the excerpt; the document's name is not a value.
+    expect(provenance.sourceExcerpt).toBe("number: P1234567; expiry: June 2031");
+  });
+
   it("marks a document extraction as document_extracted", () => {
     const result = applyConfirmation({
       key: "identity.passport" as "identity.given_name",

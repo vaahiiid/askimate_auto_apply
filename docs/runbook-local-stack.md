@@ -146,6 +146,15 @@ before migration 0032, so nobody was asked; migration 0033 puts it back to `held
 next start, and it belongs to that conversation, not a new one. Walk in a **fresh conversation**, so
 the question arrives in its proper place and the yes path is seen from the beginning.
 
+**A CV read before the question existed (P253, row 108).** The row your walk of 2026-09-29 left
+is `read` with no `decided_at`: read under the rule before P251, nobody asked. That is now a named
+state — `consent = never_asked` in the store, and the column's comment says the same — and it is
+left exactly so. In *that* conversation, the moment the interview would use one more part the CV
+gave, it asks instead: *I read your CV before I should have asked. Do you want me to use what I
+read, or would you rather tell me yourself?* — buttons *Use what you read* / *I'd rather tell you
+myself*. A no deletes the CV and sets its parts aside; a yes carries on. Your fresh conversation
+never meets that row; step 6 is your walk.
+
 **What it costs.** The reading is one segmentation call per list plus one call per document part
 per entry: `2 + 6 × jobs + 8 × qualifications`. Your CV is 2 + 42 + 24 = **68 calls**, 16,795
 tokens in and 9,705 out (P247, P249). At Anthropic's first-party rate for Claude Sonnet 4.6

@@ -14587,7 +14587,7 @@ describeIfDatabase("a CV is read only on the student's word, asked when its firs
       expect(said.at(-1)).toBe("I have your CV. Do you want me to fill in your jobs and qualifications from it, or would you rather tell me yourself?");
       expect(await readingState(NO_DOCUMENT)).toBe("offered");
       const reading = await built.driver.runFor(NO_CONVERSATION);
-      expect(reading?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: said.at(-1), late: false });
+      expect(reading?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: said.at(-1), situation: "at_the_field" });
       // No field question is open: the CV question is not a question about a field.
       const asked = await pool.query<{ n: string }>("SELECT count(*) AS n FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_asked'", [NO_CONVERSATION]);
       expect(Number(asked.rows[0]?.n)).toBe(0);
@@ -14762,7 +14762,7 @@ describeIfDatabase("a CV uploaded after both its fields are confirmed is asked a
     const built = instance();
     try {
       const run = await built.driver.runFor(NO_CONVERSATION);
-      expect(run?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: LATE_QUESTION, late: true });
+      expect(run?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: LATE_QUESTION, situation: "late" });
     } finally {
       await built.pool.end();
     }
@@ -14819,12 +14819,173 @@ describeIfDatabase("a CV uploaded after both its fields are confirmed is asked a
     try {
       expect(await built2.driver.recordDecision({ conversationId: YES_CONVERSATION, runId, decision: { kind: "confirm_value", contentHash: hash } })).toEqual({ ok: true });
       expect(await institutionHeld(yesOwner), "the CV's, confirmed, replaces theirs").toBe("University of Tehran");
+      // Row 109 (P253): the profile says where it came from — the document,
+      // completed by the student, and which document — not "the student said it".
+      const provenance = await pool.query<{ provenance: { source: string; documentId?: string } }>(
+        "SELECT provenance FROM profile_entries WHERE student_id = $1 AND field_key = 'education.prior_qualifications'",
+        [yesOwner],
+      );
+      expect(provenance.rows[0]?.provenance.source).toBe("document_extracted_and_completed");
+      expect(provenance.rows[0]?.provenance.documentId).toBe(YES_DOCUMENT);
       const run = await built2.driver.runFor(YES_CONVERSATION);
       expect(run?.pending?.decision, "the reopening is closed by the confirmation; nothing about the CV stands").not.toBe("use_document");
       expect(run?.pending?.decision).not.toBe("confirm_value");
     } finally {
       await built2.pool.end();
     }
+  }, 300_000);
+});
+
+describeIfDatabase("a CV read before the question existed is legible as that and asked about honestly before its parts are used; a no sets them aside and deletes the CV; a yes uses them (P253, row 108)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-30, row 108: *"Parts never confirmed get the honest
+  // question… 'I read your CV before I should have asked. Do you want me to
+  // use what I read, or would you rather tell me yourself?' Do not soften it.
+  // Admitting the order was wrong is the point… A no deletes the CV, same as
+  // the ordinary no. Name the state in the store so nobody repairs the null
+  // later."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const NO_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX25301";
+  const YES_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX25302";
+  const NO_DOCUMENT = "01JQDOCREAD000000000000007";
+  const YES_DOCUMENT = "01JQDOCREAD000000000000008";
+  const contentHash = "9".repeat(64);
+  const QUESTION = "I read your CV before I should have asked. Do you want me to use what I read, or would you rather tell me yourself?";
+  let noOwner = "";
+  let yesOwner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+  const ENTRY_READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  };
+
+  function readingVault(records: DocumentRecord[]): DocumentVault & { readonly records: DocumentRecord[] } {
+    const base = fakeVault(records);
+    return {
+      ...base,
+      records: base.records,
+      prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }),
+    };
+  }
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(conversation: string, what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function assistantSaid(conversation: string): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function reading(documentId: string): Promise<{ state: string; decided_at: Date | null; asked_after_reading_at: Date | null; used: boolean | null } | undefined> {
+    return (await pool.query<{ state: string; decided_at: Date | null; asked_after_reading_at: Date | null; used: boolean | null }>("SELECT state, decided_at, asked_after_reading_at, used FROM document_readings WHERE document_id = $1", [documentId])).rows[0];
+  }
+
+  beforeAll(async () => {
+    noOwner = await ownConversation(NO_CONVERSATION);
+    yesOwner = await ownConversation(YES_CONVERSATION);
+    vault = readingVault([
+      { documentId: NO_DOCUMENT, studentId: noOwner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+      { documentId: YES_DOCUMENT, studentId: yesOwner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+    ]);
+    const built = instance();
+    try {
+      const profiles = new PostgresConfirmedProfileStore(built.pool);
+      const readings = new PostgresDocumentReadingStore(built.pool);
+      for (const [conversation, owner, documentId] of [[NO_CONVERSATION, noOwner, NO_DOCUMENT], [YES_CONVERSATION, yesOwner, YES_DOCUMENT]] as const) {
+        await confirmTheInterview(profiles, owner);
+        await built.driver.requestReading({ documentId, conversationId: conversation, studentId: owner, contentHash });
+        await readings.ask(documentId, NOW);
+        await readings.decide(documentId, true, NOW);
+        const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+        if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+        const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+        expect(claimed?.documentId).toBe(documentId);
+        expect(await built.driver.reportReading({ documentId, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [ENTRY_READ], dropped: 0 }] } })).toBe(true);
+        // The row as the rule before 0032 left it: read, seeded, the country
+        // asked — and nobody ever asked the student about the CV.
+        await pool.query("UPDATE document_readings SET decided_at = NULL, reopened_after = NULL WHERE document_id = $1", [documentId]);
+        expect((await assistantSaid(conversation)).at(-1)?.toLowerCase(), "mid-walk, as the old rule left a student").toContain("country");
+      }
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("takes the answer to the question that stood, then puts the honest question instead of the next part — as the run's pending decision — and asks again with the way to answer", async () => {
+    await say(NO_CONVERSATION, "Iran");
+    expect((await assistantSaid(NO_CONVERSATION)).at(-1)).toBe(QUESTION);
+    const row = await reading(NO_DOCUMENT);
+    expect(row?.state).toBe("read");
+    expect(row?.asked_after_reading_at, "the question is on the row").not.toBeNull();
+    expect(row?.decided_at).toBeNull();
+    const built = instance();
+    try {
+      const run = await built.driver.runFor(NO_CONVERSATION);
+      expect(run?.pending).toEqual({ decision: "use_document", documentId: NO_DOCUMENT, question: QUESTION, situation: "read_before_asking" });
+    } finally {
+      await built.pool.end();
+    }
+    await say(NO_CONVERSATION, "what?");
+    expect((await assistantSaid(NO_CONVERSATION)).at(-1)).toBe(`${QUESTION} You can answer yes or no, or press one of the buttons.`);
+  }, 120_000);
+
+  it("a typed NO deletes the CV, sets aside what was read, says so, and asks the list from the beginning — keeping the country the student gave", async () => {
+    await say(NO_CONVERSATION, "no");
+    const row = await reading(NO_DOCUMENT);
+    expect(row?.state, "read stays read: the reading happened").toBe("read");
+    expect(row?.used).toBe(false);
+    expect(row?.decided_at).not.toBeNull();
+    expect(vault.records.find((record) => record.documentId === NO_DOCUMENT)?.state, "deleted, same as the ordinary no").toBe("purged");
+    const said = await assistantSaid(NO_CONVERSATION);
+    expect(said).toContain("You said no, so I have deleted your CV and set aside what I read from it. I will ask you about your jobs and qualifications as usual.");
+    expect(said.at(-1), "from the beginning: the list's own first question").toContain("Do you have qualifications to list");
+    expect(said.at(-1)).not.toContain("Tehran");
+    await say(NO_CONVERSATION, "yes");
+    const next = (await assistantSaid(NO_CONVERSATION)).at(-1) ?? "";
+    expect(next, "qualification 1, from its first part — not the country, which they gave").toContain("qualification 1");
+    expect(next.toLowerCase()).not.toContain("country");
+  }, 120_000);
+
+  it("a YES through the decision route uses what was read: the row says so by name, the walk carries on with the next part, then the completeness question, and the playback carries the CV's entry", async () => {
+    await say(YES_CONVERSATION, "Iran");
+    expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toBe(QUESTION);
+    const built = instance();
+    try {
+      const runs = await new PostgresWorkflowRunStore(built.pool).findByCase(makeCaseId(`case_${YES_CONVERSATION.toLowerCase()}`));
+      const runId = runs[0]?.runId ?? "";
+      expect(await built.driver.recordDecision({ conversationId: YES_CONVERSATION, runId, decision: { kind: "use_document", documentId: NO_DOCUMENT, use: true } })).toEqual({ ok: false, reason: "refused" });
+      expect(await built.driver.recordDecision({ conversationId: YES_CONVERSATION, runId, decision: { kind: "use_document", documentId: YES_DOCUMENT, use: true } })).toEqual({ ok: true });
+      const named = await new PostgresDocumentReadingStore(built.pool).readingFor(YES_DOCUMENT);
+      expect(named?.consent).toBe("given");
+      expect(named?.used).toBe(true);
+      expect(await built.driver.recordDecision({ conversationId: YES_CONVERSATION, runId, decision: { kind: "use_document", documentId: YES_DOCUMENT, use: true } }), "asked once").toEqual({ ok: false, reason: "not_asked" });
+    } finally {
+      await built.pool.end();
+    }
+    const said = await assistantSaid(YES_CONVERSATION);
+    expect(said).toContain("Thank you. I will use what I read from your CV, and ask you what it did not say.");
+    expect(said.at(-1)?.toLowerCase(), "the walk carries on: the next part").toContain("award");
+    await say(YES_CONVERSATION, "none");
+    expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+    await say(YES_CONVERSATION, "no");
+    const playback = (await assistantSaid(YES_CONVERSATION)).at(-1) ?? "";
+    expect(playback).toContain("University of Tehran");
+    expect(playback).toContain("Is that right?");
   }, 300_000);
 });
 

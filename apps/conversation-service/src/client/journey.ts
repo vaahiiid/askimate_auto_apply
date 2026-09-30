@@ -453,20 +453,21 @@ function drawPending(): void {
     text(words, pending.question);
     const consequence = document.createElement("p");
     // P252, row 107: late, the CV came after both were confirmed, so a yes is
-    // going back — and the button says so, as the consequence does.
-    text(
-      consequence,
-      pending.late
-        ? "If you say no, I delete the CV and your jobs and qualifications stay as you confirmed them. If you say yes, I read the CV and ask you to confirm them again."
-        : "If you say no, I delete the CV and ask you about your jobs and qualifications as usual.",
-    );
-    const { documentId, late } = pending;
+    // going back — and the button says so, as the consequence does. P253, row
+    // 108: read before anyone asked, so a yes is using what was read.
+    const { documentId, situation } = pending;
+    const words_ = {
+      at_the_field: { consequence: "If you say no, I delete the CV and ask you about your jobs and qualifications as usual.", yes: "Fill them in from my CV", no: "I'd rather tell you myself" },
+      late: { consequence: "If you say no, I delete the CV and your jobs and qualifications stay as you confirmed them. If you say yes, I read the CV and ask you to confirm them again.", yes: "Go back and use my CV", no: "Leave them as they are" },
+      read_before_asking: { consequence: "If you say no, I delete the CV and set aside what I read from it, and ask you about your jobs and qualifications as usual.", yes: "Use what you read", no: "I'd rather tell you myself" },
+    }[situation];
+    text(consequence, words_.consequence);
     panel.append(heading, words, consequence);
     panel.append(
-      button(late ? "Go back and use my CV" : "Fill them in from my CV", () => {
+      button(words_.yes, () => {
         void answerUse(documentId, true);
       }),
-      button(late ? "Leave them as they are" : "I'd rather tell you myself", () => {
+      button(words_.no, () => {
         void answerUse(documentId, false);
       }, "quiet"),
     );

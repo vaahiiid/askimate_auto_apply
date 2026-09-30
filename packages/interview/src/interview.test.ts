@@ -1477,6 +1477,12 @@ describe("a part read in part narrows the question: which month of 2019? (P248)"
     const value = resolveField(confirmed.state.profile, FIELD);
     if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
     expect((unwrapConfirmed(value) as readonly { end: unknown }[])[0]?.end).toEqual({ kind: "completed", date: { year: 2019, month: 6 } });
+    // Row 109 (P253): the whole carries where it came from. Vahid: *"Provenance
+    // that says 'the student said it' for a value that came from a document is
+    // wrong… it is our record saying something that is not so."*
+    expect(provenanceOf(value).source).toBe("document_extracted_and_completed");
+    expect(provenanceOf(value).documentId).toBe("doc_cv");
+    expect(done.kind === "confirm" ? done.say : "", "and the playback says so").toContain("From your document, with your answers:");
   });
 
   it("takes a whole date the student states instead — their statement wins — and asks again for what is neither a month nor a date", async () => {

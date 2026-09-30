@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P253 — a reading before the question, named and asked about; a list that says where it came from
+
+> *"A `read` row with no decision is a fact about how this system behaved for a period, and it
+> should be legible as that rather than as missing data."*
+
+Rows 108 and 109, decided in his words and built. A CV read under the rule before P251 now has a
+name for what happened to it — `never_asked` — on the store and on the column itself, and nothing
+fills that null but the student. Before one more part of such a reading is used, the question is
+his, unsoftened: I read your CV before I should have asked; use what I read, or tell me yourself?
+A yes carries on; a no deletes the CV and sets its parts aside for good, keeping what the student
+said. And the record of where a value came from is now true of a list a CV seeded: a sixth
+provenance word, `document_extracted_and_completed`, with the document's id beside it, so the
+values a reading produced can be found from the store and not only from the log. His late-path
+walk, in the conversation he is in, is next.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P252 — a late CV gets a sentence, not silence
 
 > *"Ask, do not hold silently."*

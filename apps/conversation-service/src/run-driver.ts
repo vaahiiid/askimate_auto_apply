@@ -502,15 +502,20 @@ export type PendingDecision =
    * P251, ADR-0151. The interview reached the first field the student's CV
    * could fill, and asks before reading anything from it. The answer is a
    * `use_document` naming this document with a yes or a no. No hash.
-   * `late` (P252, row 107): the CV arrived after its fields were confirmed,
-   * so the question is whether to go back, and a yes means confirming again.
+   * `situation`: `at_the_field` (P251); `late` (P252, row 107) — the CV
+   * arrived after its fields were confirmed, so the question is whether to go
+   * back, and a yes means confirming again; `read_before_asking` (P253, row
+   * 108) — the CV was read under the rule before ADR-0151 and the question
+   * is whether to use what was read.
    */
   | {
       readonly decision: "use_document";
       readonly documentId: string;
       readonly question: string;
-      readonly late: boolean;
+      readonly situation: DocumentQuestionSituation;
     };
+
+export type DocumentQuestionSituation = "at_the_field" | "late" | "read_before_asking";
 
 /** A portal's consent notice as the reviewed blueprint records it, for the student (ADR-0131). */
 export interface ConsentBannerReading {
@@ -1327,6 +1332,13 @@ const LATE_DOCUMENT_QUESTION =
   "I have your CV. Your jobs and qualifications are already filled in and confirmed. Do you want me to go back and fill them in from the CV instead? That would mean redoing what you already confirmed: I would show you what the CV says and ask you to confirm it again. Or shall I leave them as they are?";
 const LATE_READING_THE_CV = "Reading your CV now — it takes a minute or two. When it is done I will show you what it says and ask you to confirm your jobs and qualifications again.";
 const LATE_DECLINED_THE_CV = "You said no, so I have deleted your CV. Your jobs and qualifications stay as you confirmed them.";
+// P253, row 108. A CV read under the rule before ADR-0151 — nobody was asked.
+// Vahid: *"Do not soften it. Admitting the order was wrong is the point, and a
+// student who is told plainly is better placed to answer than one who is
+// asked a question that pretends nothing happened."*
+const READ_BEFORE_ASKING_QUESTION = "I read your CV before I should have asked. Do you want me to use what I read, or would you rather tell me yourself?";
+const USING_WHAT_I_READ = "Thank you. I will use what I read from your CV, and ask you what it did not say.";
+const SET_ASIDE_THE_CV = "You said no, so I have deleted your CV and set aside what I read from it. I will ask you about your jobs and qualifications as usual.";
 
 /** The CV's fields last while the reader works (P251): the interview asks the rest meanwhile, and nobody waits on the machine. */
 function deferWhileReading(fields: readonly ProfileFieldKey[], inFlight: boolean): readonly ProfileFieldKey[] {
@@ -1411,15 +1423,23 @@ const NEVER_MIND_THE_CLOCK_MS = 100 * 365 * 24 * 60 * 60 * 1000;
  */
 function partsReadFrom(
   events: readonly ConversationEvent[],
+  /** Documents whose parts a no set aside (P253, row 108): never read back into a walk. */
+  setAside: ReadonlySet<string> = new Set(),
 ): ReadonlyMap<ProfileFieldKey, ReadonlyMap<string, ProposedValue<unknown>>> {
   const walks = new Map<ProfileFieldKey, Map<string, ProposedValue<unknown>>>();
   for (const event of events) {
     if (event.kind === "value_part_read") {
       const field = event.fieldKey as ProfileFieldKey;
-      const walk = walks.get(field) ?? new Map<string, ProposedValue<unknown>>();
       // Decoded at the log boundary: JSON turned every Date into a string on
       // the way in, and a string is not a value the plan can render (P225).
-      walk.set(event.partKey, decodeValue(event.proposal) as ProposedValue<unknown>);
+      const proposal = decodeValue(event.proposal) as ProposedValue<unknown>;
+      // A part a document gave, when the student said not to use what was
+      // read (P253): it stays on the log as what happened and is not a
+      // reading in this walk. What the student said themselves stays.
+      const documentId = unwrapProposed(proposal).documentId;
+      if (documentId !== undefined && setAside.has(documentId)) continue;
+      const walk = walks.get(field) ?? new Map<string, ProposedValue<unknown>>();
+      walk.set(event.partKey, proposal);
       walks.set(field, walk);
       continue;
     }
@@ -1636,6 +1656,8 @@ function interviewFrom(input: {
   readonly events: readonly ConversationEvent[];
   /** The profile as confirmed, WITH any field a demand hides from `profile` — the seed of a demanded walk (P233). */
   readonly confirmed?: ConfirmedProfile;
+  /** Documents whose parts a no set aside (P253, row 108). */
+  readonly setAside?: ReadonlySet<string>;
 }): InterviewState {
   const base = newInterview({
     studentRef: input.studentRef,
@@ -1652,7 +1674,7 @@ function interviewFrom(input: {
     // than lost with the request that read it (ADR-0140). Seeded, while the
     // portal's demand for one part is open, with every OTHER part of the
     // value the portal refused, so only the demanded part is asked (P233).
-    partial: seededWithDemands(partsReadFrom(input.events), input.events, input.confirmed),
+    partial: seededWithDemands(partsReadFrom(input.events, input.setAside), input.events, input.confirmed),
     attempts: attemptsFrom(input.events),
     // P221: a reading set aside as an unreadable correction is asked about
     // as what it was, not as something nobody caught.
@@ -1806,6 +1828,12 @@ export function reopenedFields(events: readonly ConversationEvent[], after: numb
     else if (event.kind === "value_confirmed") open.delete(event.fieldKey as ProfileFieldKey);
   }
   return [...open];
+}
+
+/** Whether the walk this field would carry on with holds a part the named document gave (P253, row 108). */
+function walkHasPartsFrom(events: readonly ConversationEvent[], fieldKey: ProfileFieldKey, documentId: string): boolean {
+  const walk = partsReadFrom(events).get(fieldKey);
+  return walk !== undefined && [...walk.values()].some((proposal) => unwrapProposed(proposal).documentId === documentId);
 }
 
 /** The parts a spec asks for: a list's item's, a composite's own, a scalar's none. */
@@ -3136,6 +3164,8 @@ export class RunDriver {
     const reopened = await this.#options.readings?.reopenedFor(input.conversationId);
     const reopenedNow = reopened === undefined || reopened === null || reopened.reopenedAfter === null ? [] : reopenedFields(events, reopened.reopenedAfter);
     const profileView = withoutDemanded(profile, new Set([...demands.keys(), ...reopenedNow]));
+    // P253, row 108: parts a document gave that the student said not to use.
+    const setAside = new Set(await this.#options.readings?.setAsideFor(input.conversationId) ?? []);
 
     const base: RunState = withCheckpoint(
       beginRun({
@@ -3186,6 +3216,7 @@ export class RunDriver {
           requiredDocuments: input.entry.requiredDocuments,
           events,
           confirmed: profile,
+          setAside,
         }),
       }),
       input.record,
@@ -3956,7 +3987,13 @@ export class RunDriver {
     const offered = await this.#options.readings?.heldFor(conversationId);
     if (offered !== undefined && offered !== null && offered.state === "offered") {
       const late = await this.#lateForTheCv(conversationId, offered.studentId);
-      return { decision: "use_document", documentId: offered.documentId, question: late ? LATE_DOCUMENT_QUESTION : USE_DOCUMENT_QUESTION, late };
+      return { decision: "use_document", documentId: offered.documentId, question: late ? LATE_DOCUMENT_QUESTION : USE_DOCUMENT_QUESTION, situation: late ? "late" : "at_the_field" };
+    }
+    // P253, row 108: the honest question after a reading nobody was asked
+    // about, while it stands.
+    const unasked = await this.#options.readings?.unaskedFor(conversationId);
+    if (unasked !== undefined && unasked !== null && unasked.askedAfterReadingAt !== null) {
+      return { decision: "use_document", documentId: unasked.documentId, question: READ_BEFORE_ASKING_QUESTION, situation: "read_before_asking" };
     }
 
     // ADR-0131: the consent question, in the banner's own words. No hash —
@@ -4280,8 +4317,15 @@ export class RunDriver {
     // stands on the readings table, and the answer moves it there.
     if (input.decision.kind === "use_document") {
       const held = await this.#options.readings?.heldFor(input.conversationId);
-      if (held === undefined || held === null || held.state !== "offered") return { ok: false, reason: "not_asked" };
-      if (held.documentId !== input.decision.documentId) return { ok: false, reason: "refused" };
+      if (held !== undefined && held !== null && held.state === "offered") {
+        if (held.documentId !== input.decision.documentId) return { ok: false, reason: "refused" };
+        await this.answerDocumentUse(input.conversationId, input.decision.use);
+        return { ok: true };
+      }
+      // P253, row 108: the honest question after a reading nobody was asked about.
+      const unasked = await this.#options.readings?.unaskedFor(input.conversationId);
+      if (unasked === undefined || unasked === null || unasked.askedAfterReadingAt === null) return { ok: false, reason: "not_asked" };
+      if (unasked.documentId !== input.decision.documentId) return { ok: false, reason: "refused" };
       await this.answerDocumentUse(input.conversationId, input.decision.use);
       return { ok: true };
     }
@@ -5521,11 +5565,11 @@ export class RunDriver {
       // one being read is said to be, once, and the field waits for the
       // report. Nothing is read before the yes.
       if ((CV_LIST_FIELDS as readonly string[]).includes(action.fieldKey)) {
+        const say = async (content: string): Promise<void> => {
+          await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+        };
         const held = await this.#options.readings?.heldFor(conversationId);
         if (held !== undefined && held !== null) {
-          const say = async (content: string): Promise<void> => {
-            await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
-          };
           if (held.state === "held") {
             await this.#options.readings?.ask(held.documentId, this.#options.now());
             await say(USE_DOCUMENT_QUESTION);
@@ -5534,6 +5578,20 @@ export class RunDriver {
           if (held.state === "offered") return null;
           const lastSaid = [...events].reverse().find((event) => event.kind === "message" && event.actor === "assistant");
           if (lastSaid?.kind !== "message" || lastSaid.content !== STILL_READING_THE_CV) await say(STILL_READING_THE_CV);
+          return null;
+        }
+        // ── A CV read before anyone asked (P253, row 108) ──────────────────
+        //
+        // The walk this field would carry on with holds parts a document
+        // gave under the rule before ADR-0151. Before one more of them is
+        // used, the honest question — in his words, unsoftened — instead of
+        // the part's; while it stands, nothing of this field is asked.
+        const unasked = await this.#options.readings?.unaskedFor(conversationId);
+        if (unasked !== undefined && unasked !== null && walkHasPartsFrom(events, action.fieldKey, unasked.documentId)) {
+          if (unasked.askedAfterReadingAt === null) {
+            await this.#options.readings?.askAfterReading(unasked.documentId, this.#options.now());
+            await say(READ_BEFORE_ASKING_QUESTION);
+          }
           return null;
         }
       }
@@ -7828,7 +7886,7 @@ export class RunDriver {
     const readings = this.#options.readings;
     if (readings === undefined) return false;
     const held = await readings.heldFor(conversationId);
-    if (held === null || held.state !== "offered") return false;
+    if (held === null || held.state !== "offered") return this.#answerTheQuestionAfterReading(conversationId, use);
     const now = this.#options.now();
     // P252: a late yes reopens the CV's fields from here — the last ordinal
     // written before the reading is seeded — so the earlier confirmation is
@@ -7851,6 +7909,34 @@ export class RunDriver {
   }
 
   /**
+   * The student's word on a CV read before anyone asked (P253, row 108). Yes:
+   * the parts it seeded are used, and the walk carries on. No: the CV is
+   * deleted, as on the ordinary no, and the parts are set aside — never read
+   * back into a walk; what the student said themselves stays. The row stays
+   * `read`, with the question and the answer on it: the reading happened.
+   */
+  async #answerTheQuestionAfterReading(conversationId: string, use: boolean): Promise<boolean> {
+    const readings = this.#options.readings;
+    if (readings === undefined) return false;
+    const unasked = await readings.unaskedFor(conversationId);
+    if (unasked === null || unasked.askedAfterReadingAt === null) return false;
+    const now = this.#options.now();
+    const decided = await readings.decideAfterReading(unasked.documentId, use, now);
+    if (decided === null) return false;
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    if (use) {
+      await say(USING_WHAT_I_READ);
+    } else {
+      await this.#options.disclosure?.vault.purgeContents(unasked.documentId, now);
+      await say(SET_ASIDE_THE_CV);
+    }
+    await this.#askAfterWriting(conversationId);
+    return true;
+  }
+
+  /**
    * A typed answer to the CV question, or a request to use the CV (P251).
    * `true` when the message was that and has been dealt with.
    */
@@ -7861,13 +7947,19 @@ export class RunDriver {
       await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
     };
     const held = await readings.heldFor(conversationId);
-    if (held !== null && held.state === "offered") {
+    const offered = held !== null && held.state === "offered";
+    // P253, row 108: the honest question after a reading, while it stands.
+    const unasked = offered ? null : await readings.unaskedFor(conversationId);
+    const afterReading = unasked !== null && unasked.askedAfterReadingAt !== null;
+    if (offered || afterReading) {
       const decision = yesOrNo(answer);
       if (decision === null) {
         const wantsIt = readUseRequest(answer);
         if (wantsIt === null) {
-          const late = await this.#lateForTheCv(conversationId, held.studentId);
-          await say(`${late ? LATE_DOCUMENT_QUESTION : USE_DOCUMENT_QUESTION} ${USE_DOCUMENT_HOW}`);
+          const question = afterReading
+            ? READ_BEFORE_ASKING_QUESTION
+            : (await this.#lateForTheCv(conversationId, held?.studentId ?? "")) ? LATE_DOCUMENT_QUESTION : USE_DOCUMENT_QUESTION;
+          await say(`${question} ${USE_DOCUMENT_HOW}`);
           return true;
         }
         await this.answerDocumentUse(conversationId, wantsIt);

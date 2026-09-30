@@ -56,6 +56,18 @@ export interface ConfirmationProvenance {
    *   student_entered    — the student typed it directly and confirmed it
    *   document_extracted — extracted from a document, then shown to the
    *                        student and confirmed by them (brief §2.3)
+   *   document_extracted_and_completed
+   *                      — a value a document gave in part and the student
+   *                        completed where it was silent — a CV's job with the
+   *                        basis the student stated, a qualification with the
+   *                        country (ADR-0149) — then played back whole and
+   *                        confirmed. Named in P253 (row 109) because a list
+   *                        seeded from a CV was recorded as `student_stated`:
+   *                        Vahid: *"Provenance that says 'the student said it'
+   *                        for a value that came from a document is wrong… it
+   *                        is our record saying something that is not so."*
+   *                        `documentId` names the document; the conversation
+   *                        log says which parts were whose.
    *   student_corrected  — extraction or interpretation was wrong; the student
    *                        corrected it
    *   seeded             — written by an operator's command from a fixture
@@ -73,7 +85,7 @@ export interface ConfirmationProvenance {
    * nearest honest word is not it… a value that reads as something it is not,
    * which someone eventually takes at face value."*
    */
-  readonly source: "student_stated" | "student_entered" | "document_extracted" | "student_corrected" | "seeded";
+  readonly source: "student_stated" | "student_entered" | "document_extracted" | "document_extracted_and_completed" | "student_corrected" | "seeded";
   /** When the student confirmed it. */
   readonly confirmedAt: Date;
   /**

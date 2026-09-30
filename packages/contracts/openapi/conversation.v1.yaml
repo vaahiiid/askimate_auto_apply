@@ -1816,23 +1816,28 @@ components:
     UseDocumentQuestion:
       type: object
       additionalProperties: false
-      required: [decision, documentId, question, late]
+      required: [decision, documentId, question, situation]
       description: >-
         P251, ADR-0151. The interview has reached the first field the student's
         uploaded document could fill, and asks before reading anything from it.
         Vahid: "Uploading a file is not consent to take its contents as the
         whole answer." The answer is a `use_document` decision naming this
         document with a yes or a no; a no deletes the document and says so.
-        `late` (P252, row 107): the document arrived after every field it
-        could fill was confirmed, so the question is whether to go back, and a
-        yes means the student confirms those fields again.
+        `situation`: `at_the_field` — the question as above; `late` (P252,
+        row 107) — the document arrived after every field it could fill was
+        confirmed, so the question is whether to go back, and a yes means the
+        student confirms those fields again; `read_before_asking` (P253, row
+        108) — the document was read under the rule before ADR-0151, nobody
+        was asked, and the question is whether to use what was read.
       properties:
         decision:
           type: string
           enum: [use_document]
         documentId: { type: string, pattern: "^[0-9A-Z]{26}$" }
         question: { type: string, maxLength: 500 }
-        late: { type: boolean }
+        situation:
+          type: string
+          enum: [at_the_field, late, read_before_asking]
 
     ConsentQuestion:
       type: object
@@ -2824,7 +2829,7 @@ components:
       properties:
         source:
           type: string
-          enum: [student_stated, student_entered, document_extracted, student_corrected, seeded]
+          enum: [student_stated, student_entered, document_extracted, document_extracted_and_completed, student_corrected, seeded]
         confirmedAt: { type: string, format: date-time }
         sourceExcerpt:
           type: string

@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.249.0] — 2026-09-30
+
+**P253 — a reading done before the question existed is legible as that and asked about honestly; a list from a CV says where it came from (rows 108, 109; ADR-0151 amended).**
+
+- **Added** `consent` on every reading row — `awaiting`, `given`, `never_asked` — the last being
+  a `read` row with no decision: read under the rule before ADR-0151, nobody asked. Migration 0034
+  says so on the column's own comment, and adds `asked_after_reading_at` and `used`.
+- **Added** the honest question before one more part of such a reading is used, in Vahid's words:
+  *I read your CV before I should have asked. Do you want me to use what I read, or would you
+  rather tell me yourself?* — as the pending `use_document` decision and in the chat. A yes uses
+  the parts; a no purges the CV and sets its parts aside for every walk to come, while what the
+  student said themselves stays.
+- **Added** `document_extracted_and_completed` to the provenance sources, on the domain, the
+  contract and the schema: a value a document gave in part and the student completed and confirmed.
+  The interview's assembled whole now names the document any part came from; the playback heads
+  it *From your document, with your answers:*.
+- **Changed** the pending `use_document` decision: `late` is now `situation` — `at_the_field`,
+  `late` or `read_before_asking` — and the page's consequence line and buttons follow it.
+
+---
+
 ## [0.248.0] — 2026-09-30
 
 **P252 — a CV that arrives after its fields are confirmed is asked about at once, never held in silence (row 107; ADR-0151 amended).**
