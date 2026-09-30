@@ -156,8 +156,9 @@ the reading happened:
 > store so nobody repairs the null later. A `read` row with no decision is a fact about how this
 > system behaved for a period, and it should be legible as that rather than as missing data."*
 
-Built in P253: `consent` on every reading row — `awaiting`, `given`, `never_asked` — and the
-name on the column's own comment (migration 0034); the question above, put before one more part
+Built in P253: `consent` — `awaiting`, `given`, `never_asked` — on every row the store returns,
+derived from `state` and `decided_at` (not a column: the table carries migration 0034's comment
+on `decided_at`, which says what the null means, not the three words); the question above, put before one more part
 of such a reading is used, as the pending decision (`situation: read_before_asking`) and in the
 chat; a yes uses the parts; a no purges the CV and sets its parts aside, never read back into a
 walk, while what the student said themselves stays. The row stays `read`, with the question and

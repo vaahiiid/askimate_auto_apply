@@ -148,8 +148,9 @@ the question arrives in its proper place and the yes path is seen from the begin
 
 **A CV read before the question existed (P253, row 108).** The row your walk of 2026-09-29 left
 is `read` with no `decided_at`: read under the rule before P251, nobody asked. That is now a named
-state — `consent = never_asked` in the store, and the column's comment says the same — and it is
-left exactly so. In *that* conversation, the moment the interview would use one more part the CV
+state — `consent = never_asked` on the row the service's store returns; in `psql` you will not see
+the word, only 0034's comment on `decided_at` (`\d+ document_readings`) — and it is left exactly
+so. In *that* conversation, the moment the interview would use one more part the CV
 gave, it asks instead: *I read your CV before I should have asked. Do you want me to use what I
 read, or would you rather tell me yourself?* — buttons *Use what you read* / *I'd rather tell you
 myself*. A no deletes the CV and sets its parts aside; a yes carries on. Your fresh conversation

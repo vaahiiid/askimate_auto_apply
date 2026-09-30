@@ -23,9 +23,10 @@ not shipped artefacts.
 
 **P253 — a reading done before the question existed is legible as that and asked about honestly; a list from a CV says where it came from (rows 108, 109; ADR-0151 amended).**
 
-- **Added** `consent` on every reading row — `awaiting`, `given`, `never_asked` — the last being
-  a `read` row with no decision: read under the rule before ADR-0151, nobody asked. Migration 0034
-  says so on the column's own comment, and adds `asked_after_reading_at` and `used`.
+- **Added** `consent` — `awaiting`, `given`, `never_asked` — on every row the reading store
+  returns, derived from `state` and `decided_at`; not a column. The last is a `read` row with no
+  decision: read under the rule before ADR-0151, nobody asked. Migration 0034 puts a comment on
+  `decided_at` saying what that null means, and adds `asked_after_reading_at` and `used`.
 - **Added** the honest question before one more part of such a reading is used, in Vahid's words:
   *I read your CV before I should have asked. Do you want me to use what I read, or would you
   rather tell me yourself?* — as the pending `use_document` decision and in the chat. A yes uses

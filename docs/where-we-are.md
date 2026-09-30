@@ -4912,7 +4912,8 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 > should be legible as that rather than as missing data."*
 
 Rows 108 and 109, decided in his words and built. A CV read under the rule before P251 now has a
-name for what happened to it — `never_asked` — on the store and on the column itself, and nothing
+name for what happened to it — `never_asked` — on the row the store returns (derived, not a
+column: the table carries a comment on `decided_at` saying what the null means), and nothing
 fills that null but the student. Before one more part of such a reading is used, the question is
 his, unsoftened: I read your CV before I should have asked; use what I read, or tell me yourself?
 A yes carries on; a no deletes the CV and sets its parts aside for good, keeping what the student
