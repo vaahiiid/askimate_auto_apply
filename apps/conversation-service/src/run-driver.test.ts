@@ -6570,7 +6570,7 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
     // Since P225 a two-way date is offered, not refused; what is still
     // refused is a date the calendar does not have, read either way round.
     const first = await lastSaid();
-    expect(first).toContain("What's your date of birth?");
+    expect(first).toContain("What is your date of birth?");
     await say("30/02/1989");
     const again = await lastSaid();
     expect(again.startsWith('"30/02/1989" is not a day the calendar has, read either way round.')).toBe(true);

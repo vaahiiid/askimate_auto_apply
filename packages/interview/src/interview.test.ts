@@ -142,7 +142,7 @@ describe("one question at a time", () => {
       expect(again.say.startsWith('"30/02/1989" is not a day the calendar has')).toBe(true);
       expect(again.say).not.toBe(first.say);
       expect(again.say).not.toContain("didn't quite catch");
-      expect(again.say).toContain("What's your date of birth?");
+      expect(again.say).toContain("What is your date of birth?");
     }
     // A two-digit year, and a reading that could not be read at all, each say what happened.
     const century = await receiveAnswer(start(["identity.date_of_birth"]), "identity.date_of_birth", "11/08/89", model);
@@ -1605,14 +1605,11 @@ describe("every part is asked for by the name a person uses, never by its key (P
       expect(outcome.kind, utterance).toBe("understood");
       state = outcome.state;
     }
-    expect(asked.map((say) => say.slice(say.indexOf("What's your")))).toEqual([
-      "What's your home address — street?",
-      "What's your home address — second line of the address?",
-      "What's your home address — town?",
-      "What's your home address — county?",
-      "What's your home address — postcode?",
-      "What's your home address — country?",
-    ]);
+    // P255: each part's own authored question, never "What's your home address — street?".
+    expect(asked.map((say) => say.endsWith("?"))).toEqual([true, true, true, true, true, true]);
+    expect(asked.map((say) => /What's your|line1|postalCode|countryCode/.test(say))).toEqual([false, false, false, false, false, false]);
+    expect(asked[0]).toContain("What is the first line of your address — the number and street?");
+    expect(asked[5]).toContain("Which country is the address in?");
     // The keys that are not plain words — a digit, a capital in the middle —
     // are the ones a person cannot read; "city" and "region" are words.
     for (const say of asked) {
@@ -1639,7 +1636,8 @@ describe("every part is asked for by the name a person uses, never by its key (P
     const action = await nextAction(state, model);
     expect(action.kind).toBe("ask");
     if (action.kind === "ask") {
-      expect(action.say).toContain("job 1 — job title");
+      expect(action.say, "which job").toContain("For job 1:");
+      expect(action.say, "and which part, by its name").toContain("What was your job title?");
       expect(action.say).not.toMatch(camelCase);
     }
   });
@@ -1775,5 +1773,59 @@ describe("the employment section opens with one plain warning and the student's 
       expect(again.say.endsWith(SENTENCE), "the sentence is not reworded").toBe(true);
       expect(again.say).not.toContain("didn't quite catch");
     }
+  });
+});
+
+describe("a question's words are authored, never assembled from a key or a label (P255)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-30, on reading *"Whether you are in the UK right now
+  // changes what the application asks you next. What's your currently
+  // living in the uk?"* and answering it with a country: *"a question's
+  // words are authored, never assembled from a field key. If the composer
+  // can express that structurally — a question that cannot be built without
+  // its own text — do it."* `ScalarFieldSpec.question` and
+  // `FieldPart.question` are required, so a spec without one does not
+  // build; this walks every one that does.
+  // ═══════════════════════════════════════════════════════════════════════
+  it("every scalar field and every part carries a real question — a sentence ending in a question mark, no key, and a yes/no one that says so", () => {
+    const seen: string[] = [];
+    for (const [key, spec] of Object.entries(FIELD_SPECS) as readonly (readonly [string, FieldSpec<unknown>])[]) {
+      const questions: readonly { readonly name: string; readonly question: string; readonly shape: string }[] =
+        isList(spec) || isComposite(spec)
+          ? (isList(spec) ? spec.item.parts : spec.parts).map((part) => ({ name: `${key}.${part.partKey}`, question: part.question, shape: part.expectedShape }))
+          : [{ name: key, question: spec.question, shape: spec.expectedShape }];
+      for (const { name, question, shape } of questions) {
+        seen.push(name);
+        expect(question, `${name}: a question`).toMatch(/\?( Please answer yes or no\.)?$/);
+        expect(question, `${name}: not built from a label or a key`).not.toMatch(/What's your|[a-z][A-Z]|_/);
+        if (shape === "yes or no") expect(question, `${name}: says what kind of answer it wants`).toContain("Please answer yes or no.");
+      }
+    }
+    expect(seen.length, "every field and part, counted so a silent skip shows").toBe(79);
+  });
+
+  it("asks whether the student is in the UK in words that ask for yes or no, and reads a country as not that", async () => {
+    const state = start(["residence.in_uk_now"]);
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("ask");
+    if (action.kind !== "ask") return;
+    expect(action.say).toBe("Whether you are in the UK right now changes what the application asks you next. Are you living in the UK at the moment? Please answer yes or no.");
+    const outcome = await receiveAnswer(state, "residence.in_uk_now", "United Kingdom", model);
+    expect(outcome.kind).toBe("not_understood");
+    const again = await nextAction(outcome.state, model);
+    expect(again.kind === "ask" ? again.say : "", "asked again in the same authored words, never a label").toContain("Are you living in the UK at the moment? Please answer yes or no.");
+  });
+
+  it("the deterministic composer has no template left that takes a label: a request without an authored question does not typecheck, and one with it is said as written", async () => {
+    const said = await model.composeQuestion({
+      fieldKey: "residence.in_uk_now",
+      label: "Currently living in the UK",
+      rationale: "Why.",
+      question: "Are you living in the UK at the moment? Please answer yes or no.",
+      conversationContext: [],
+      previousAttempts: 1,
+    });
+    expect(said).toBe("Sorry — I didn't quite catch that. Why. Are you living in the UK at the moment? Please answer yes or no.");
+    expect(said).not.toContain("currently living");
   });
 });

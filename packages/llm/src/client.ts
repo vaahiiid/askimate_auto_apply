@@ -51,6 +51,16 @@ export interface QuestionRequest {
   /** Why the application needs it — so the question can explain itself. */
   readonly rationale: string;
   /**
+   * The question, in words a person wrote (P255). Never assembled from a key
+   * or a label: Vahid, on reading *"What's your currently living in the
+   * uk?"* — *"a question's words are authored, never assembled from a field
+   * key."* The deterministic client says these words; the real one is given
+   * them as the question to put.
+   */
+  readonly question: string;
+  /** The entry a part belongs to, as the student knows it — "job 1", "qualification 2" — for a list's part; absent otherwise. */
+  readonly about?: string;
+  /**
    * The question, said EXACTLY so (P232, ADR-0148 §3). Vahid's own sentence
    * for an opening that is a choice — *"one plain warning that some
    * universities weigh work experience, and nothing stronger"* — is not a

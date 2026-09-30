@@ -309,6 +309,8 @@ export class BedrockModelClient implements ModelClient {
         content:
           `Ask the student for one piece of information, in one short conversational turn.\n\n` +
           `What is needed: ${request.label}\n` +
+          `The question to ask, in these words or close to them: ${request.question}\n` +
+          (request.about === undefined ? "" : `It is about: ${request.about}\n`) +
           `Why the application needs it: ${request.rationale}\n` +
           `Recent conversation:\n${formatContext(request.conversationContext)}\n` +
           `Ask for this and nothing else. A list of questions is a form, and the student must ` +

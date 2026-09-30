@@ -109,7 +109,7 @@ describe("what the banner may claim, and what is said after the run (P243, row 1
     const live = { client, live: true, description: "" };
     expect(destinationLine(live)).toContain("No request left the client");
 
-    await expect(client.composeQuestion({ fieldKey: "surname", label: "surname", rationale: "r", conversationContext: [], previousAttempts: 0 })).rejects.toThrow(/does not exist/);
+    await expect(client.composeQuestion({ fieldKey: "surname", label: "surname", rationale: "r", question: "What is your surname?", conversationContext: [], previousAttempts: 0 })).rejects.toThrow(/does not exist/);
     const line = destinationLine(live);
     expect(line).toContain("1 request(s) went to https://bedrock-runtime.eu-west-2.amazonaws.com/model/m/invoke");
     expect(line).toContain("bedrock-runtime");

@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.251.0] — 2026-09-30
+
+**P255 — a question's words are authored, never assembled from a field key (ADR-0147 amended).**
+
+- **Changed** `ScalarFieldSpec` and `FieldPart`: `question` is required, the words a person wrote;
+  a spec without it does not build. `QuestionRequest.question` is required likewise, with `about`
+  naming the entry a list's part belongs to.
+- **Changed** the deterministic composer: no template takes a label any more. Every path says the
+  rationale and then the authored question, prefaced by what happened to the last answer where
+  that applies; a list's part is situated as *For job 1: …*. The real composer is given the words
+  as the question to put.
+- **Added** all seventy-nine questions — twenty-two fields, fifty-seven parts — the thirteen yes/no
+  ones each ending *Please answer yes or no.*; a list's opening and its *another?* are said exactly
+  as their own sentences.
+- **Added** a test that walks every field and part, counts seventy-nine, and refuses a question
+  built from a label or a key; and one that asks *Are you living in the UK at the moment? Please
+  answer yes or no.* and refuses *"United Kingdom"*.
+
+---
+
 ## [0.250.0] — 2026-09-30
 
 **P254 — a CV that arrives while its own field is open is asked about at once; entries typed are named and a yes starts the list again; a CV ahead of its field is acknowledged (ADR-0151 amended).**

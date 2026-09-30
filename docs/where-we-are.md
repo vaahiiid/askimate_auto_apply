@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P255 — a question's words are authored, never assembled from a key
+
+> *"'Are you currently living in the UK?' — not the key in a template."*
+
+His walk reached a question that was not English and asked, by its shape, for the wrong kind of
+answer: a boolean field's label dropped into the composer's one template. Row 92's finding, one
+level on. Done as he asked, structurally: a field or a part without its own question does not
+build, a request without one cannot be made, and the composer has no template left that takes a
+label. Seventy-nine questions written, the yes/no ones saying so, a test counting them all.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P254 — the third case: a CV that arrives while its field is open
 
 > *"A document held in silence is the thing we have now ruled against three times, and leaving

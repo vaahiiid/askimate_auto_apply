@@ -30,9 +30,12 @@ import type {
 
 export class DeterministicModelClient implements ModelClient {
   public composeQuestion(request: QuestionRequest): Promise<ModelText> {
-    // A second attempt is rephrased rather than repeated verbatim — asking the
-    // identical question again is how a conversation stops feeling like one.
-    const label = request.label.toLowerCase();
+    // The words are the spec's own (P255): the rationale, then the authored
+    // question, situated by the entry it is about when it is a list's part.
+    // Nothing here is built from a label — "What's your currently living in
+    // the uk?" was, and Vahid answered it with a country.
+    const question = `${request.rationale} ${request.question}`;
+    const situated = request.about === undefined ? question : `For ${request.about}: ${question}`;
     if (request.exactly !== undefined) {
       return Promise.resolve(
         modelText(request.previousAnswerUnread === undefined ? request.exactly : `${request.previousAnswerUnread} ${request.exactly}`),
@@ -44,30 +47,23 @@ export class DeterministicModelClient implements ModelClient {
     // the same value.
     // P223: what happened to what they typed, first; then the question.
     if (request.previousAnswerUnread !== undefined) {
-      return Promise.resolve(
-        modelText(`${request.previousAnswerUnread} ${request.rationale} What's your ${label}?`),
-      );
+      return Promise.resolve(modelText(`${request.previousAnswerUnread} ${situated}`));
     }
     if (request.previousReadingRejected === true) {
       return Promise.resolve(
         modelText(
           `I read your last message as a correction to what I had recorded, and I could not make ` +
-            `a ${label} out of it, so I have set that reading aside. If what I recorded was right, ` +
-            `tell me it again; if it was not, tell me the right one. What's your ${label}?`,
+            `a ${request.label.toLowerCase()} out of it, so I have set that reading aside. If what I recorded was right, ` +
+            `tell me it again; if it was not, tell me the right one. ${situated}`,
         ),
       );
     }
+    // A second attempt is prefaced rather than repeated bare — asking the
+    // identical question again is how a conversation stops feeling like one.
     if (request.previousAttempts > 0) {
-      return Promise.resolve(
-        modelText(
-          `Sorry — I didn't quite catch that. ${request.rationale} ` +
-            `Could you tell me your ${label}?`,
-        ),
-      );
+      return Promise.resolve(modelText(`Sorry — I didn't quite catch that. ${situated}`));
     }
-    return Promise.resolve(
-      modelText(`${request.rationale} What's your ${label}?`),
-    );
+    return Promise.resolve(modelText(situated));
   }
 
   public composeDocumentRequest(request: DocumentRequest): Promise<ModelText> {

@@ -73,3 +73,27 @@ nothing to the person reading it. His decision:
 The wording of any one sentence, which is the student's to find wanting and his to change. What
 the run *does* when its next step is a person, which is ADR-0007's. Whether a phase name should
 ever be shown — none is today, and the test forbids it in the line regardless.
+
+## Amended 2026-09-30 (P255): a question's words are authored, never assembled from a field key
+
+His walk reached *"Whether you are in the UK right now changes what the application asks you
+next. What's your currently living in the uk?"* and he answered it with a country. The question
+was a boolean field's label dropped into the deterministic composer's one template — the same
+family as the position line, one level on: not a key on the screen, but a sentence built from a
+label as if it were one. In his words:
+
+> *"Go through every yes/no field in the interview and give it a real question. 'Are you currently
+> living in the UK?' — not the key in a template. Check them all rather than this one… And the
+> general rule: a question's words are authored, never assembled from a field key. If the composer
+> can express that structurally — a question that cannot be built without its own text — do it,
+> the way row 92 made the position line impossible to build from a state name."*
+
+Built, structurally: `ScalarFieldSpec.question` and `FieldPart.question` are required, so a
+field or a part without its own words does not build; `QuestionRequest.question` is required, so
+no request reaches a composer without them; the deterministic composer has no template that takes
+a label — every path says the rationale and then the authored question, a list's part situated
+by the entry it is about (*For job 1: …*); the real composer is given the words as the question
+to put and may fit them to the conversation, never invent them from a label. All seventy-nine
+questions — twenty-two fields, fifty-seven parts — were written, the thirteen yes/no ones each
+ending *Please answer yes or no.*, and a test walks every spec and counts them so a silent skip
+shows. The limit, as before: the words of any one question are his to find wanting.

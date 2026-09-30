@@ -49,7 +49,7 @@ import {
   renderForConfirmation,
 } from "@askimate/aas-profile";
 
-import type { CompositeFieldSpec, FieldPart, FieldSpec, OfferedReading, PartAnswers, ListFieldSpec } from "./field-specs.js";
+import type { CompositeFieldSpec, FieldPart, FieldSpec, OfferedReading, PartAnswers, ListFieldSpec, ScalarFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, OMITTED, isComposite, partParser, isList, yesNo } from "./field-specs.js";
 
 /**
@@ -326,8 +326,8 @@ function portalRequires(part: FieldPart<unknown>, rule: PartRule | undefined): b
  * are being asked for, and the log can tell "asked again" from "asked next".
  */
 type OpenQuestion =
-  | { readonly kind: "field"; readonly spec: FieldSpec<unknown> }
-  | { readonly kind: "part"; readonly part: FieldPart<unknown>; readonly suffix: string };
+  | { readonly kind: "field"; readonly spec: ScalarFieldSpec<unknown> }
+  | { readonly kind: "part"; readonly part: FieldPart<unknown>; readonly suffix: string; readonly about?: string };
 
 // ───────────────────────────────────────────────────────────────────────────
 // Fields whose value is a list (ADR-0113)
@@ -361,8 +361,9 @@ function readingsOfItem(readings: PartReadings, index: number): PartReadings {
   );
 }
 
-function yesNoPart(partKey: string, label: string, rationale: string): FieldPart<unknown> {
-  return { partKey, label, rationale, expectedShape: "yes or no", parse: yesNo };
+/** A yes/no part whose rationale is the question itself, said exactly so (P255): a list's opening and its "another?". */
+function yesNoPart(partKey: string, label: string, question: string): FieldPart<unknown> {
+  return { partKey, label, question, rationale: "", exactly: question, expectedShape: "yes or no", parse: yesNo };
 }
 
 /** The next question of a list's walk, or `undefined` once the list is complete. */
@@ -370,7 +371,7 @@ function nextListQuestion(
   spec: ListFieldSpec<unknown>,
   readings: PartReadings,
   rule?: PartRule,
-): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
+): { readonly part: FieldPart<unknown>; readonly suffix: string; readonly about?: string } | undefined {
   const values = valuesOf(readings);
   if (!readings.has(ANY)) {
     const label = `any ${spec.itemLabel} to list`;
@@ -392,6 +393,7 @@ function nextListQuestion(
       return {
         part: { ...narrowed(part, ofItem.get(part.partKey), suffix), partKey: itemKey(index, part.partKey) },
         suffix,
+        about: `${spec.itemLabel} ${String(index + 1)}`,
       };
     }
     const another = itemKey(index, ANOTHER);
@@ -441,7 +443,7 @@ function nextQuestionOf(
   spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>,
   readings: PartReadings,
   rule?: PartRule,
-): { readonly part: FieldPart<unknown>; readonly suffix: string } | undefined {
+): { readonly part: FieldPart<unknown>; readonly suffix: string; readonly about?: string } | undefined {
   if (isList(spec)) return nextListQuestion(spec, readings, rule);
   const part = nextPart(spec, readings, rule);
   // The part's NAME, never its key (P228, row 92): "Home address — street".
@@ -590,6 +592,10 @@ export async function nextAction(
       // says which thing, not just which field.
       label: question.kind === "part" ? `${label} — ${question.suffix}` : label,
       rationale: question.kind === "part" ? question.part.rationale : question.spec.rationale,
+      // The words, authored (P255): the spec's or the part's own question,
+      // never one built from the label above.
+      question: question.kind === "part" ? question.part.question : question.spec.question,
+      ...(question.kind === "part" && question.about !== undefined ? { about: question.about } : {}),
       ...(question.kind === "part" && question.part.exactly !== undefined ? { exactly: question.part.exactly } : {}),
       conversationContext: state.transcript.slice(-6),
       previousAttempts: state.attempts.get(questionKey(fieldKey, partKey)) ?? 0,
