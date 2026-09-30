@@ -6488,7 +6488,8 @@ describeIfDatabase("the count is what the asking wrote, the answer is read again
       await instance.pool.end();
     }
     const last = await lastSaid();
-    expect(last).toContain("I asked for your date of birth three times and one of your answers you told me I had read wrongly, and the rest I could not read, so I have stopped rather than carry on without it.");
+    // P256: the question as the student read it, never the label as a noun.
+    expect(last).toContain('I asked "What is your date of birth?" three times and one of your answers you told me I had read wrongly, and the rest I could not read, so I have stopped rather than carry on without it.');
     const raised = await pool.query<{ target: string }>(`SELECT checkpoint->>'target' AS target FROM interventions WHERE run_id = $1`, [runId]);
     expect(raised.rows[0]?.target).toBe("interview:identity.date_of_birth");
   }, 300_000);
@@ -15168,10 +15169,21 @@ describeIfDatabase("a CV that arrives while its own field is open is asked about
     expect(playback).not.toContain("Shiraz");
   }, 300_000);
 
-  it("AHEAD, some other field open: the upload is acknowledged in one sentence, the row stays held, and nothing is pending", async () => {
+  it("AHEAD, some other field open: the upload is acknowledged in one sentence — after the open question is answered, never over it (P256) — the row stays held, and nothing is pending", async () => {
     await upload(AHEAD_CONVERSATION, AHEAD_DOCUMENT);
     expect((await reading(AHEAD_DOCUMENT))?.state).toBe("held");
-    expect((await assistantSaid(AHEAD_CONVERSATION)).at(-1)).toBe(HELD_FOR_LATER);
+    expect((await assistantSaid(AHEAD_CONVERSATION)).at(-1)?.toLowerCase(), "the name's question stands; nothing is said over it").toContain("first name");
+    await say(AHEAD_CONVERSATION, "Niloofar");
+    const playback = (await assistantSaid(AHEAD_CONVERSATION)).at(-1) ?? "";
+    expect(playback, "and nothing over the playback either").toContain("Is that right?");
+    const built0 = instance();
+    try {
+      const runId = (await new PostgresWorkflowRunStore(built0.pool).findByCase(makeCaseId(`case_${AHEAD_CONVERSATION.toLowerCase()}`)))[0]?.runId ?? "";
+      expect(await built0.driver.recordDecision({ conversationId: AHEAD_CONVERSATION, runId, decision: { kind: "confirm_value", contentHash: `sha256:${createHash("sha256").update(playback).digest("hex")}` } })).toEqual({ ok: true });
+    } finally {
+      await built0.pool.end();
+    }
+    expect((await assistantSaid(AHEAD_CONVERSATION)).at(-2), "then, at the first quiet moment, the sentence — and the next question after it").toBe(HELD_FOR_LATER);
     const built = instance();
     try {
       expect((await built.driver.runFor(AHEAD_CONVERSATION))?.pending?.decision).not.toBe("use_document");
@@ -15182,6 +15194,227 @@ describeIfDatabase("a CV that arrives while its own field is open is asked about
     await upload(AHEAD_CONVERSATION, AHEAD_DOCUMENT);
     expect((await assistantSaid(AHEAD_CONVERSATION)).filter((line) => line === HELD_FOR_LATER).length).toBe(1);
   }, 120_000);
+});
+
+describeIfDatabase("nothing is said over an open question; a refused field is asked next; a later CV supersedes the earlier; failed answers count, askings do not; the playback and the stop name the question (P256)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-30, after his run stopped: *"Nothing is said over an open
+  // playback. A confirmation is a question, and speaking over it while it
+  // waits invites exactly what I did… the student should never have two
+  // things to answer at once… If the reader, a portal demand, or anything
+  // else lands while a question is open, it queues."* *"A later CV
+  // supersedes the earlier one."* *"Counting failed answers rather than
+  // askings is right."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const SUPERSEDE_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX25601";
+  const QUIET_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX25602";
+  const COUNT_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX25603";
+  const FIRST_CV = "01JQDOCREAD000000000000021";
+  const SECOND_CV = "01JQDOCREAD000000000000022";
+  const QUIET_CV = "01JQDOCREAD000000000000023";
+  const contentHash = "7".repeat(64);
+  const HELD_FOR_LATER = "I have your CV. I will ask whether to use it when we reach your jobs.";
+  const NATIONALITY = "What is your nationality — which country are you a national of?";
+  const owners = new Map<string, string>();
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+  const ENTRY_READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  };
+
+  function readingVault(records: DocumentRecord[]): DocumentVault & { readonly records: DocumentRecord[] } {
+    const base = fakeVault(records);
+    return {
+      ...base,
+      records: base.records,
+      prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }),
+      // P256: the vault's `superseded` state, set by the driver — the fake refuses every other transition.
+      transition: (id: string, state: DocumentRecord["state"], _now: Date) => {
+        const index = base.records.findIndex((record) => record.documentId === id);
+        const updated: DocumentRecord = { ...base.records[index]!, state };
+        base.records[index] = updated;
+        return Promise.resolve(updated);
+      },
+    };
+  }
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(conversation: string, what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function assistantSaid(conversation: string): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function reading(documentId: string): Promise<{ state: string; superseded_by: string | null; told_at: Date | null } | undefined> {
+    return (await pool.query<{ state: string; superseded_by: string | null; told_at: Date | null }>("SELECT state, superseded_by, told_at FROM document_readings WHERE document_id = $1", [documentId])).rows[0];
+  }
+  async function kinds(conversation: string, kind: string, fieldKey: string): Promise<number> {
+    return Number((await pool.query<{ n: string }>("SELECT count(*) AS n FROM conversation_events WHERE conversation_id = $1 AND kind = $2 AND field_key = $3", [conversation, kind, fieldKey])).rows[0]?.n);
+  }
+  async function upload(conversation: string, documentId: string): Promise<void> {
+    const built = instance();
+    try {
+      await built.driver.requestReading({ documentId, conversationId: conversation, studentId: owners.get(conversation) ?? "", contentHash });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  /** Everything the fixture needs but the nationality, so a scalar with a playback is what the interview asks first. */
+  async function confirmAllButNationality(profiles: PostgresConfirmedProfileStore, owner: string): Promise<void> {
+    await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", owner);
+    await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", owner);
+    await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", owner);
+    await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", owner);
+    await confirmInto(profiles, "study.personal_statement", "Because it is the course I want.", "…", owner);
+  }
+  async function confirmThePlayback(conversation: string): Promise<void> {
+    const playback = (await assistantSaid(conversation)).at(-1) ?? "";
+    expect(playback).toContain("Is that right?");
+    const hash = `sha256:${createHash("sha256").update(playback).digest("hex")}`;
+    const built = instance();
+    try {
+      const runId = (await new PostgresWorkflowRunStore(built.pool).findByCase(makeCaseId(`case_${conversation.toLowerCase()}`)))[0]?.runId ?? "";
+      expect(await built.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: hash } })).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    for (const conversation of [SUPERSEDE_CONVERSATION, QUIET_CONVERSATION, COUNT_CONVERSATION]) owners.set(conversation, await ownConversation(conversation));
+    const record = (documentId: string, conversation: string): DocumentRecord => ({ documentId, studentId: owners.get(conversation) ?? "", documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null });
+    vault = readingVault([record(FIRST_CV, SUPERSEDE_CONVERSATION), record(SECOND_CV, SUPERSEDE_CONVERSATION), record(QUIET_CV, QUIET_CONVERSATION)]);
+    const built = instance();
+    try {
+      const profiles = new PostgresConfirmedProfileStore(built.pool);
+      // Supersede: nothing confirmed, so the first question is the name — the CV's fields lie ahead.
+      const started = await built.driver.start({ conversationId: SUPERSEDE_CONVERSATION, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      // Quiet and count: everything but the nationality, so a scalar with a playback comes first.
+      for (const conversation of [QUIET_CONVERSATION, COUNT_CONVERSATION]) {
+        await confirmAllButNationality(profiles, owners.get(conversation) ?? "");
+      }
+      // The quiet conversation's CV was said yes to before the run: the reader may claim it while the interview asks the nationality.
+      await built.driver.requestReading({ documentId: QUIET_CV, conversationId: QUIET_CONVERSATION, studentId: owners.get(QUIET_CONVERSATION) ?? "", contentHash });
+      const readings = new PostgresDocumentReadingStore(built.pool);
+      await readings.ask(QUIET_CV, NOW);
+      await readings.decide(QUIET_CV, true, NOW);
+      for (const conversation of [QUIET_CONVERSATION, COUNT_CONVERSATION]) {
+        const begun = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+        if (!begun.ok) expect.unreachable(`start refused: ${begun.refusal.kind}`);
+        expect((await assistantSaid(conversation)).at(-1), "the nationality first").toContain(NATIONALITY);
+      }
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("SUPERSEDES: a second CV ends the first's row and the vault's record before anyone was asked; the held sentence waits for the open question to be answered and is said once, for the later CV", async () => {
+    await upload(SUPERSEDE_CONVERSATION, FIRST_CV);
+    expect((await assistantSaid(SUPERSEDE_CONVERSATION)).at(-1)?.toLowerCase(), "the name's question stands; nothing is said over it").toContain("first name");
+    expect((await reading(FIRST_CV))?.told_at, "the telling is owed, not done").toBeNull();
+    await upload(SUPERSEDE_CONVERSATION, SECOND_CV);
+    const first = await reading(FIRST_CV);
+    expect(first?.state).toBe("superseded");
+    expect(first?.superseded_by).toBe(SECOND_CV);
+    expect(vault.records.find((record) => record.documentId === FIRST_CV)?.state, "the vault's own state, set for the first time").toBe("superseded");
+    expect((await reading(SECOND_CV))?.state).toBe("held");
+    // The student answers the open question and confirms the playback; only then is the arrival mentioned, once, for the CV that stands.
+    await say(SUPERSEDE_CONVERSATION, "Niloofar");
+    expect((await assistantSaid(SUPERSEDE_CONVERSATION)).at(-1), "a playback is open: still nothing over it").toContain("Is that right?");
+    await confirmThePlayback(SUPERSEDE_CONVERSATION);
+    const said = await assistantSaid(SUPERSEDE_CONVERSATION);
+    expect(said.filter((line) => line === HELD_FOR_LATER).length, "said once, after the confirmation").toBe(1);
+    expect(said.at(-2), "the sentence, then the next question").toBe(HELD_FOR_LATER);
+    expect((await reading(SECOND_CV))?.told_at).not.toBeNull();
+    expect((await reading(FIRST_CV))?.told_at, "a superseded row owes nothing").not.toBeNull();
+    const built = instance();
+    try {
+      expect((await new PostgresDocumentReadingStore(built.pool).readingFor(FIRST_CV))?.consent).toBe("moot");
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("QUEUES: a reading that lands while a playback is open says nothing until the playback is answered — then the sentence, then the next question; a refused reading is asked again FIRST, naming the question; a refusal counts as one failed answer, not three", async () => {
+    await say(QUIET_CONVERSATION, "Iran");
+    const playback = (await assistantSaid(QUIET_CONVERSATION)).at(-1) ?? "";
+    expect(playback, "P256: the playback names the question, not the label").toContain(`To "${NATIONALITY}" I've recorded: Iran`);
+    expect(playback).toContain("Is that right?");
+    const built = instance();
+    try {
+      const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed?.documentId).toBe(QUIET_CV);
+      expect(await built.driver.reportReading({ documentId: QUIET_CV, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [ENTRY_READ], dropped: 0 }] } })).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+    expect((await assistantSaid(QUIET_CONVERSATION)).at(-1), "nothing is said over the open playback").toBe(playback);
+    expect((await reading(QUIET_CV))?.state).toBe("read");
+    expect((await reading(QUIET_CV))?.told_at, "the sentence is owed").toBeNull();
+    // A message that is not a correction the interview can read: the reading is refused, and the SAME field is asked again first — not the seeded CV walk.
+    await say(QUIET_CONVERSATION, "what do you mean");
+    let said = await assistantSaid(QUIET_CONVERSATION);
+    expect(said.at(-2), "the owed sentence, said at the first quiet moment").toContain("I read your CV and filled in one qualification from it.");
+    expect(said.at(-1), "the refused field, asked again before anything else").toContain('could not read an answer to "What is your nationality');
+    expect(said.at(-1)).toContain(NATIONALITY);
+    expect(said.at(-1)?.toLowerCase()).not.toContain("country the institution");
+    expect((await reading(QUIET_CV))?.told_at).not.toBeNull();
+    expect(await kinds(QUIET_CONVERSATION, "value_rejected", "identity.nationality")).toBe(1);
+    expect(await kinds(QUIET_CONVERSATION, "answer_unread", "identity.nationality")).toBe(0);
+    await say(QUIET_CONVERSATION, "Iran");
+    await confirmThePlayback(QUIET_CONVERSATION);
+    said = await assistantSaid(QUIET_CONVERSATION);
+    expect(said.at(-1)?.toLowerCase(), "then the CV's walk: the country the CV could not give").toContain("country");
+    const built2 = instance();
+    try {
+      expect((await built2.driver.runFor(QUIET_CONVERSATION))?.run.status, "one refusal is not a stop").not.toBe("escalated");
+    } finally {
+      await built2.pool.end();
+    }
+  }, 300_000);
+
+  it("COUNTS failed answers: two unread answers are two on the log and no stop; the third stops, and the stop names the question and what happened", async () => {
+    await say(COUNT_CONVERSATION, "xyzzy");
+    expect(await kinds(COUNT_CONVERSATION, "answer_unread", "identity.nationality")).toBe(1);
+    expect((await assistantSaid(COUNT_CONVERSATION)).at(-1)).toContain(NATIONALITY);
+    await say(COUNT_CONVERSATION, "plugh");
+    expect(await kinds(COUNT_CONVERSATION, "answer_unread", "identity.nationality")).toBe(2);
+    let built = instance();
+    try {
+      expect((await built.driver.runFor(COUNT_CONVERSATION))?.run.status, "two failed answers: asked again, not stopped").not.toBe("escalated");
+    } finally {
+      await built.pool.end();
+    }
+    expect(await kinds(COUNT_CONVERSATION, "value_asked", "identity.nationality"), "asked three times so far").toBe(3);
+    await say(COUNT_CONVERSATION, "frobozz");
+    expect(await kinds(COUNT_CONVERSATION, "answer_unread", "identity.nationality")).toBe(3);
+    const stop = (await assistantSaid(COUNT_CONVERSATION)).at(-1) ?? "";
+    expect(stop).toContain(`I asked "${NATIONALITY}" three times and could not read any of your answers, so I have stopped`);
+    expect(stop).not.toContain("your nationality three");
+    built = instance();
+    try {
+      expect((await built.driver.runFor(COUNT_CONVERSATION))?.run.status).toBe("escalated");
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
 });
 
 describeIfDatabase("a reading says what it got and did not get, keeps its structure, and asks for the month of a year it read (P248)", () => {

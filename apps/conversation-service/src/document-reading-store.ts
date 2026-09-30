@@ -25,7 +25,7 @@ import type { ReadingStructure } from "./reading-account.js";
  * put the question (P251, ADR-0151). `pending`: the student said yes; the
  * reader may claim. `declined`: the student said no; the document is gone.
  */
-export type ReadingState = "held" | "offered" | "pending" | "leased" | "read" | "failed" | "declined";
+export type ReadingState = "held" | "offered" | "pending" | "leased" | "read" | "failed" | "declined" | "superseded";
 
 /**
  * Whether the student's word was had on this document (P253, row 108).
@@ -39,9 +39,12 @@ export type ReadingState = "held" | "offered" | "pending" | "leased" | "read" | 
  *                and it should be legible as that rather than as missing
  *                data."* Named so nobody repairs the null.
  */
-export type ReadingConsent = "awaiting" | "given" | "never_asked";
+export type ReadingConsent = "awaiting" | "given" | "never_asked" | "moot";
 
 export function consentOf(state: ReadingState, decidedAt: Date | null): ReadingConsent {
+  // A later CV replaced this one before anyone was asked (P256): no question
+  // was ever owed on it.
+  if (state === "superseded") return "moot";
   if (state === "held" || state === "offered") return "awaiting";
   return decidedAt === null ? "never_asked" : "given";
 }
@@ -76,6 +79,10 @@ export interface DocumentReading {
   readonly askedAfterReadingAt: Date | null;
   /** The answer to that question: use what was read, or not. `null` while it stands, and on every other row. */
   readonly used: boolean | null;
+  /** The later document that replaced this one before anyone was asked (P256, migration 0035); `null` on every other row. */
+  readonly supersededBy: string | null;
+  /** When the student was told what this row had to tell them — the question, that a CV ahead is held, or the reading's sentence. `null`: still owed (P256). */
+  readonly toldAt: Date | null;
 }
 
 export interface DocumentReadingStore {
@@ -87,8 +94,14 @@ export interface DocumentReadingStore {
     readonly contentHash: string;
     readonly now: Date;
   }): Promise<void>;
-  /** The question was put: `held` becomes `offered`. `null` when the document is not held. */
+  /** The question was put: `held` becomes `offered`, and the row is told (P256). `null` when the document is not held. */
   ask(documentId: string, now: Date): Promise<DocumentReading | null>;
+  /** The student was told what this row had to tell them (P256): the held sentence, or the reading's. `null` when there is no such row. */
+  told(documentId: string, now: Date): Promise<DocumentReading | null>;
+  /** The rows in this conversation still owed a telling — held, or read — oldest first (P256). */
+  untoldFor(conversationId: string): Promise<readonly DocumentReading[]>;
+  /** A later CV replaces every earlier one of this student's in this conversation that nobody has been asked about yet (P256). The ids ended. */
+  supersede(input: { readonly conversationId: string; readonly studentId: string; readonly by: string; readonly now: Date }): Promise<readonly string[]>;
   /**
    * The student's word on an offered document: yes makes it `pending` for the
    * reader, no ends it `declined`. `null` when no question stands.
@@ -148,6 +161,8 @@ interface Row {
   readonly reopened_after: number | null;
   readonly asked_after_reading_at: Date | null;
   readonly used: boolean | null;
+  readonly superseded_by: string | null;
+  readonly told_at: Date | null;
 }
 
 function readingOf(row: Row): DocumentReading {
@@ -169,11 +184,13 @@ function readingOf(row: Row): DocumentReading {
     consent: consentOf(row.state as ReadingState, row.decided_at),
     askedAfterReadingAt: row.asked_after_reading_at,
     used: row.used,
+    supersededBy: row.superseded_by,
+    toldAt: row.told_at,
   };
 }
 
 const COLUMNS =
-  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure, decided_at, reopened_after, asked_after_reading_at, used";
+  "document_id, conversation_id, student_id, content_hash, state, requested_at, lease_id, holder, lease_expires_at, read_at, failure, structure, decided_at, reopened_after, asked_after_reading_at, used, superseded_by, told_at";
 
 /** The `document_readings` table (migration 0030). */
 export class PostgresDocumentReadingStore implements DocumentReadingStore {
@@ -192,13 +209,42 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
     );
   }
 
-  public async ask(documentId: string, _now: Date): Promise<DocumentReading | null> {
+  public async ask(documentId: string, now: Date): Promise<DocumentReading | null> {
     const rows = await this.#pool.query<Row>(
-      `UPDATE document_readings SET state = 'offered' WHERE document_id = $1 AND state = 'held' RETURNING ${COLUMNS}`,
-      [documentId],
+      `UPDATE document_readings SET state = 'offered', told_at = $2 WHERE document_id = $1 AND state = 'held' RETURNING ${COLUMNS}`,
+      [documentId, now],
     );
     const row = rows.rows[0];
     return row === undefined ? null : readingOf(row);
+  }
+
+  public async told(documentId: string, now: Date): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `UPDATE document_readings SET told_at = $2 WHERE document_id = $1 AND told_at IS NULL RETURNING ${COLUMNS}`,
+      [documentId, now],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async untoldFor(conversationId: string): Promise<readonly DocumentReading[]> {
+    const rows = await this.#pool.query<Row>(
+      `SELECT ${COLUMNS} FROM document_readings
+        WHERE conversation_id = $1 AND told_at IS NULL AND state IN ('held', 'read')
+        ORDER BY requested_at ASC`,
+      [conversationId],
+    );
+    return rows.rows.map(readingOf);
+  }
+
+  public async supersede(input: { conversationId: string; studentId: string; by: string; now: Date }): Promise<readonly string[]> {
+    const rows = await this.#pool.query<{ document_id: string }>(
+      `UPDATE document_readings SET state = 'superseded', superseded_by = $3, told_at = COALESCE(told_at, $4)
+        WHERE conversation_id = $1 AND student_id = $2 AND document_id <> $3 AND state IN ('held', 'offered')
+        RETURNING document_id`,
+      [input.conversationId, input.studentId, input.by, input.now],
+    );
+    return rows.rows.map((row) => row.document_id);
   }
 
   public async decide(documentId: string, use: boolean, now: Date, reopenedAfter?: number): Promise<DocumentReading | null> {
@@ -317,7 +363,7 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
   public async complete(input: { documentId: string; leaseId: string; outcome: "read" | "failed"; failure?: string; structure?: ReadingStructure; now: Date }): Promise<boolean> {
     const rows = await this.#pool.query(
       `UPDATE document_readings
-          SET state = $3, read_at = $4, failure = $5, structure = $6, lease_id = NULL, holder = NULL, lease_expires_at = NULL
+          SET state = $3, read_at = $4, failure = $5, structure = $6, lease_id = NULL, holder = NULL, lease_expires_at = NULL, told_at = NULL
         WHERE document_id = $1 AND state = 'leased' AND lease_id = $2 AND lease_expires_at > $4`,
       [
         input.documentId,
@@ -362,17 +408,46 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
         consent: "awaiting",
         askedAfterReadingAt: null,
         used: null,
+        supersededBy: null,
+        toldAt: null,
       });
     }
     return Promise.resolve();
   }
 
-  public ask(documentId: string, _now: Date): Promise<DocumentReading | null> {
+  public ask(documentId: string, now: Date): Promise<DocumentReading | null> {
     const row = this.#rows.get(documentId);
     if (row === undefined || row.state !== "held") return Promise.resolve(null);
-    const offered: DocumentReading = { ...row, state: "offered" };
+    const offered: DocumentReading = { ...row, state: "offered", toldAt: now };
     this.#rows.set(documentId, offered);
     return Promise.resolve(offered);
+  }
+
+  public told(documentId: string, now: Date): Promise<DocumentReading | null> {
+    const row = this.#rows.get(documentId);
+    if (row === undefined || row.toldAt !== null) return Promise.resolve(null);
+    const told: DocumentReading = { ...row, toldAt: now };
+    this.#rows.set(documentId, told);
+    return Promise.resolve(told);
+  }
+
+  public untoldFor(conversationId: string): Promise<readonly DocumentReading[]> {
+    return Promise.resolve(
+      [...this.#rows.values()]
+        .filter((row) => row.conversationId === conversationId && row.toldAt === null && (row.state === "held" || row.state === "read"))
+        .sort((a, b) => a.requestedAt.getTime() - b.requestedAt.getTime()),
+    );
+  }
+
+  public supersede(input: { conversationId: string; studentId: string; by: string; now: Date }): Promise<readonly string[]> {
+    const ended: string[] = [];
+    for (const row of this.#rows.values()) {
+      if (row.conversationId !== input.conversationId || row.studentId !== input.studentId || row.documentId === input.by) continue;
+      if (row.state !== "held" && row.state !== "offered") continue;
+      this.#rows.set(row.documentId, { ...row, state: "superseded", supersededBy: input.by, consent: "moot", toldAt: row.toldAt ?? input.now });
+      ended.push(row.documentId);
+    }
+    return Promise.resolve(ended.sort());
   }
 
   public decide(documentId: string, use: boolean, now: Date, reopenedAfter?: number): Promise<DocumentReading | null> {
@@ -472,6 +547,8 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
       leaseId: null,
       holder: null,
       leaseExpiresAt: null,
+      // A reading that ended has something new to tell (P256): the sentence.
+      toldAt: null,
     });
     return true;
   }

@@ -259,6 +259,56 @@ describeIfDatabase("a reading done before the question existed is legible as tha
   });
 });
 
+describeIfDatabase("a later CV supersedes the earlier; a row is told what it has to tell at a quiet moment (P256, migration 0035)", () => {
+  it("supersedes every held or offered row of the student's in the conversation, names the later document, sets the vault's word and the consent `moot`; a superseded row is never asked; a telling is owed by a held row and again by a read one", async () => {
+    const store = new PostgresDocumentReadingStore(pool);
+    const now = new Date("2026-09-30T15:00:00Z");
+    const long_ago = new Date("1997-01-01T00:00:00Z");
+    const conversation = "c-0035";
+    await store.request({ documentId: "01JQREADSUPER0000000000001", conversationId: conversation, studentId: "s", contentHash: HASH, now });
+    await store.request({ documentId: "01JQREADSUPER0000000000002", conversationId: conversation, studentId: "s", contentHash: HASH, now });
+    await store.ask("01JQREADSUPER0000000000002", now);
+    expect(await store.untoldFor(conversation), "a held row owes a telling; an offered one was told by the question").toHaveLength(1);
+    await store.request({ documentId: "01JQREADSUPER0000000000003", conversationId: conversation, studentId: "s", contentHash: HASH, now: long_ago });
+    expect(await store.supersede({ conversationId: conversation, studentId: "s", by: "01JQREADSUPER0000000000003", now })).toEqual(["01JQREADSUPER0000000000001", "01JQREADSUPER0000000000002"]);
+    const first = await store.readingFor("01JQREADSUPER0000000000001");
+    expect(first?.state).toBe("superseded");
+    expect(first?.supersededBy).toBe("01JQREADSUPER0000000000003");
+    expect(first?.consent).toBe("moot");
+    expect(first?.toldAt, "a superseded row owes nothing").not.toBeNull();
+    expect(await store.ask("01JQREADSUPER0000000000001", now), "never asked").toBeNull();
+    expect((await store.heldFor(conversation))?.documentId).toBe("01JQREADSUPER0000000000003");
+    // Telling: owed by the held row, then not; owed again once read.
+    expect((await store.untoldFor(conversation)).map((row) => row.documentId)).toEqual(["01JQREADSUPER0000000000003"]);
+    expect((await store.told("01JQREADSUPER0000000000003", now))?.toldAt).toEqual(now);
+    expect(await store.untoldFor(conversation)).toEqual([]);
+    await store.ask("01JQREADSUPER0000000000003", now);
+    await store.decide("01JQREADSUPER0000000000003", true, now);
+    const leased = await store.claim({ holder: "reader-1", leaseId: "rl_super", now, leaseSeconds: 60 });
+    expect(leased?.documentId).toBe("01JQREADSUPER0000000000003");
+    expect(await store.complete({ documentId: "01JQREADSUPER0000000000003", leaseId: "rl_super", outcome: "read", now })).toBe(true);
+    expect((await store.untoldFor(conversation)).map((row) => row.documentId), "read: the sentence is owed").toEqual(["01JQREADSUPER0000000000003"]);
+    expect(await store.told("01JQREADSUPER0000000000003", now)).not.toBeNull();
+    expect(await store.told("01JQREADSUPER0000000000003", now), "told once").toBeNull();
+    // The table: a superseded row names the later document.
+    await expect(
+      pool.query("INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at) VALUES ('01JQREADSUPER0000000000009', 'c', 's', $1, 'superseded', now())", [HASH]),
+    ).rejects.toThrow(/document_readings_superseded_names_the_later/);
+  });
+
+  it("does the same in memory", async () => {
+    const store = new InMemoryDocumentReadingStore();
+    const now = new Date("2026-09-30T15:00:00Z");
+    await store.request({ documentId: "01JQREADSUPER0000000000011", conversationId: "c", studentId: "s", contentHash: HASH, now });
+    await store.request({ documentId: "01JQREADSUPER0000000000012", conversationId: "c", studentId: "s", contentHash: HASH, now });
+    expect(await store.supersede({ conversationId: "c", studentId: "s", by: "01JQREADSUPER0000000000012", now })).toEqual(["01JQREADSUPER0000000000011"]);
+    expect((await store.readingFor("01JQREADSUPER0000000000011"))?.consent).toBe("moot");
+    expect((await store.untoldFor("c")).map((row) => row.documentId)).toEqual(["01JQREADSUPER0000000000012"]);
+    await store.told("01JQREADSUPER0000000000012", now);
+    expect(await store.untoldFor("c")).toEqual([]);
+  });
+});
+
 describeIfDatabase("the table refuses what the store never writes", () => {
   it("REFUSES a lease with a holder and no expiry, a failure on a reading that did not fail, and an unknown state", async () => {
     await expect(

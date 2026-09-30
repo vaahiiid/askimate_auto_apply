@@ -267,6 +267,23 @@ export interface ValueRejectedEvent extends EventBase {
 }
 
 /**
+ * The student's answer to the question that stood could not be read (P256).
+ *
+ * Written before the question is asked again, so the log says what happened
+ * to the message rather than leaving it to be inferred from a second asking.
+ * The stop rule counts these, with the readings the student refused, as
+ * failed answers to THIS question — never askings, which also grow when the
+ * interview asks again for other reasons. Vahid, on a run that stopped after
+ * one real failure: *"my three 'attempts' included two messages that were
+ * not addressed to that question at all."* No words of the answer are kept
+ * here; the message itself is on the log as it was.
+ */
+export interface AnswerUnreadEvent extends EventBase {
+  readonly kind: "answer_unread";
+  readonly fieldKey: string;
+}
+
+/**
  * The server resolved a REVIEWED target and put it to the student (ADR-0058).
  *
  * Content-free by construction: the prose the student reads is a `message`
@@ -331,6 +348,7 @@ export type ConversationEvent =
   | ValuePartReadEvent
   | ValueConfirmedEvent
   | ValueRejectedEvent
+  | AnswerUnreadEvent
   | TargetOfferedEvent
   | TargetRequestedEvent
   | ReapplicationAdvisedEvent;
@@ -528,6 +546,11 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const fieldKey = readString(source, "fieldKey");
       if (fieldKey === null) return null;
       return { ...base, kind: "value_rejected", fieldKey };
+    }
+    case "answer_unread": {
+      const fieldKey = readString(source, "fieldKey");
+      if (fieldKey === null) return null;
+      return { ...base, kind: "answer_unread", fieldKey };
     }
     // ── The target exchange (ADR-0058) ────────────────────────────────────
     //

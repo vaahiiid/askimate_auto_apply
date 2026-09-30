@@ -675,6 +675,8 @@ describe("bytes from the network to a target event", () => {
       value_part_demanded: { fieldKey: "employment.history", partKey: "item0.basis", demand: { page: "Employment", empty: ["full-time or part-time"], unseen: [] } },
       value_confirmed: { fieldKey: "contact.email", playbackHash: OFFER },
       value_rejected: { fieldKey: "contact.email" },
+      // P256: an answer that could not be read, on the log as itself.
+      answer_unread: { fieldKey: "contact.email" },
       target_offered: { offerHash: OFFER, targetBlueprintId: "bp-x", targetContentHash: CONTENT },
       target_requested: { offerHash: OFFER },
       reapplication_advised: { priorCaseId: "case_x", priorOutcome: "withdrawn", advice: "none" },

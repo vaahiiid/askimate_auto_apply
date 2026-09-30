@@ -158,6 +158,8 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
   key: K,
   proposed: ProposedValue<ProfileFieldType<K>>,
   label: string,
+  /** The authored question this value answers (P255), when the field has one: the playback names it rather than the label (P256). */
+  question?: string,
 ): string {
   const proposal = unwrapProposed(proposed);
   // ── P199: a country is shown as a country ───────────────────────────────
@@ -177,7 +179,15 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
         : `From your document, with your answers: "${proposal.verbatim}"`
       : `From your document: "${proposal.verbatim}"`;
 
-  return `${heard}\n\nI've recorded your ${label.toLowerCase()} as: ${rendered}\n\nIs that right?`;
+  // P256. "I've recorded your currently living in the uk as: true" was a
+  // label in a template, and Vahid read it. A field with an authored
+  // question is played back by that question; a composite or a list, whose
+  // label is a noun — home address, employment history — by the label.
+  const recorded =
+    question === undefined
+      ? `I've recorded your ${label.toLowerCase()} as: ${rendered}`
+      : `To "${question.replace(/ Please answer yes or no\.$/, "")}" I've recorded: ${rendered}`;
+  return `${heard}\n\n${recorded}\n\nIs that right?`;
 }
 
 /**
@@ -206,6 +216,8 @@ function countryNameFor(key: ProfileFieldKey, value: unknown): string | null {
  */
 function formatValue(value: unknown, key?: ProfileFieldKey): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  // A yes or a no, as the student said it — never `true` (P256).
+  if (typeof value === "boolean") return value ? "yes" : "no";
   // The shapes with no table of names, read the way a person says them
   // (P229): an amount of money, a month of a year, an end that is a kind and
   // maybe a date, a time in years and months.

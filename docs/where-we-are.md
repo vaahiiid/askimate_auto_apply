@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P256 — one thing to answer at a time
+
+> *"Whatever else is true, the student should never have two things to answer at once."*
+
+His run stopped, and reading the sequence whole showed five faults stacked on one open playback:
+the reading's sentence said over it, his answer to what the sentence announced taken as a
+correction, a CV question about an upload nobody had superseded, the refused field asked last,
+and three askings counted where one answer had failed. ADR-0152 states the principle he asked
+for: whatever arrives while the student has something to answer, queues. The rest is built with
+it — a refused field asked next, a later CV superseding the earlier (and the vault's `superseded`
+state written for the first time since it was defined), a log event for an answer that could not
+be read so the stop counts failures and not askings, and the playback, the preface and the stop
+naming the question. His stopped run resumes by a resolution; the third asking on it is row 112
+until his log says which of two things fired it.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P255 — a question's words are authored, never assembled from a key
 
 > *"'Are you currently living in the UK?' — not the key in a template."*

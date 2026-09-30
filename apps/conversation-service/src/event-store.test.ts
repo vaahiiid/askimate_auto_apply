@@ -134,6 +134,7 @@ beforeAll(async () => {
     "0032_a_document_is_used_on_the_students_word",
     "0033_a_late_cv_is_asked_about_at_once",
     "0034_a_reading_before_the_question_is_legible_and_asked_after",
+    "0035_a_later_cv_supersedes_and_nothing_is_said_over_an_open_question",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(

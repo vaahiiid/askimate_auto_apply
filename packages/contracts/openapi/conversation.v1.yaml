@@ -2176,6 +2176,7 @@ components:
         - { $ref: "#/components/schemas/ValuePartDemandedEvent" }
         - { $ref: "#/components/schemas/ValueConfirmedEvent" }
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
+        - { $ref: "#/components/schemas/AnswerUnreadEvent" }
         - { $ref: "#/components/schemas/TargetOfferedEvent" }
         - { $ref: "#/components/schemas/TargetRequestedEvent" }
         - { $ref: "#/components/schemas/ReapplicationAdvisedEvent" }
@@ -2196,6 +2197,7 @@ components:
           value_part_demanded: "#/components/schemas/ValuePartDemandedEvent"
           value_confirmed: "#/components/schemas/ValueConfirmedEvent"
           value_rejected: "#/components/schemas/ValueRejectedEvent"
+          answer_unread: "#/components/schemas/AnswerUnreadEvent"
           target_offered: "#/components/schemas/TargetOfferedEvent"
           target_requested: "#/components/schemas/TargetRequestedEvent"
           reapplication_advised: "#/components/schemas/ReapplicationAdvisedEvent"
@@ -2435,6 +2437,21 @@ components:
         anything; what they say next is a fresh answer.
       properties:
         kind: { type: string, enum: [value_rejected] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
+
+    AnswerUnreadEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey]
+      description: >
+        P256. The student's answer to the question that stood could not be
+        read. Written before the question is asked again; counted, with the
+        readings the student refused, as a failed answer to this question.
+        The stop rule reads failed answers, never askings.
+      properties:
+        kind: { type: string, enum: [answer_unread] }
         ordinal: { type: integer, minimum: 1 }
         createdAt: { type: string, format: date-time }
         fieldKey: { type: string }

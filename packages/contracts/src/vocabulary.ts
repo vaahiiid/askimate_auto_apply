@@ -57,6 +57,9 @@ export const EVENT_KINDS = [
   "value_part_read",
   "value_confirmed",
   "value_rejected",
+  // P256: an answer to the question that stood could not be read. Counted
+  // as a failed answer to THAT question; askings are not.
+  "answer_unread",
   // ── The target exchange (ADR-0058) ───────────────────────────────────
   //
   // The server put a REVIEWED target to the student, and the student asked to
@@ -152,6 +155,7 @@ export const PROPOSAL_EVENT_KINDS = [
   "value_part_read",
   "value_confirmed",
   "value_rejected",
+  "answer_unread",
 ] as const satisfies readonly EventKind[];
 
 /** Who a message is from. Not an identity — a role in the conversation. */

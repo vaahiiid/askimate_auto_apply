@@ -1829,3 +1829,42 @@ describe("a question's words are authored, never assembled from a key or a label
     expect(said).not.toContain("currently living");
   });
 });
+
+describe("a refused field is asked next; the playback and the correction preface name the question, and say yes, never true (P256)", () => {
+  // Vahid, 2026-09-30, on the run that stopped: *"anything I typed was being
+  // fed to a question I had already answered and confirmed"*, and on the
+  // words: *"'your currently living in the uk' appears three times in those
+  // messages, including in the stop."*
+  it("asks a field whose reading the student refused before any other outstanding field, with the preface naming the question", async () => {
+    const state: InterviewState = { ...start(["identity.given_name", "identity.nationality"]), rejected: new Set<ProfileFieldKey>(["identity.nationality"]) };
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("ask");
+    if (action.kind !== "ask") return;
+    expect(action.fieldKey, "the refused field, though the name comes first in order").toBe("identity.nationality");
+    expect(action.say).toContain('could not read an answer to "What is your nationality — which country are you a national of?" in it');
+    expect(action.say).not.toContain("make a nationality out of it");
+  });
+
+  it("plays a yes/no answer back by its question, as yes — not a label in a template, and not `true`", async () => {
+    const state = start(["residence.in_uk_now"]);
+    const asked = await receiveAnswer(state, "residence.in_uk_now", "yes", model);
+    expect(asked.kind).toBe("understood");
+    const confirm = await nextAction(asked.state, model);
+    expect(confirm.kind).toBe("confirm");
+    if (confirm.kind === "confirm") {
+      expect(confirm.say).toBe('You said: "yes"\n\nTo "Are you living in the UK at the moment?" I\'ve recorded: yes\n\nIs that right?');
+    }
+  });
+
+  it("plays a composite back by its label, which is a noun", async () => {
+    let state = start(["contact.address"]);
+    for (const answer of ["12 Valiasr Street", "none", "Tehran", "none", "1234567890", "Iran"]) {
+      const outcome = await receiveAnswer(state, "contact.address", answer, model);
+      expect(outcome.kind, answer).toBe("understood");
+      state = outcome.state;
+    }
+    const confirm = await nextAction(state, model);
+    expect(confirm.kind).toBe("confirm");
+    if (confirm.kind === "confirm") expect(confirm.say).toContain("I've recorded your home address as:");
+  });
+});

@@ -294,7 +294,7 @@ export class BedrockModelClient implements ModelClient {
         ? // P221: what happened is that their message was read as a correction
           // to a value already played back. Say that; never say nothing was caught.
           `\n\nThe student's last message was taken as a correction to a value you had already ` +
-          `played back to them, and no ${request.label} could be read from it, so that reading has ` +
+          `played back to them, and no answer to "${request.question}" could be read from it, so that reading has ` +
           `been set aside. Say exactly that — do not say you did not catch or understand them — and ` +
           `ask them to give the value again, the same one if it was right.`
         : request.previousAttempts > 0

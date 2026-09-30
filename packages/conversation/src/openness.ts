@@ -51,6 +51,7 @@ case "value_proposed":
       case "value_part_read":
       case "value_confirmed":
       case "value_rejected":
+      case "answer_unread":
       case "target_offered":
       case "target_requested":
       case "reapplication_advised":
@@ -123,6 +124,7 @@ case "value_proposed":
       case "value_part_read":
       case "value_confirmed":
       case "value_rejected":
+      case "answer_unread":
       case "target_offered":
       case "target_requested":
       case "reapplication_advised":

@@ -104,7 +104,7 @@ export type InterviewAction =
       readonly kind: "escalate";
       readonly reason: string;
       readonly fieldKey?: ProfileFieldKey;
-      /** How many times the field was asked before this stop (P224), for the words the student reads. */
+      /** How many answers to this field FAILED before this stop — unread, or refused at the playback (P256; askings are not counted). */
       readonly attempts?: number;
     };
 
@@ -361,6 +361,12 @@ function readingsOfItem(readings: PartReadings, index: number): PartReadings {
   );
 }
 
+/** The authored question of a scalar field (P255), for the playback to name (P256); `undefined` for a composite or a list, whose label is a noun. */
+export function questionOf(fieldKey: ProfileFieldKey): string | undefined {
+  const spec = FIELD_SPECS[fieldKey] as FieldSpec<unknown> | undefined;
+  return spec === undefined || isComposite(spec) || isList(spec) ? undefined : spec.question;
+}
+
 /** A yes/no part whose rationale is the question itself, said exactly so (P255): a list's opening and its "another?". */
 function yesNoPart(partKey: string, label: string, question: string): FieldPart<unknown> {
   return { partKey, label, question, rationale: "", exactly: question, expectedShape: "yes or no", parse: yesNo };
@@ -504,6 +510,7 @@ export async function nextAction(
         state.pending.fieldKey,
         state.pending.proposed as ProposedValue<ProfileFieldType<ProfileFieldKey>>,
         label,
+        questionOf(state.pending.fieldKey),
       ),
     };
   }
@@ -542,10 +549,15 @@ export async function nextAction(
 
   // Past the two returns above, every remaining question is one that can be
   // asked. Said in the types rather than left to the reader.
-  const askable = asking.filter(
+  const askableInOrder = asking.filter(
     (candidate): candidate is { fieldKey: OrdinaryFieldKey; question: OpenQuestion } =>
       candidate.question.kind === "field" || candidate.question.kind === "part",
   );
+  // P256: a field whose reading the student refused is asked again BEFORE
+  // anything else. On Vahid's run the refused field waited behind a CV
+  // question, and what he typed next was read against the wrong question.
+  const refusedFirst = askableInOrder.filter((candidate) => state.rejected?.has(candidate.fieldKey) === true);
+  const askable = [...refusedFirst, ...askableInOrder.filter((candidate) => state.rejected?.has(candidate.fieldKey) !== true)];
 
   const partKeyOf = (question: OpenQuestion): string | undefined =>
     question.kind === "part" ? question.part.partKey : undefined;
@@ -971,6 +983,7 @@ export function receiveConfirmation(
     pending.fieldKey,
     pending.proposed as ProposedValue<ProfileFieldType<ProfileFieldKey>>,
     label,
+    questionOf(pending.fieldKey),
   );
 
   // A correction the agent cannot parse is not a confirmation. Storing the

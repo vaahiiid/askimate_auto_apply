@@ -122,6 +122,7 @@ import {
   isList,
   newInterview,
   nextAction,
+  questionOf,
   receiveAnswer,
   receiveConfirmation,
 } from "@askimate/aas-interview";
@@ -211,7 +212,7 @@ import { admits, type Admission } from "@askimate/aas-catalogue";
 import { CV_LIST_FIELDS, SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { WorkFailure } from "@askimate/aas-contracts";
 import type { ClaimedReading, ReadingReport, WireEntryReading, WireFieldValue, WirePartialReading } from "@askimate/aas-contracts";
-import type { DocumentReadingStore } from "./document-reading-store.js";
+import type { DocumentReading, DocumentReadingStore } from "./document-reading-store.js";
 import { readingSentence, structureOf } from "./reading-account.js";
 import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
@@ -1263,21 +1264,28 @@ function contentRejectedMessage(entry: CatalogueEntry): string {
  * still could not read an answer. Saying so is the honest thing, and it is also
  * what stops the student answering into a void.
  */
-function unobtainableMessage(entry: CatalogueEntry, what: string, attempts: number | undefined, rejections: number): string {
+function unobtainableMessage(
+  entry: CatalogueEntry,
+  /** What was asked, as the student read it: `"What is your date of birth?"` for a field with an authored question, `for your home address` for a composite or a list (P256, never a label as a noun). */
+  asked: string,
+  askings: number | undefined,
+  rejections: number,
+  unread: number,
+): string {
   // P224, in Vahid's words for the shape: *"I asked for your date of birth
   // three times and could not read any of your answers, so I have stopped
-  // rather than carry on without it."* Which field, how many times, and what
-  // happened — said, not summarised. A reading the student refused is not an
-  // answer nobody could read, so the two are told apart from the log.
-  const times = attempts === undefined ? "as many times as I should" : `${numberInWords(attempts)} times`;
+  // rather than carry on without it."* Which question, how many times, and
+  // what happened — said, not summarised. A reading the student refused is
+  // not an answer nobody could read, so the two are told apart from the log.
+  const times = askings === undefined ? "as many times as I should" : `${numberInWords(askings)} times`;
   const happened =
     rejections === 0
       ? `could not read any of your answers`
-      : rejections >= (attempts ?? 0)
+      : unread === 0
         ? `each time you told me my reading was wrong`
         : `${numberInWords(rejections)} of your answers you told me I had read wrongly, and the rest I could not read`;
   return (
-    `I asked for your ${what} ${times} and ${happened}, so I have stopped rather than carry on ` +
+    `I asked ${asked} ${times} and ${happened}, so I have stopped rather than carry on ` +
     `without it. Rather than guess at something your ${entry.blueprint.institutionName} application ` +
     `depends on, I have passed this to a member of the team to sort out with you. Nothing you have ` +
     `already given me is lost, and your application has not been submitted.`
@@ -1695,7 +1703,8 @@ function interviewFrom(input: {
     // portal's demand for one part is open, with every OTHER part of the
     // value the portal refused, so only the demanded part is asked (P233).
     partial: seededWithDemands(partsReadFrom(input.events, input.setAside, input.startedAgainAfter), input.events, input.confirmed),
-    attempts: attemptsFrom(input.events),
+    // P256: what the stop rule counts is failed answers, never askings.
+    attempts: failedAnswersFrom(input.events),
     // P221: a reading set aside as an unreadable correction is asked about
     // as what it was, not as something nobody caught.
     rejected: rejectedFrom(input.events),
@@ -2077,6 +2086,28 @@ function attemptsFrom(events: readonly ConversationEvent[]): ReadonlyMap<Profile
     }
   }
   return attempts;
+}
+
+/**
+ * How many answers to each field FAILED since it was last confirmed (P256):
+ * an answer that could not be read (`answer_unread`) or a reading the student
+ * refused at the playback (`value_rejected`). This, not the asking count, is
+ * what the stop rule reads. Vahid, on a run that stopped after one real
+ * failure: *"my three 'attempts' included two messages that were not
+ * addressed to that question at all."* An asking that follows a queued
+ * arrival, a CV question, or a deferral is not a failure of anyone's.
+ */
+function failedAnswersFrom(events: readonly ConversationEvent[]): ReadonlyMap<ProfileFieldKey, number> {
+  const failed = new Map<ProfileFieldKey, number>();
+  for (const event of events) {
+    if (event.kind === "answer_unread" || event.kind === "value_rejected") {
+      const field = event.fieldKey as ProfileFieldKey;
+      failed.set(field, (failed.get(field) ?? 0) + 1);
+    } else if (event.kind === "value_confirmed") {
+      failed.delete(event.fieldKey as ProfileFieldKey);
+    }
+  }
+  return failed;
 }
 
 /**
@@ -5251,9 +5282,12 @@ export class RunDriver {
       // The count is the log's (ADR-0145): the in-memory bump `receiveAnswer`
       // makes for the harness is not written anywhere and is not read here.
       // The re-ask that follows writes attempt + 1, and that is the count.
+      // P256: what happened to the message is on the log, as itself. The
+      // stop rule counts these; the asking that follows does not count.
+      await this.#options.conversations.append({ conversationId: input.conversationId, event: { kind: "answer_unread", fieldKey: asking } });
       const answered: RunState = {
         ...situated.state,
-        interview: { ...outcome.state, attempts: situated.state.interview.attempts },
+        interview: { ...outcome.state, attempts: failedAnswersFrom(await this.#options.conversations.since(input.conversationId, 0)) },
       };
       const step = await nextStep(answered, this.#options.model);
       const stopped = await this.#stopIfTheInterviewGaveUp(
@@ -5663,6 +5697,9 @@ export class RunDriver {
   async #askAfterWriting(conversationId: string): Promise<void> {
     const situated = await this.#interviewSituation(conversationId);
     if (situated === null) return;
+    // P256: what arrived while the student had something to answer is said
+    // now, if now is quiet — and if that puts a question, nothing more is.
+    if (await this.#sayWhatArrived(conversationId, situated)) return;
     // ── Ask, or STOP. Never neither (ADR-0064) ─────────────────────────
     //
     // The interview's next move is one of five kinds and only `ask` is a
@@ -6038,6 +6075,17 @@ export class RunDriver {
    * `recovery.ts` reserves `critical` for one that is imminent. This driver does
    * not know the deadline, so it does not claim to.
    */
+  /** The stop's words (P224, P256): the question as the student read it, how many times it was asked, and what happened to the answers — from the log. */
+  async #unobtainable(entry: CatalogueEntry, conversationId: string, field: ProfileFieldKey | undefined, failures: number | undefined): Promise<string> {
+    if (field === undefined) return unobtainableMessage(entry, "for some of what I need", undefined, 0, 0);
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const question = questionOf(field);
+    const asked = question === undefined ? `for your ${FIELD_LABELS[field].toLowerCase()}` : `"${question.replace(/ Please answer yes or no\.$/, "")}"`;
+    const rejections = rejectionsSinceConfirmed(events, field);
+    const unread = Math.max(0, (failures ?? rejections) - rejections);
+    return unobtainableMessage(entry, asked, attemptsFrom(events).get(field), rejections, unread);
+  }
+
   async #stopForUnobtainable(
     input: {
       readonly entry: CatalogueEntry;
@@ -6129,12 +6177,7 @@ export class RunDriver {
       message:
         action.kind === "request_document"
           ? documentNeededMessage(input.entry, action.documentType)
-          : unobtainableMessage(
-              input.entry,
-              field === undefined ? "some of what I need" : FIELD_LABELS[field].toLowerCase(),
-              action.attempts,
-              field === undefined ? 0 : rejectionsSinceConfirmed(await this.#options.conversations.since(input.conversationId, 0), field),
-            ),
+          : await this.#unobtainable(input.entry, input.conversationId, field, action.attempts),
       now,
     });
 
@@ -7783,7 +7826,19 @@ export class RunDriver {
     // Idempotent, and said once: a document already asked for is left as it
     // is, and nothing below is said again for it.
     if ((await readings.readingFor(input.documentId)) !== null) return;
-    await readings.request({ ...input, now: this.#options.now() });
+    const now = this.#options.now();
+    // P256: a later CV supersedes every earlier one of this student's that
+    // nobody has been asked about yet — its row ends, and the vault's own
+    // `superseded` state is set, for the first time since it was defined.
+    for (const earlier of await readings.supersede({ conversationId: input.conversationId, studentId: input.studentId, by: input.documentId, now })) {
+      await this.#options.disclosure?.vault.transition(earlier, "superseded", now);
+    }
+    await readings.request({ ...input, now });
+    // Nothing is said over an open question (P256). When the student has
+    // something to answer, the arrival is recorded and told at the next
+    // quiet moment, by `#sayWhatArrived`; the one exception is P254's — a
+    // CV field's own open question yields to the CV question.
+    if (!(await this.#quietForTheCv(input.conversationId))) return;
     const say = async (content: string): Promise<void> => {
       await this.#options.conversations.append({ conversationId: input.conversationId, event: { kind: "message", actor: "assistant", content } });
     };
@@ -7801,11 +7856,86 @@ export class RunDriver {
     const cv = await this.#cvSituation(input.conversationId, input.studentId);
     if (cv.kind === "ahead") {
       await say(HELD_FOR_LATER);
+      await readings.told(input.documentId, now);
       return;
     }
-    const asked = await readings.ask(input.documentId, this.#options.now());
+    const asked = await readings.ask(input.documentId, now);
     if (asked === null) return;
     await say((await this.#documentQuestion(input.conversationId, input.studentId)).question);
+  }
+
+  /**
+   * Whether the student has nothing to answer right now (P256): no playback
+   * open, no decision pending, and no question standing — or only a CV
+   * field's, which the CV question may replace (P254).
+   */
+  async #quietForTheCv(conversationId: string): Promise<boolean> {
+    const situated = await this.#interviewSituation(conversationId);
+    const events = await this.#options.conversations.since(conversationId, 0);
+    if (openProposal(events) !== null) return false;
+    if (situated !== null && (await this.#pendingDecision(situated.record.caseId, conversationId, situated.step)) !== null) return false;
+    const open = openQuestion(events);
+    return open === null || (CV_LIST_FIELDS as readonly string[]).includes(open.fieldKey) || supersededByTheDocumentQuestion(events, open.fieldKey);
+  }
+
+  /**
+   * Says what arrived while the student had something to answer, now that
+   * they do not (P256). Vahid: *"the student should never have two things to
+   * answer at once… If the reader, a portal demand, or anything else lands
+   * while a question is open, it queues."* In order of arrival: a reading's
+   * sentence; a held CV — the question, or that it is held; a portal's
+   * demand. `true` when a question was put, so the caller asks nothing more.
+   */
+  async #sayWhatArrived(conversationId: string, situated: { readonly entry: CatalogueEntry; readonly record: WorkflowRunRecord; readonly step: RunStep } | null): Promise<boolean> {
+    const readings = this.#options.readings;
+    const events = await this.#options.conversations.since(conversationId, 0);
+    if (openProposal(events) !== null) return false;
+    if (situated !== null && (await this.#pendingDecision(situated.record.caseId, conversationId, situated.step)) !== null) return false;
+    const open = openQuestion(events);
+    const quiet = open === null || supersededByTheDocumentQuestion(events, open.fieldKey);
+    if (!quiet) return false;
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    const now = this.#options.now();
+    if (readings !== undefined) {
+      for (const owed of await readings.untoldFor(conversationId)) {
+        if (owed.state === "read") {
+          await say(this.#readingSentenceOf(owed));
+          await readings.told(owed.documentId, now);
+          continue;
+        }
+        const cv = await this.#cvSituation(conversationId, owed.studentId);
+        if (cv.kind === "ahead" || (cv.kind === "open" && open !== null && !(CV_LIST_FIELDS as readonly string[]).includes(open.fieldKey))) {
+          await say(HELD_FOR_LATER);
+          await readings.told(owed.documentId, now);
+          continue;
+        }
+        const asked = await readings.ask(owed.documentId, now);
+        if (asked === null) continue;
+        await say((await this.#documentQuestion(conversationId, owed.studentId)).question);
+        return true;
+      }
+    }
+    // A portal's demand whose sentence was not said when it arrived: the
+    // event is the last thing on the log after it, or it was said.
+    const demanded = [...events].reverse().find((event) => event.kind === "value_part_demanded");
+    if (situated !== null && demanded !== undefined && !events.some((event) => event.ordinal > demanded.ordinal && event.kind === "message" && event.actor === "assistant")) {
+      await say(demandSentence(situated.entry, demanded.demand));
+    }
+    return false;
+  }
+
+  /** The reading's sentence, from the row's structure — never from the log (P248, P256). */
+  #readingSentenceOf(row: DocumentReading): string {
+    return readingSentence({
+      outcome: row.state === "failed" ? "failed" : "read",
+      ...(row.structure === null ? {} : { structure: row.structure }),
+      itemLabel: (fieldKey) => {
+        const spec = FIELD_SPECS[fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
+        return spec !== undefined && isList(spec) ? spec.itemLabel : null;
+      },
+    });
   }
 
   /**
@@ -7958,27 +8088,13 @@ export class RunDriver {
       now,
     });
     if (!done) return false;
-    // Said once, in his words and his split, because today the only surface
-    // is text: what the document gave, what it did not say, and what is the
-    // student's to tell. Derived from the structure, never from the log.
-    await this.#options.conversations.append({
-      conversationId: held.conversationId,
-      event: {
-        kind: "message",
-        actor: "assistant",
-        content: readingSentence({
-          outcome: input.report.outcome,
-          ...(structure === undefined ? {} : { structure }),
-          itemLabel: (fieldKey) => {
-            const spec = FIELD_SPECS[fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
-            return spec !== undefined && isList(spec) ? spec.itemLabel : null;
-          },
-        }),
-      },
-    });
-    // And on with the interview (P251): the CV's fields were waiting on this
-    // report, so the next question — the first thing the CV did not give — is
-    // asked now rather than at the student's next message.
+    // The sentence — his split: what the document gave, what it did not say,
+    // what is the student's to tell — is owed now and said at the first
+    // quiet moment (P256): at once when the student has nothing to answer,
+    // and after their answer when they do. `told_at` says which. Then the
+    // interview carries on (P251) with the first thing the CV did not give.
+    // Before a run exists nothing can be open, so it is said at once.
+    await this.#sayWhatArrived(held.conversationId, await this.#interviewSituation(held.conversationId));
     await this.#askAfterWriting(held.conversationId);
     return true;
   }
@@ -8361,10 +8477,9 @@ export class RunDriver {
       conversationId,
       event: { kind: "value_part_demanded", fieldKey: demanded.fieldKey, partKey: demanded.partKey, demand: demanded.demand },
     });
-    await this.#options.conversations.append({
-      conversationId,
-      event: { kind: "message", actor: "assistant", content: demandSentence(entry, demanded.demand) },
-    });
+    // The sentence is said by `#sayWhatArrived` (P256): at once when the
+    // student has nothing to answer, which is the case during a fill, and
+    // after their answer when they do.
     await this.#askAfterWriting(conversationId);
     return true;
   }

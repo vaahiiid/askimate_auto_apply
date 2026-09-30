@@ -141,6 +141,41 @@ called somewhere else."*
 | 6 | *(the other order, P252, row 107)* Confirm your jobs and qualifications by typing them, **then** upload the CV | On the upload's confirmation, at once: *I have your CV. Your jobs and qualifications are already filled in and confirmed. Do you want me to go back and fill them in from the CV instead? That would mean redoing what you already confirmed: I would show you what the CV says and ask you to confirm it again. Or shall I leave them as they are?* — buttons *Go back and use my CV* / *Leave them as they are*, or type it. A **no** deletes the CV and says *Your jobs and qualifications stay as you confirmed them*, and nothing follows. A **yes** says the reading is under way and that you will confirm again; after the report, step 4 and step 5 come round once more, over the CV's entries, and your typed values stand in `profile_entries` until you confirm the CV's | `document_readings.reopened_after` (the ordinal the yes was said at); `value_confirmed` rows after it |
 | 7 | *(the third case, P254)* Reach *Do you have qualifications to list*, answer nothing, and **then** upload the CV | At once, in place of that question: P251's *I have your CV. Do you want me to fill in your jobs and qualifications from it, or would you rather tell me yourself?* — the buttons on the panel, or type it. Pressing yes is enough: the open question has yielded, so the reading starts, the chat says once that it is still reading, and the report's sentence is followed by the country question with nothing typed in between. Had you typed an entry first, the question would have named it — *You have already told me about 1 qualification…* — and said plainly that a yes starts the list again. Had you uploaded before the interview reached qualifications, the chat would have said *I have your CV. I will ask whether to use it when we reach your jobs.* and asked at the field. **A yes costs a reading: 68 calls for your CV, about $0.20** | `document_readings.state` goes `offered` at the confirm; `reopened_after` is set only on a yes after entries were typed |
 
+**Resuming a run a stop handed to a person (ADR-0048), and reading why it stopped (P256, row 112).**
+Your run of 2026-09-30 is `escalated`. List what waits, then resolve it with the internal
+credential the stack uses (`AAS_SERVICE_CERT_*`, the value in your env file, never in a log):
+
+```sh
+# The internal routes take the secure service's, the runner's or the reader's certificate;
+# the stack sets all three as plain words in `AAS_SERVICE_CERT_*` (the reader's is the shortest).
+curl -s http://127.0.0.1:4870/internal/v1/interventions -H "x-service-cert: $AAS_SERVICE_CERT_READER"
+curl -s -X POST http://127.0.0.1:4870/internal/v1/interventions/<id>/resolution \
+  -H "x-service-cert: $AAS_SERVICE_CERT_READER" -H 'content-type: application/json' \
+  -d '{"specialistId":"vahid","actionsTaken":"read the log; the stop counted askings, not failed answers","resolution":"resumed after P256","outcome":"resume","didHappen":true,"scope":"this_case","kind":"stop_on_askings","signature":"p256"}'
+```
+
+Every field is a non-empty string but `outcome`, which is `resume` or `abandon`, and `didHappen`, a
+boolean; `actionsTaken` and `resolution` are your words and are kept as the record of the
+resolution.
+
+The run is `running` again; the UK question stands open; your yes goes through, and its
+failed-answer count is one. Do this **after** pulling `main` at 0.252.0, or the next message
+stops it again on the old count. Before resolving, read what fired the third asking:
+
+```sql
+select e.ordinal, e.kind, e.field_key, e.attempt, e.actor, left(mb.content, 90) as said
+from conversation_events e left join message_bodies mb on mb.id = e.body_id
+where e.conversation_id = '<the conversation>'
+  and e.ordinal >= (select min(ordinal) from conversation_events
+                    where conversation_id = '<the conversation>'
+                      and kind = 'value_asked' and field_key = 'residence.in_uk_now')
+order by e.ordinal;
+select document_id, state, decided_at, read_at, used from document_readings order by requested_at;
+```
+
+The second query says whether the second reading ran: a `read_at` on the 12:46 document is
+sixty-eight calls spent on a document you never meant to use.
+
 **Nothing new to export for step 6** (P252): the same start as above, `main` at 0.248.0 or later.
 Your walk of 2026-09-29 left a `document_readings` row `pending` with no `decided_at` — confirmed
 before migration 0032, so nobody was asked; migration 0033 puts it back to `held` at the service's

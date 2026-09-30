@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.252.0] — 2026-09-30
+
+**P256 — one thing to answer at a time (ADR-0152): nothing is said over an open question; a refused field is asked next; a later CV supersedes the earlier; failed answers count, askings do not; the playback and the stop name the question.**
+
+- **Added** the queue: a reading's report, a CV's arrival and a portal's demand are recorded at
+  once and told at the next moment the student has nothing to answer. Migration 0035 adds
+  `told_at` to the reading row; a demand's sentence is owed while the demand is the last thing on
+  the log after it.
+- **Changed** the asking order: a field whose reading the student refused is asked again first.
+- **Added** supersession: a CV confirmed while an earlier one is held or offered ends that row
+  `superseded` (migration 0035, with `superseded_by`) and sets the vault's `superseded` state,
+  defined in 0017 and never written until now. A superseded row is never asked; its consent is
+  `moot`.
+- **Added** the `answer_unread` event: an answer that could not be read is on the log as itself.
+  The stop rule now counts failed answers per field — unread plus refused — and stops at three;
+  askings keep their count for the words and decide nothing.
+- **Changed** the playback, the correction preface and the stop to name the question, never the
+  label as a noun; a yes is *yes*, never `true`.
+
+---
+
 ## [0.251.0] — 2026-09-30
 
 **P255 — a question's words are authored, never assembled from a field key (ADR-0147 amended).**

@@ -52,8 +52,8 @@ export class DeterministicModelClient implements ModelClient {
     if (request.previousReadingRejected === true) {
       return Promise.resolve(
         modelText(
-          `I read your last message as a correction to what I had recorded, and I could not make ` +
-            `a ${request.label.toLowerCase()} out of it, so I have set that reading aside. If what I recorded was right, ` +
+          `I read your last message as a correction to what I had recorded, and I could not read ` +
+            `an answer to "${request.question.replace(/ Please answer yes or no\.$/, "")}" in it, so I have set that reading aside. If what I recorded was right, ` +
             `tell me it again; if it was not, tell me the right one. ${situated}`,
         ),
       );

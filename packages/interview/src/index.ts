@@ -13,6 +13,7 @@ export {
   MAX_ATTEMPTS_PER_FIELD,
   newInterview,
   nextAction,
+  questionOf,
   receiveAnswer,
   receiveConfirmation,
   chooseReading,
