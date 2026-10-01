@@ -10,7 +10,8 @@ import { describe, expect, it } from "vitest";
 import type { ConfirmedValue, ModelText } from "@askimate/aas-domain";
 import { modelText, provenanceOf, proposeValue, unwrapConfirmed } from "@askimate/aas-domain";
 
-import { applyConfirmation, isDeclined, renderForConfirmation } from "./confirmation.js";
+import {
+  renderListForConfirmation, applyConfirmation, isDeclined, renderForConfirmation } from "./confirmation.js";
 import type { StudentConfirmation } from "./confirmation.js";
 
 const RESPONDED_AT = new Date("2026-08-26T12:00:00Z");
@@ -375,5 +376,64 @@ describe("a closed vocabulary, an amount of money and a month are played back as
     expect(playback).toContain("End: ended, August 2022");
     expect(playback).toContain("Full-time or part-time: full-time");
     expect(playback).not.toMatch(/full_time|Year: |Month: /);
+  });
+});
+
+describe("a list is played back one entry per message, each part named with where it came from (P263)", () => {
+  // Vahid, 2026-10-01, asked to confirm seven jobs he could not see: *"the
+  // text surface needs the entries' content in the transcript before the
+  // buttons: each entry, its parts, in the student's own words where they
+  // gave them and the CV's where it did."* And the reason the words never
+  // arrived: a seven-job playback in one message, its content said twice,
+  // ran past the store's 8,000-character bound and was refused after the
+  // proposal was written — a confirmation by faith.
+  const duties = "Led a team of four analysts delivering monthly reporting for the commercial directorate; built the forecasting model used for the annual plan; ran weekly reviews with regional managers and presented findings to the board; introduced a data quality process that cut reporting errors by a third.";
+  const job = (n: number) => ({
+    position: `Senior Business Analyst ${String(n)}`,
+    employer: `Example Holdings Limited ${String(n)}`,
+    employerAddress: `${String(n)} Example Street, Birmingham`,
+    startDate: { year: 2010 + n, month: 1 },
+    still: false,
+    endDate: { year: 2012 + n, month: 6 },
+    duties,
+    basis: "full_time",
+  });
+  const jobs = [1, 2, 3, 4, 5, 6, 7].map(job);
+  const parts = jobs.flatMap((j, i) =>
+    Object.entries(j).map(([partKey, value]) => ({
+      partKey: `item${String(i)}.${partKey}`,
+      origin: partKey === "basis" ? ("conversation" as const) : ("document" as const),
+      verbatim: partKey === "basis" ? "full time" : String(typeof value === "object" ? JSON.stringify(value) : value),
+    })),
+  );
+
+  it("says each entry in its own message, under the entry's name, every part named, and the question last", () => {
+    const { messages, text } = renderListForConfirmation("employment.history", jobs, parts, "job", 8000);
+    expect(messages, "seven entries and the question").toHaveLength(8);
+    expect(messages[0]).toContain("Job 1 of 7");
+    expect(messages[0]).toContain("Job title: Senior Business Analyst 1 (from your CV)");
+    expect(messages[0]).toContain("Employer: Example Holdings Limited 1 (from your CV)");
+    expect(messages[0]).toContain("Start date: January 2011 (from your CV)");
+    expect(messages[0], "the student's part, in their words").toContain('Full-time or part-time: full-time (you said: "full time")');
+    expect(messages[6]).toContain("Job 7 of 7");
+    expect(messages[7]).toBe("Those are the 7 jobs. Is that right?");
+    for (const message of messages) expect(message.length, "each under the store's bound").toBeLessThanOrEqual(8000);
+    expect(text, "the text the hash binds is every message, in order").toBe(messages.join("\n\n"));
+    expect(text, "and nothing is said twice").not.toContain("From your document:");
+  });
+
+  it("an entry whose parts alone would pass the bound is said part by part, never cut", () => {
+    const long = { ...job(1), duties: "x".repeat(9000) };
+    const longParts = Object.entries(long).map(([partKey, value]) => ({ partKey: `item0.${partKey}`, origin: "document" as const, verbatim: typeof value === "object" ? JSON.stringify(value) : String(value) }));
+    const { messages } = renderListForConfirmation("employment.history", [long], longParts, "job", 8000);
+    expect(messages.some((message) => message.includes("x".repeat(9000))), "the value is said whole").toBe(true);
+    for (const message of messages.filter((message) => !message.includes("x".repeat(9000)))) expect(message.length).toBeLessThanOrEqual(8000);
+  });
+
+  it("an empty list is still one message, saying none", () => {
+    const { messages } = renderListForConfirmation("employment.history", [], [], "job", 8000);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("none");
+    expect(messages[0]).toContain("Is that right?");
   });
 });

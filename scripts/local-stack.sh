@@ -23,6 +23,7 @@
 #                                    concludes only when nothing is outstanding —
 #                                    the same guard every other path goes through.
 #   scripts/local-stack.sh raise-missing <conversationId>
+#   scripts/local-stack.sh say-again <conversationId>
 #                                    Blocker 48: raises the intervention a
 #                                    stopped run never got, so a person can see
 #                                    it and resolve it. Refuses a run not held
@@ -463,6 +464,22 @@ cmd_finish_stopped() {
     finish-stopped "$conversation"
 }
 
+cmd_say_again() {
+  # P263. The third repair, the same shape as the two above: the words a
+  # proposal lost, said again through the service's own binary and env file.
+  local conversation="${1:-}"
+  if [ -z "$conversation" ]; then
+    echo "usage: scripts/local-stack.sh say-again <conversationId>" >&2
+    exit 2
+  fi
+  if [ ! -f "$DIR/conversation-service.env" ]; then
+    echo "no env file at $DIR/conversation-service.env — run start first" >&2
+    exit 2
+  fi
+  run_with_env conversation-service apps/conversation-service/src/bin.ts \
+    say-again "$conversation"
+}
+
 case "${1:-}" in
   start) cmd_start ;;
   verify) cmd_verify ;;
@@ -470,5 +487,6 @@ case "${1:-}" in
   stop) cmd_stop ;;
   finish-stopped) shift; cmd_finish_stopped "${1:-}" ;;
   raise-missing) shift; cmd_raise_missing "${1:-}" ;;
-  *) echo "usage: scripts/local-stack.sh start|verify|status|stop|finish-stopped <conversationId>|raise-missing <conversationId>" >&2; exit 2 ;;
+  say-again) shift; cmd_say_again "${1:-}" ;;
+  *) echo "usage: scripts/local-stack.sh start|verify|status|stop|finish-stopped <conversationId>|raise-missing <conversationId>|say-again <conversationId>" >&2; exit 2 ;;
 esac

@@ -218,7 +218,14 @@ export function createConversationApp(options: ConversationAppOptions): Express 
     // including the raw body deleted just above, on any error that still
     // carried one.
     const kind = error instanceof Error ? error.name : "UnknownError";
-    console.error(`conversation-service error: ${kind}`);
+    // P263: a database refusal is named `error` and nothing else; the
+    // constraint it tripped is a name, not a body, and is the one word that
+    // says what happened. Row 110's class.
+    const constraint =
+      typeof error === "object" && error !== null && "constraint" in error && typeof error.constraint === "string"
+        ? ` (constraint ${error.constraint})`
+        : "";
+    console.error(`conversation-service error: ${kind}${constraint}`);
     if (res.headersSent) return;
 
     // ── A body this server REFUSED is not a failure of this server ────────

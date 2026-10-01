@@ -123,3 +123,41 @@ rebuilding it later."*
   the CV gave in the question.
 - A reviewer authoring a plan part meets a second question beside ADR-0149's: *does this value
   have components a document might give separately?* If so, the part carries `components`.
+
+## Amended 2026-10-01 (P263): the text surface says every entry, and says it before the buttons
+
+Found by Vahid walking the interview on 2026-10-01, asked to confirm seven jobs read from his CV
+with no value of any of them anywhere: *"The pending decision carries only labels … No content
+anywhere. No playback of what was read, no transcript message listing the entries, nothing … A
+student pressing 'Yes, that's right' here is confirming by faith, and ADR-0113's original worry
+was precisely this."* And what the text surface must do: *"each entry, its parts, in the student's
+own words where they gave them and the CV's where it did. That is what the table will show later,
+and the sentence cannot stand in for it if it never says what was read."*
+
+What had happened, measured: the whole-list playback was one message that said every part twice
+— once in a *From your document* line of every part's verbatim, once in the recorded list — and
+seven ordinary jobs ran to 8,730 characters against the store's bound of 8,000. The store refused
+the message, the proposal had been written first, and the page showed buttons over nothing. The
+service's log named it `error` and nothing more.
+
+So, on the text surface:
+
+1. **A list is played back one entry per message**, each part named with where it came from —
+   *Job 1 of 7 — Job title: … (from your CV); … Full-time or part-time: full-time (you said: "full
+   time")* — a field assembled from two parts naming both halves, and the question last: *Those
+   are the 7 jobs. Is that right?* An entry whose parts alone would pass the bound is said part by
+   part, never cut: a value shown in part is not the value stored. `renderListForConfirmation`,
+   one place for both lists.
+2. **The words first, then the record.** The proposal, whose hash binds every message joined, is
+   written only once they are all on the log. A crash between leaves words with no buttons, which
+   the next advance says again; the reverse left buttons with no words, which nothing could repair.
+3. **A body past the bound is refused by name** (`MessageBodyTooLongError`) before the database
+   sees it, and a database refusal's constraint is named in the log line.
+4. **A repair for the run that already has the orphan:** `say-again <conversationId>` says the
+   playback for an open proposal whose words are not beside it, and writes the words alone. The
+   proposal stands — its value is what the words render and its hash is what the buttons carry —
+   so the entry correction keeps its shape; the hash binds the text that was refused, not these
+   words, and this note is the record of that.
+
+The table remains the intended surface (row 105); until it exists, the transcript carries what
+the table will.

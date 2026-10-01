@@ -19,6 +19,24 @@ not shipped artefacts.
 
 ---
 
+## [0.259.0] — 2026-10-01
+
+**P263 — the text surface says every entry before the buttons (ADR-0150 amended).**
+
+- **Fixed** the list confirmation: the one-message playback said every part twice and a seven-job
+  list ran past the store's 8,000-character bound; the proposal had been written first, the words
+  were refused, and the page showed buttons over nothing. A list is now played back one entry per
+  message, each part named with where it came from, the question last; an entry past the bound is
+  said part by part, never cut (`renderListForConfirmation`). The interview's `confirm` action
+  carries `messages`; the parts' provenance travels with the pending whole.
+- **Changed** the order of the two writes: the words, then the proposal whose hash binds them.
+- **Added** `MessageBodyTooLongError` in the store, the constraint's name in the service's error
+  line, and the repair `say-again <conversationId>` (service subcommand and stack script) that
+  writes the words alone for an open proposal whose words are not beside it.
+- **Recorded** row 119 (closed) and row 110 narrowed.
+
+---
+
 ## [0.258.0] — 2026-10-01
 
 **P262 — the yes means what the question's own verb asks (ADR-0147 amended).**

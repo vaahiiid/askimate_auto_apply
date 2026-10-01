@@ -47,7 +47,9 @@ import {
   isDeclined,
   missingFields,
   renderForConfirmation,
+  renderListForConfirmation,
 } from "@askimate/aas-profile";
+import type { ListPartProvenance } from "@askimate/aas-profile";
 
 import type { CompositeFieldSpec, FieldPart, FieldSpec, OfferedReading, PartAnswers, ListFieldSpec, ScalarFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, OMITTED, isComposite, partParser, isList, yesNo } from "./field-specs.js";
@@ -89,7 +91,16 @@ export type InterviewAction =
    */
   | {
       readonly kind: "confirm";
+      /** Every message joined, in order: the one text the playback hash binds. */
       readonly say: string;
+      /**
+       * The words as they are said, in order (P263). One message for a
+       * scalar or a composite; for a list, one per entry — each part named
+       * with where it came from — and the question last, because a whole
+       * list in one message ran past the store's bound and was refused after
+       * the proposal was written.
+       */
+      readonly messages: readonly string[];
       readonly fieldKey: ProfileFieldKey;
     }
   /** Everything needed has been collected and confirmed. */
@@ -112,6 +123,12 @@ export type InterviewAction =
 interface PendingConfirmation {
   readonly fieldKey: ProfileFieldKey;
   readonly proposed: ProposedValue<unknown>;
+  /**
+   * Where each part of a composite or a list came from (P263): kept here
+   * because the parts themselves are cleared the moment the whole is put for
+   * confirmation, and the playback names each part with its origin.
+   */
+  readonly parts?: readonly ListPartProvenance[];
 }
 
 /** The interview's state. Immutable; every step returns a new one. */
@@ -346,6 +363,8 @@ type OpenQuestion =
 
 const ANY = "any";
 const ANOTHER = "another";
+/** The conversation store's bound on one message body (`content_is_bounded`, 0001). */
+const MESSAGE_BOUND = 8000;
 
 function itemKey(index: number, partKey: string): string {
   return `item${String(index)}.${partKey}`;
@@ -519,16 +538,35 @@ export async function nextAction(
   // one is outstanding would leave the student unsure what they are answering.
   if (state.pending !== undefined) {
     const label = FIELD_LABELS[state.pending.fieldKey];
+    const spec = specFor(state.pending.fieldKey);
+    const whole = unwrapProposed(state.pending.proposed);
+    if (spec !== undefined && isList(spec) && Array.isArray(whole.value)) {
+      // P263: one message per entry, each part named with where it came
+      // from, read off the parts the walk still holds while the whole waits.
+      // The parts as the walk held them when the whole was put — or, for a
+      // state rebuilt from the log after a restart, the parts the log holds.
+      const held =
+        state.pending.parts ??
+        [...(state.partial.get(state.pending.fieldKey) ?? NO_READINGS)].map(([partKey, reading]) => {
+          const read = unwrapProposed(reading);
+          return { partKey, origin: read.origin, verbatim: read.verbatim };
+        });
+      const parts = held.filter((part) => /^item\d+\./.test(part.partKey) && !part.partKey.endsWith(`.${ANOTHER}`));
+      const rendered = renderListForConfirmation(state.pending.fieldKey, whole.value, parts, spec.itemLabel, MESSAGE_BOUND);
+      return { kind: "confirm", fieldKey: state.pending.fieldKey, say: rendered.text, messages: rendered.messages };
+    }
+    const say = renderForConfirmation(
+      state.pending.fieldKey,
+      state.pending.proposed as ProposedValue<ProfileFieldType<ProfileFieldKey>>,
+      label,
+      questionOf(state.pending.fieldKey),
+    );
     return {
       kind: "confirm",
       fieldKey: state.pending.fieldKey,
       // Deterministic rendering, from the profile package. Not model-written.
-      say: renderForConfirmation(
-        state.pending.fieldKey,
-        state.pending.proposed as ProposedValue<ProfileFieldType<ProfileFieldKey>>,
-        label,
-        questionOf(state.pending.fieldKey),
-      ),
+      say,
+      messages: [say],
     };
   }
 
@@ -907,7 +945,16 @@ function withPartRead(
       ...withoutParts(state, fieldKey),
       transcript,
       attempts,
-      pending: { fieldKey, proposed: wholeOf(spec, whole, readings) },
+      pending: {
+        fieldKey,
+        proposed: wholeOf(spec, whole, readings),
+        parts: [...readings]
+          .filter(([, reading]) => unwrapProposed(reading).value !== OMITTED)
+          .map(([partKey, reading]) => {
+            const read = unwrapProposed(reading);
+            return { partKey, origin: read.origin, verbatim: read.verbatim };
+          }),
+      },
     },
   };
 }

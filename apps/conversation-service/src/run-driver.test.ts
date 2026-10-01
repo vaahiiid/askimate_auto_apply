@@ -10366,7 +10366,7 @@ describeIfDatabase("a list is collected entry by entry, and the walk survives th
     );
     expect(proposals.rowCount, "one proposal for the whole list, not one per part or per entry").toBe(1);
     expect(proposals.rows[0]?.field_key).toBe("employment.history");
-    const playback = (await assistantSaid()).at(-1)?.toLowerCase() ?? "";
+    const playback = (await assistantSaid()).slice(-2).join("\n").toLowerCase();
     expect(playback).toContain("example ltd");
     expect(playback).toContain("engineer");
   }, 300_000);
@@ -11258,9 +11258,46 @@ describeIfDatabase("one entry of a played-back list is corrected and the rest st
       { index: 1, label: "job 1" },
       { index: 2, label: "job 2" },
     ]);
-    const playback = (await assistantSaid()).at(-1) ?? "";
+    const playback = (await assistantSaid()).slice(-3).join("\n");
     expect(playback).toContain("Other Co");
     expect(playback).toContain("Is that right?");
+  }, 300_000);
+
+  it("P263: the repair says the playback again only for an open proposal whose words are gone, and writes the words alone", async () => {
+    // Vahid's run of 2026-10-01: a seven-job proposal written, its one
+    // message refused by the store's bound, buttons over nothing. The order
+    // of the writes is reversed now; this is for the run that already has
+    // the orphan. Reproduced here in its exact shape — one proposal, no
+    // words beside it — by redacting the playback's three bodies the way
+    // the store's own redaction does (content gone, the rows kept).
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      expect(await instance.driver.sayAgain(conversation), "the open proposal has its words: refused").toEqual({ ok: false, reason: "words_present" });
+      await pool.query(
+        `UPDATE message_bodies SET content = NULL, redacted_at = now()
+          WHERE id IN (SELECT e.body_id FROM conversation_events e
+                        WHERE e.conversation_id = $1 AND e.actor = 'assistant'
+                        ORDER BY e.ordinal DESC LIMIT 3)`,
+        [conversation],
+      );
+      const before = (await assistantSaid()).length;
+      const said = await instance.driver.sayAgain(conversation);
+      expect(said).toEqual({ ok: true, fieldKey: "employment.history", messages: 3 });
+      const after = await assistantSaid();
+      expect(after.length - before, "two jobs and the question, said again").toBe(3);
+      expect(after.slice(-3).join("\n")).toContain("Example Ltd");
+      expect(after.at(-1)).toBe("Those are the 2 jobs. Is that right?");
+      const tail = (await kinds()).slice(-4).map((event) => event.kind);
+      expect(tail, "the words after the proposal that stands; no second proposal").toEqual(["value_proposed", "message", "message", "message"]);
+      expect(await instance.driver.sayAgain(conversation), "and once is enough").toEqual({ ok: false, reason: "words_present" });
+      expect(await instance.driver.sayAgain("01JBXQ8Z9WKTQ6M4H2NPNOSUCH0")).toEqual({ ok: false, reason: "unknown_conversation" });
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await pendingNow())?.entries, "the same two buttons").toEqual([
+      { index: 1, label: "job 1" },
+      { index: 2, label: "job 2" },
+    ]);
   }, 300_000);
 
   it("does not throw the list away on a typed no: it says which button to press and keeps the reading open", async () => {
@@ -11317,9 +11354,21 @@ describeIfDatabase("one entry of a played-back list is corrected and the rest st
     expect((await assistantSaid()).at(-1)?.toLowerCase(), "the last entry's 'another?' is asked once more, truthfully").toContain("another job");
     await say("no");
     const said = await assistantSaid();
-    expect(said.at(-1), "the whole list, played back again").toContain("Example Ltd");
-    expect(said.at(-1)).toContain("Better Co");
-    expect(said.at(-1)).not.toContain("Other Co");
+    // P263: one message per job, each part named with where it came from,
+    // then the question; the record of the proposal is written AFTER the
+    // words, so a refused write can never leave buttons with nothing above
+    // them. Vahid, asked to confirm seven jobs he could not see: *"A student
+    // pressing 'Yes, that's right' here is confirming by faith."*
+    const playback = said.slice(-3).join("\n");
+    expect(playback, "the whole list, played back again").toContain("Example Ltd");
+    expect(playback).toContain("Better Co");
+    expect(playback).not.toContain("Other Co");
+    expect(said.at(-3)).toContain("Job 1 of 2");
+    expect(said.at(-3)).toContain('(you said: "Example Ltd")');
+    expect(said.at(-1)).toBe("Those are the 2 jobs. Is that right?");
+    const ordered = (await kinds()).map((event) => event.kind);
+    const proposal = ordered.lastIndexOf("value_proposed");
+    expect(ordered.slice(proposal - 3, proposal), "three messages, then the proposal").toEqual(["message", "message", "message"]);
     const pending = await pendingNow();
     expect(pending?.entries).toHaveLength(2);
     const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
@@ -14955,7 +15004,7 @@ describeIfDatabase("a CV uploaded after both its fields are confirmed is asked a
     await say(YES_CONVERSATION, "none");
     expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV?");
     await say(YES_CONVERSATION, "no");
-    const playback = (await assistantSaid(YES_CONVERSATION)).at(-1) ?? "";
+    const playback = (await assistantSaid(YES_CONVERSATION)).slice(-2).join("\n\n");
     expect(playback).toContain("University of Tehran");
     expect(playback).toContain("Is that right?");
     const hash = `sha256:${createHash("sha256").update(playback).digest("hex")}`;
@@ -15127,7 +15176,7 @@ describeIfDatabase("a CV read before the question existed is legible as that and
     await say(YES_CONVERSATION, "none");
     expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV?");
     await say(YES_CONVERSATION, "no");
-    const playback = (await assistantSaid(YES_CONVERSATION)).at(-1) ?? "";
+    const playback = (await assistantSaid(YES_CONVERSATION)).slice(-2).join("\n\n");
     expect(playback).toContain("University of Tehran");
     expect(playback).toContain("Is that right?");
   }, 300_000);
@@ -15307,7 +15356,7 @@ describeIfDatabase("a CV that arrives while its own field is open is asked about
     await say(BEGUN_YES_CONVERSATION, "none");
     expect((await assistantSaid(BEGUN_YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV.");
     await say(BEGUN_YES_CONVERSATION, "no");
-    const playback = (await assistantSaid(BEGUN_YES_CONVERSATION)).at(-1) ?? "";
+    const playback = (await assistantSaid(BEGUN_YES_CONVERSATION)).slice(-2).join("\n\n");
     expect(playback).toContain("University of Tehran");
     expect(playback).not.toContain("Shiraz");
   }, 300_000);
@@ -15697,7 +15746,7 @@ describeIfDatabase("a reading says what it got and did not get, keeps its struct
     await say("none");
     expect((await assistantSaid()).at(-1), "P251: the question a CV cannot answer").toContain("Is there another qualification to add that is not on your CV?");
     await say("no");
-    const playback = (await assistantSaid()).at(-1) ?? "";
+    const playback = (await assistantSaid()).slice(-2).join("\n");
     expect(playback).toContain("June (2019 from the document)");
     expect(playback).toContain("Is that right?");
     expect((await askedCount()) - askedBefore, "four questions: the country, the month, the award date, another?").toBe(4);
@@ -15896,7 +15945,7 @@ describeIfDatabase("a CV read by the reader seeds the interview, which asks only
     for (const given of ["subject", "institution", "grade", "started", "level"]) expect(between[0], given).not.toContain(given);
     expect((await assistantSaid()).at(-1)).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV?");
     await say("no");
-    const playback = (await assistantSaid()).at(-1) ?? "";
+    const playback = (await assistantSaid()).slice(-2).join("\n\n");
     expect(playback).toContain("University of Tehran");
     expect(playback).toContain("Is that right?");
     expect((await askedCount()) - askedBefore, "three questions in all: the country, the award date, and another?").toBe(3);

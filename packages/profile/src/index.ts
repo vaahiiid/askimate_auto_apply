@@ -59,7 +59,8 @@ export type {
   ConfirmedField,
   StudentConfirmation,
 } from "./confirmation.js";
-export { applyConfirmation, isDeclined, renderForConfirmation } from "./confirmation.js";
+export { applyConfirmation, isDeclined, renderForConfirmation, renderListForConfirmation } from "./confirmation.js";
+export type { ListPartProvenance } from "./confirmation.js";
 
 export type { DatePattern, FormatRule, RenderRefusal, RenderResult } from "./format.js";
 export { isRenderRefused, renderConfirmed, renderConfirmedItem } from "./format.js";

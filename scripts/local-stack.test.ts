@@ -264,6 +264,17 @@ describeIfBoth("the local stack, started by its own script", () => {
     expect(noArgument.output).toContain("usage:");
   }, 120_000);
 
+  it("runs the P263 repair through the REAL command, and refuses what it cannot name", async () => {
+    const orphan = await script("say-again", dir, "01JBXQ8Z9WKTQ6M4H2NPNOSUCH0");
+    expect(orphan.code, orphan.output).toBe(1);
+    expect(orphan.output).toContain("unknown_conversation");
+    expect(orphan.output).toContain("Nothing was done");
+    expect(orphan.output).not.toContain(TEST_DATABASE_URL);
+    const noArgument = await script("say-again", dir);
+    expect(noArgument.code, "a repair with no target does nothing").toBe(2);
+    expect(noArgument.output).toContain("usage:");
+  }, 120_000);
+
   it("stops all five on request, and nothing answers afterwards", async () => {
     const stopped = await script("stop", dir);
     expect(stopped.code, stopped.output).toBe(0);

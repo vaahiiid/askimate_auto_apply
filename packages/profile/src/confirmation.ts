@@ -26,11 +26,11 @@
  * a confirmation record naming the student and what they were shown.
  */
 
-import type { ConfirmationProvenance, ConfirmedValue, ProposedValue } from "@askimate/aas-domain";
+import type { ConfirmationProvenance, ConfirmedValue, ExtractionOrigin, ProposedValue } from "@askimate/aas-domain";
 import { unwrapProposed } from "@askimate/aas-domain";
 
 import type { ProfileFieldKey, ProfileFieldType } from "./fields.js";
-import { isCountryField, partLabel, vocabularyWords } from "./fields.js";
+import { FIELD_LABELS, isCountryField, partLabel, vocabularyWords } from "./fields.js";
 import { readCountry } from "./countries.js";
 
 /**
@@ -188,6 +188,92 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
       ? `I've recorded your ${label.toLowerCase()} as: ${rendered}`
       : `To "${question.replace(/ Please answer yes or no\.$/, "")}" I've recorded: ${rendered}`;
   return `${heard}\n\n${recorded}\n\nIs that right?`;
+}
+
+/** One part of one entry, with where its value came from (P263). */
+export interface ListPartProvenance {
+  /** `item<n>.<partKey>`, as the walk keys it. */
+  readonly partKey: string;
+  readonly origin: ExtractionOrigin;
+  readonly verbatim: string;
+}
+
+/**
+ * A list played back one entry per message, each part named with where it
+ * came from, and the question last (P263).
+ *
+ * Vahid, asked to confirm seven jobs he could not see: *"the text surface
+ * needs the entries' content in the transcript before the buttons: each
+ * entry, its parts, in the student's own words where they gave them and the
+ * CV's where it did. That is what the table will show later, and the sentence
+ * cannot stand in for it if it never says what was read."* ADR-0150.
+ *
+ * Why several messages and not one: the whole-list playback said every part
+ * twice — once in a "From your document" line of every part's verbatim, once
+ * in the recorded list — and seven ordinary jobs ran to 8,730 characters
+ * against the store's bound of 8,000. The store refused the message after the
+ * proposal was written, and the page showed buttons over nothing. Each entry
+ * is one message; an entry whose parts alone pass the bound is said part by
+ * part, never cut, because a value shown in part is not the value stored.
+ *
+ * `text` is every message joined, in order: the one text the proposal's
+ * playback hash binds, so the student is agreeing to exactly what was said.
+ */
+export function renderListForConfirmation(
+  key: ProfileFieldKey,
+  entries: readonly unknown[],
+  parts: readonly ListPartProvenance[],
+  itemLabel: string,
+  bound: number,
+): { readonly messages: readonly string[]; readonly text: string } {
+  if (entries.length === 0) {
+    const single = `I've recorded your ${FIELD_LABELS[key].toLowerCase()} as: none\n\nIs that right?`;
+    return { messages: [single], text: single };
+  }
+  const noun = entries.length === 1 ? itemLabel : `${itemLabel}s`;
+  const messages: string[] = [];
+  entries.forEach((entry, index) => {
+    const heading = `${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)} ${String(index + 1)} of ${String(entries.length)}`;
+    const lines = Object.entries((entry ?? {}) as Record<string, unknown>).map(([field, item]) => {
+      const named = partLabel(key, field);
+      const label = named ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+      const spoken = typeof item === "string" ? vocabularyWords(key, field, item) : null;
+      const shown = spoken ?? (named !== null && isCountryPart(field) && typeof item === "string" ? (countryNamed(item) ?? formatValue(item)) : formatValue(item, key));
+      // The part named as the field, or the parts a field was assembled from
+      // — `end` from `endKind` and `endDate` — each with where it came from.
+      const prefix = `item${String(index)}.${field}`;
+      const exact = parts.filter((part) => part.partKey === prefix);
+      // `employer` must not collect `employerAddress`: the prefix rule applies
+      // only to a field no part is named for, which is how `end` is assembled.
+      const sources = exact.length > 0 ? exact : parts.filter((part) => part.partKey.startsWith(prefix) && /^[A-Z]/.test(part.partKey.slice(prefix.length)));
+      const fromDocument = sources.filter((part) => part.origin === "document");
+      const fromStudent = sources.filter((part) => part.origin === "conversation");
+      const fromElsewhere = sources.length - fromDocument.length - fromStudent.length;
+      const from =
+        sources.length === 0
+          ? ""
+          : fromElsewhere > 0 && fromDocument.length === 0 && fromStudent.length === 0
+            ? " (from what you told me earlier)"
+            : fromStudent.length === 0
+              ? " (from your CV)"
+              : fromDocument.length === 0
+                ? ` (you said: ${fromStudent.map((part) => JSON.stringify(part.verbatim)).join(", ")})`
+                : ` (from your CV: ${fromDocument.map((part) => JSON.stringify(part.verbatim)).join(", ")}; you said: ${fromStudent.map((part) => JSON.stringify(part.verbatim)).join(", ")})`;
+      return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${shown}${from}`;
+    });
+    const whole = `${heading} — ${lines.join("; ")}`;
+    if (whole.length <= bound) {
+      messages.push(whole);
+      return;
+    }
+    // Past the bound: the entry's name once, then its parts one by one. A
+    // single part longer than the bound is still said whole; the store will
+    // refuse it by name, which is louder than a value shown in part.
+    messages.push(`${heading} —`);
+    for (const line of lines) messages.push(line);
+  });
+  messages.push(`${entries.length === 1 ? "That is" : "Those are"} the ${String(entries.length)} ${noun}. Is that right?`);
+  return { messages, text: messages.join("\n\n") };
 }
 
 /**

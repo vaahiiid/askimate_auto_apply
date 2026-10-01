@@ -608,6 +608,11 @@ export type FinishStopped =
  * running it is repairing an application they cannot otherwise see, and
  * "nothing happened" is not an answer they can act on.
  */
+/** What `sayAgain` did, or why not (P263). */
+export type SaidAgain =
+  | { readonly ok: true; readonly fieldKey: string; readonly messages: number }
+  | { readonly ok: false; readonly reason: "unknown_conversation" | "nothing_open" | "words_present" | "no_run" | "not_pending" };
+
 export type RaisedMissing =
   | {
       readonly ok: true;
@@ -5584,6 +5589,23 @@ export class RunDriver {
     const action = await nextAction(state, this.#options.model);
     if (action.kind !== "confirm") return;
 
+    // ── The words first, then the record (P263) ──────────────────────────
+    //
+    // Until P263 the proposal was written first and the words second, and a
+    // seven-job playback in one message ran past the store's bound: the
+    // store refused the words, the proposal stood, and Vahid's page showed
+    // "Yes, that's right" over nothing — *"a student pressing 'Yes, that's
+    // right' here is confirming by faith."* Now the words go first, one
+    // message per entry for a list, and the proposal — whose hash binds every
+    // one of them — only once they are all on the log. A crash between leaves
+    // words with no buttons, which the next advance says again; the reverse
+    // left buttons with no words, which nothing could repair.
+    for (const content of action.messages) {
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content },
+      });
+    }
     await this.#options.conversations.append({
       conversationId,
       event: {
@@ -5595,10 +5617,6 @@ export class RunDriver {
         proposal: encodeValue(pending.proposed),
         playbackHash: hashOfText(action.say),
       },
-    });
-    await this.#options.conversations.append({
-      conversationId,
-      event: { kind: "message", actor: "assistant", content: action.say },
     });
   }
 
@@ -5977,6 +5995,72 @@ export class RunDriver {
    * Idempotent: run twice, the second says `already_open` and writes nothing.
    * ═══════════════════════════════════════════════════════════════════════
    */
+  /**
+   * Says the playback again for an open proposal whose words never landed
+   * (P263). A repair, scoped like one.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Vahid's run of 2026-10-01: the record of a seven-job proposal was
+   * written, the one message carrying its words was refused by the store's
+   * bound, and the page showed "Yes, that's right" over nothing — *"a
+   * student pressing 'Yes, that's right' here is confirming by faith."* The
+   * order of the two writes is reversed now, so a new run cannot reach this
+   * state; this is for the one that already has.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * It refuses a conversation with no open proposal, and one whose open
+   * proposal has its words beside it. Otherwise it composes the playback as
+   * it is composed today — one message per entry — and appends the words,
+   * and nothing else: the proposal stands, since its value is what the words
+   * render and its hash is what the page's buttons carry. Nothing is deleted
+   * and nothing is counted against the student. The hash on that proposal
+   * binds the text that was refused, not these words; the value is one and
+   * the same, and the record says which this was.
+   */
+  public async sayAgain(conversationId: string): Promise<SaidAgain> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null) return { ok: false, reason: "unknown_conversation" };
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const open = openProposal(events);
+    if (open === null) return { ok: false, reason: "nothing_open" };
+    const situated = await this.#interviewSituation(conversationId);
+    if (situated === null) return { ok: false, reason: "no_run" };
+    const action = await nextAction(situated.state.interview, this.#options.model);
+    if (action.kind !== "confirm") return { ok: false, reason: "not_pending" };
+
+    // The words are present when the assistant messages beside the proposal
+    // carry them: the run just before it joining to the text its hash binds
+    // (the order since P263), the one just after it (the order before), or
+    // the run just after it saying what this repair would say (a repair
+    // already made). Anything else is buttons over nothing.
+    const at = events.map((event) => event.kind).lastIndexOf("value_proposed");
+    const run = (from: number, step: number): string[] => {
+      const found: string[] = [];
+      for (let index = from; index >= 0 && index < events.length; index += step) {
+        const event = events[index];
+        if (event === undefined || event.kind !== "message" || event.actor !== "assistant" || event.content === null) break;
+        if (step < 0) found.unshift(event.content);
+        else found.push(event.content);
+      }
+      return found;
+    };
+    const before = run(at - 1, -1);
+    const after = run(at + 1, 1);
+    const present =
+      before.some((_, start) => hashOfText(before.slice(start).join("\n\n")) === open.playbackHash) ||
+      (after.length > 0 && hashOfText(after[0] ?? "") === open.playbackHash) ||
+      (after.length >= action.messages.length && action.messages.every((message, index) => after[index] === message));
+    if (present) return { ok: false, reason: "words_present" };
+
+    // The words only. The proposal on the log stands as it is — its value is
+    // what these words render, and its hash is what the page's buttons carry
+    // — so nothing is written twice and the entry correction keeps its shape.
+    for (const content of action.messages) {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+    }
+    return { ok: true, fieldKey: open.fieldKey, messages: action.messages.length };
+  }
+
   public async raiseMissingIntervention(conversationId: string): Promise<RaisedMissing> {
     const interventions = this.#options.interventions;
     if (interventions === undefined) return { ok: false, reason: "no_intervention_store" };

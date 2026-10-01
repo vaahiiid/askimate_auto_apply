@@ -156,6 +156,23 @@ export interface AppendResult {
   readonly replayed: boolean;
 }
 
+/** The bound `content_is_bounded` (0001) holds a message body to. */
+export const MESSAGE_BODY_BOUND = 8000;
+
+/**
+ * A message body past the store's bound (P263).
+ *
+ * Refused here, by name, before the database sees it: until P263 the
+ * constraint refused it and the log said `error`, which named nothing —
+ * seven jobs' playback vanished and the page showed buttons over nothing.
+ */
+export class MessageBodyTooLongError extends Error {
+  public override readonly name = "MessageBodyTooLongError";
+  public constructor(public readonly length: number) {
+    super(`A message body of ${String(length)} characters passes the store's bound of ${String(MESSAGE_BODY_BOUND)}.`);
+  }
+}
+
 export class UnknownConversationError extends Error {
   public override readonly name = "UnknownConversationError";
   public constructor(conversationId: string) {
@@ -537,6 +554,9 @@ export class ConversationEventStore {
   ): Promise<ConversationEvent> {
     let bodyId: string | null = null;
     if (event.kind === "message") {
+      if (event.content.length > MESSAGE_BODY_BOUND) {
+        throw new MessageBodyTooLongError(event.content.length);
+      }
       const body = await client.query<{ id: string }>(
         "INSERT INTO message_bodies (content) VALUES ($1) RETURNING id",
         [event.content],

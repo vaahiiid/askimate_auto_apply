@@ -25,6 +25,7 @@ import { MIGRATIONS_DIR } from "./index.js";
 import {
   ConversationEventStore,
   IdempotencyConflictError,
+  MessageBodyTooLongError,
   UnknownConversationError,
 } from "./event-store.js";
 
@@ -405,6 +406,19 @@ describeIfDatabase("last_ordinal and the log cannot diverge", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // 4. A client-supplied ordinal cannot become authoritative
 // ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a message past the store's bound is refused by name, before the counter moves (P263)", () => {
+  it("names the refusal, and the log is where it was", async () => {
+    // The bound is `content_is_bounded` in 0001; until P263 a body past it
+    // was refused by the database alone, which the log named as `error`.
+    const conversation = await newConversation();
+    const before = await store.since(conversation, 0);
+    await expect(
+      store.append({ conversationId: conversation, event: { kind: "message", actor: "assistant", content: "x".repeat(8001) } }),
+    ).rejects.toThrow(MessageBodyTooLongError);
+    expect((await store.since(conversation, 0)).length).toBe(before.length);
+  });
+});
 
 describeIfDatabase("the caller cannot name a position", () => {
   it("ignores an ordinal smuggled into the appendable event", async () => {

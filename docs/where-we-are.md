@@ -4906,6 +4906,19 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P263 — the text surface says every entry before the buttons
+
+*2026-10-01.* His second finding of the walk: asked to confirm seven jobs read from his CV with no
+value shown anywhere. Measured, not reasoned: the one-message playback said every part twice and
+seven ordinary jobs were 8,730 characters against the store's bound of 8,000; the proposal was
+written first and the words were refused after it. Now one message per entry with each part's
+provenance, the question last; the words before the record; the bound refused by name; and a
+repair, `say-again`, that writes the words alone for his run. ADR-0150 amended in his words.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P262 — the yes means what the verb asks
 
 *2026-10-01.* His first finding of the walk on 0.257.0: the question after a CV's entries asked

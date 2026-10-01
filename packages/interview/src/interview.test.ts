@@ -1487,7 +1487,14 @@ describe("a part read in part narrows the question: which month of 2019? (P248)"
     // wrong… it is our record saying something that is not so."*
     expect(provenanceOf(value).source).toBe("document_extracted_and_completed");
     expect(provenanceOf(value).documentId).toBe("doc_cv");
-    expect(done.kind === "confirm" ? done.say : "", "and the playback says so").toContain("From your document, with your answers:");
+    // P263: a list is played back one entry per message, each part named with
+    // where it came from; the whole's "From your document, with your
+    // answers" line is gone with the playback that said everything twice.
+    expect(done.kind === "confirm" ? done.messages : [], "one entry, then the question").toHaveLength(2);
+    expect(done.kind === "confirm" ? done.messages[0] : "", "the CV's part, named as its").toContain("Institution: University of Tehran (from your CV)");
+    expect(done.kind === "confirm" ? done.messages[0] : "", "a field merged from two parts names both halves").toContain('End: completed, June 2019 (from your CV: "2019"; you said: "June (2019 from the document)")');
+    expect(done.kind === "confirm" ? done.messages[1] : "").toBe("That is the 1 qualification. Is that right?");
+    expect(done.kind === "confirm" ? done.say : "", "the text the hash binds is the messages joined").toBe(done.kind === "confirm" ? done.messages.join("\n\n") : "");
   });
 
   it("takes a whole date the student states instead — their statement wins — and asks again for what is neither a month nor a date", async () => {

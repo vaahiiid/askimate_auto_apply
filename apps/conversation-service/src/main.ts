@@ -229,6 +229,33 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       return null;
     }
 
+    // ── The third repair: the words a proposal lost (P263) ───────────────
+    if (options.argv[0] === "say-again") {
+      const conversationId = options.argv[1];
+      if (conversationId === undefined) {
+        options.log("say-again: give the CONVERSATION id whose confirmation shows buttons over nothing");
+        await pool.end();
+        options.exit(2);
+        return null;
+      }
+      const outcome = await driver.sayAgain(conversationId);
+      if (outcome.ok) {
+        options.log(
+          `say-again: said the playback for ${outcome.fieldKey} in ${String(outcome.messages)} message(s), ` +
+            `and put a fresh proposal bound to those words. The page shows them now; the buttons are the same.`,
+        );
+      } else if (outcome.reason === "words_present") {
+        options.log(`say-again: ${conversationId}'s open proposal already has its words. Nothing was done.`);
+      } else if (outcome.reason === "nothing_open") {
+        options.log(`say-again: ${conversationId} has no open proposal. Nothing was done.`);
+      } else {
+        options.log(`say-again: ${conversationId} — ${outcome.reason}. Nothing was done.`);
+      }
+      await pool.end();
+      options.exit(outcome.ok ? 0 : 1);
+      return null;
+    }
+
     // ── The provider, reached at STARTUP ─────────────────────────────────
     //
     // Its discovery document is fetched here, so a provider that cannot be
