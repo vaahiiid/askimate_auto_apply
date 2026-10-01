@@ -2177,6 +2177,7 @@ components:
         - { $ref: "#/components/schemas/ValueConfirmedEvent" }
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
         - { $ref: "#/components/schemas/AnswerUnreadEvent" }
+        - { $ref: "#/components/schemas/StopResolvedEvent" }
         - { $ref: "#/components/schemas/TargetOfferedEvent" }
         - { $ref: "#/components/schemas/TargetRequestedEvent" }
         - { $ref: "#/components/schemas/ReapplicationAdvisedEvent" }
@@ -2198,6 +2199,7 @@ components:
           value_confirmed: "#/components/schemas/ValueConfirmedEvent"
           value_rejected: "#/components/schemas/ValueRejectedEvent"
           answer_unread: "#/components/schemas/AnswerUnreadEvent"
+          stop_resolved: "#/components/schemas/StopResolvedEvent"
           target_offered: "#/components/schemas/TargetOfferedEvent"
           target_requested: "#/components/schemas/TargetRequestedEvent"
           reapplication_advised: "#/components/schemas/ReapplicationAdvisedEvent"
@@ -2452,6 +2454,21 @@ components:
         The stop rule reads failed answers, never askings.
       properties:
         kind: { type: string, enum: [answer_unread] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
+
+    StopResolvedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey]
+      description: >
+        P259. A person resolved the stop on this field and the run carries
+        on; the failed-answer count for the field begins again here. The
+        resolution's own mark, not a reset borrowed from the next asking's
+        attempt number. Who resolved it and why is on the intervention.
+      properties:
+        kind: { type: string, enum: [stop_resolved] }
         ordinal: { type: integer, minimum: 1 }
         createdAt: { type: string, format: date-time }
         fieldKey: { type: string }

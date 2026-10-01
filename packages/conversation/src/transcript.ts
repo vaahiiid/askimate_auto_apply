@@ -154,6 +154,7 @@ export function projectEvent(event: UnpositionedEvent, position: Position): Tran
     case "value_confirmed":
     case "value_rejected":
     case "answer_unread":
+    case "stop_resolved":
       return { render: "nothing", position };
     // ── The target exchange renders as NOTHING, for the same reason ────
     //

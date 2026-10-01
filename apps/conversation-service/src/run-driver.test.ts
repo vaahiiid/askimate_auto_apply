@@ -6731,6 +6731,17 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
     expect(said.at(-1), "and the question that stands is put again, in the same breath").toContain("What is your date of birth?");
     const askings = (await events()).filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth");
     expect(askings, "the asking is on the log, so the answer is read against it").toHaveLength(4);
+    // P259, Vahid: *"the resolution carries its own mark on the log, not the
+    // asking's attempt."* The asking's attempt still means the Nth time asked;
+    // the mark that begins the count again is its own kind, before it.
+    const marks = await pool.query<{ ordinal: number; kind: string; attempt: number | null }>(
+      `SELECT ordinal, kind, attempt FROM conversation_events
+        WHERE conversation_id = $1 AND field_key = 'identity.date_of_birth' AND kind IN ('stop_resolved', 'value_asked')
+        ORDER BY ordinal DESC LIMIT 2`,
+      [conversation],
+    );
+    expect(marks.rows.map((row) => row.kind), "the mark, then the asking").toEqual(["value_asked", "stop_resolved"]);
+    expect(marks.rows[0]?.attempt, "the fourth asking says it is the fourth").toBe(4);
   }, 300_000);
 
   it("P258: after the resolution the count has begun again — an answer is read, not dropped against a count a person has already acted on", async () => {

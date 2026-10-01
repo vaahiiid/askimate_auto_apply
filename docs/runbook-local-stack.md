@@ -172,8 +172,10 @@ A refusal is `400 validation_failed` with `pointers` naming the fields that fail
 
 The run is `running` again, and the resolution itself puts the next question out — the sentence
 *someone has checked your … application and it is moving again* and then the question, in the same
-breath, written as a fresh asking whose count begins at one (P258). Answer it as usual. Do this
-**after** pulling `main` at 0.254.0: 0.253.0 said the sentence and asked nothing, because an
+breath, after the resolution's own mark on the log, `stop_resolved`, at which the failed-answer
+count begins again (P258, P259; migration 0036 runs at the service's next start). Answer it as
+usual. Do this **after** pulling `main` at 0.255.0: 0.254.0 began the count by writing the asking
+as attempt 1 instead; 0.253.0 said the sentence and asked nothing, because an
 interview run ticks only on your acts and none was arranged (row 115); 0.252.0 stops it again on
 the old count; anything before 0.253.0 closes the stop and then throws, leaving the run
 `escalated` with no second adjudication admitted. On 0.253.0 the question that stood open before

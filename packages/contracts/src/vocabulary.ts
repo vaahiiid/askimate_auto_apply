@@ -60,6 +60,12 @@ export const EVENT_KINDS = [
   // P256: an answer to the question that stood could not be read. Counted
   // as a failed answer to THAT question; askings are not.
   "answer_unread",
+  // P259: a person resolved the stop on this field and the run carries on.
+  // The failed-answer count begins again here — the resolution's OWN mark,
+  // in Vahid's words, *"not the asking's attempt"*: an attempt number means
+  // the Nth time asked, and a field carrying two meanings is a derived thing
+  // standing in for a recorded one.
+  "stop_resolved",
   // ── The target exchange (ADR-0058) ───────────────────────────────────
   //
   // The server put a REVIEWED target to the student, and the student asked to
@@ -156,6 +162,7 @@ export const PROPOSAL_EVENT_KINDS = [
   "value_confirmed",
   "value_rejected",
   "answer_unread",
+  "stop_resolved",
 ] as const satisfies readonly EventKind[];
 
 /** Who a message is from. Not an identity — a role in the conversation. */

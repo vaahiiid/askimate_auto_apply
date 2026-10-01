@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P259 — the resolution's own mark
+
+*2026-10-01.* His word on row 116: a seventeenth event kind rather than the asking's attempt
+carrying two meanings. `stop_resolved`, naming the field, is written by the resolution before the
+question it puts out; the failed-answer count begins again at it; the asking after it is the Nth
+time asked and nothing more. Migration 0036 widens the schema's closed set and the field-key
+constraint; nothing is backfilled.
+
+Row 112 closed on his reading of ordinals 14 and 15: the question, and his "United Kingdom".
+
+On the loop he called the worst failure mode: the record says, from the history, that it was as
+old as the stop rule and the resolution together, unreachable until P257 made an interview stop
+resumable, and that P256 changed only which runs meet it. His premise named P256; the ADR names
+P257 and says why.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P258 — the resolution went through, and then nothing
 
 *2026-10-01.* His resolution answered 200 and the page said the sentence; no question followed.

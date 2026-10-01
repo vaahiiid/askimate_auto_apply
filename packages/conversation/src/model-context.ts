@@ -71,6 +71,7 @@ export function buildModelRequest(input: {
       case "value_confirmed":
       case "value_rejected":
       case "answer_unread":
+      case "stop_resolved":
         break;
       // ── Nor is the target exchange (ADR-0058) ─────────────────────────
       //

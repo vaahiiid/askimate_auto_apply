@@ -284,6 +284,22 @@ export interface AnswerUnreadEvent extends EventBase {
 }
 
 /**
+ * A person resolved the stop on this field, and the run carries on (P259).
+ *
+ * The failed-answer count for `fieldKey` begins again at this mark. Its own
+ * kind rather than a reset borrowed from the next asking's attempt number,
+ * on Vahid's word: *"the asking's attempt number means 'this is the Nth time
+ * I asked'; borrowing it to mean 'a person intervened and the count starts
+ * again' makes one field carry two meanings, and the next person reading the
+ * log cannot tell a fresh asking from a reset one."* Who resolved it and why
+ * is on the intervention row; this is the fact the log needs.
+ */
+export interface StopResolvedEvent extends EventBase {
+  readonly kind: "stop_resolved";
+  readonly fieldKey: string;
+}
+
+/**
  * The server resolved a REVIEWED target and put it to the student (ADR-0058).
  *
  * Content-free by construction: the prose the student reads is a `message`
@@ -349,6 +365,7 @@ export type ConversationEvent =
   | ValueConfirmedEvent
   | ValueRejectedEvent
   | AnswerUnreadEvent
+  | StopResolvedEvent
   | TargetOfferedEvent
   | TargetRequestedEvent
   | ReapplicationAdvisedEvent;
@@ -551,6 +568,11 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const fieldKey = readString(source, "fieldKey");
       if (fieldKey === null) return null;
       return { ...base, kind: "answer_unread", fieldKey };
+    }
+    case "stop_resolved": {
+      const fieldKey = readString(source, "fieldKey");
+      if (fieldKey === null) return null;
+      return { ...base, kind: "stop_resolved", fieldKey };
     }
     // ── The target exchange (ADR-0058) ────────────────────────────────────
     //

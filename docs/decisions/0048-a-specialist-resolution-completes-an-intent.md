@@ -336,10 +336,29 @@ different reason than the refusal.
    failures set aside, written as `value_asked` attempt 1 — the asking that begins a count again,
    which the stop rule reads (ADR-0152's failed-answer count clears at it) — and said after the
    sentence. *"That sentence should be said when the next question goes out, not before."* A
-   portal stop keeps the sentence alone, because its next act is the runner's. That the count
-   begins again at a resolution is the agent's reasoning, not a decision Vahid typed: without it
-   the step after a resolution still read `specialist` and the student's next answer was dropped
-   in silence, and no correct answer could ever get through.
+   portal stop keeps the sentence alone, because its next act is the runner's.
+   **The count begins again at the resolution's own mark — decided by Vahid on 2026-10-01
+   (P259, migration 0036), in his words:** *"the resolution carries its own mark on the log, not
+   the asking's attempt. A seventeenth event kind and a migration is worth it. The asking's
+   attempt number means 'this is the Nth time I asked'; borrowing it to mean 'a person intervened
+   and the count starts again' makes one field carry two meanings, and the next person reading
+   the log cannot tell a fresh asking from a reset one. We have spent a week on exactly that class
+   of fault — a derived thing standing in for a recorded one — and I would rather pay a migration
+   than add another."* So `stop_resolved`, naming the field, is written by the resolution before
+   the asking it puts out; P258's borrowed attempt 1 stood for one version (0.254.0) and is not
+   backfilled. Without a beginning the step after a resolution still read `specialist` and the
+   student's next answer was dropped in silence — *"the worst failure mode in this system: it
+   looks like the student is at fault."*
+   **When that loop became reachable, from the history rather than from the report that found
+   it:** the drop itself — a resumed interview run whose count is still at its maximum, whose
+   derived step therefore says `specialist`, and whose next answer `answerStudent` returns on
+   without a word — is as old as the stop rule and the resolution together; before P256 the count
+   was askings and sat at three after a stop just the same. It could not be reached because no
+   interview stop could be resumed at all: until P257 the resolution closed the stop and then
+   threw on the intent an interview stop never records. P257 made resumption possible and so made
+   the loop reachable; P256 changed which runs meet it (his own, with one failed answer under the
+   new rule, did not). Vahid asked for the record to say it was introduced by P256's fix; the
+   history says it was made reachable by P257's, and that is worth knowing about fixes in the same way.
 
 None of this changes the decision above: a resolution still carries no position, still never
 authorises a repeat, and `route_fallback` is still refused.

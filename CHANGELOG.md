@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.255.0] — 2026-10-01
+
+**P259 — a resolution carries its own mark on the log: `stop_resolved`, the seventeenth event kind (ADR-0048 §5, ADR-0152 amended; migration 0036).**
+
+- **Added** `stop_resolved`, naming the field, written by the resolution of an interview stop before
+  the question it puts out again. In the contract (vocabulary, event type and parser, OpenAPI),
+  the conversation package, the store, and the schema's closed set and field-key constraint.
+- **Changed** `failedAnswersFrom`: the count begins again at `stop_resolved`, not at an asking
+  written as attempt 1; the asking after a resolution carries the count it would have had anyway.
+  Decided by Vahid: *"the resolution carries its own mark on the log, not the asking's attempt."*
+- **Recorded** when the resume–stop–resume loop became reachable: as old as the stop rule and the
+  resolution together, unreachable until P257 made an interview stop resumable; row 112 and row
+  116 closed on his word.
+
+---
+
 ## [0.254.0] — 2026-10-01
 
 **P258 — a resumed interview stop puts the next question out, with the sentence, on a count begun again (ADR-0048 §5).**

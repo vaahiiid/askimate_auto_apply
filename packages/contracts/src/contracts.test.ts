@@ -678,6 +678,8 @@ describe("bytes from the network to a target event", () => {
       value_rejected: { fieldKey: "contact.email" },
       // P256: an answer that could not be read, on the log as itself.
       answer_unread: { fieldKey: "contact.email" },
+      // P259: a person resolved the stop on this field; the count begins again.
+      stop_resolved: { fieldKey: "contact.email" },
       target_offered: { offerHash: OFFER, targetBlueprintId: "bp-x", targetContentHash: CONTENT },
       target_requested: { offerHash: OFFER },
       reapplication_advised: { priorCaseId: "case_x", priorOutcome: "withdrawn", advice: "none" },

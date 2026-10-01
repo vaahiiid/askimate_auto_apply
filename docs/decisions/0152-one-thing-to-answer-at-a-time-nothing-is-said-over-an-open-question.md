@@ -85,3 +85,11 @@ once rather than left to retention. The words of any one sentence, which are his
 - ADR-0151 and its amendments stand; the moment of asking is now also subject to this rule.
 - His stopped run resumes by a specialist's resolution (ADR-0048), after which its failed-answer
   count for the UK field is one, and his next answer goes through.
+
+## Amended 2026-10-01 (P259): the count begins again at the resolution's own mark
+
+The failed-answer count this ADR introduced clears at a confirmation and, since P259, at
+`stop_resolved` — the seventeenth event kind, written by a specialist's resolution of an
+interview stop before the question it puts out again (ADR-0048 §5, migration 0036). Decided by
+Vahid in his own words: *"the resolution carries its own mark on the log, not the asking's
+attempt."* An asking's attempt number keeps its one meaning, the Nth time asked.

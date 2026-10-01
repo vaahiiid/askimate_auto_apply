@@ -34,6 +34,7 @@ export const SCHEMA_EVENT_KINDS = [
   "value_confirmed",
   "value_rejected",
   "answer_unread",
+  "stop_resolved",
   "target_offered",
   "target_requested",
   "reapplication_advised",

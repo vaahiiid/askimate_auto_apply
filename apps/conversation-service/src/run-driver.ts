@@ -2123,13 +2123,13 @@ function failedAnswersFrom(events: readonly ConversationEvent[]): ReadonlyMap<Pr
       failed.set(field, (failed.get(field) ?? 0) + 1);
     } else if (event.kind === "value_confirmed") {
       failed.delete(event.fieldKey as ProfileFieldKey);
-    } else if (event.kind === "value_asked" && (event.attempt ?? 1) === 1) {
-      // P258: an asking written as attempt 1 BEGINS a count. The first asking
-      // after a confirmation is one (and clears nothing, since nothing has
-      // failed yet); the asking a person's resolution puts out is the other —
-      // without it the three failures that stopped the run would still be
-      // three, the step would still say `specialist`, and the next answer
-      // would be dropped in silence: resolve, stop, resolve, stop.
+    } else if (event.kind === "stop_resolved") {
+      // P259: a person resolved the stop on this field, and the count begins
+      // again at the resolution's own mark. Without a beginning the three
+      // failures that stopped the run would still be three, the step would
+      // still say `specialist`, and the next answer would be dropped in
+      // silence: resolve, stop, resolve, stop. P258 borrowed the next asking's
+      // attempt 1 for this; Vahid refused the borrowing (migration 0036).
       failed.delete(event.fieldKey as ProfileFieldKey);
     }
   }
@@ -6693,9 +6693,11 @@ export class RunDriver {
    * dropped without a word.
    *
    * So, in the resolution itself, under the conversation lock: the next
-   * question is derived with this field's failures set aside, written as
-   * attempt 1 — the asking that BEGINS a count again, which `failedAnswersFrom`
-   * reads — and said after the sentence, in the same breath. *"That sentence
+   * question is derived with this field's failures set aside; the resolution's
+   * own mark, `stop_resolved`, is written first — the count begins again at
+   * it, which `failedAnswersFrom` reads (P259, his word over P258's borrowed
+   * attempt 1) — then the asking, then the sentence and the question, in the
+   * same breath. *"That sentence
    * should be said when the next question goes out, not before."*
    *
    * The question is put even though one stands open on the log: the open one
@@ -6725,9 +6727,17 @@ export class RunDriver {
         await say(resumeMessage(situated.entry));
         return null;
       }
+      // The resolution's own mark first (P259, migration 0036), then the
+      // asking with the count it would have had anyway — the Nth time asked,
+      // which is all an attempt number means.
+      const events = await this.#options.conversations.since(conversationId, 0);
       await this.#options.conversations.append({
         conversationId,
-        event: { kind: "value_asked", fieldKey: next.fieldKey, attempt: 1 },
+        event: { kind: "stop_resolved", fieldKey: field },
+      });
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "value_asked", fieldKey: next.fieldKey, attempt: nextAttemptFor(events, next.fieldKey) },
       });
       await say(resumeMessage(situated.entry));
       await say(next.say);

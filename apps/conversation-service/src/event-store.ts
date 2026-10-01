@@ -116,6 +116,7 @@ export type AppendableEvent =
   | { readonly kind: "target_requested"; readonly offerHash: string }
   | { readonly kind: "value_rejected"; readonly fieldKey: string }
   | { readonly kind: "answer_unread"; readonly fieldKey: string }
+  | { readonly kind: "stop_resolved"; readonly fieldKey: string }
   // ── The re-application exchange (ADR-0006 §3) ─────────────────────────
   //
   // Appended by the SERVICE, for the reason the other two structured exchanges
@@ -319,6 +320,7 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
     }
     case "value_rejected":
     case "answer_unread":
+    case "stop_resolved":
       return { kind, ordinal, createdAt, fieldKey: row["field_key"] as string };
     case "reapplication_advised": {
       const suggested = row["suggested_intake"] as string | null;
