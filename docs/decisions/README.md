@@ -74,7 +74,7 @@ ADR status uses exactly that vocabulary:
 | [0045](./0045-the-runner-pulls-leased-work.md) | The Automation Runner pulls leased work; nothing calls into it | Accepted |
 | [0046](./0046-a-fill-plan-crosses-as-value-and-provenance.md) | A fill plan crosses to the runner as value and provenance, reassembled through the one mint | Accepted |
 | [0047](./0047-page-progress-lives-in-the-intent-ledger.md) | Page progress lives in the intent ledger; a lease names the page it holds | Accepted |
-| [0048](./0048-a-specialist-resolution-completes-an-intent.md) | A specialist resolution completes an intent; the operator CLI is only its first interface | Accepted · amended 2026-09-30 (P257): the fact before the record; a stop that recorded no action; `scope` and `kind` closed; a refusal names what failed |
+| [0048](./0048-a-specialist-resolution-completes-an-intent.md) | A specialist resolution completes an intent; the operator CLI is only its first interface | Accepted · amended 2026-09-30 (P257): the fact before the record; a stop that recorded no action; `scope` and `kind` closed; a refusal names what failed · amended 2026-10-01 (P258): a resumed interview stop puts the next question out, with the sentence, on a count begun again |
 | [0049](./0049-the-run-driver-drives-the-case-machine.md) | The run driver drives the case state machine, and a student's authorisation is captured through it | Accepted |
 | [0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md) | The account lifecycle completes through the student's own decision, and a case can finally conclude | Accepted |
 | [0051](./0051-the-student-supplies-through-the-conversation.md) | The student answers in the conversation, and a correction can reach the portal | Accepted |

@@ -170,10 +170,15 @@ at all):
 
 A refusal is `400 validation_failed` with `pointers` naming the fields that failed, and only those.
 
-The run is `running` again; the UK question stands open; your yes goes through, and its
-failed-answer count is one. Do this **after** pulling `main` at 0.253.0: 0.252.0 stops it again on
-the old count, and anything before 0.253.0 closes the stop and then throws, leaving the run
-`escalated` with no second adjudication admitted. Before resolving, read what fired the third asking:
+The run is `running` again, and the resolution itself puts the next question out — the sentence
+*someone has checked your … application and it is moving again* and then the question, in the same
+breath, written as a fresh asking whose count begins at one (P258). Answer it as usual. Do this
+**after** pulling `main` at 0.254.0: 0.253.0 said the sentence and asked nothing, because an
+interview run ticks only on your acts and none was arranged (row 115); 0.252.0 stops it again on
+the old count; anything before 0.253.0 closes the stop and then throws, leaving the run
+`escalated` with no second adjudication admitted. On 0.253.0 the question that stood open before
+the stop was still the one your next message answered, so typing the answer went through; nothing
+on the page said so. Before resolving, read what fired the third asking:
 
 ```sql
 select e.ordinal, e.kind, e.field_key, e.attempt, e.actor, left(mb.content, 90) as said

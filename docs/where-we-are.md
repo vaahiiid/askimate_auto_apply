@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P258 — the resolution went through, and then nothing
+
+*2026-10-01.* His resolution answered 200 and the page said the sentence; no question followed.
+Both halves of his guess were right. An interview run ticks only on the student's acts, so the
+resolution said its sentence and arranged nothing. And the stop's state was not undone: under the
+failed-answer rule the count was still three, the derived step still `specialist`, and the next
+answer would have been dropped in silence. (His own run was the odd one: its count was one, and the
+question that stood open on the log was the one his typed answer would have been read against. He
+was not stuck; nothing said so.)
+
+Now the resolution itself puts the next question out, derived with the stopped field's failures set
+aside and written as an asking at attempt 1, which begins the count again; the sentence is said
+with it, after it is known there is a question to follow. A portal stop keeps the sentence alone.
+That the count begins again at a resolution is my reasoning, row 116, awaiting his word.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P257 — the exact call, and what the route did with it
 
 *2026-09-30.* His two attempts at the resolution route were refused with the same five pointers.

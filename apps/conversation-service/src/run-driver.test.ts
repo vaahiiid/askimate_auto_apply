@@ -6720,7 +6720,31 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
     expect(run.rows[0]?.status, "released by the resolution").toBe("running");
     const stop = await pool.query<{ resolved_at: Date | null }>("SELECT resolved_at FROM interventions WHERE run_id = $1", [runId]);
     expect(stop.rows[0]?.resolved_at, "the stop is closed").not.toBeNull();
-    expect(await lastSaid(), "the student is told it is moving again").toContain("it is moving again");
+    // P258, Vahid's run of 2026-09-30 after the resolution: the sentence,
+    // then nothing — *"Running, interviewing, nothing open, nothing asked."*
+    // An interview run ticks only on the student's acts, so the question
+    // must go out in the resolution itself, and the sentence with it, not
+    // before it: *"That sentence should be said when the next question goes
+    // out, not before."*
+    const said = (await events()).filter((event) => event.kind === "message" && event.content !== null).map((event) => event.content ?? "");
+    expect(said.at(-2), "the sentence goes out with the question").toContain("it is moving again");
+    expect(said.at(-1), "and the question that stands is put again, in the same breath").toContain("What is your date of birth?");
+    const askings = (await events()).filter((event) => event.kind === "value_asked" && event.field === "identity.date_of_birth");
+    expect(askings, "the asking is on the log, so the answer is read against it").toHaveLength(4);
+  }, 300_000);
+
+  it("P258: after the resolution the count has begun again — an answer is read, not dropped against a count a person has already acted on", async () => {
+    // Three failed answers stopped the run. A person looked and said resume.
+    // Without a fresh count the next answer would meet a step that still says
+    // `specialist` and be dropped in silence, and a correct answer could
+    // never get through: resolve, stop, resolve, stop.
+    await say("11 Aug 1989");
+    const log = await events();
+    const proposed = log.filter((event) => event.kind === "value_proposed" && event.field === "identity.date_of_birth");
+    expect(proposed, "the answer was read and put back").toHaveLength(2);
+    expect(await lastSaid()).toContain("Is that right?");
+    const run = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(run.rows[0]?.status, "and the run did not stop again").toBe("running");
   }, 300_000);
 });
 

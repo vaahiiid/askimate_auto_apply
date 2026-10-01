@@ -2123,6 +2123,14 @@ function failedAnswersFrom(events: readonly ConversationEvent[]): ReadonlyMap<Pr
       failed.set(field, (failed.get(field) ?? 0) + 1);
     } else if (event.kind === "value_confirmed") {
       failed.delete(event.fieldKey as ProfileFieldKey);
+    } else if (event.kind === "value_asked" && (event.attempt ?? 1) === 1) {
+      // P258: an asking written as attempt 1 BEGINS a count. The first asking
+      // after a confirmation is one (and clears nothing, since nothing has
+      // failed yet); the asking a person's resolution puts out is the other —
+      // without it the three failures that stopped the run would still be
+      // three, the step would still say `specialist`, and the next answer
+      // would be dropped in silence: resolve, stop, resolve, stop.
+      failed.delete(event.fieldKey as ProfileFieldKey);
     }
   }
   return failed;
@@ -6560,7 +6568,9 @@ export class RunDriver {
     // hears "it is moving again" about an abandoned application has been
     // misled, which is worse than not being told at all.
     if (input.resolution.outcome !== "abandon") {
-      await this.#announceResumed(held);
+      const target = held.escalation.checkpoint.target;
+      if (target.startsWith("interview:")) await this.#askAgainAfterResolution(held, target.slice("interview:".length));
+      else await this.#announceResumed(held);
     }
     return resolved;
   }
@@ -6667,6 +6677,64 @@ export class RunDriver {
   }
 
   /** Tells the student their run is moving again, when there is one to tell. */
+  /**
+   * Resumes an INTERVIEW stop: the sentence, and the question, together (P258).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Vahid's run of 2026-09-30, after the first resolution that ever went
+   * through: *"the page said 'someone has checked your application and it is
+   * moving again…' Then nothing. No question, and none has come in several
+   * minutes."* An interview run ticks only on the student's acts — there is
+   * no poll for it — so a resolution that says its sentence and returns has
+   * promised movement and arranged none. And the question that stood on the
+   * log was asked three failures ago, under a count a person has just acted
+   * on: left as it was, the derived step still said `specialist`, and the
+   * student's next answer met `interviewActionOf(step) === null` and was
+   * dropped without a word.
+   *
+   * So, in the resolution itself, under the conversation lock: the next
+   * question is derived with this field's failures set aside, written as
+   * attempt 1 — the asking that BEGINS a count again, which `failedAnswersFrom`
+   * reads — and said after the sentence, in the same breath. *"That sentence
+   * should be said when the next question goes out, not before."*
+   *
+   * The question is put even though one stands open on the log: the open one
+   * was followed by the stop, and a question the student last saw above
+   * "I have stopped" is not a question they can see is theirs to answer.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  async #askAgainAfterResolution(held: StoredIntervention, field: string): Promise<void> {
+    const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+    if (conversationId === null) return;
+    const situated = await this.#interviewSituation(conversationId);
+    if (situated === null) return;
+    const begunAgain = new Map(situated.state.interview.attempts);
+    begunAgain.delete(field);
+    const answered: RunState = { ...situated.state, interview: { ...situated.state.interview, attempts: begunAgain } };
+    const plan = assess(answered).plan;
+    const worklist = plan === null ? answered.interview : interviewWorklist(answered, plan);
+    const next = await nextAction(worklist, this.#options.model);
+
+    await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
+      const say = async (content: string): Promise<void> => {
+        await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+      };
+      if (next.kind !== "ask") {
+        // Nothing left to ask: the sentence alone is true, since the next
+        // act is the run's, not the student's.
+        await say(resumeMessage(situated.entry));
+        return null;
+      }
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "value_asked", fieldKey: next.fieldKey, attempt: 1 },
+      });
+      await say(resumeMessage(situated.entry));
+      await say(next.say);
+      return null;
+    });
+  }
+
   async #announceResumed(held: StoredIntervention): Promise<void> {
     const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
     if (conversationId === null) return;

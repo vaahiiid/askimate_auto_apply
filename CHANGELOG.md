@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.254.0] — 2026-10-01
+
+**P258 — a resumed interview stop puts the next question out, with the sentence, on a count begun again (ADR-0048 §5).**
+
+- **Fixed** the silence after a resolution: an interview run ticks only on the student's acts, so
+  `resolveIntervention` now derives the next question itself — with the stopped field's failures
+  set aside — writes it as `value_asked` attempt 1 and says it after the sentence, under the
+  conversation lock. A portal stop keeps the sentence alone.
+- **Changed** `failedAnswersFrom`: an asking written as attempt 1 begins the count again, so the
+  step after a resolution does not still read `specialist` and drop the next answer. Row 116
+  records this as the agent's reasoning, awaiting Vahid's word.
+- **Fixed** the runbook: after the resolution the question arrives at once; pull 0.254.0 first.
+- **Recorded** row 115 (closed) and row 116 (open).
+
+---
+
 ## [0.253.0] — 2026-09-30
 
 **P257 — a resolution completes the fact before it closes the stop; a stop that recorded no action; the refusal names what failed (ADR-0048 amended).**

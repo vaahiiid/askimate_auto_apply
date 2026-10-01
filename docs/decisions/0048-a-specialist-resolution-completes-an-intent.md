@@ -328,5 +328,18 @@ different reason than the refusal.
 4. **A refusal names what failed.** The route reported a fixed five pointers whatever had failed,
    naming neither the missing field nor the three the list omitted.
 
+5. **(2026-10-01, P258) A resumed interview stop puts the next question out, with the sentence.**
+   Vahid's run after the first resolution that went through: *"the page said 'someone has checked
+   your application and it is moving again…' Then nothing."* An interview run ticks only on the
+   student's acts, so a resolution that says its sentence and returns has promised movement and
+   arranged none. Now, in the resolution: the next question is derived with the stopped field's
+   failures set aside, written as `value_asked` attempt 1 — the asking that begins a count again,
+   which the stop rule reads (ADR-0152's failed-answer count clears at it) — and said after the
+   sentence. *"That sentence should be said when the next question goes out, not before."* A
+   portal stop keeps the sentence alone, because its next act is the runner's. That the count
+   begins again at a resolution is the agent's reasoning, not a decision Vahid typed: without it
+   the step after a resolution still read `specialist` and the student's next answer was dropped
+   in silence, and no correct answer could ever get through.
+
 None of this changes the decision above: a resolution still carries no position, still never
 authorises a repeat, and `route_fallback` is still refused.
