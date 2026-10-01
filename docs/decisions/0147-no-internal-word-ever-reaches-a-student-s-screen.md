@@ -97,3 +97,24 @@ to put and may fit them to the conversation, never invent them from a label. All
 questions — twenty-two fields, fifty-seven parts — were written, the thirteen yes/no ones each
 ending *Please answer yes or no.*, and a test walks every spec and counts them so a silent skip
 shows. The limit, as before: the words of any one question are his to find wanting.
+
+## Amended 2026-10-01 (P262): the yes must mean what the question's own verb asks
+
+Found by Vahid walking the interview on 2026-10-01, at *"That is the 7 jobs I read from your
+CV. Is that all of them, or are there others not on your CV? Please answer yes if there is another
+to add, or no if that is all."* In his words: *"The question asks 'is that all of them?' and then
+instructs that yes means there is another. So answering the question as asked — yes, that is all
+— records the opposite. I nearly did it. The instruction saves it only if you read to the end,
+and the natural reading of a yes/no question is against its first clause. Fix the question, not
+the instruction."* And the rule: *"A yes/no question whose two clauses point opposite ways is a
+defect wherever it appears, and the rule is that the yes must mean what the question's own verb
+asks."*
+
+So the completeness question after a document now asks for another — *Is there another job to
+add that is not on your CV? Please answer yes or no.* — composed in one place for both lists; no
+yes/no question carries an instruction that redefines yes, and the audit that walks every authored
+question refuses one that does (*answer yes if …*). The three two-clause questions the service
+composes — *Do you want me to fill in your jobs and qualifications from it, or would you rather
+tell me yourself?*, the same for a CV read before the question existed, and *Do you want me to go
+back and fill them in from the CV instead? … Or shall I leave them as they are?* — were checked
+against the rule and conform: in each, yes answers the first verb.

@@ -4906,6 +4906,19 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P262 — the yes means what the verb asks
+
+*2026-10-01.* His first finding of the walk on 0.257.0: the question after a CV's entries asked
+*is that all of them?* and then said yes meant another. He nearly answered it as asked. Fixed as
+he said, the question and not the instruction: it asks for another, for both lists, from one
+function; the audit over every authored question refuses an instruction that redefines yes; the
+three two-clause CV questions were checked and put the yes on their first verb. ADR-0147 carries
+his rule.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P261 — step 4 measured where it could be
 
 *2026-10-01.* His three measurements, read-only and without an account: verification gates neither

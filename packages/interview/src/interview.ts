@@ -412,19 +412,36 @@ function nextListQuestion(
       const fromDocument = [...ofItem.values()].some((reading) => unwrapProposed(reading).origin === "document");
       const part = yesNoPart(another, label, spec.anotherRationale);
       if (!fromDocument) return { part, suffix: label };
-      const count = index + 1;
       return {
-        part: {
-          ...part,
-          exactly:
-            `That is the ${String(count)} ${count === 1 ? spec.itemLabel : `${spec.itemLabel}s`} I read from your CV. ` +
-            `Is that all of them, or are there others not on your CV? Please answer yes if there is another to add, or no if that is all.`,
-        },
+        part: { ...part, exactly: completenessQuestionAfterDocument(spec, index + 1) },
         suffix: label,
       };
     }
     if (values.get(another) !== true) return undefined;
   }
+}
+
+/**
+ * The question a document cannot answer, after the entries it gave (P251,
+ * ADR-0151): is there another?
+ *
+ * Asked FOR another, so a yes means another (P262). Until then it asked *"Is
+ * that all of them, or are there others not on your CV? Please answer yes if
+ * there is another to add, or no if that is all"* — and Vahid, answering the
+ * question as asked, nearly said yes to *is that all*, which would have
+ * recorded the opposite: *"The instruction saves it only if you read to the
+ * end, and the natural reading of a yes/no question is against its first
+ * clause. Fix the question, not the instruction … the rule is that the yes
+ * must mean what the question's own verb asks."* One place, so the two lists
+ * cannot drift apart, and the instruction is the plain one every yes/no
+ * question carries.
+ */
+export function completenessQuestionAfterDocument(spec: FieldSpec<unknown>, count: number): string {
+  const itemLabel = isList(spec) ? spec.itemLabel : "entry";
+  return (
+    `That is the ${String(count)} ${count === 1 ? itemLabel : `${itemLabel}s`} I read from your CV. ` +
+    `Is there another ${itemLabel} to add that is not on your CV? Please answer yes or no.`
+  );
 }
 
 /**

@@ -16,6 +16,7 @@ import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, OMITTED, isComposite, isList } from "./field-specs.js";
 import type { InterviewState, PartPolicy, PartRule } from "./interview.js";
 import {
+  completenessQuestionAfterDocument,
   chooseReading,
   MAX_ATTEMPTS_PER_FIELD,
   newInterview,
@@ -1468,7 +1469,11 @@ describe("a part read in part narrows the question: which month of 2019? (P248)"
     expect(next.kind).toBe("ask");
     if (next.kind === "ask") {
       expect(next.partKey).toBe("item0.another");
-      expect(next.say).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+      // P262, Vahid: *"the yes must mean what the question's own verb asks."*
+      // The question asks for another; yes means another; the instruction is
+      // the plain one, never one that redefines yes.
+      expect(next.say).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV? Please answer yes or no.");
+      expect(next.say).not.toMatch(/yes if|no if|Is that all/);
     }
     state = (await receiveAnswer(state, FIELD, "no", model)).state;
     const done = await nextAction(state, model);
@@ -1799,9 +1804,31 @@ describe("a question's words are authored, never assembled from a key or a label
         expect(question, `${name}: a question`).toMatch(/\?( Please answer yes or no\.)?$/);
         expect(question, `${name}: not built from a label or a key`).not.toMatch(/What's your|[a-z][A-Z]|_/);
         if (shape === "yes or no") expect(question, `${name}: says what kind of answer it wants`).toContain("Please answer yes or no.");
+        // P262, Vahid: *"A yes/no question whose two clauses point opposite
+        // ways is a defect wherever it appears, and the rule is that the yes
+        // must mean what the question's own verb asks."* So no question may
+        // redefine yes in an instruction: the only instruction a yes/no
+        // question carries is the plain one.
+        expect(question, `${name}: yes means what the verb asks, never what an instruction redefines`).not.toMatch(/answer yes if|answer no if|yes if there|no if that/i);
       }
     }
     expect(seen.length, "every field and part, counted so a silent skip shows").toBe(79);
+  });
+
+  it("the completeness question after a CV asks for another, so yes means another (P262)", () => {
+    // Vahid, 2026-10-01, nearly answering "yes, that is all" to *"Is that all
+    // of them, or are there others not on your CV? Please answer yes if there
+    // is another to add"*: *"answering the question as asked — yes, that is
+    // all — records the opposite. Fix the question, not the instruction."*
+    const spec = FIELD_SPECS["employment.history"] as FieldSpec<unknown>;
+    expect(isList(spec)).toBe(true);
+    for (const [key, itemLabel] of [["employment.history", "job"], ["education.prior_qualifications", "qualification"]] as const) {
+      const words = completenessQuestionAfterDocument(FIELD_SPECS[key] as FieldSpec<unknown>, 7);
+      expect(words).toBe(`That is the 7 ${itemLabel}s I read from your CV. Is there another ${itemLabel} to add that is not on your CV? Please answer yes or no.`);
+    }
+    expect(completenessQuestionAfterDocument(FIELD_SPECS["employment.history"] as FieldSpec<unknown>, 1)).toBe(
+      "That is the 1 job I read from your CV. Is there another job to add that is not on your CV? Please answer yes or no.",
+    );
   });
 
   it("asks whether the student is in the UK in words that ask for yes or no, and reads a country as not that", async () => {

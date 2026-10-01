@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.258.0] — 2026-10-01
+
+**P262 — the yes means what the question's own verb asks (ADR-0147 amended).**
+
+- **Changed** the completeness question after a CV's entries: *Is there another job to add that is
+  not on your CV? Please answer yes or no.* — it asked *is that all of them?* and then instructed
+  that yes meant another, and Vahid nearly answered it as asked. One exported function composes it
+  for both lists.
+- **Added** to the audit over every authored question: a yes/no question carries only the plain
+  instruction; one that redefines yes (*answer yes if …*) fails the suite.
+- **Recorded** row 118 (closed) and that the three two-clause CV questions conform.
+
+---
+
 ## [0.257.0] — 2026-10-01
 
 **P261 — a covering read names the cookies the profile holds (ADR-0128 amended); step 4 measured where it could be; the entry edit prepared for his signature.**

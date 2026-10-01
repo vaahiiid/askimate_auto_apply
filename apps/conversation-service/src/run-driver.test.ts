@@ -14783,7 +14783,7 @@ describeIfDatabase("a CV is read only on the student's word, asked when its firs
     expect((await assistantSaid(YES_CONVERSATION)).at(-1)?.toLowerCase()).toContain("award");
     await say(YES_CONVERSATION, "none");
     const completeness = (await assistantSaid(YES_CONVERSATION)).at(-1) ?? "";
-    expect(completeness).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+    expect(completeness).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV?");
     await say(YES_CONVERSATION, "no");
     expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("Is that right?");
   }, 300_000);
@@ -14953,7 +14953,7 @@ describeIfDatabase("a CV uploaded after both its fields are confirmed is asked a
     await say(YES_CONVERSATION, "Iran");
     expect((await assistantSaid(YES_CONVERSATION)).at(-1)?.toLowerCase()).toContain("award");
     await say(YES_CONVERSATION, "none");
-    expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+    expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV?");
     await say(YES_CONVERSATION, "no");
     const playback = (await assistantSaid(YES_CONVERSATION)).at(-1) ?? "";
     expect(playback).toContain("University of Tehran");
@@ -15125,7 +15125,7 @@ describeIfDatabase("a CV read before the question existed is legible as that and
     expect(said).toContain("Thank you. I will use what I read from your CV, and ask you what it did not say.");
     expect(said.at(-1)?.toLowerCase(), "the walk carries on: the next part").toContain("award");
     await say(YES_CONVERSATION, "none");
-    expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+    expect((await assistantSaid(YES_CONVERSATION)).at(-1)).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV?");
     await say(YES_CONVERSATION, "no");
     const playback = (await assistantSaid(YES_CONVERSATION)).at(-1) ?? "";
     expect(playback).toContain("University of Tehran");
@@ -15695,7 +15695,7 @@ describeIfDatabase("a reading says what it got and did not get, keeps its struct
     // Then the optional award date the fixture mapping reads (P246), then another?
     expect((await assistantSaid()).at(-1)?.toLowerCase()).toContain("award");
     await say("none");
-    expect((await assistantSaid()).at(-1), "P251: the question a CV cannot answer").toContain("Is that all of them, or are there others not on your CV?");
+    expect((await assistantSaid()).at(-1), "P251: the question a CV cannot answer").toContain("Is there another qualification to add that is not on your CV?");
     await say("no");
     const playback = (await assistantSaid()).at(-1) ?? "";
     expect(playback).toContain("June (2019 from the document)");
@@ -15887,14 +15887,14 @@ describeIfDatabase("a CV read by the reader seeds the interview, which asks only
     for (let turn = 0; turn < 3; turn += 1) {
       const last = (await assistantSaid()).at(-1)?.toLowerCase() ?? "";
       // P251: after entries the CV gave, the question a CV cannot answer stands in for "another?".
-      if (last.includes("is that all of them, or are there others not on your cv")) break;
+      if (last.includes("is there another qualification to add that is not on your cv")) break;
       between.push(last);
       await say("none");
     }
     expect(between, "only the optional award date, asked with 'say none'").toHaveLength(1);
     expect(between[0]).toContain("award");
     for (const given of ["subject", "institution", "grade", "started", "level"]) expect(between[0], given).not.toContain(given);
-    expect((await assistantSaid()).at(-1)).toContain("That is the 1 qualification I read from your CV. Is that all of them, or are there others not on your CV?");
+    expect((await assistantSaid()).at(-1)).toContain("That is the 1 qualification I read from your CV. Is there another qualification to add that is not on your CV?");
     await say("no");
     const playback = (await assistantSaid()).at(-1) ?? "";
     expect(playback).toContain("University of Tehran");
