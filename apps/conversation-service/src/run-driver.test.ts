@@ -11385,6 +11385,113 @@ describeIfDatabase("one entry of a played-back list is corrected and the rest st
   }, 300_000);
 });
 
+describeIfDatabase("an entry that is NOT the last is corrected: the rest stay, the list is played back whole and confirmed (P264)", () => {
+  // ═══════════════════════════════════════════════════════════════════
+  // Vahid: *"If they say something in the list is wrong, we correct that
+  // item and confirm again. We do not throw the whole list away and start
+  // over."* Two jobs are walked through `say()`, the list is played back,
+  // the student presses "job 2 is wrong", job 2 alone is asked again, the
+  // list is played back again, and the confirmation stores both jobs with
+  // the corrected one. EVERY TURN IS A SEPARATE DRIVER INSTANCE.
+  // ═══════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX26401";
+  let owner = "";
+  let runId = "";
+
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function kinds(): Promise<readonly { kind: string; part: string | null; field: string | null }[]> {
+    const rows = await pool.query<{ kind: string; part_key: string | null; field_key: string | null }>(
+      "SELECT kind, part_key, field_key FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal ASC",
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ kind: row.kind, part: row.part_key, field: row.field_key }));
+  }
+  async function pendingNow(): Promise<{ contentHash: string; entries: readonly { index: number; label: string }[] } | null> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      const pending = reading?.pending;
+      if (pending?.decision !== "confirm_value") return null;
+      return { contentHash: pending.contentHash, entries: pending.entries ?? [] };
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+    // Two jobs, entry by entry, then "that is all".
+    await say("yes");
+    for (const utterance of ["Engineer", "Example Ltd", "1 Example Way, Sheffield", "January 2023", "yes", "Designing and testing things.", "none", "none"]) await say(utterance);
+    await say("yes");
+    for (const utterance of ["Analyst", "Other Co", "2 Other Road, Leeds", "March 2020", "no", "December 2022", "Analysing things.", "none", "none"]) await say(utterance);
+    await say("no");
+  }, 600_000);
+
+  it("P264: correcting job 1 of 2 re-walks job 1, keeps job 2, asks the closing 'another?' once more, plays the whole list back and confirms it — the promise 'and then read the whole list back to you' is kept for a non-last entry", async () => {
+    // Vahid's walk of 2026-10-01: *"The correction said 'I will ask you
+    // about it again, and then read the whole list back to you', and after
+    // I answered job 6's last part the next thing I saw was the
+    // qualifications."* Job 6 of 7 is not the last entry; the P230 proof
+    // corrected the last. This corrects the first of two.
+    const pending = await pendingNow();
+    const askedBefore = (await kinds()).filter((event) => event.kind === "value_asked").length;
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EMPLOYMENT_REQUIRED));
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "correct_entry", contentHash: pending?.contentHash ?? "", entry: 1 } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await assistantSaid()).at(-1)?.toLowerCase(), "job 1 asked again from its first part").toContain("job 1");
+    for (const utterance of ["Principal engineer", "Example Ltd", "1 Example Way, Sheffield", "January 2023", "yes", "Designing better things.", "none", "none"]) await say(utterance);
+    expect((await assistantSaid()).at(-1)?.toLowerCase(), "job 2's closing 'another?' was carried inside the proposal, so it is asked once more").toContain("another job");
+    await say("no");
+    const said = await assistantSaid();
+    const log = await kinds();
+    const askedSince = log.filter((event) => event.kind === "value_asked").length - askedBefore;
+    // What was asked after the correction: job 1's parts, and nothing of job 2's.
+    const partsAsked = log.slice(log.map((event) => event.kind).lastIndexOf("value_rejected") + 1).filter((event) => event.kind === "value_asked").map((event) => event.part ?? "");
+    expect(partsAsked.filter((part) => part.startsWith("item1.")), "job 2 is not asked again").toEqual([]);
+    // Then: the list played back whole, a proposal open, nothing of the next field asked.
+    const last = said.at(-1) ?? "";
+    expect(last, "the whole list is read back, as promised").toBe("Those are the 2 jobs. Is that right?");
+    expect(said.slice(-3).join("\n")).toContain("Principal engineer");
+    expect(said.slice(-3).join("\n")).toContain("Other Co");
+    const open = await pendingNow();
+    expect(open?.entries, "and it waits to be confirmed").toHaveLength(2);
+    expect(askedSince, "job 1's eight parts, and the closing 'another?' once more").toBe(9);
+  }, 600_000);
+});
+
 describeIfDatabase("telling a specialist that a run stopped", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Every part of the recovery design was built and tested before this: stop
@@ -15179,6 +15286,193 @@ describeIfDatabase("a CV read before the question existed is legible as that and
     const playback = (await assistantSaid(YES_CONVERSATION)).slice(-2).join("\n\n");
     expect(playback).toContain("University of Tehran");
     expect(playback).toContain("Is that right?");
+  }, 300_000);
+});
+
+describeIfDatabase("a CV-read entry left out mid-walk (P264): the mark is on the log, the walk goes on, the playback says what was left out, the profile holds what stands, and a correction after it names the right entry", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-01, stuck at a qualification his CV produced: *"The walk
+  // asks me for its country and there is no answer that means 'this entry
+  // should not be here' … a student can say it should not be listed, and it
+  // is removed, and the walk goes on to the next. Not a correction — a
+  // removal. And the list's playback should show what was removed, or at
+  // least not silently renumber so that 'job 3' means something different
+  // afterwards. Tell me … whether removal mid-walk breaks anything the
+  // ordinals depend on."*
+  //
+  // Three qualifications a CV gave; the second is left out at its country.
+  // The log carries `item1.removed`; the third is still asked about as
+  // qualification 3; the playback numbers the two that stand and says which
+  // number each had when asked about; the button "qualification 2" then
+  // names the one that stands second, and a correction maps it back through
+  // the mark to the walk's third slot — and says so.
+  // ═══════════════════════════════════════════════════════════════════════
+  const CONFIRM_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX26402";
+  const CORRECT_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX26403";
+  const CONFIRM_CV = "01JQDOCREAD000000000000031";
+  const CORRECT_CV = "01JQDOCREAD000000000000032";
+  const contentHash = "a".repeat(64);
+  const HINT = 'If this qualification should not be listed, say "leave it out".';
+  const owners = new Map<string, string>();
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+  const entryRead = (index: number, institution: string) => ({
+    index,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution, level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution, level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  });
+  const ENTRIES = [entryRead(1, "University of Tehran"), entryRead(2, "Sharif University"), entryRead(3, "Evening Course Centre")];
+
+  function readingVault(records: DocumentRecord[]): DocumentVault & { readonly records: DocumentRecord[] } {
+    const base = fakeVault(records);
+    return {
+      ...base,
+      records: base.records,
+      prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }),
+    };
+  }
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(conversation: string, what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function assistantSaid(conversation: string): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function partKeys(conversation: string, after = 0): Promise<readonly string[]> {
+    const rows = await pool.query<{ part_key: string }>(
+      "SELECT part_key FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_read' AND ordinal > $2 ORDER BY ordinal ASC",
+      [conversation, after],
+    );
+    return rows.rows.map((row) => row.part_key);
+  }
+  async function pendingNow(conversation: string): Promise<{ contentHash: string; entries: readonly { index: number; label: string }[] } | null> {
+    const built = instance();
+    try {
+      const pending = (await built.driver.runFor(conversation))?.pending;
+      if (pending?.decision !== "confirm_value") return null;
+      return { contentHash: pending.contentHash, entries: pending.entries ?? [] };
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function runIdOf(conversation: string): Promise<string> {
+    const built = instance();
+    try {
+      return (await new PostgresWorkflowRunStore(built.pool).findByCase(makeCaseId(`case_${conversation.toLowerCase()}`)))[0]?.runId ?? "";
+    } finally {
+      await built.pool.end();
+    }
+  }
+  /** The walk to the playback: Iran, none (the award date, which this catalogue reads), leave it out, Iran, none, no. */
+  async function walkToThePlayback(conversation: string): Promise<void> {
+    const first = (await assistantSaid(conversation)).at(-1) ?? "";
+    expect(first, "qualification 1's country, with the way to leave the entry out").toContain("For qualification 1: ");
+    expect(first).toContain(HINT);
+    await say(conversation, "Iran");
+    const award = (await assistantSaid(conversation)).at(-1) ?? "";
+    expect(award, "the entry's second question carries no hint: the first did").toContain("For qualification 1: ");
+    expect(award).not.toContain(HINT);
+    await say(conversation, "none");
+    const second = (await assistantSaid(conversation)).at(-1) ?? "";
+    expect(second).toContain("For qualification 2: ");
+    expect(second).toContain(HINT);
+    await say(conversation, "leave it out");
+    expect(await partKeys(conversation), "the mark is a part row on the log, no new event kind").toContain("item1.removed");
+    const third = (await assistantSaid(conversation)).at(-1) ?? "";
+    expect(third, "the walk goes on, and the third is still the third").toContain("For qualification 3: ");
+    expect(third).toContain(HINT);
+    await say(conversation, "Iran");
+    await say(conversation, "none");
+    expect((await assistantSaid(conversation)).at(-1), "the count is of what stands").toBe("That is the 2 qualifications I read from your CV. Is there another qualification to add that is not on your CV? Please answer yes or no.");
+    await say(conversation, "no");
+  }
+
+  beforeAll(async () => {
+    for (const conversation of [CONFIRM_CONVERSATION, CORRECT_CONVERSATION]) owners.set(conversation, await ownConversation(conversation));
+    const record = (documentId: string, conversation: string): DocumentRecord => ({ documentId, studentId: owners.get(conversation) ?? "", documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null });
+    vault = readingVault([record(CONFIRM_CV, CONFIRM_CONVERSATION), record(CORRECT_CV, CORRECT_CONVERSATION)]);
+    const built = instance();
+    try {
+      const profiles = new PostgresConfirmedProfileStore(built.pool);
+      const readings = new PostgresDocumentReadingStore(built.pool);
+      for (const [conversation, documentId] of [[CONFIRM_CONVERSATION, CONFIRM_CV], [CORRECT_CONVERSATION, CORRECT_CV]] as const) {
+        const owner = owners.get(conversation) ?? "";
+        await confirmTheInterview(profiles, owner);
+        await built.driver.requestReading({ documentId, conversationId: conversation, studentId: owner, contentHash });
+        await readings.ask(documentId, NOW);
+        await readings.decide(documentId, true, NOW);
+        const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+        if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+        const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+        expect(claimed?.documentId).toBe(documentId);
+        expect(await built.driver.reportReading({ documentId, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: ENTRIES, dropped: 0 }] } })).toBe(true);
+      }
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("plays back the two that stand, numbered as they now are and told the number they were asked by, then the one left out with the words that left it out, and stores the two", async () => {
+    await walkToThePlayback(CONFIRM_CONVERSATION);
+    const playback = (await assistantSaid(CONFIRM_CONVERSATION)).slice(-4);
+    expect(playback[0]).toContain("Qualification 1 of 2 — ");
+    expect(playback[0]).toContain("Institution: University of Tehran (from your CV)");
+    expect(playback[0]).toContain('(you said: "Iran")');
+    expect(playback[1]).toContain("Qualification 2 of 2 (this was qualification 3 when I asked you about it) — ");
+    expect(playback[1]).toContain("Evening Course Centre");
+    expect(playback[2]).toContain('Left out at your word ("leave it out") — the qualification I asked you about as qualification 2, as I read it from your CV: ');
+    expect(playback[2]).toContain('Institution: "Sharif University"');
+    expect(playback[3]).toBe("Those are the 2 qualifications, with 1 left out. Is that right?");
+    const pending = await pendingNow(CONFIRM_CONVERSATION);
+    expect(pending?.entries.map((entry) => entry.label), "the buttons follow the numbers the playback shows").toEqual(["qualification 1", "qualification 2"]);
+    const built = instance();
+    try {
+      expect(await built.driver.recordDecision({ conversationId: CONFIRM_CONVERSATION, runId: await runIdOf(CONFIRM_CONVERSATION), decision: { kind: "confirm_value", contentHash: pending?.contentHash ?? "" } })).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+    const stored = await pool.query<{ value: readonly { institution: string }[]; provenance: { source: string } }>(
+      "SELECT value, provenance FROM profile_entries WHERE student_id = $1 AND field_key = 'education.prior_qualifications'",
+      [owners.get(CONFIRM_CONVERSATION) ?? ""],
+    );
+    expect(stored.rows[0]?.value.map((item) => item.institution), "what stands, and only that").toEqual(["University of Tehran", "Evening Course Centre"]);
+    expect(stored.rows[0]?.provenance.source).toBe("document_extracted_and_completed");
+  }, 300_000);
+
+  it("a correction pressed as 'qualification 2' after the removal re-asks the walk's THIRD slot, says which it was, and carries the mark forward", async () => {
+    await walkToThePlayback(CORRECT_CONVERSATION);
+    const pending = await pendingNow(CORRECT_CONVERSATION);
+    const before = Number((await pool.query<{ n: string }>("SELECT max(ordinal) AS n FROM conversation_events WHERE conversation_id = $1", [CORRECT_CONVERSATION])).rows[0]?.n ?? 0);
+    const built = instance();
+    try {
+      expect(await built.driver.recordDecision({ conversationId: CORRECT_CONVERSATION, runId: await runIdOf(CORRECT_CONVERSATION), decision: { kind: "correct_entry", contentHash: pending?.contentHash ?? "", entry: 2 } })).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+    const said = (await assistantSaid(CORRECT_CONVERSATION)).slice(-2);
+    expect(said[0], "the number pressed, and the number it had on the walk").toBe("Qualification 2, then — the one I asked you about as qualification 3. I will ask you about it again, and then read the whole list back to you.");
+    expect(said[1]).toContain("For qualification 3: ");
+    expect(said[1], "the entry is now the student's own: no CV entry to leave out").not.toContain(HINT);
+    const carried = await partKeys(CORRECT_CONVERSATION, before);
+    expect(carried, "the mark goes forward with the rest").toContain("item1.removed");
+    expect(carried).toContain("item0.institution");
+    expect(carried).toContain("item1.institution");
+    expect(carried, "the third slot's parts are dropped, to be asked again").not.toContain("item2.institution");
   }, 300_000);
 });
 

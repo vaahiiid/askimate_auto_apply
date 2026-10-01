@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P264 — an entry a CV gave is left out at the student's word
+
+*2026-10-01.* His third and fourth findings of the walk. The third: after correcting job 6 he saw
+the qualifications next and asked whether the seven jobs were ever played back and confirmed. The
+typed case is proven now — a non-last entry corrected, the closing question asked once more, the
+whole list played back and confirmed — and his own log decides his run (row 121, with the
+queries). The fourth, the trap: a qualification his CV produced that he does not want listed, and
+no answer that meant so. Built as he put it, *"not a correction — a removal"*: *leave it out* at
+any question about a document's entry marks the slot on the walk and the walk goes on; the count is
+of what stands; the playback numbers the standing entries as the value holds them, tells each
+renumbered one the number it had, and says what was left out after them; a correction pressed by
+the new number is mapped through the marks and says which slot it was. The ordinals depend on
+nothing that moved: the slot is kept, the mark is a part row, no event kind was added.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P263 — the text surface says every entry before the buttons
 
 *2026-10-01.* His second finding of the walk: asked to confirm seven jobs read from his CV with no

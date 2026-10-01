@@ -5798,10 +5798,20 @@ export class RunDriver {
     if (spec === undefined || !isList(spec) || entries === null) return { ok: false, reason: "refused" };
     if (decision.entry < 1 || decision.entry > entries.length) return { ok: false, reason: "refused" };
 
-    const named = `item${String(decision.entry - 1)}.`;
-    const kept = [...walkBehindProposal(events, fieldKey)].filter(
-      ([partKey]) => !partKey.startsWith(named) || partKey === `${named}another`,
-    );
+    // The number pressed is the number the playback showed — among the
+    // entries that STAND (P264). An entry left out at the student's word
+    // keeps its slot on the walk, marked `item<n>.removed`, so the pressed
+    // number is mapped through the marks to the slot it names, and the
+    // student is told which slot that was when it differs.
+    const walk = walkBehindProposal(events, fieldKey);
+    const slots = [...new Set([...walk.keys()].map((partKey) => /^item(\d+)\./.exec(partKey)?.[1]).filter((found): found is string => found !== undefined).map(Number))].sort((a, b) => a - b);
+    const standing = slots.filter((slot) => {
+      const mark = walk.get(`item${String(slot)}.removed`);
+      return mark === undefined || unwrapProposed(decodeValue(mark) as ProposedValue<unknown>).value !== true;
+    });
+    const slot = standing.length === entries.length ? (standing[decision.entry - 1] ?? decision.entry - 1) : decision.entry - 1;
+    const named = `item${String(slot)}.`;
+    const kept = [...walk].filter(([partKey]) => !partKey.startsWith(named) || partKey === `${named}another`);
     await this.#options.conversations.append({ conversationId, event: { kind: "value_rejected", fieldKey } });
     for (const [partKey, proposal] of kept) {
       await this.#options.conversations.append({
@@ -5810,12 +5820,13 @@ export class RunDriver {
       });
     }
     const label = `${spec.itemLabel} ${String(decision.entry)}`;
+    const known = slot + 1 === decision.entry ? "" : ` — the one I asked you about as ${spec.itemLabel} ${String(slot + 1)}`;
     await this.#options.conversations.append({
       conversationId,
       event: {
         kind: "message",
         actor: "assistant",
-        content: `${label.charAt(0).toUpperCase()}${label.slice(1)}, then. I will ask you about it again, and then read the whole list back to you.`,
+        content: `${label.charAt(0).toUpperCase()}${label.slice(1)}, then${known}. I will ask you about it again, and then read the whole list back to you.`,
       },
     });
     await this.#askAfterWriting(conversationId);

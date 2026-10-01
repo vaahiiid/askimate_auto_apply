@@ -19,6 +19,30 @@ not shipped artefacts.
 
 ---
 
+## [0.260.0] — 2026-10-01
+
+**P264 — a CV-read entry is left out at the student's word mid-walk (ADR-0151 amended); the non-last correction's playback proven.**
+
+- **Added** the removal: the first question about an entry a document gave ends *If this
+  qualification should not be listed, say "leave it out".*; `readsAsRemoval` reads a short closed
+  set of phrasings whole, before the part's parser and only for an entry with a document's reading
+  in it; the removal is `item<n>.removed = true` on the walk — a `value_part_read` carrying the
+  student's words, no new event kind, the slot kept. The walk asks the entry nothing more; the
+  completeness question counts the entries that stand (*I have left out every qualification I read
+  from your CV…* when none does); the whole is assembled without the entry and its words name the
+  mark.
+- **Changed** `renderListForConfirmation`: the standing entries are numbered as the value holds
+  them and each one whose number changed is told the number it had (*this was qualification 3
+  when I asked you about it*); what was left out is said after them, without a current number,
+  with the words that left it out and what the CV gave; the closing line counts both.
+- **Changed** the entry correction: the pressed number is mapped through the marks to the slot it
+  names, and the message says which slot that was when it differs.
+- **Proven** (test only) that correcting an entry that is not the last asks the closing question
+  once more and plays the whole list back before confirming it.
+- **Recorded** row 120 (closed) and row 121 (open: his own seven-job log).
+
+---
+
 ## [0.259.0] — 2026-10-01
 
 **P263 — the text surface says every entry before the buttons (ADR-0150 amended).**

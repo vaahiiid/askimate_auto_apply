@@ -18,6 +18,7 @@ import type { InterviewState, PartPolicy, PartRule } from "./interview.js";
 import {
   completenessQuestionAfterDocument,
   chooseReading,
+  readsAsRemoval,
   MAX_ATTEMPTS_PER_FIELD,
   newInterview,
   nextAction,
@@ -1531,6 +1532,186 @@ describe("a part read in part narrows the question: which month of 2019? (P248)"
     const value = resolveField(confirmed.state.profile, FIELD);
     if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
     expect((unwrapConfirmed(value) as readonly { award?: unknown }[])[0]).not.toHaveProperty("award");
+  });
+});
+
+describe("a CV-read entry that should not be listed is left out at the student's word, and the playback says what was left out (P264)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-01, stuck at a qualification his CV produced and he did
+  // not want listed: *"The walk asks me for its country and there is no
+  // answer that means 'this entry should not be here' … What I want: while
+  // walking an entry that came from a document, a student can say it should
+  // not be listed, and it is removed, and the walk goes on to the next. Not a
+  // correction — a removal. And the list's playback should show what was
+  // removed, or at least not silently renumber so that 'job 3' means
+  // something different afterwards."*
+  //
+  // The removal is a part of the walk — `item<n>.removed`, the student's
+  // words as its verbatim — so the log carries it with no new event kind, the
+  // entry keeps its index, and the playback can say what was left out.
+  // ═══════════════════════════════════════════════════════════════════════
+  const FIELD = "education.prior_qualifications" as const;
+  const HINT = 'If this qualification should not be listed, say "leave it out".';
+  const document = (value: unknown, verbatim: string) =>
+    proposeValue({ value, origin: "document", verbatim, confidence: 0.9, documentId: "doc_cv" });
+
+  function entry(index: number, institution: string): readonly (readonly [string, ReturnType<typeof document>])[] {
+    const key = (part: string): string => `item${String(index)}.${part}`;
+    return [
+      [key("awardTitle"), document("BSc", "BSc Computer Science")],
+      [key("subject"), document("Computer science", "BSc Computer Science")],
+      [key("institution"), document(institution, institution)],
+      [key("level"), document("Bachelor's degree", "BSc")],
+      [key("start"), document({ year: 2015, month: 9 }, "September 2015")],
+      [key("endKind"), document("completed", "June 2019")],
+      [key("endDate"), document({ year: 2019, month: 6 }, "June 2019")],
+      [key("award"), document(OMITTED, "none")],
+      [key("grade"), document("17.2", "17.2")],
+      [key("gradeScale"), document("twenty_point", "20-point")],
+    ];
+  }
+  /** Three qualifications a CV gave, each missing the country the student must state (ADR-0149). */
+  function seeded(): InterviewState {
+    const readings = new Map<string, ReturnType<typeof document>>([
+      ["any", document(true, "yes")],
+      ...entry(0, "University of Tehran"),
+      ["item0.another", document(true, "yes")],
+      ...entry(1, "Sharif University"),
+      ["item1.another", document(true, "yes")],
+      ...entry(2, "Evening Course Centre"),
+    ]);
+    const state = start([FIELD]);
+    return { ...state, partial: new Map([[FIELD, readings]]) };
+  }
+
+  it("reads the words that mean removal, and nothing else — a wrong reading here drops an entry", () => {
+    for (const words of ["leave it out", "Leave it out.", "leave this one out", "please leave that out", "not this one", "skip it", "skip this one", "take it out", "take this one out", "this should not be listed", "it shouldn't be listed", "don't list it", "do not list this one", "it is not a qualification", "this isn't a qualification", "that was not one of my qualifications", "it does not belong here"]) {
+      expect(readsAsRemoval(words, "qualification"), words).toBe(true);
+    }
+    for (const words of ["Iran", "United Kingdom", "I left it out of my CV", "it was not a full-time job", "leave it", "it is not a job", "skip", "not sure", "no", "it should be listed", "leave the country out", ""]) {
+      expect(readsAsRemoval(words, "qualification"), words).toBe(false);
+    }
+  });
+
+  it("walks past a removed entry, counts only what is left, plays the removed one back as left out, and stores the two that remain", async () => {
+    let state = seeded();
+    const first = await nextAction(state, model);
+    expect(first.kind).toBe("ask");
+    if (first.kind !== "ask") return;
+    expect(first.partKey).toBe("item0.countryCode");
+    expect(first.say, "the first question about a CV entry says how to leave it out").toContain(HINT);
+    expect(first.say.startsWith("For qualification 1: "), first.say).toBe(true);
+    expect(first.say).toContain("Which country is the institution in?");
+
+    state = (await receiveAnswer(state, FIELD, "Iran", model)).state;
+    expect(((await nextAction(state, model)) as { partKey?: string }).partKey).toBe("item1.countryCode");
+    state = (await receiveAnswer(state, FIELD, "Iran", model)).state;
+    const third = await nextAction(state, model);
+    expect(third.kind === "ask" ? third.partKey : third.kind).toBe("item2.countryCode");
+    expect(third.kind === "ask" ? third.say : "").toContain(HINT);
+
+    const removed = await receiveAnswer(state, FIELD, "leave it out", model);
+    expect(removed.kind, "a removal is an understood answer, not a failed one").toBe("understood");
+    state = removed.state;
+    const marker = state.partial.get(FIELD)?.get("item2.removed");
+    expect(marker === undefined ? undefined : unwrapProposed(marker).value, "the entry is marked, not re-indexed").toBe(true);
+    expect(marker === undefined ? undefined : unwrapProposed(marker).verbatim).toBe("leave it out");
+    expect(marker === undefined ? undefined : unwrapProposed(marker).origin).toBe("conversation");
+    expect(state.partial.get(FIELD)?.has("item2.institution"), "what the CV gave stays on the walk, as what happened").toBe(true);
+
+    // The walk goes on: no more questions about qualification 3, and the
+    // completeness question counts the two that are left.
+    const after = await nextAction(state, model);
+    expect(after.kind === "ask" ? after.partKey : after.kind).toBe("item2.another");
+    expect(after.kind === "ask" ? after.say : "").toContain("That is the 2 qualifications I read from your CV. Is there another qualification to add that is not on your CV? Please answer yes or no.");
+
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const playback = await nextAction(state, model);
+    expect(playback.kind).toBe("confirm");
+    if (playback.kind !== "confirm") return;
+    expect(playback.messages, "two entries, the one left out, the question").toHaveLength(4);
+    expect(playback.messages[0]).toContain("Qualification 1 of 2 — ");
+    expect(playback.messages[0]).toContain("Institution: University of Tehran (from your CV)");
+    expect(playback.messages[0]).not.toContain("when I asked you about it");
+    expect(playback.messages[1]).toContain("Qualification 2 of 2 — ");
+    expect(playback.messages[1]).toContain("Institution: Sharif University (from your CV)");
+    expect(playback.messages[2], "what was left out, by the number it had when asked about, with the words that left it out").toContain('Left out at your word ("leave it out") — the qualification I asked you about as qualification 3, as I read it from your CV:');
+    expect(playback.messages[2]).toContain('Institution: "Evening Course Centre"');
+    expect(playback.messages[2]).not.toContain("Tehran");
+    expect(playback.messages[3]).toBe("Those are the 2 qualifications, with 1 left out. Is that right?");
+    expect(playback.say).toBe(playback.messages.join("\n\n"));
+    // The whole's own words name the removal and carry none of the removed entry's parts.
+    const whole = unwrapProposed(state.pending?.proposed ?? proposeValue({ value: null, origin: "conversation", verbatim: "", confidence: 0 }));
+    expect(whole.verbatim).toContain("qualification 3 — left out: leave it out");
+    expect(whole.verbatim).not.toContain("Evening Course Centre");
+    expect(Array.isArray(whole.value) ? whole.value.length : -1).toBe(2);
+
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    expect(confirmed.kind).toBe("confirmed");
+    const value = resolveField(confirmed.state.profile, FIELD);
+    if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
+    const stored = unwrapConfirmed(value) as readonly { institution: string }[];
+    expect(stored.map((item) => item.institution)).toEqual(["University of Tehran", "Sharif University"]);
+    expect(provenanceOf(value).source).toBe("document_extracted_and_completed");
+  });
+
+  it("removing the FIRST entry renumbers the rest in the open — 'qualification 2' is told it was qualification 3 when asked about", async () => {
+    let state = seeded();
+    state = (await receiveAnswer(state, FIELD, "leave it out", model)).state;
+    expect(state.partial.get(FIELD)?.has("item0.removed")).toBe(true);
+    expect(((await nextAction(state, model)) as { partKey?: string }).partKey).toBe("item1.countryCode");
+    state = (await receiveAnswer(state, FIELD, "Iran", model)).state;
+    state = (await receiveAnswer(state, FIELD, "Iran", model)).state;
+    const after = await nextAction(state, model);
+    expect(after.kind === "ask" ? after.say : "").toContain("That is the 2 qualifications I read from your CV.");
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable(playback.kind);
+    expect(playback.messages[0]).toContain("Qualification 1 of 2 (this was qualification 2 when I asked you about it) — ");
+    expect(playback.messages[0]).toContain("Sharif University");
+    expect(playback.messages[1]).toContain("Qualification 2 of 2 (this was qualification 3 when I asked you about it) — ");
+    expect(playback.messages[2]).toContain('Left out at your word ("leave it out") — the qualification I asked you about as qualification 1, as I read it from your CV:');
+    expect(playback.messages[2]).toContain('"University of Tehran"');
+  });
+
+  it("every entry left out: the completeness question says so, and the playback records none, after what was left out", async () => {
+    let state = seeded();
+    for (let index = 0; index < 3; index++) state = (await receiveAnswer(state, FIELD, "leave it out", model)).state;
+    const after = await nextAction(state, model);
+    expect(after.kind === "ask" ? after.partKey : after.kind).toBe("item2.another");
+    expect(after.kind === "ask" ? after.say : "").toContain("I have left out every qualification I read from your CV. Is there a qualification to add? Please answer yes or no.");
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable(playback.kind);
+    expect(playback.messages).toHaveLength(4);
+    expect(playback.messages[0]).toContain('Left out at your word ("leave it out") — the qualification I asked you about as qualification 1');
+    expect(playback.messages[3]).toBe("I've recorded your previous qualifications as: none\n\nIs that right?");
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const value = resolveField(confirmed.state.profile, FIELD);
+    if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(value)).toEqual([]);
+  });
+
+  it("a yes to 'another?' after a removal walks a new entry typed by the student, numbered after the ones that stand", async () => {
+    let state = seeded();
+    state = (await receiveAnswer(state, FIELD, "Iran", model)).state;
+    state = (await receiveAnswer(state, FIELD, "Iran", model)).state;
+    state = (await receiveAnswer(state, FIELD, "leave it out", model)).state;
+    state = (await receiveAnswer(state, FIELD, "yes", model)).state;
+    const next = await nextAction(state, model);
+    expect(next.kind === "ask" ? next.partKey : next.kind, "the fourth slot: the index is kept, the number is not").toBe("item3.awardTitle");
+    expect(next.kind === "ask" ? next.say : "").not.toContain(HINT);
+  });
+
+  it("'leave it out' said of an entry the student is typing themselves is an ordinary answer: the part is asked again, nothing is removed", async () => {
+    let state = start([FIELD]);
+    for (const answer of ["yes", "BSc", "Computer science", "University of Tehran"]) state = (await receiveAnswer(state, FIELD, answer, model)).state;
+    const open = await nextAction(state, model);
+    expect(open.kind === "ask" ? open.partKey : open.kind).toBe("item0.countryCode");
+    expect(open.kind === "ask" ? open.say : "").not.toContain(HINT);
+    const said = await receiveAnswer(state, FIELD, "leave it out", model);
+    expect(said.kind, "read by the country's parser, which it is not").toBe("not_understood");
+    expect(said.state.partial.get(FIELD)?.has("item0.removed")).toBe(false);
   });
 });
 

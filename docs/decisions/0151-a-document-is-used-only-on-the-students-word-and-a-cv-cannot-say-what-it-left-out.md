@@ -187,6 +187,46 @@ P252's mark; ahead: the one sentence above. The rule of this ADR is unchanged �
 before a yes — and the moment of asking is now whichever comes first: the field, the upload while
 the field is open, or the upload after the field is done.
 
+**Amended a fourth time 2026-10-01 (P264), in his words**, on the entry a CV gave that should not
+be there at all — the inverse of what this ADR was written for. A CV cannot say what it left out;
+it can also put in what the student does not want listed, and until P264 the walk had no answer
+that meant so. Vahid, stuck at the third qualification his CV produced:
+
+> *"The trap: a CV-read entry that does not exist… The CV produced three qualifications. One of
+> them is not a qualification I want listed. The walk asks me for its country and there is no
+> answer that means 'this entry should not be here'… What I want: while walking an entry that came
+> from a document, a student can say it should not be listed, and it is removed, and the walk goes
+> on to the next. Not a correction — a removal. And the list's playback should show what was
+> removed, or at least not silently renumber so that 'job 3' means something different
+> afterwards."*
+
+Built in P264: the first question about an entry a document gave ends *If this qualification
+should not be listed, say "leave it out".*, said exactly so. The words that mean removal are few
+and read whole (`readsAsRemoval`): *leave it out*, *leave this one out*, *not this one*, *skip
+it*, *take it out*, *this should not be listed*, *don't list it*, *it is not a qualification*, *it
+does not belong here* — and nothing else, because a reading here drops an entry and *a wrong label
+is worse than none*. *Remove*, *drop* and *delete* belong to the deletion reader, which runs
+first. The removal is a part of the walk, `item<n>.removed = true` with the student's words as its
+verbatim: on the log as a `value_part_read` with no new event kind, and the entry keeps its slot
+— the ordinals depend on nothing that moved. The walk asks the entry nothing more and goes on to
+"another?"; the completeness question counts the entries that stand (and says *I have left out
+every qualification I read from your CV* when none does); the whole is assembled without the
+entry; its own words name the mark under *qualification 3 — left out* and carry none of the
+entry's parts. The playback numbers the entries that stand as the value holds them, and each one
+whose number changed is told the number it had — *Qualification 2 of 2 (this was qualification 3
+when I asked you about it)* — then, after them, what was left out, without a current number:
+*Left out at your word ("leave it out") — the qualification I asked you about as qualification 2,
+as I read it from your CV: Institution: "Sharif University"; …*, and *Those are the 2
+qualifications, with 1 left out. Is that right?* The buttons follow the numbers the playback shows,
+and a correction pressed as "qualification 2" is mapped through the marks to the slot it names and
+says so: *Qualification 2, then — the one I asked you about as qualification 3.*
+
+Two boundaries, stated: the words are read only of an entry that has a document's reading in it —
+a student typing their own entry has no entry to leave out, and their *leave it out* is whatever
+the part makes of it; and an entry corrected after the playback becomes the student's own, so it
+can no longer be left out that way (it can be corrected again). Neither is his decision; both are
+the narrowest reading of what he asked for, recorded as mine.
+
 ## Consequences
 
 - The runbook's walk changes: the sentence arrives when the interview reaches the qualifications

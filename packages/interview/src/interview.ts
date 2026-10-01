@@ -363,6 +363,14 @@ type OpenQuestion =
 
 const ANY = "any";
 const ANOTHER = "another";
+/**
+ * The mark on an entry the student said should not be listed (P264):
+ * `item<n>.removed = true`, the student's words as its verbatim. A part of
+ * the walk like any other, so the log carries it with no new event kind and
+ * the entry keeps its index — "job 3" stays job 3 on the log, whatever the
+ * playback numbers the ones that stand.
+ */
+const REMOVED = "removed";
 /** The conversation store's bound on one message body (`content_is_bounded`, 0001). */
 const MESSAGE_BOUND = 8000;
 
@@ -378,6 +386,49 @@ function readingsOfItem(readings: PartReadings, index: number): PartReadings {
       .filter(([partKey]) => partKey.startsWith(prefix) && partKey !== itemKey(index, ANOTHER))
       .map(([partKey, reading]) => [partKey.slice(prefix.length), reading] as const),
   );
+}
+
+/** Whether the student left this entry out (P264). */
+function isRemoved(ofItem: PartReadings): boolean {
+  const marker = ofItem.get(REMOVED);
+  return marker !== undefined && unwrapProposed(marker).value === true;
+}
+
+/** Whether any part of this entry came from a document. */
+function entryFromDocument(ofItem: PartReadings): boolean {
+  return [...ofItem.values()].some((reading) => unwrapProposed(reading).origin === "document");
+}
+
+/**
+ * The words that mean "this entry should not be listed" (P264), read whole
+ * and deterministically. Deliberately few: a reading here drops an entry,
+ * and *"a wrong label is worse than none"*. The first question about a
+ * document's entry says the phrase to use, so a student need not guess one.
+ * The deletion reader runs before this one in the service and owns
+ * "remove", "drop" and "delete"; none of these phrasings reach it.
+ */
+export function readsAsRemoval(utterance: string, itemLabel: string): boolean {
+  const said = utterance
+    .toLowerCase()
+    .replace(/[’‘`]/g, "'")
+    .replace(/[^\p{L}\p{N}' ]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^please /, "")
+    .replace(/ please$/, "");
+  if (said.length === 0) return false;
+  const label = itemLabel.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const it = "(it|this|this one|that|that one)";
+  return [
+    new RegExp(`^leave ${it} out$`),
+    new RegExp(`^(skip|take out) ${it}$`),
+    new RegExp(`^take ${it} out$`),
+    /^not this one$/,
+    new RegExp(`^${it} (should|must) ?(not|n't) be (listed|here|included|on the list)$`),
+    new RegExp(`^(do not|don't) (list|include) ${it}$`),
+    new RegExp(`^${it} (is not|was not|isn't|wasn't) (a|an|one of my) ${label}s?$`),
+    new RegExp(`^${it} (does not|doesn't) belong( here| on the list)?$`),
+  ].some((pattern) => pattern.test(said));
 }
 
 /** The authored question of a scalar field (P255), for the playback to name (P256); `undefined` for a composite or a list, whose label is a noun. */
@@ -409,18 +460,28 @@ function nextListQuestion(
     return { part: opening, suffix: label };
   }
   if (values.get(ANY) !== true) return undefined;
+  let standing = 0;
   for (let index = 0; ; index++) {
     const ofItem = readingsOfItem(readings, index);
-    const part = nextPart(spec.item, ofItem, rule);
+    // An entry left out (P264) is asked nothing more; the walk goes on to
+    // "another?" as if its parts were all answered.
+    const removed = isRemoved(ofItem);
+    const part = removed ? undefined : nextPart(spec.item, ofItem, rule);
     if (part !== undefined) {
       // The part's NAME, never its key (P228, row 92): "job 1 — employer".
       const suffix = `${spec.itemLabel} ${String(index + 1)} — ${part.label}`;
-      return {
-        part: { ...narrowed(part, ofItem.get(part.partKey), suffix), partKey: itemKey(index, part.partKey) },
-        suffix,
-        about: `${spec.itemLabel} ${String(index + 1)}`,
-      };
+      const about = `${spec.itemLabel} ${String(index + 1)}`;
+      const asked = narrowed(part, ofItem.get(part.partKey), suffix);
+      // The first question about an entry a document gave says how to leave
+      // it out (P264), in words said exactly so — a paraphrase of the phrase
+      // the reader takes would teach the student words that do nothing.
+      const first = entryFromDocument(ofItem) && ![...ofItem.values()].some((reading) => unwrapProposed(reading).origin === "conversation");
+      const hinted = first
+        ? { ...asked, exactly: `${asked.exactly ?? `For ${about}: ${asked.rationale} ${asked.question}`} ${removalHint(spec)}` }
+        : asked;
+      return { part: { ...hinted, partKey: itemKey(index, part.partKey) }, suffix, about };
     }
+    if (!removed) standing += 1;
     const another = itemKey(index, ANOTHER);
     if (!readings.has(another)) {
       const label = `another ${spec.itemLabel}`;
@@ -428,11 +489,12 @@ function nextListQuestion(
       // cannot answer. Vahid: *"a CV that gave seven jobs should end with 'is
       // that all of them, or are there others not on your CV?' — because the
       // document cannot tell us what it left out, and only they can."*
-      const fromDocument = [...ofItem.values()].some((reading) => unwrapProposed(reading).origin === "document");
+      const fromDocument = entryFromDocument(ofItem);
       const part = yesNoPart(another, label, spec.anotherRationale);
       if (!fromDocument) return { part, suffix: label };
+      // The count is of the entries that STAND (P264), not of the entries read.
       return {
-        part: { ...part, exactly: completenessQuestionAfterDocument(spec, index + 1) },
+        part: { ...part, exactly: completenessQuestionAfterDocument(spec, standing) },
         suffix: label,
       };
     }
@@ -457,10 +519,20 @@ function nextListQuestion(
  */
 export function completenessQuestionAfterDocument(spec: FieldSpec<unknown>, count: number): string {
   const itemLabel = isList(spec) ? spec.itemLabel : "entry";
+  // Every entry the document gave was left out (P264): said as that, not as
+  // "the 0 jobs I read from your CV".
+  if (count === 0) {
+    return `I have left out every ${itemLabel} I read from your CV. Is there a ${itemLabel} to add? Please answer yes or no.`;
+  }
   return (
     `That is the ${String(count)} ${count === 1 ? itemLabel : `${itemLabel}s`} I read from your CV. ` +
     `Is there another ${itemLabel} to add that is not on your CV? Please answer yes or no.`
   );
+}
+
+/** The sentence that teaches the removal phrase (P264), said on the first question about a document's entry. */
+function removalHint(spec: ListFieldSpec<unknown>): string {
+  return `If this ${spec.itemLabel} should not be listed, say "leave it out".`;
 }
 
 /**
@@ -472,9 +544,14 @@ function assembleList(spec: ListFieldSpec<unknown>, readings: PartReadings): rea
   if (values.get(ANY) !== true) return [];
   const items: unknown[] = [];
   for (let index = 0; readings.has(itemKey(index, ANOTHER)); index++) {
-    const item = spec.item.assemble(valuesOf(readingsOfItem(readings, index)));
-    if (item === null) return null;
-    items.push(item);
+    const ofItem = readingsOfItem(readings, index);
+    // An entry left out (P264) is not in the list; its parts stay on the walk
+    // as what the document gave, and the playback says it was left out.
+    if (!isRemoved(ofItem)) {
+      const item = spec.item.assemble(valuesOf(ofItem));
+      if (item === null) return null;
+      items.push(item);
+    }
     if (values.get(itemKey(index, ANOTHER)) !== true) break;
   }
   return items;
@@ -814,6 +891,25 @@ export async function receiveAnswer(
   const asked = questionKey(fieldKey, question.partKey);
   attempts.set(asked, (attempts.get(asked) ?? 0) + 1);
 
+  // ── An entry a document gave, left out at the student's word (P264) ───
+  //
+  // Read before the part's own parser, and only for a part of a list entry
+  // that has a document's reading in it: a student typing their own entry
+  // has no entry to leave out, and their "leave it out" is whatever the part
+  // makes of it. The mark is a part read like any other, so `#recordThePart`
+  // writes it to the log as `value_part_read` with no new event kind, and
+  // the walk goes on to "another?".
+  if (isList(spec)) {
+    const entry = /^item(\d+)\.(.+)$/.exec(question.partKey);
+    if (entry !== null && entry[2] !== ANOTHER) {
+      const index = Number(entry[1]);
+      if (entryFromDocument(readingsOfItem(state.partial.get(fieldKey) ?? NO_READINGS, index)) && readsAsRemoval(utterance, spec.itemLabel)) {
+        const mark = proposeValue({ value: true, origin: "conversation", verbatim: utterance, confidence: 1 });
+        return withPartRead(state, spec, fieldKey, itemKey(index, REMOVED), mark, transcript, attempts);
+      }
+    }
+  }
+
   const interpreted: ProposedValue<unknown> | NotUnderstood = await model.interpretAnswer({
     fieldKey: asked,
     label: `${label} — ${open.suffix}`,
@@ -968,6 +1064,7 @@ function partName(spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>, pa
       const index = Number(item[1]) + 1;
       const key = item[2] ?? "";
       if (key === ANOTHER) return `another ${spec.itemLabel}`;
+      if (key === REMOVED) return `${spec.itemLabel} ${String(index)} — left out`;
       const named = spec.item.parts.find((part) => part.partKey === key)?.label ?? key;
       return `${spec.itemLabel} ${String(index)} — ${named}`;
     }
@@ -993,7 +1090,14 @@ function wholeOf(
   value: unknown,
   readings: PartReadings,
 ): ProposedValue<unknown> {
-  const parts = [...readings].map(([partKey, reading]) => ({ partKey, ...unwrapProposed(reading) }));
+  // An entry left out (P264) is not in the value, so its parts are not the
+  // value's words either: only the mark that left it out is, under its name.
+  const removedItems = new Set(
+    [...readings].filter(([partKey, reading]) => partKey.endsWith(`.${REMOVED}`) && unwrapProposed(reading).value === true).map(([partKey]) => partKey.slice(0, -REMOVED.length)),
+  );
+  const parts = [...readings]
+    .filter(([partKey]) => partKey.endsWith(`.${REMOVED}`) || ![...removedItems].some((prefix) => partKey.startsWith(prefix)))
+    .map(([partKey, reading]) => ({ partKey, ...unwrapProposed(reading) }));
   // Where the whole came from (P253, row 109). A document that gave any part
   // is named on the whole, so the profile can find the values a reading
   // produced; the origin is the document's only when every part was its —

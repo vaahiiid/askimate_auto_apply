@@ -226,22 +226,56 @@ export function renderListForConfirmation(
   itemLabel: string,
   bound: number,
 ): { readonly messages: readonly string[]; readonly text: string } {
+  const Item = `${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)}`;
+  const nameOf = (field: string): string => {
+    const named = partLabel(key, field);
+    const label = named ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+  };
+
+  // ── The entries as the walk numbered them, and the ones left out (P264) ──
+  //
+  // Vahid: *"the list's playback should show what was removed, or at least
+  // not silently renumber so that 'job 3' means something different
+  // afterwards."* An entry left out keeps its index on the walk and is not
+  // in the value; the ones that stand are numbered as the value holds them,
+  // and each one whose number changed is told the number it was asked by.
+  const indices = [...new Set(parts.map((part) => /^item(\d+)\./.exec(part.partKey)?.[1]).filter((found): found is string => found !== undefined).map(Number))].sort((a, b) => a - b);
+  const removedIndices = indices.filter((item) => parts.some((part) => part.partKey === `item${String(item)}.removed`));
+  const standing = indices.filter((item) => !removedIndices.includes(item));
+  // A playback with no parts behind it, or whose parts do not account for
+  // the value, numbers the value as it is: nothing was left out of it.
+  const itemOf = (index: number): number => (standing.length === entries.length ? (standing[index] ?? index) : index);
+  const leftOut = removedIndices.map((item) => {
+    const prefix = `item${String(item)}.`;
+    const mark = parts.find((part) => part.partKey === `${prefix}removed`);
+    const own = parts.filter((part) => part.partKey.startsWith(prefix) && part.partKey !== `${prefix}removed` && part.partKey !== `${prefix}another`);
+    const source = own.some((part) => part.origin === "document") ? "as I read it from your CV" : "as you gave it";
+    const said = own.map((part) => `${nameOf(part.partKey.slice(prefix.length))}: ${JSON.stringify(part.verbatim)}`).join("; ");
+    // Said WITHOUT a current number: "N of M" is the standing entries' and
+    // the buttons', and the one left out has none; it is named by the number
+    // it had when asked about, as the standing entries' notes are.
+    return `Left out at your word (${JSON.stringify(mark?.verbatim ?? "")}) — the ${itemLabel} I asked you about as ${itemLabel} ${String(item + 1)}, ${source}: ${said}`;
+  });
+
   if (entries.length === 0) {
     const single = `I've recorded your ${FIELD_LABELS[key].toLowerCase()} as: none\n\nIs that right?`;
-    return { messages: [single], text: single };
+    const messages = [...leftOut, single];
+    return { messages, text: messages.join("\n\n") };
   }
   const noun = entries.length === 1 ? itemLabel : `${itemLabel}s`;
   const messages: string[] = [];
   entries.forEach((entry, index) => {
-    const heading = `${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)} ${String(index + 1)} of ${String(entries.length)}`;
-    const lines = Object.entries((entry ?? {}) as Record<string, unknown>).map(([field, item]) => {
+    const item = itemOf(index);
+    const was = item === index ? "" : ` (this was ${itemLabel} ${String(item + 1)} when I asked you about it)`;
+    const heading = `${Item} ${String(index + 1)} of ${String(entries.length)}${was}`;
+    const lines = Object.entries((entry ?? {}) as Record<string, unknown>).map(([field, value]) => {
       const named = partLabel(key, field);
-      const label = named ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
-      const spoken = typeof item === "string" ? vocabularyWords(key, field, item) : null;
-      const shown = spoken ?? (named !== null && isCountryPart(field) && typeof item === "string" ? (countryNamed(item) ?? formatValue(item)) : formatValue(item, key));
+      const spoken = typeof value === "string" ? vocabularyWords(key, field, value) : null;
+      const shown = spoken ?? (named !== null && isCountryPart(field) && typeof value === "string" ? (countryNamed(value) ?? formatValue(value)) : formatValue(value, key));
       // The part named as the field, or the parts a field was assembled from
       // — `end` from `endKind` and `endDate` — each with where it came from.
-      const prefix = `item${String(index)}.${field}`;
+      const prefix = `item${String(item)}.${field}`;
       const exact = parts.filter((part) => part.partKey === prefix);
       // `employer` must not collect `employerAddress`: the prefix rule applies
       // only to a field no part is named for, which is how `end` is assembled.
@@ -259,7 +293,7 @@ export function renderListForConfirmation(
               : fromDocument.length === 0
                 ? ` (you said: ${fromStudent.map((part) => JSON.stringify(part.verbatim)).join(", ")})`
                 : ` (from your CV: ${fromDocument.map((part) => JSON.stringify(part.verbatim)).join(", ")}; you said: ${fromStudent.map((part) => JSON.stringify(part.verbatim)).join(", ")})`;
-      return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${shown}${from}`;
+      return `${nameOf(field)}: ${shown}${from}`;
     });
     const whole = `${heading} — ${lines.join("; ")}`;
     if (whole.length <= bound) {
@@ -272,7 +306,9 @@ export function renderListForConfirmation(
     messages.push(`${heading} —`);
     for (const line of lines) messages.push(line);
   });
-  messages.push(`${entries.length === 1 ? "That is" : "Those are"} the ${String(entries.length)} ${noun}. Is that right?`);
+  for (const line of leftOut) messages.push(line);
+  const withLeftOut = leftOut.length === 0 ? "" : `, with ${String(leftOut.length)} left out`;
+  messages.push(`${entries.length === 1 ? "That is" : "Those are"} the ${String(entries.length)} ${noun}${withLeftOut}. Is that right?`);
   return { messages, text: messages.join("\n\n") };
 }
 
