@@ -103,6 +103,29 @@ fact is set back to unobserved. In his words, carried with the two answers: *"th
 behaviour, not a property of direct portals … per-target work, not something these two answers
 settle for anything but this entry."*
 
+## Registration, measured 2026-10-01 — read-only, signed out, no account made
+
+Vahid, after the account of where the walk stands named the account creation as the step most
+likely to stop for a reason nobody had seen, measured what could be measured without a run:
+
+- **E-mail verification: not required.** His 11 September registration: *"one e-mail, an
+  acknowledgement of registration, no link clicked, straight into the form."* Run A's sign-in on
+  the 18th and the two reads on the 25th were on the same account. *"Three observations now say
+  verification gates neither the form nor sign-in."* `portalAuthentication.emailVerificationRequired:
+  false` is measured, not inferred.
+- **The consent notice stands over the registration button.** Read twice with the attached reader
+  as the runner, signed out: the first read, on a profile whose `CookieControl` cookie was set, said
+  *nothing over it*; the cookie cleared and the notice back, `name=startApplicationBtn: COVERED by
+  <div#ccc-overlay> position fixed, z-index 1, 1280×720 at 0,0; stack, top first: div#ccc-overlay >
+  input`. The same overlay as over `loginBtn`, so the creation's consent step (ADR-0144 §3) meets
+  what the sign-in's does, with the same two paths and the same verification. Row 88 is measured.
+- **Where a created account lands stays unmeasured**, by his decision: the run's own creation on
+  the dedicated address is that measurement, and its failure is a resolvable stop (rows 89, 59).
+
+The two facts enter the signed entry with his signature at step 2 of the walk, as a prepared patch
+(row 117). The rule his two reads taught — *"a read on a profile that has already answered the
+notice measures the wrong thing"* — is in the reader (ADR-0128, amended).
+
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
 
 **Answered 2026-09-11, by Vahid's direct statement, verbatim:** *"Password: student_chosen,

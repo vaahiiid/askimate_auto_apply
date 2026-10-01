@@ -196,7 +196,7 @@ async function main(): Promise<void> {
         }
       : {}),
   });
-  const coverings: { url: string; readings: readonly CoveringReading[] }[] = [];
+  const coverings: { url: string; readings: readonly CoveringReading[]; cookieNames: readonly string[] }[] = [];
 
   const observations: PageObservation[] = [];
   const captured: { url: string; file: string; capturedAt: string }[] = [];
@@ -232,8 +232,20 @@ async function main(): Promise<void> {
         }
         if (coveringLocators.length > 0) {
           const readings = await session.covering(coveringLocators);
-          coverings.push({ url: observation.url, readings });
+          // P261: what this profile already holds for the host, names only. A
+          // profile that has answered the notice is not shown it again, so a
+          // "nothing over it" read here is a read of the wrong visit.
+          const names = await session.cookieNames(observation.url);
+          coverings.push({ url: observation.url, readings, cookieNames: names });
           for (const reading of readings) process.stdout.write(`${coveringInWords(reading)}\n`);
+          const host = new URL(observation.url).hostname;
+          process.stdout.write(`     cookies on this profile for ${host}: ${names.length === 0 ? "none" : names.join(", ")} (names only)\n`);
+          if (names.length > 0 && readings.some((reading) => reading.found && !reading.covered)) {
+            process.stdout.write(
+              `     — a notice this profile has already answered is not shown again, so "nothing over it" here ` +
+                `is a reading of this profile, not of a first visit: read again on a fresh, empty profile\n`,
+            );
+          }
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

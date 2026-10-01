@@ -79,3 +79,20 @@ make, and P161 makes it possible to make without any of them being assumed.
 - The person's browser is still read-only while attached, on every host, as before.
 - Whatever the read names is the input to the next decision, which is Vahid's. Nothing in the
   runner has changed and nothing will until that decision is taken in his words.
+
+## Amended 2026-10-01 (P261): a covering read names the cookies the profile already holds
+
+Decided by Vahid after reading Sheffield's registration button twice on 2026-10-01. The first
+read, on a profile whose `CookieControl` cookie was already set, said *nothing over it*; with the
+cookie cleared the notice was back and the read said `COVERED by div#ccc-overlay`, the same
+overlay, the same full viewport, as over the sign-in button. In his words: *"The first said
+'nothing over it' and was true of that profile and false of a student's first visit. A read on a
+profile that has already answered the notice measures the wrong thing, and that is worth stating
+as a rule for the reader, not just for this page."*
+
+So every `--covering` read prints, beside its readings, the names of the cookies the attached
+profile holds for the page's host — names only, never a value — as `cookies on this profile for
+<host>: …`, and when the profile holds any and a named control reads as uncovered, says that the
+reading is of this profile and not of a first visit, and to read again on a fresh, empty profile.
+`run.json` carries the names as `cookieNames` beside each page's readings. Nothing in the runner
+changes.

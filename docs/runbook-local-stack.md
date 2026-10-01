@@ -494,6 +494,13 @@ button's point. It presses nothing.
      runner: the page served to that agent is a different page. `pages/001.html` and the
      screenshot say what it is.
 
+   Beneath the readings, since 0.257.0 (P261): `cookies on this profile for www.sheffield.ac.uk:
+   …` — the names the profile already holds for the host, never a value. **A profile that has
+   already answered the notice is not shown it again**, so `nothing over it` on a profile that
+   holds `CookieControl` is a reading of that profile, not of a student's first visit; the tool
+   says so and the read is repeated on a fresh, empty profile. Vahid's two reads of the
+   registration button on 2026-10-01 are the measurement behind the rule.
+
    In `<out>/run.json`: `presented` (what was sent), `offHostReads` (every read to another host
    that a capture would have refused), `covering` (the readings, with the full stack).
 
@@ -517,7 +524,8 @@ pnpm run inspect:attached sheffield --as-runner --covering name=loginBtn
 
 The `--covering` read keeps each layer's visible text, so the stack over the button names the
 notice and its words when it is there. A read with `nothing over it` is a read at a moment the
-notice was absent (2026-09-18's was); read again. When the stack names the notice, read its
+notice was absent (2026-09-18's was) — or on a profile that had already answered it, which the
+`cookies on this profile` line beneath the readings shows (P261); read again on a fresh profile. When the stack names the notice, read its
 buttons the same way, one `--covering <strategy>=<value>` per button as the first read shows
 them — nothing here guesses their ids. From the read, author in the signed entry:
 

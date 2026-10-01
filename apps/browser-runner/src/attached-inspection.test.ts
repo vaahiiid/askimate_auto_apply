@@ -205,6 +205,29 @@ describe("reading the page the RUNNER sees (ADR-0128)", () => {
     }
   }, 60_000);
 
+  it("names the cookies this profile already holds for the host — names only — so a read on a profile that has answered the notice is seen for what it is (P261)", async () => {
+    // Vahid, 2026-10-01, reading the registration button twice: the first
+    // read, on a profile whose CookieControl cookie was already set, said
+    // "nothing over it" — true of that profile and false of a student's first
+    // visit. *"A read on a profile that has already answered the notice
+    // measures the wrong thing, and that is worth stating as a rule for the
+    // reader, not just for this page."*
+    await theirs.addCookies([{ name: "CookieControl", value: "%7B%22interactedWith%22%3Atrue%7D", url: `${coveredPortal.baseUrl}/` }]);
+    const session = await attach([`${coveredPortal.baseUrl}/login`]);
+    try {
+      await session.goto(`${coveredPortal.baseUrl}/login`);
+      await session.settle(5_000);
+      const names = await session.cookieNames(`${coveredPortal.baseUrl}/login`);
+      expect(names, "the name, never the value").toContain("CookieControl");
+      expect(names.join(" ")).not.toContain("interactedWith");
+    } finally {
+      await session.close();
+      // Only the cookie this test added: the person's signed-in session on
+      // the fixture portal is what every later test reads through.
+      await theirs.clearCookies({ name: "CookieControl" });
+    }
+  }, 60_000);
+
   it("says so when the locator names nothing on the page", async () => {
     const session = await attach([`${portal.baseUrl}/login`]);
     try {
@@ -451,6 +474,9 @@ describe("through the REAL command, under tsx — not vitest's transform", () =>
       expect(out).toContain("id=signIn: COVERED by <div#cover> position fixed");
       expect(out).toContain("stack, top first: div#cover > button#signIn");
       expect(out).toContain("id=noSuchButton: not on this page");
+      // P261: what this profile already holds for the host, names only, so a
+      // read made after the notice was answered cannot pass as a first visit.
+      expect(out).toContain("cookies on this profile for 127.0.0.1:");
       expect(out).toContain("Off-host reads      0 (allowed and recorded)");
 
       const runDir = (await readdir(outRoot)).map((name) => join(outRoot, name)).find((dir) => existsSync(join(dir, "run.json")));

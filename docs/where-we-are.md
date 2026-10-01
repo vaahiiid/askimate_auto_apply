@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P261 — step 4 measured where it could be
+
+*2026-10-01.* His three measurements, read-only and without an account: verification gates neither
+the form nor sign-in (three observations on one account); the consent notice stands over the
+registration button as over the sign-in button; where a created account lands stays the one
+unmeasured thing, by his decision. The reader now names the cookies a profile holds beside every
+covering read, because his first read, on a profile that had already answered the notice, said
+*nothing over it* and was true of the wrong visit. The entry edit is a patch that waits on his
+signature at step 2, since an unsigned entry stops his stack and reds the hash pin (row 117).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P260 — the start line names what has waited
 
 *2026-10-01.* His word on row 113: not a second notice, the start line. After the listening line

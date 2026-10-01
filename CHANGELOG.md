@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.257.0] — 2026-10-01
+
+**P261 — a covering read names the cookies the profile holds (ADR-0128 amended); step 4 measured where it could be; the entry edit prepared for his signature.**
+
+- **Added** to the attached reader: `cookieNames(url)` on the session, names only; the CLI prints
+  `cookies on this profile for <host>: …` beneath every covering read and, when the profile holds
+  any and a named control reads as uncovered, says the reading is of this profile and not of a
+  first visit; `run.json` carries `cookieNames`.
+- **Recorded** his measurements of 2026-10-01 on row 88 and in the target document: e-mail
+  verification gates neither the form nor sign-in; the consent notice stands over the registration
+  button. The entry edit is `docs/run-a/p261-registration-measured.patch`, applied with his
+  signature at step 2 (row 117).
+
+---
+
 ## [0.256.0] — 2026-10-01
 
 **P260 — the start line names what has waited (ADR-0071 amended; row 113 closed).**

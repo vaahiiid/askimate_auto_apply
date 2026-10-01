@@ -316,6 +316,28 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
   }
 
   /**
+   * The names of the cookies this profile already holds for `url`'s host —
+   * names only, never a value (P261).
+   *
+   * A covering read is made to see what a student meets on a first visit. A
+   * profile that has already answered a consent notice carries the site's
+   * record of that answer, and the notice is not shown again: the read says
+   * "nothing over it", which is true of that profile and false of the first
+   * visit. Vahid, having read the registration button twice on 2026-10-01:
+   * *"A read on a profile that has already answered the notice measures the
+   * wrong thing, and that is worth stating as a rule for the reader, not just
+   * for this page."* So the names are read beside every covering reading and
+   * printed, and a run made on a profile that holds any is a run to repeat on
+   * a fresh one.
+   */
+  public async cookieNames(url: string): Promise<readonly string[]> {
+    const context = this.#context;
+    if (context === null) throw new Error("Session is not open.");
+    const cookies = await context.cookies(url).catch(() => []);
+    return [...new Set(cookies.map((cookie) => cookie.name))].sort();
+  }
+
+  /**
    * Reads the person's OWN tab as it stands, without navigating it (P127).
    *
    * Distance item 5: the education page's grade list arrives only after an
