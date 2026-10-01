@@ -23,6 +23,7 @@ import pg from "pg";
 import { installShutdown, reportStartupFailure, type Log } from "@askimate/aas-config";
 import { migrateExclusive, pendingMigrations } from "@askimate/aas-migrate";
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
+import type { StoredIntervention } from "@askimate/aas-case-store/interventions";
 
 import { discoverAdapter } from "@askimate/aas-oidc";
 
@@ -310,6 +311,8 @@ export async function start(options: StartOptions): Promise<RunningService | nul
         `identity=${config.oidc === undefined ? "none" : "oidc"}, ` +
         `documents=${config.documents === undefined ? "none" : "s3"})`,
     );
+    // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+    await sayWhatHasWaited(driver, options.log, new Date());
 
     const close = async (): Promise<void> => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -319,6 +322,51 @@ export async function start(options: StartOptions): Promise<RunningService | nul
   } catch (error) {
     await pool.end().catch(() => undefined);
     throw error;
+  }
+}
+
+/**
+ * Names, at the start, every open intervention older than a day — with its age
+ * (P260, row 113).
+ *
+ * Vahid, on two stops from 18 September that were open twelve days before
+ * anyone noticed: *"the service's start line names every open intervention
+ * older than a day with its age. Not a second notice — a notice nobody reads
+ * twice is noise, and the start line is the thing I see every time I bring
+ * the stack up."* ADR-0071 tells a specialist once, when the stop is raised;
+ * the listing carries `raisedAt`; nothing read the age back.
+ *
+ * Three outcomes, each with its own line, because a line that prints nothing
+ * when nothing is wrong prints nothing when something is: the aged ones named
+ * one per line; `none`; or that the reading failed, with why. No value of the
+ * student's is on any of them — an id, a run, a reference, a reason, an
+ * action and its target, and the age.
+ */
+async function sayWhatHasWaited(
+  driver: { openInterventions(): Promise<readonly StoredIntervention[]> },
+  log: Log,
+  now: Date,
+): Promise<void> {
+  const aDay = 24 * 60 * 60 * 1000;
+  try {
+    const aged = (await driver.openInterventions()).filter(
+      (held) => now.getTime() - held.escalation.raisedAt.getTime() >= aDay,
+    );
+    if (aged.length === 0) {
+      log("open interventions older than a day: none");
+      return;
+    }
+    for (const held of aged) {
+      const days = Math.floor((now.getTime() - held.escalation.raisedAt.getTime()) / aDay);
+      const { checkpoint } = held.escalation;
+      log(
+        `open intervention ${held.interventionId} on run ${held.runId} (student ${held.studentRef}): ` +
+          `${held.escalation.reason}, ${held.escalation.priority} — ${checkpoint.action} on ${checkpoint.target}, ` +
+          `raised ${String(days)} day${days === 1 ? "" : "s"} ago, unresolved`,
+      );
+    }
+  } catch (error) {
+    log(`open interventions older than a day: could not be read — ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

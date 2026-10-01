@@ -97,7 +97,7 @@ ADR status uses exactly that vocabulary:
 | [0068](./0068-the-storage-boundary-refuses-what-adr-0022-says-it-refuses.md) | The storage boundary refuses what ADR-0022 says it refuses, by type rather than by convention | Accepted |
 | [0069](./0069-an-authorisation-is-spendable-only-in-the-application-it-names.md) | An authorisation is spendable only in the application it names | Accepted |
 | [0070](./0070-the-portals-file-field-is-called-fieldref.md) | The portal's file field is called `fieldRef`, because that is what it holds | Accepted |
-| [0071](./0071-a-stopped-run-reaches-a-person.md) | A stopped run reaches a person, and the notice carries nothing about the student | Accepted |
+| [0071](./0071-a-stopped-run-reaches-a-person.md) | A stopped run reaches a person, and the notice carries nothing about the student | Accepted · amended 2026-10-01 (P260): the service's start line names every open intervention older than a day, with its age — decided by Vahid, *"a notice nobody reads twice is noise"* |
 | [0072](./0072-two-decisions-enforced-by-nothing.md) | A decision is enforced where it is made, and a demonstration that cannot fail is not evidence | Accepted |
 | [0073](./0073-a-declared-capability-with-no-production-caller-fails-the-build.md) | A declared capability with no production caller fails the build | Accepted |
 | [0074](./0074-a-run-a-person-is-holding-is-returned-to-the-student.md) | A run a person is holding is returned to the student, never restarted | Accepted |

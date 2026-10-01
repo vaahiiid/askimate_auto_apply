@@ -123,7 +123,11 @@ ignored). Once the six are up, `start` reads what each process **says** it came 
 service's `documents=s3` or `documents=none`, the reader's `bedrock-runtime` or `stand-in` — against
 what was asked, and on any gap stops the stack, keeps the logs, and exits 2 with the process's own
 line in the message. The summary is headed *up: (each line is what the process itself said, not
-what the shell asked for)* and ends with `documents  s3 (bucket …)` and `cv reader … model: bedrock`;
+what the shell asked for)* and ends with `documents  s3 (bucket …)` and `cv reader … model: bedrock`.
+Since 0.256.0 (P260, row 113) the service's own log then names every open intervention older than a
+day, one line each with its age — `open intervention iv_… on run … raised 12 days ago, unresolved`
+— or `open interventions older than a day: none`; read it in `.local-stack/conversation-service.log`
+right after the listening line;
 `scripts/local-stack.sh verify` repeats that reading on a running stack. Vahid, on the start that
 announced six services with the vault absent: *"the same class as the banner that said Bedrock and
 called somewhere else."*

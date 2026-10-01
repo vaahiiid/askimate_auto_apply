@@ -376,11 +376,61 @@ describeIfDatabase("running, and stopping", () => {
       const health = await fetch("http://127.0.0.1:4870/healthz");
       expect(health.status).toBe(200);
       expect(await health.text()).toBe("ok");
+      // P260, row 113: the start line names every open intervention older
+      // than a day — and says so when there is none, because a line that
+      // prints nothing when nothing is wrong prints nothing when something is.
+      expect(service.output()).toContain("open interventions older than a day: none");
     } finally {
       const code = await service.stop("SIGTERM");
       expect(code, "a clean shutdown exits zero").toBe(0);
       expect(service.output()).toContain("shutting down");
       expect(service.output()).toContain("stopped");
+    }
+  }, 180_000);
+
+  it("names every open intervention older than a day at the start, with its age (P260, row 113)", async () => {
+    // Vahid, 2026-10-01: *"the service's start line names every open
+    // intervention older than a day with its age. Not a second notice — a
+    // notice nobody reads twice is noise, and the start line is the thing I
+    // see every time I bring the stack up. The two from 18 September should
+    // have been visible for twelve days and were not."*
+    const pool = new pg.Pool({ connectionString: urlFor(CONVERSATION_DB), max: 2 });
+    try {
+      const twelveDaysAgo = new Date(Date.now() - 12 * 24 * 60 * 60 * 1000);
+      const yesterday = new Date(Date.now() - 20 * 60 * 60 * 1000);
+      await pool.query(
+        `INSERT INTO workflow_runs (run_id, case_id, student_ref, status, revision, checkpoint, started_at, updated_at)
+         VALUES ('run_p18_aged', 'case_p18_aged', 'student_p18', 'escalated', 0, '{}'::jsonb, $1, $1),
+                ('run_p18_fresh', 'case_p18_fresh', 'student_p18', 'escalated', 0, '{}'::jsonb, $2, $2)`,
+        [twelveDaysAgo, yesterday],
+      );
+      const checkpoint = (target: string): string =>
+        JSON.stringify({ blueprintVersion: "1.0.0", action: "advance_portal_page", target, phase: "filling", pagesCompleted: [], capturedAt: twelveDaysAgo.toISOString() });
+      const context = JSON.stringify({ institutionId: "inst_p18", portal: "fixture", courseId: "course_p18", blueprintVersion: "1.0.0" });
+      await pool.query(
+        `INSERT INTO interventions (intervention_id, run_id, idempotency_key, case_id, student_ref, reason, priority,
+                                    encountered, expected, checkpoint, context, raised_at, lifecycle)
+         VALUES ('iv_p18_aged', 'run_p18_aged', 'run_p18_aged:advance_portal_page:page-sign-in', 'case_p18_aged', 'student_p18',
+                 'unverified_consequential_action', 'critical', 'the sign-in form was submitted and the page did not change',
+                 'a signed-in session', $1::jsonb, $3::jsonb, $4, 'captured'),
+                ('iv_p18_fresh', 'run_p18_fresh', 'run_p18_fresh:advance_portal_page:page-sign-in', 'case_p18_fresh', 'student_p18',
+                 'unverified_consequential_action', 'critical', 'the sign-in form was submitted and the page did not change',
+                 'a signed-in session', $2::jsonb, $3::jsonb, $5, 'captured')`,
+        [checkpoint("page-sign-in"), checkpoint("page-sign-in"), context, twelveDaysAgo, yesterday],
+      );
+    } finally {
+      await pool.end();
+    }
+    const service = await startAndWait("conversation-service", conversationEnv, /listening on 4870/);
+    try {
+      const printed = service.output();
+      expect(printed, "the aged one is named, with its age").toContain(
+        "open intervention iv_p18_aged on run run_p18_aged (student student_p18): unverified_consequential_action, critical — advance_portal_page on page-sign-in, raised 12 days ago, unresolved",
+      );
+      expect(printed, "a day-old one is not noise yet").not.toContain("iv_p18_fresh");
+      expect(printed).not.toContain("open interventions older than a day: none");
+    } finally {
+      await service.stop("SIGTERM");
     }
   }, 180_000);
 

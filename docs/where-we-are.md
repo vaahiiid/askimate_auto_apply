@@ -4906,6 +4906,22 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P260 — the start line names what has waited
+
+*2026-10-01.* His word on row 113: not a second notice, the start line. After the listening line
+the service prints one line per open intervention older than a day, with its age in days; `none`
+when there is none; and that the reading failed, with why, when it does. The two stops from
+18 September will be the first two lines his next start prints. Proven through the real process,
+red first on the listening line alone.
+
+Also recorded: his correction on ADR-0048 §5, in his words, that the resume–stop–resume loop
+predates P256 and became reachable at P257; and the clock rule in CLAUDE.md after three wrong
+lines in a week — a number is read from the marker, not written from recollection.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P259 — the resolution's own mark
 
 *2026-10-01.* His word on row 116: a seventeenth event kind rather than the asking's attempt

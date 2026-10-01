@@ -142,6 +142,20 @@ when the cost is real, because it is not obvious from the screen."**
 So: when the next thing he might do spends money — a model call, a bucket, anything metered — the
 report says so, with the number, before he does it. A walk that costs nothing says nothing.
 
+## A number in a record is read from the marker, not written from recollection
+
+Decided by Vahid on 2026-10-01, after the third clock line in a week said forty, two hours, and
+fifty minutes where the marker and the clock said fifteen, forty, and sixteen — each caught and
+corrected in a records commit after the push.
+
+In his words: **"The pattern is small but it is the same one: a number written from recollection
+rather than read from the marker. You have now taken it from the marker. Keep that."**
+
+So: a phase's start is a marker file written at the moment the work begins; the clock line is
+computed from that marker and the clock at the commit, and never typed from memory of how long
+it felt. The same holds for any number a record carries — a count, a cost, an ordinal: it comes
+from something that can be re-read, and the record says what that was.
+
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.

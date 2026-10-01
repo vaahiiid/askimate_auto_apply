@@ -126,3 +126,18 @@ Something invisible until it matters is worth one line of output.
   the URL the operator supplies, which is how every webhook endpoint of this shape works.
 - **It does not retry with backoff, or give up.** See above.
 - **It does not notify about anything except an open intervention.** A resolved one is not news.
+
+## Amended 2026-10-01 (P260): the start line names what has waited
+
+Decided by Vahid, in his words, after two stops from 18 September were found open twelve days
+later by chance: *"the service's start line names every open intervention older than a day with
+its age. Not a second notice — a notice nobody reads twice is noise, and the start line is the
+thing I see every time I bring the stack up. The two from 18 September should have been visible
+for twelve days and were not."*
+
+So, after the listening line, the conversation service prints one line per open intervention
+older than a day — its id, run, student reference, reason, priority, action and target, and its
+age in days — or `open interventions older than a day: none`, or that the reading failed and why.
+A line for the empty case is deliberate: a line that prints nothing when nothing is wrong prints
+nothing when something is. No value of the student's is on any of these lines. The notice this
+ADR decided is unchanged: still once, still at the raise.

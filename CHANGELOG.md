@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.256.0] — 2026-10-01
+
+**P260 — the start line names what has waited (ADR-0071 amended; row 113 closed).**
+
+- **Added** to the conversation service's start, after the listening line: one line per open
+  intervention older than a day, with its id, run, student reference, reason, priority, action,
+  target and age in days; `open interventions older than a day: none` when there is none; a line
+  naming the failure when the reading fails. Decided by Vahid: *"a notice nobody reads twice is
+  noise, and the start line is the thing I see every time I bring the stack up."*
+- **Recorded** his correction on ADR-0048 §5 in his words, and the clock rule in CLAUDE.md: a
+  number in a record is read from the marker, not written from recollection.
+
+---
+
 ## [0.255.0] — 2026-10-01
 
 **P259 — a resolution carries its own mark on the log: `stop_resolved`, the seventeenth event kind (ADR-0048 §5, ADR-0152 amended; migration 0036).**

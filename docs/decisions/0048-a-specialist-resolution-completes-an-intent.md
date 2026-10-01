@@ -359,6 +359,11 @@ different reason than the refusal.
    the loop reachable; P256 changed which runs meet it (his own, with one failed answer under the
    new rule, did not). Vahid asked for the record to say it was introduced by P256's fix; the
    history says it was made reachable by P257's, and that is worth knowing about fixes in the same way.
+   Vahid, on reading this on 2026-10-01: *"Leave ADR-0048 §5 as the history supports it. I was
+   wrong — the loop predates P256 and only became reachable when P257 made resumption work at
+   all. Record it that way, not the way I put it. Refusing to write a line that the history does
+   not support is exactly what I want from you, and it is worth noting that I would have had it
+   written wrong."*
 
 None of this changes the decision above: a resolution still carries no position, still never
 authorises a repeat, and `route_fallback` is still refused.
