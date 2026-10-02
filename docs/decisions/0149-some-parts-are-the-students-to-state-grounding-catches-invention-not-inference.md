@@ -112,3 +112,29 @@ before the flag, green after).
   Its section "What this does NOT claim" carries the fourth limit and points here.
 - A test holds the boundary the way ADR-0004 holds confirmed values: a `student` part is not
   reachable from the reader's model call, so the reader cannot ask for it by mistake.
+
+## Amended 2026-10-02 (P266): grounding does not catch a line returned as its parts
+
+Vahid, on the qualification he left out in P264: *"Award title: "Bachelor's in Business Studies,
+Azad University, 2012" / Subject: same string / Institution: same string / Level: same string /
+Whether it is finished: same string / End date: same string. The model could not decompose that
+CV line and returned the whole line for every part. Grounding passed because the span is real. It
+only became visible because I removed the entry — if I had kept it, I would have been asked to
+confirm a qualification whose institution is a sentence. That is a reading failure with no
+detector. Every part identical is a signature: a reading where N parts share one span is not a
+reading, and the entry should be marked unreadable and asked by hand rather than offered."*
+
+A fifth limit beside the four: grounding proves the words are in the document, and nothing about
+whether they are the words OF the part. Built in P266. The reader counts the spans an entry's
+parts came back with, whatever became of each (read, read in part, or refused by the parser),
+and marks the entry `unreadable` when one span is shared by at least three parts **and** by more
+than half of those that returned one. The threshold is mine, not his, and is recorded as mine: a
+real reading shares spans — the award title, the subject and the level read from "BSc Computer
+Science", the start and the end from "2015 – 2019" — but not most of its parts. Nothing of an
+unreadable entry is taken, not even the parts that parsed, since an institution that is a
+sentence parses as an institution. The report carries the entry with the shared words and no
+field; the service seeds the slot with those words alone (`item<n>.unreadable`, document origin);
+the walk asks every part by hand, and its first question says *I could not read this
+qualification from your CV into its parts. Your CV says: "…". I will ask you for each part.* and
+how to leave it out; the playback shows the entry as the student's answers with the CV's words
+beside them.

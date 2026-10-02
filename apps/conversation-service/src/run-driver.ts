@@ -8454,13 +8454,22 @@ export class RunDriver {
     if (spec === undefined || !isList(spec)) return false;
     const events = await this.#options.conversations.since(conversationId, 0);
     if (events.some((event: ConversationEvent) => event.ordinal > after && (event.kind === "value_confirmed" || event.kind === "value_proposed" || event.kind === "value_part_read") && event.fieldKey === fieldKey)) return false;
-    const offered = entries.filter((entry) => Object.keys(entry.fields).length > 0);
+    // An entry the reader could not read into parts (P266) is offered too —
+    // with nothing taken, to be asked by hand. Until P266 it was counted in
+    // the sentence ("one I could not read whole, so I will ask you about
+    // it") and nothing asked about it.
+    const offered = entries.filter((entry) => Object.keys(entry.fields).length > 0 || entry.unreadable !== undefined);
     if (offered.length === 0) return false;
     const append = async (partKey: string, proposal: ProposedValue<unknown>): Promise<void> => {
       await this.#options.conversations.append({ conversationId, event: { kind: "value_part_read", fieldKey, partKey, proposal: encodeValue(proposal) } });
     };
     await append("any", proposeValue({ value: true, origin: "document", verbatim: "yes", confidence: 1, documentId }));
     for (const [position, entry] of offered.entries()) {
+      if (entry.unreadable !== undefined) {
+        // The CV's words alone, as the slot's one reading: the walk asks
+        // every part, and the first question says what the CV said.
+        await append(`item${String(position)}.unreadable`, proposeValue({ value: true, origin: "document", verbatim: entry.unreadable, confidence: entry.confidence, documentId }));
+      }
       for (const part of spec.item.parts) {
         const reading = walkPartFromDocument(part.partKey, entry.fields, entry.spans, entry.partial ?? {});
         if (reading === null) continue;

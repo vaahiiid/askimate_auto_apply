@@ -98,7 +98,7 @@ import {
 } from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
-import { nextAction, newInterview, receiveAnswer } from "@askimate/aas-interview";
+import { FIELD_SPECS, isList, nextAction, newInterview, receiveAnswer } from "@askimate/aas-interview";
 import { attachmentIntentTarget, pageAttachmentsOf, pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
 import { buildPreview } from "@askimate/aas-preparation";
 
@@ -15473,6 +15473,141 @@ describeIfDatabase("a CV-read entry left out mid-walk (P264): the mark is on the
     expect(carried).toContain("item0.institution");
     expect(carried).toContain("item1.institution");
     expect(carried, "the third slot's parts are dropped, to be asked again").not.toContain("item2.institution");
+  }, 300_000);
+});
+
+describeIfDatabase("an entry the CV reader could not read into parts is seeded to be asked by hand, its words shown — the sentence's 'I will ask you about it' kept (P266)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-02: *"a reading where N parts share one span is not a
+  // reading, and the entry should be marked unreadable and asked by hand
+  // rather than offered."* The report carries the entry with its words and
+  // nothing taken; the service seeds `item<n>.unreadable`; the walk asks
+  // every part; the playback names the CV's words beside the student's.
+  // Until P266 an entry the reader could not read whole was counted in the
+  // sentence — "one I could not read whole, so I will ask you about it" —
+  // and nothing asked about it.
+  // ═══════════════════════════════════════════════════════════════════════
+  const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX26601";
+  const CV = "01JQDOCREAD000000000000041";
+  const contentHash = "b".repeat(64);
+  const LINE = "Bachelor's in Business Studies, Azad University, 2012";
+  const HINT = 'If this qualification should not be listed, say "leave it out".';
+  const BY_HAND: Readonly<Record<string, string>> = {
+    awardTitle: "BBA", subject: "Business studies", institution: "Azad University", countryCode: "Iran", level: "Bachelor's degree",
+    start: "September 2008", endKind: "completed", endDate: "July 2012", award: "none", grade: "15.1", gradeScale: "20-point",
+  };
+  const READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  };
+  const UNREADABLE = {
+    index: 2,
+    fields: {},
+    spans: {},
+    confidence: 0.8,
+    toAsk: ["awardTitle", "subject", "institution", "countryCode", "level", "start", "end", "grade", "gradeScale", "award"],
+    student: ["countryCode"],
+    unreadable: LINE,
+  };
+  let owner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: CONVERSATION, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: CONVERSATION, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [CONVERSATION],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  /** The part the last question asks, read off its own words: an asking's row carries no part key. */
+  async function askedNow(): Promise<string | null> {
+    const said = (await assistantSaid()).at(-1) ?? "";
+    if (said.includes("Is there another qualification to add")) return "item1.another";
+    const entry = /^For qualification (\d+): /.exec(said);
+    const spec = FIELD_SPECS["education.prior_qualifications"];
+    if (entry === null || spec === undefined || !isList(spec)) return null;
+    const part = spec.item.parts.find((candidate) => said.includes(candidate.question));
+    return part === undefined ? null : `item${String(Number(entry[1]) - 1)}.${part.partKey}`;
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(CONVERSATION);
+    vault = (() => {
+      const base = fakeVault([{ documentId: CV, studentId: owner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null }]);
+      return { ...base, records: base.records, prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }) };
+    })();
+    const built = instance();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      await built.driver.requestReading({ documentId: CV, conversationId: CONVERSATION, studentId: owner, contentHash });
+      const readings = new PostgresDocumentReadingStore(built.pool);
+      await readings.ask(CV, NOW);
+      await readings.decide(CV, true, NOW);
+      const started = await built.driver.start({ conversationId: CONVERSATION, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed?.documentId).toBe(CV);
+      expect(await built.driver.reportReading({ documentId: CV, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [READ, UNREADABLE], dropped: 0 }] } })).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("seeds the words alone, asks every part by hand with the words said once, plays the entry back as the student's with the CV's words beside it, and stores it", async () => {
+    const parts = (await pool.query<{ part_key: string }>("SELECT part_key FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_read' ORDER BY ordinal ASC", [CONVERSATION])).rows.map((row) => row.part_key);
+    expect(parts, "the words, on the log as the slot's one reading").toContain("item1.unreadable");
+    expect(parts.filter((key) => key.startsWith("item1.") && key !== "item1.unreadable"), "nothing of it taken").toEqual([]);
+    expect((await assistantSaid()).some((said) => said.includes("I could not read whole, so I will ask you about it")), "the sentence's promise").toBe(true);
+
+    let sawFirst = false;
+    for (let guard = 0; guard < 30; guard++) {
+      const part = await askedNow();
+      if (part === "item1.another") break;
+      const said = (await assistantSaid()).at(-1) ?? "";
+      if (part?.startsWith("item1.") === true && part !== "item1.awardTitle") expect(said, `${part}: the CV's words are said once`).not.toContain(LINE);
+      if (part === "item1.awardTitle") {
+        sawFirst = true;
+        expect(said, "the first question about it says what the CV said").toContain(`For qualification 2: I could not read this qualification from your CV into its parts. Your CV says: "${LINE}". I will ask you for each part.`);
+        expect(said).toContain(HINT);
+      }
+      const answer = part === "item0.countryCode" ? "Iran" : part === "item0.award" ? "none" : BY_HAND[(part ?? "").replace(/^item1\./, "")];
+      if (answer === undefined) return expect.unreachable(`asked ${String(part)}`);
+      await say(answer);
+    }
+    expect(sawFirst, "the first question about the unreadable entry was met and checked").toBe(true);
+    expect((await assistantSaid()).at(-1)).toBe("That is the 2 qualifications I read from your CV. Is there another qualification to add that is not on your CV? Please answer yes or no.");
+    await say("no");
+    const playback = (await assistantSaid()).slice(-3);
+    expect(playback[1]).toContain(`Qualification 2 of 2 (your CV's words for it, which I could not read into its parts: "${LINE}") — `);
+    expect(playback[1]).toContain('Institution: Azad University (you said: "Azad University")');
+    expect(playback[2]).toBe("Those are the 2 qualifications. Is that right?");
+    const built = instance();
+    try {
+      const pending = (await built.driver.runFor(CONVERSATION))?.pending;
+      const runId = (await new PostgresWorkflowRunStore(built.pool).findByCase(makeCaseId(`case_${CONVERSATION.toLowerCase()}`)))[0]?.runId ?? "";
+      expect(await built.driver.recordDecision({ conversationId: CONVERSATION, runId, decision: { kind: "confirm_value", contentHash: pending?.decision === "confirm_value" ? pending.contentHash : "" } })).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+    const stored = await pool.query<{ value: readonly { institution: string }[] }>("SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = 'education.prior_qualifications'", [owner]);
+    expect(stored.rows[0]?.value.map((item) => item.institution)).toEqual(["University of Tehran", "Azad University"]);
   }, 300_000);
 });
 

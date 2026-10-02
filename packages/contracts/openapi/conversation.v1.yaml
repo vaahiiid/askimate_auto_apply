@@ -3202,6 +3202,14 @@ components:
           maxProperties: 24
           additionalProperties: { $ref: "#/components/schemas/PartialReading" }
           description: Parts read in part, by part key — each in `toAsk`, not in `fields`, with its words in `spans`.
+        unreadable:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: >-
+            The words most of the entry's parts came back as — the line, not its
+            parts (P266). Only on an entry with no field, no span and nothing read
+            in part; the interview asks it by hand and shows these words.
 
     PartialReading:
       type: object

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import type { ModelClient, Segmentation, SegmentationRequest } from "@askimate/aas-llm";
+import type { ExtractionRequest, ModelClient, Segmentation, SegmentationRequest } from "@askimate/aas-llm";
+import { proposeValue } from "@askimate/aas-domain";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 
 import { readListEntries } from "./extract.js";
@@ -173,5 +174,68 @@ describe("the cut held by structure: the checks and the two detectors", () => {
     expect(cut.checks.section).toBeNull();
     expect(cut.entries[0]?.from).toBe(6);
     expect(cut.entries[0]?.letterLines).toBeGreaterThan(0);
+  });
+});
+
+describe("an entry whose parts all came back as one span is not a reading: marked unreadable, offered to be asked by hand (P266)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-02, on the entry he left out: *"Award title: "Bachelor's
+  // in Business Studies, Azad University, 2012" / Subject: same string /
+  // Institution: same string / Level: same string … The model could not
+  // decompose that CV line and returned the whole line for every part.
+  // Grounding passed because the span is real … That is a reading failure
+  // with no detector. Every part identical is a signature: a reading where N
+  // parts share one span is not a reading, and the entry should be marked
+  // unreadable and asked by hand rather than offered."*
+  //
+  // The threshold is mine, recorded as mine: one span shared by at least
+  // three parts AND by more than half of the parts that returned a span. A
+  // real reading shares spans — "BSc Computer Science" is the award title,
+  // the subject and the words the level was read from; "2015 – 2019" is the
+  // start and the end — but never most of its parts.
+  // ═══════════════════════════════════════════════════════════════════════
+  const LINE = "Bachelor's in Business Studies, Azad University, 2012";
+  const BODY = `Education\nBSc Computer Science, University of Tehran, 2015 – 2019\n${LINE}\n`;
+  /** Reads entry 1 the way a good reading would, and entry 2 the way Vahid's was read: the whole line for every part. */
+  const SPANS: Readonly<Record<string, string>> = {
+    awardTitle: "BSc Computer Science",
+    subject: "BSc Computer Science",
+    level: "BSc Computer Science",
+    institution: "University of Tehran",
+    start: "2015 – 2019",
+    end: "2015 – 2019",
+  };
+  function readingAs(cut: Segmentation["entries"]): ModelClient {
+    const base = cuttingAs(cut);
+    return {
+      ...base,
+      extractFromDocument: <T>(request: ExtractionRequest<T>) => {
+        const part = request.fieldKey.split(".").at(-1) ?? "";
+        const span = request.documentText.includes("Azad") ? LINE : SPANS[part];
+        if (span === undefined) return Promise.resolve({ kind: "not_understood" as const, reason: "not stated" });
+        const value = request.parse(span);
+        if (value === null) return Promise.resolve({ kind: "not_understood" as const, reason: "not stated" });
+        return Promise.resolve(proposeValue({ value, origin: "document" as const, verbatim: span, confidence: 0.8, documentId: request.documentId }));
+      },
+    };
+  }
+
+  it("marks the entry whose parts share one span, keeps the one whose parts share spans the ordinary way, and holds nothing of the unreadable one's parts", async () => {
+    const text = await plain(BODY);
+    const lines = linesOf(text);
+    // The cut numbers lines from one.
+    const first = lines.findIndex((line) => line.startsWith("BSc")) + 1;
+    const second = lines.findIndex((line) => line.startsWith("Bachelor's")) + 1;
+    const reading = await readListEntries(target("education.prior_qualifications"), text, readingAs([{ from: first, to: first }, { from: second, to: second }]));
+    expect(reading.entries).toHaveLength(2);
+    const [good, bad] = reading.entries;
+    expect(good?.unreadable, "three of six parts share a span: an ordinary reading").toBeNull();
+    expect(good?.fields["institution"]).toBe("University of Tehran");
+    expect(bad?.unreadable, "the words every part came back as").toBe(LINE);
+    expect(bad?.dropped, "not held back: offered, to be asked by hand").toBeNull();
+    expect(bad?.fields, "nothing of it is taken as read").toEqual({});
+    expect(bad?.spans).toEqual({});
+    expect(bad?.partial).toEqual({});
+    expect(bad?.parts.find((part) => part.partKey === "institution")?.reason).toContain("parts came back as the same words");
   });
 });

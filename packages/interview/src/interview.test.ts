@@ -1715,6 +1715,88 @@ describe("a CV-read entry that should not be listed is left out at the student's
   });
 });
 
+describe("an entry the CV reader could not read into parts is asked by hand, its words shown, and can be left out (P266)", () => {
+  // Vahid, 2026-10-02: *"a reading where N parts share one span is not a
+  // reading, and the entry should be marked unreadable and asked by hand
+  // rather than offered."* The slot is seeded with the words alone —
+  // `item<n>.unreadable` — so the walk asks every part, and the first
+  // question says what the CV said and how to leave the entry out.
+  const FIELD = "education.prior_qualifications" as const;
+  const LINE = "Bachelor's in Business Studies, Azad University, 2012";
+  const HINT = 'If this qualification should not be listed, say "leave it out".';
+  const document = (value: unknown, verbatim: string) => proposeValue({ value, origin: "document", verbatim, confidence: 0.9, documentId: "doc_cv" });
+  const BY_HAND: Readonly<Record<string, string>> = {
+    awardTitle: "BBA", subject: "Business studies", institution: "Azad University", countryCode: "Iran", level: "Bachelor's degree",
+    start: "September 2008", endKind: "completed", endDate: "July 2012", award: "none", grade: "15.1", gradeScale: "20-point",
+  };
+
+  function seeded(): InterviewState {
+    const readings = new Map<string, ReturnType<typeof document>>([
+      ["any", document(true, "yes")],
+      ["item0.awardTitle", document("BSc", "BSc Computer Science")],
+      ["item0.subject", document("Computer science", "BSc Computer Science")],
+      ["item0.institution", document("University of Tehran", "University of Tehran")],
+      ["item0.countryCode", document("IR", "Iran")],
+      ["item0.level", document("Bachelor's degree", "BSc")],
+      ["item0.start", document({ year: 2015, month: 9 }, "September 2015")],
+      ["item0.endKind", document("completed", "June 2019")],
+      ["item0.endDate", document({ year: 2019, month: 6 }, "June 2019")],
+      ["item0.award", document(OMITTED, "none")],
+      ["item0.grade", document("17.2", "17.2")],
+      ["item0.gradeScale", document("twenty_point", "20-point")],
+      ["item0.another", document(true, "yes")],
+      ["item1.unreadable", document(true, LINE)],
+    ]);
+    return { ...start([FIELD]), partial: new Map([[FIELD, readings]]) };
+  }
+
+  it("asks every part of it, the first question saying what the CV said; plays it back as the student's with the CV's words beside it", async () => {
+    let state = seeded();
+    const first = await nextAction(state, model);
+    expect(first.kind === "ask" ? first.partKey : first.kind).toBe("item1.awardTitle");
+    const said = first.kind === "ask" ? first.say : "";
+    expect(said.startsWith(`For qualification 2: I could not read this qualification from your CV into its parts. Your CV says: "${LINE}". I will ask you for each part. `), said).toBe(true);
+    expect(said).toContain("What is the award title as printed on the certificate, or none?");
+    expect(said.endsWith(HINT), said).toBe(true);
+    for (let guard = 0; guard < 20; guard++) {
+      const action = await nextAction(state, model);
+      if (action.kind !== "ask" || !action.partKey?.startsWith("item1.") || action.partKey === "item1.another") break;
+      const part = action.partKey.slice("item1.".length);
+      if (part !== "awardTitle") expect(action.say, `${part}: the words and the hint are said once`).not.toContain(LINE);
+      const answer = BY_HAND[part];
+      if (answer === undefined) return expect.unreachable(`asked ${part}`);
+      const outcome = await receiveAnswer(state, FIELD, answer, model);
+      expect(outcome.kind, part).toBe("understood");
+      state = outcome.state;
+    }
+    const another = await nextAction(state, model);
+    expect(another.kind === "ask" ? another.partKey : another.kind).toBe("item1.another");
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable(playback.kind);
+    expect(playback.messages[1]).toContain(`Qualification 2 of 2 (your CV's words for it, which I could not read into its parts: "${LINE}") — `);
+    expect(playback.messages[1]).toContain('Institution: Azad University (you said: "Azad University")');
+    expect(playback.messages[1]).not.toContain("from your CV)");
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const value = resolveField(confirmed.state.profile, FIELD);
+    if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
+    expect((unwrapConfirmed(value) as readonly { institution: string }[]).map((item) => item.institution)).toEqual(["University of Tehran", "Azad University"]);
+  });
+
+  it("is left out at its first question, and the playback shows the CV's words as what was left out", async () => {
+    let state = seeded();
+    const removed = await receiveAnswer(state, FIELD, "leave it out", model);
+    expect(removed.kind).toBe("understood");
+    state = removed.state;
+    const after = await nextAction(state, model);
+    expect(after.kind === "ask" ? after.say : "").toContain("That is the 1 qualification I read from your CV.");
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable(playback.kind);
+    expect(playback.messages[1]).toBe(`Left out at your word ("leave it out") — the qualification I asked you about as qualification 2, as I read it from your CV: What your CV said: "${LINE}"`);
+  });
+});
+
 describe("a closed set's value is shown in words, never as our token (row 92's rule, everywhere — P265)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-10-02, on the P264 playback: *"Grade scale: twenty_point

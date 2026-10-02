@@ -41,11 +41,14 @@ export function readingOf(reading: ListReading, parts: readonly { readonly partK
       fields: entry.fields as Record<string, WireFieldValue>,
       spans: entry.spans,
       confidence: entry.lowestConfidence,
-      toAsk: order.filter((key) => entry.parts.some((part) => part.partKey === key && (part.status === "missing" || part.status === "unparsed" || part.status === "partial" || part.status === "student"))),
+      toAsk: order.filter((key) => entry.parts.some((part) => part.partKey === key && (part.status === "missing" || part.status === "unparsed" || part.status === "partial" || part.status === "student" || part.status === "unreadable"))),
       // The two kinds of missing, told apart (P248): the student's own, and
       // what the document gave in part.
       student: order.filter((key) => entry.parts.some((part) => part.partKey === key && part.status === "student")),
       ...(Object.keys(entry.partial).length === 0 ? {} : { partial: entry.partial as Record<string, WirePartialReading> }),
+      // P266: the parts came back as the line. Offered with nothing taken, to
+      // be asked by hand with these words shown.
+      ...(entry.unreadable === null ? {} : { unreadable: entry.unreadable }),
     }));
   return {
     fieldKey: reading.fieldKey,

@@ -115,6 +115,13 @@ export interface WireEntryReading {
    * document gave. Absent when none.
    */
   readonly partial?: Readonly<Record<string, WirePartialReading>>;
+  /**
+   * The words most of the entry's parts came back as (P266): the line, not
+   * its parts. Present only on an entry with no field, no span and nothing
+   * read in part — nothing of it is taken, and the interview asks it by hand,
+   * showing these words. Absent on a reading.
+   */
+  readonly unreadable?: string;
 }
 
 export interface WirePartialReading {
@@ -263,6 +270,15 @@ function parseEntry(value: unknown): WireEntryReading | null {
   // read in part with no span is a question that cannot say what it read.
   for (const key of [...Object.keys(fields), ...Object.keys(partial)]) if (!(key in spans)) return null;
 
+  // P266: an entry whose parts came back as one span carries those words and
+  // nothing taken from them. Words beside a value would be the contradiction
+  // the detector exists to catch.
+  const unreadable = record["unreadable"];
+  if (unreadable !== undefined) {
+    if (!isString(unreadable) || unreadable.length === 0 || unreadable.length > MAX_SPAN_LENGTH) return null;
+    if (Object.keys(fields).length > 0 || Object.keys(spans).length > 0 || Object.keys(partial).length > 0) return null;
+  }
+
   return {
     index,
     fields,
@@ -271,6 +287,7 @@ function parseEntry(value: unknown): WireEntryReading | null {
     toAsk: toAsk as string[],
     student: student as string[],
     ...(Object.keys(partial).length === 0 ? {} : { partial }),
+    ...(unreadable === undefined ? {} : { unreadable }),
   };
 }
 

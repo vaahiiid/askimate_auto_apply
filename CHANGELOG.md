@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.262.0] — 2026-10-02
+
+**P266 — an entry whose parts came back as one span is not a reading (ADR-0149 amended).**
+
+- **Added** the detector: `sharedSpanOf` — one span shared by at least three of an entry's parts
+  and by more than half of those that returned one marks the entry `unreadable`, with the status
+  `unreadable` on its parts; nothing of it is taken.
+- **Added** `unreadable` to the wire entry (contract, parser, OpenAPI), carrying the words and
+  refused beside any field, span or partial reading; the reader reports it.
+- **Added** the by-hand walk: the service seeds `item<n>.unreadable`; every part is asked; the first
+  question says what the CV said and how to leave the entry out; the playback shows the CV's words
+  beside the student's answers.
+- **Fixed** the sentence's *I will ask you about it* for an unreadable entry, which nothing asked.
+- **Recorded** row 123 (closed) and row 124 (open: held-back entries are still only counted).
+
+---
+
 ## [0.261.0] — 2026-10-02
 
 **P265 — no closed table's value reaches a student as our token (ADR-0147 amended).**

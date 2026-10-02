@@ -4906,6 +4906,19 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P266 — a line returned as its parts is not a reading
+
+*2026-10-02.* The second of his three findings: six parts of one qualification were all the same
+CV line, grounded because the line is real, and visible only because he left the entry out. The
+reader now marks an entry whose parts mostly share one span as unreadable; nothing of it is taken;
+the walk asks it by hand, saying what the CV said; the playback shows his answers beside the CV's
+words. On the way: the sentence promised to ask about entries it could not read and nothing did;
+an unreadable one is now asked, a held-back one still is not (row 124, his decision).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P265 — the grade scale in words, and every closed table audited
 
 *2026-10-02.* The first of his three findings on the P264 playback: *Grade scale: twenty_point*.

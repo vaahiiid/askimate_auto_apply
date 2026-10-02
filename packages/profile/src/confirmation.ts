@@ -228,6 +228,8 @@ export function renderListForConfirmation(
 ): { readonly messages: readonly string[]; readonly text: string } {
   const Item = `${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)}`;
   const nameOf = (field: string): string => {
+    // The CV's words for an entry it could not read into parts (P266).
+    if (field === "unreadable") return "What your CV said";
     const named = partLabel(key, field);
     const label = named ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
     return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
@@ -268,7 +270,12 @@ export function renderListForConfirmation(
   entries.forEach((entry, index) => {
     const item = itemOf(index);
     const was = item === index ? "" : ` (this was ${itemLabel} ${String(item + 1)} when I asked you about it)`;
-    const heading = `${Item} ${String(index + 1)} of ${String(entries.length)}${was}`;
+    // An entry the CV reader could not read into parts (P266): every part is
+    // the student's, and the CV's words stand beside them, so a student can
+    // see what their answers were measured against.
+    const unread = parts.find((part) => part.partKey === `item${String(item)}.unreadable`);
+    const words = unread === undefined ? "" : ` (your CV's words for it, which I could not read into its parts: ${JSON.stringify(unread.verbatim)})`;
+    const heading = `${Item} ${String(index + 1)} of ${String(entries.length)}${was}${words}`;
     const lines = Object.entries((entry ?? {}) as Record<string, unknown>).map(([field, value]) => {
       const named = partLabel(key, field);
       const spoken = typeof value === "string" ? vocabularyWords(key, field, value) : null;

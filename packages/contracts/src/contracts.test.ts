@@ -1130,6 +1130,20 @@ describe("what a reading may carry, and what it may not", () => {
     expect(parseReadingReport({ ...report, lists: [{ ...report.lists[0], entries: [{ ...ENTRY, toAsk: ["subject"] }] }] })).toBeNull();
   });
 
+  it("carries an entry whose parts came back as one span as UNREADABLE, with its words and nothing taken — and refuses one that also carries a value (P266)", () => {
+    // Vahid: *"a reading where N parts share one span is not a reading, and
+    // the entry should be marked unreadable and asked by hand rather than
+    // offered."* The words travel, so the question can show them.
+    const unreadable = { index: 2, fields: {}, spans: {}, confidence: 0.8, toAsk: ["awardTitle", "subject", "institution", "countryCode"], student: ["countryCode"], unreadable: "Bachelor's in Business Studies, Azad University, 2012" };
+    const report = { leaseId: "rl_1", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [ENTRY, unreadable], dropped: 0 }] };
+    expect(parseReadingReport(report)).toEqual(report);
+    const withEntry = (changed: Record<string, unknown>): unknown => ({ ...report, lists: [{ ...report.lists[0], entries: [ENTRY, { ...unreadable, ...changed }] }] });
+    expect(parseReadingReport(withEntry({ fields: { subject: "Business" }, spans: { subject: "Business" } })), "unreadable and a value is a contradiction").toBeNull();
+    expect(parseReadingReport(withEntry({ unreadable: "" }))).toBeNull();
+    expect(parseReadingReport(withEntry({ unreadable: "x".repeat(4001) }))).toBeNull();
+    expect(parseReadingReport(withEntry({ unreadable: 3 }))).toBeNull();
+  });
+
   it("carries which of the parts to ask are the student's, and a part read IN PART with its words — and refuses either where it contradicts the rest (P248)", () => {
     // Vahid, 2026-09-29: *"'Things it did not say' and 'things that are
     // yours to tell me' are different kinds of missing."* The report says

@@ -371,6 +371,16 @@ const ANOTHER = "another";
  * playback numbers the ones that stand.
  */
 const REMOVED = "removed";
+/**
+ * The mark on an entry the CV reader could not read into its parts (P266):
+ * `item<n>.unreadable = true`, the CV's words as its verbatim. Seeded by the
+ * service in place of the parts, so the walk asks every part by hand; the
+ * first question says what the CV said, and the entry, being the document's,
+ * can be left out.
+ */
+const UNREADABLE = "unreadable";
+/** The walk's own marks on an entry: never a part of the value. */
+const MARKS: ReadonlySet<string> = new Set([REMOVED, UNREADABLE]);
 /** The conversation store's bound on one message body (`content_is_bounded`, 0001). */
 const MESSAGE_BOUND = 8000;
 
@@ -476,8 +486,15 @@ function nextListQuestion(
       // it out (P264), in words said exactly so — a paraphrase of the phrase
       // the reader takes would teach the student words that do nothing.
       const first = entryFromDocument(ofItem) && ![...ofItem.values()].some((reading) => unwrapProposed(reading).origin === "conversation");
+      // An entry the reader could not read into parts (P266) is asked by
+      // hand, and its first question says what the CV said, once.
+      const unreadable = ofItem.get(UNREADABLE);
+      const opening =
+        unreadable === undefined
+          ? ""
+          : `I could not read this ${spec.itemLabel} from your CV into its parts. Your CV says: "${unwrapProposed(unreadable).verbatim}". I will ask you for each part. `;
       const hinted = first
-        ? { ...asked, exactly: `${asked.exactly ?? `For ${about}: ${asked.rationale} ${asked.question}`} ${removalHint(spec)}` }
+        ? { ...asked, exactly: `${asked.exactly ?? `For ${about}: ${opening}${asked.rationale} ${asked.question}`} ${removalHint(spec)}` }
         : asked;
       return { part: { ...hinted, partKey: itemKey(index, part.partKey) }, suffix, about };
     }
@@ -548,7 +565,7 @@ function assembleList(spec: ListFieldSpec<unknown>, readings: PartReadings): rea
     // An entry left out (P264) is not in the list; its parts stay on the walk
     // as what the document gave, and the playback says it was left out.
     if (!isRemoved(ofItem)) {
-      const item = spec.item.assemble(valuesOf(ofItem));
+      const item = spec.item.assemble(valuesOf(new Map([...ofItem].filter(([partKey]) => !MARKS.has(partKey)))));
       if (item === null) return null;
       items.push(item);
     }
@@ -1065,6 +1082,7 @@ function partName(spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>, pa
       const key = item[2] ?? "";
       if (key === ANOTHER) return `another ${spec.itemLabel}`;
       if (key === REMOVED) return `${spec.itemLabel} ${String(index)} — left out`;
+      if (key === UNREADABLE) return `${spec.itemLabel} ${String(index)} — your CV's words`;
       const named = spec.item.parts.find((part) => part.partKey === key)?.label ?? key;
       return `${spec.itemLabel} ${String(index)} — ${named}`;
     }

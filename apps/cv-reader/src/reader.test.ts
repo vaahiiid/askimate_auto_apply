@@ -5,11 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import type { ClaimedReading, ReadingReport } from "@askimate/aas-contracts";
 import { CV_LIST_FIELDS } from "@askimate/aas-contracts";
+import type { ListReading } from "@askimate/aas-extraction";
 import { planFor } from "@askimate/aas-extraction";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 
 import { httpReadingIntake } from "./intake.js";
-import { readDocument } from "./read.js";
+import { readDocument, readingOf } from "./read.js";
 import { runOneTurn, startReaderSupervisor } from "./supervisor.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -170,5 +171,38 @@ describe("the reader's turn: claim, read, report", () => {
     const result = await supervisor.runOnce();
     expect(result.kind).toBe("read");
     await supervisor.stop();
+  });
+});
+
+describe("an unreadable entry is reported with its words and nothing taken (P266)", () => {
+  it("offers the entry, with every part to ask and the words the parts came back as — not held back, not counted as dropped", () => {
+    const LINE = "Bachelor's in Business Studies, Azad University, 2012";
+    const parts = [{ partKey: "awardTitle" }, { partKey: "institution" }, { partKey: "countryCode" }, { partKey: "grade" }];
+    const reading: ListReading = {
+      fieldKey: "education.prior_qualifications",
+      sectionLines: 2,
+      cut: { entries: [], none: null, checks: { outsideDocument: [], overlapping: [], linesOutsideSection: 0, unassignedSectionLines: 0 } } as unknown as ListReading["cut"],
+      entries: [
+        {
+          index: 1,
+          lines: 1,
+          parts: [
+            { partKey: "awardTitle", source: "document", status: "unreadable", reason: "3 of the entry's 3 parts came back as the same words: the line, not its parts." },
+            { partKey: "institution", source: "document", status: "unreadable" },
+            { partKey: "countryCode", source: "student", status: "student" },
+            { partKey: "grade", source: "document", status: "missing" },
+          ],
+          fields: {},
+          spans: {},
+          partial: {},
+          lowestConfidence: 0.8,
+          dropped: null,
+          unreadable: LINE,
+        },
+      ],
+    };
+    const wire = readingOf(reading, parts);
+    expect(wire.dropped).toBe(0);
+    expect(wire.entries).toEqual([{ index: 1, fields: {}, spans: {}, confidence: 0.8, toAsk: ["awardTitle", "institution", "countryCode", "grade"], student: ["countryCode"], unreadable: LINE }]);
   });
 });

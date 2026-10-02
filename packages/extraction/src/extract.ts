@@ -23,7 +23,7 @@ import type { ModelClient } from "@askimate/aas-llm";
 import { isNotUnderstood } from "@askimate/aas-llm";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
-import { checkGrounding } from "./grounding.js";
+import { checkGrounding, normaliseForComparison } from "./grounding.js";
 import type { DocumentDateKind, ExtractionPlan, ExtractionTarget, PartSource, PartialReading } from "./plans.js";
 import { planFor } from "./plans.js";
 import type { DocumentText } from "./text.js";
@@ -85,9 +85,12 @@ export interface ListPartReading {
    *               without its month; the interview asks for what is lacking (P248);
    *   ungrounded  a span the document does not contain — the ENTRY is dropped (ADR-0016);
    *   skipped     not reached, the entry having been dropped;
-   *   student     the student's to state: never asked of the document (ADR-0149).
+   *   student     the student's to state: never asked of the document (ADR-0149);
+   *   unreadable  grounded, but the entry's parts came back as the same words —
+   *               the line, not its parts; nothing of it is taken, the
+   *               interview asks the entry by hand (P266).
    */
-  readonly status: "read" | "missing" | "unparsed" | "partial" | "ungrounded" | "skipped" | "student";
+  readonly status: "read" | "missing" | "unparsed" | "partial" | "ungrounded" | "skipped" | "student" | "unreadable";
   /** On `partial` only: the components the text gave, and the ones it lacks — in `partial` on the entry too. */
   readonly lacking?: readonly string[];
   /** The length of the span quoted, for a measurement, which must carry no line of the document. */
@@ -112,6 +115,33 @@ export interface ListEntryReading {
   readonly lowestConfidence: number;
   /** Why the entry is not offered at all: an invented span, or two date ranges cut as one. `null` for an entry that stands. */
   readonly dropped: string | null;
+  /**
+   * The words most of the entry's parts came back as, when they did (P266):
+   * the line, not its parts. Such an entry is offered with nothing taken from
+   * it, to be asked by hand, its words shown. `null` for a reading.
+   */
+  readonly unreadable: string | null;
+}
+
+/**
+ * The words most of an entry's parts came back as, or `null` (P266).
+ *
+ * Vahid: *"Every part identical is a signature: a reading where N parts share
+ * one span is not a reading."* The threshold is mine: one span shared by at
+ * least three parts and by more than half of those that returned a span. A
+ * real reading shares spans — the award title, the subject and the level read
+ * from "BSc Computer Science", the start and the end from "2015 – 2019" — but
+ * not most of its parts.
+ */
+export function sharedSpanOf(spans: readonly string[]): string | null {
+  const counts = new Map<string, { words: string; count: number }>();
+  for (const span of spans) {
+    const key = normaliseForComparison(span);
+    const held = counts.get(key);
+    counts.set(key, { words: held?.words ?? span, count: (held?.count ?? 0) + 1 });
+  }
+  const most = [...counts.values()].reduce<{ words: string; count: number } | null>((best, next) => (best === null || next.count > best.count ? next : best), null);
+  return most !== null && most.count >= 3 && most.count * 2 > spans.length ? most.words : null;
 }
 
 /** A list target read against a document: what was found before anything was accepted. */
@@ -154,6 +184,8 @@ export async function readListEntries(
     const spans: Record<string, string> = {};
     const partial: Record<string, PartialReading> = {};
     const parts: ListPartReading[] = [];
+    /** Every grounded span, whatever became of it: the signature is in the spans, not the values. */
+    const returned: { readonly partKey: string; readonly span: string }[] = [];
     let lowestConfidence = 1;
     // The merge detector first (segments.ts): two date ranges in one entry is
     // two jobs until a person says otherwise — held back, named, never read
@@ -198,6 +230,7 @@ export async function readListEntries(
         dropped = `Part "${part.partKey}" was discarded. ${grounding.reason}`.trim();
         continue;
       }
+      returned.push({ partKey: part.partKey, span: grounded.verbatim });
       const value = part.parse(grounded.value);
       if (value === null || value === undefined) {
         // Real text, not this value — but perhaps some of it: "2019" is not a
@@ -220,15 +253,32 @@ export async function readListEntries(
       spans[part.partKey] = grounded.verbatim;
       lowestConfidence = Math.min(lowestConfidence, grounded.confidence);
     }
+    // P266: the parts came back as the line. Nothing of it is taken — not
+    // even the parts that parsed, since an institution that is a sentence
+    // parses as an institution — and the entry is asked by hand.
+    const unreadable = dropped === null ? sharedSpanOf(returned.map((each) => each.span)) : null;
+    if (unreadable !== null) {
+      const shared = normaliseForComparison(unreadable);
+      const same = returned.filter((each) => normaliseForComparison(each.span) === shared).length;
+      const reason = `${String(same)} of the entry's ${String(returned.length)} parts came back as the same words: the line, not its parts.`;
+      for (const [at, reading] of parts.entries()) {
+        if (reading.status === "read" || reading.status === "partial" || reading.status === "unparsed") {
+          const { lacking: _lacking, ...rest } = reading;
+          parts[at] = { ...rest, status: "unreadable", reason };
+        }
+      }
+    }
+    const offered = dropped === null && unreadable === null;
     readings.push({
       index: cutEntry.index,
       lines: entry.length,
       parts,
-      fields: dropped === null ? fields : {},
-      spans: dropped === null ? spans : {},
-      partial: dropped === null ? partial : {},
+      fields: offered ? fields : {},
+      spans: offered ? spans : {},
+      partial: offered ? partial : {},
       lowestConfidence,
       dropped,
+      unreadable,
     });
   }
   return { fieldKey: targetKey, sectionLines: section.length, cut, entries: readings };
