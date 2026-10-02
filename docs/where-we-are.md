@@ -4906,6 +4906,19 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P269 — the list of every promise, and what checks it
+
+*2026-10-02.* His instruction on row 126: the list first, not fifty-four tests. Measured again with
+a search that can see *I'll* and reaches every place the student's words live: 72 promises, not
+55. For each, whether a test asserts the action — not the sentence. Most are kept and checked;
+ten live promises have nothing checking them, most about something later; four are contradicted
+by the code, the worst a student told *I do not hold a CV for you* about the CV we hold for a
+year. The list is `docs/promises-row-126.md`. Nothing was fixed: which matter is his word.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P268 — what the reader held back is asked, not counted
 
 *2026-10-02.* His word on row 124: ask them by hand, with their lines shown. An entry held back for
