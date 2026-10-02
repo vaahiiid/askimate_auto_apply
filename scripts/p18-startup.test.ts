@@ -126,6 +126,23 @@ interface Started {
   readonly stop: (signal?: NodeJS.Signals) => Promise<number | null>;
 }
 
+/**
+ * Waits until a started process has printed what the test reads (P267's
+ * follow-up). The start line about open interventions is printed AFTER the
+ * listening line, once a query returns, so reading the output the moment
+ * "listening" appears can come before it: CI read it so on 5b63f85. A wait
+ * that times out says what was printed, so a missing line is told apart from
+ * a late one.
+ */
+async function untilSaid(service: { output(): string }, pattern: RegExp, within = 15_000): Promise<string> {
+  const started = Date.now();
+  while (!pattern.test(service.output())) {
+    if (Date.now() - started > within) throw new Error(`never printed ${String(pattern)} within ${String(within)} ms. Output:\n${service.output()}`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return service.output();
+}
+
 async function startAndWait(
   app: string,
   env: Readonly<Record<string, string>>,
@@ -379,7 +396,7 @@ describeIfDatabase("running, and stopping", () => {
       // P260, row 113: the start line names every open intervention older
       // than a day — and says so when there is none, because a line that
       // prints nothing when nothing is wrong prints nothing when something is.
-      expect(service.output()).toContain("open interventions older than a day: none");
+      expect(await untilSaid(service, /open interventions older than a day: /)).toContain("open interventions older than a day: none");
     } finally {
       const code = await service.stop("SIGTERM");
       expect(code, "a clean shutdown exits zero").toBe(0);
@@ -423,7 +440,9 @@ describeIfDatabase("running, and stopping", () => {
     }
     const service = await startAndWait("conversation-service", conversationEnv, /listening on 4870/);
     try {
-      const printed = service.output();
+      // The lines are printed together, in one loop after one query, so once
+      // the aged line is there a fresh one would be too.
+      const printed = await untilSaid(service, /open intervention iv_p18_aged .*unresolved/);
       expect(printed, "the aged one is named, with its age").toContain(
         "open intervention iv_p18_aged on run run_p18_aged (student student_p18): unverified_consequential_action, critical — advance_portal_page on page-sign-in, raised 12 days ago, unresolved",
       );
