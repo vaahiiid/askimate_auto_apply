@@ -632,6 +632,11 @@ export const VOCABULARY_WORDS = {
   "employment.history": {
     basis: { full_time: "full-time", part_time: "part-time" },
   },
+  // P265: Vahid read `Grade scale: twenty_point` in his own playback. The
+  // words are the ones the question offers and the student answers with.
+  "education.prior_qualifications": {
+    gradeScale: { uk_honours: "UK honours", twenty_point: "20-point", gpa_4: "GPA out of 4", percentage: "percentage" },
+  },
   "immigration.uk_study": {
     highestLevel: {
       english_language: "English language",

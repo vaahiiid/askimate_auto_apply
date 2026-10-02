@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { studentId, unwrapConfirmed, unwrapProposed, provenanceOf, isFieldUnavailable, proposeValue } from "@askimate/aas-domain";
 import { DeterministicModelClient, MeteredModelClient } from "@askimate/aas-llm";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
-import { PROFILE_FIELD_KEYS, emptyProfile, resolveField } from "@askimate/aas-profile";
+import { PROFILE_FIELD_KEYS, emptyProfile, renderListForConfirmation, resolveField, vocabularyWords } from "@askimate/aas-profile";
 
 import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, OMITTED, isComposite, isList } from "./field-specs.js";
@@ -1712,6 +1712,71 @@ describe("a CV-read entry that should not be listed is left out at the student's
     const said = await receiveAnswer(state, FIELD, "leave it out", model);
     expect(said.kind, "read by the country's parser, which it is not").toBe("not_understood");
     expect(said.state.partial.get(FIELD)?.has("item0.removed")).toBe(false);
+  });
+});
+
+describe("a closed set's value is shown in words, never as our token (row 92's rule, everywhere — P265)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-02, on the P264 playback: *"Grade scale: twenty_point
+  // (you said: "20-point") … Row 92's rule, in a fourth place. Those are our
+  // tokens on a student's screen."* Fixed in a fourth place by hand would
+  // leave a fifth to be found the same way, so this audits every table a
+  // part is read through: each value it can store is either words the
+  // student could have said — one of the table's own keys — or has words in
+  // the profile's vocabulary, which every playback reads.
+  // ═══════════════════════════════════════════════════════════════════════
+  type Table = Readonly<Record<string, string>>;
+  const tableOf = (parse: unknown): Table | undefined => (parse as { readonly options?: Table }).options;
+
+  function audited(): readonly { fieldKey: ProfileFieldKey; partKey: string; table: Table }[] {
+    const found: { fieldKey: ProfileFieldKey; partKey: string; table: Table }[] = [];
+    for (const fieldKey of PROFILE_FIELD_KEYS) {
+      const spec = FIELD_SPECS[fieldKey] as FieldSpec<unknown> | undefined;
+      if (spec === undefined) continue;
+      const parts = isList(spec) ? spec.item.parts : isComposite(spec) ? spec.parts : [{ partKey: "", parse: spec.parse }];
+      for (const part of parts) {
+        const table = tableOf(part.parse);
+        if (table !== undefined) found.push({ fieldKey, partKey: part.partKey, table });
+      }
+    }
+    return found;
+  }
+
+  it("finds the tables — a guard that audits nothing is not a guard", () => {
+    const tables = audited();
+    expect(tables.map((entry) => `${entry.fieldKey}.${entry.partKey}`)).toEqual(
+      expect.arrayContaining(["education.prior_qualifications.gradeScale", "employment.history.basis", "finance.funding.source", "finance.funding.stage", "education.prior_qualifications.level", "education.prior_qualifications.endKind"]),
+    );
+  });
+
+  it("every value a table can store is shown in words a person says", () => {
+    const tokens: string[] = [];
+    for (const { fieldKey, partKey, table } of audited()) {
+      const said = new Set(Object.keys(table).map((key) => key.toLowerCase()));
+      for (const value of new Set(Object.values(table))) {
+        const shown = vocabularyWords(fieldKey, partKey, value) ?? value;
+        if (shown === value && !said.has(value.toLowerCase())) tokens.push(`${fieldKey}.${partKey}: ${value}`);
+      }
+    }
+    expect(tokens, "values shown as our token").toEqual([]);
+  });
+
+  it("the list playback says the grade scale as the student said it", () => {
+    const rendered = renderListForConfirmation(
+      "education.prior_qualifications",
+      [{ awardTitle: "BSc", grade: "17.2", gradeScale: "twenty_point" }, { awardTitle: "MSc", grade: "First", gradeScale: "uk_honours" }, { awardTitle: "BA", grade: "3.6", gradeScale: "gpa_4" }],
+      [
+        { partKey: "item0.gradeScale", origin: "conversation", verbatim: "20-point" },
+        { partKey: "item1.gradeScale", origin: "conversation", verbatim: "UK honours" },
+        { partKey: "item2.gradeScale", origin: "document", verbatim: "GPA 3.6/4" },
+      ],
+      "qualification",
+      8000,
+    );
+    expect(rendered.text).toContain('Grade scale: 20-point (you said: "20-point")');
+    expect(rendered.text).toContain('Grade scale: UK honours (you said: "UK honours")');
+    expect(rendered.text).toContain("Grade scale: GPA out of 4 (from your CV)");
+    expect(rendered.text).not.toMatch(/twenty_point|uk_honours|gpa_4/);
   });
 });
 

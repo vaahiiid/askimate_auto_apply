@@ -740,10 +740,16 @@ const yearsAndMonths = (raw: string): { years: number; months: number } | null =
  * free spelling would refuse to render there, silently, after the student had
  * confirmed it here.
  */
-const oneOf =
-  (options: Readonly<Record<string, string>>) =>
-  (raw: string): string | null =>
-    options[raw.trim().toLowerCase().replace(/\s+/g, " ")] ?? null;
+/**
+ * A part read through a closed table. The table rides on the parser (P265) so
+ * the audit can see every value a part can store, and require each one to be
+ * shown in words — row 92's rule, which a token reached a student's screen
+ * past in a fourth place before anything checked it everywhere.
+ */
+const oneOf = <V extends string>(
+  options: Readonly<Record<string, V>>,
+): ((raw: string) => V | null) & { readonly options: Readonly<Record<string, V>> } =>
+  Object.assign((raw: string): V | null => options[raw.trim().toLowerCase().replace(/\s+/g, " ")] ?? null, { options });
 
 /** As the registry's own examples write them (`Qualification.level`). */
 const QUALIFICATION_LEVELS: Readonly<Record<string, string>> = {

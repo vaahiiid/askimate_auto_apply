@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P265 — the grade scale in words, and every closed table audited
+
+*2026-10-02.* The first of his three findings on the P264 playback: *Grade scale: twenty_point*.
+Row 92's rule in a fourth place. The three tokens have words; and since the fourth place was found
+by reading a screen, every closed table's every value is now audited for words, across every field
+and part, so a fifth is found by the suite. ADR-0147 amended.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P264 — an entry a CV gave is left out at the student's word
 
 *2026-10-01.* His third and fourth findings of the walk. The third: after correcting job 6 he saw

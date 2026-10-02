@@ -118,3 +118,15 @@ composes — *Do you want me to fill in your jobs and qualifications from it, or
 tell me yourself?*, the same for a CV read before the question existed, and *Do you want me to go
 back and fill them in from the CV instead? … Or shall I leave them as they are?* — were checked
 against the rule and conform: in each, yes answers the first verb.
+
+**Amended 2026-10-02 (P265), on a token in the list playback, in his words:** *"Grade scale:
+twenty_point (you said: "20-point") … Grade scale: uk_honours (you said: "UK honours") … Row 92's
+rule, in a fourth place. Those are our tokens on a student's screen."*
+
+Three of the grade scale's four values had no words in the profile's vocabulary, so every playback
+that read the vocabulary showed the token. Fixed for the three, and then for the class: the closed
+table a part is read through now rides on its parser, and the audit walks every field and every
+part and requires each value a table can store to be either words the student could have said —
+one of the table's own keys — or to have words in the vocabulary. It found exactly the three; it
+also fails if it finds no tables at all, because a guard that audits nothing passes the same way
+as one that found nothing. The part names were already checked (P228); this checks the values.

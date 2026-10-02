@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.261.0] — 2026-10-02
+
+**P265 — no closed table's value reaches a student as our token (ADR-0147 amended).**
+
+- **Fixed** the grade scale in every playback: *UK honours*, *20-point*, *GPA out of 4* — it
+  showed `uk_honours`, `twenty_point`, `gpa_4`.
+- **Added** the audit: `oneOf`'s table rides on the parser, and every value every closed table can
+  store, across every field and part, must be one of the table's own keys or have words in the
+  profile's vocabulary. It fails when it finds no tables.
+- **Recorded** row 122 (closed).
+
+---
+
 ## [0.260.0] — 2026-10-01
 
 **P264 — a CV-read entry is left out at the student's word mid-walk (ADR-0151 amended); the non-last correction's playback proven.**
