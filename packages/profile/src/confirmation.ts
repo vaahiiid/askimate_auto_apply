@@ -251,7 +251,7 @@ export function renderListForConfirmation(
   const leftOut = removedIndices.map((item) => {
     const prefix = `item${String(item)}.`;
     const mark = parts.find((part) => part.partKey === `${prefix}removed`);
-    const own = parts.filter((part) => part.partKey.startsWith(prefix) && part.partKey !== `${prefix}removed` && part.partKey !== `${prefix}another`);
+    const own = parts.filter((part) => part.partKey.startsWith(prefix) && part.partKey !== `${prefix}removed` && part.partKey !== `${prefix}another` && !part.partKey.endsWith("OnCv"));
     const source = own.some((part) => part.origin === "document") ? "as I read it from your CV" : "as you gave it";
     const said = own.map((part) => `${nameOf(part.partKey.slice(prefix.length))}: ${JSON.stringify(part.verbatim)}`).join("; ");
     // Said WITHOUT a current number: "N of M" is the standing entries' and
@@ -286,8 +286,11 @@ export function renderListForConfirmation(
       const exact = parts.filter((part) => part.partKey === prefix);
       // `employer` must not collect `employerAddress`: the prefix rule applies
       // only to a field no part is named for, which is how `end` is assembled.
-      const sources = exact.length > 0 ? exact : parts.filter((part) => part.partKey.startsWith(prefix) && /^[A-Z]/.test(part.partKey.slice(prefix.length)));
-      const fromDocument = sources.filter((part) => part.origin === "document");
+      const matched = exact.length > 0 ? exact : parts.filter((part) => part.partKey.startsWith(prefix) && /^[A-Z]/.test(part.partKey.slice(prefix.length)));
+      // A document's reading kept beside the answer that replaced it (P267),
+      // `<part>OnCv`, is that part's other source.
+      const sources = [...new Set([...matched, ...parts.filter((part) => matched.some((source) => part.partKey === `${source.partKey}OnCv`))])];
+      const fromDocument = sources.filter((part) => part.origin === "document").filter((part, at, all) => all.findIndex((other) => other.verbatim === part.verbatim) === at);
       const fromStudent = sources.filter((part) => part.origin === "conversation");
       const fromElsewhere = sources.length - fromDocument.length - fromStudent.length;
       const from =
@@ -300,7 +303,7 @@ export function renderListForConfirmation(
               : fromDocument.length === 0
                 ? ` (you said: ${fromStudent.map((part) => JSON.stringify(part.verbatim)).join(", ")})`
                 : ` (from your CV: ${fromDocument.map((part) => JSON.stringify(part.verbatim)).join(", ")}; you said: ${fromStudent.map((part) => JSON.stringify(part.verbatim)).join(", ")})`;
-      return `${nameOf(field)}: ${shown}${from}`;
+      return `${nameOf(field)}: ${shown}${from}${disagreement(fromDocument, fromStudent, value)}`;
     });
     const whole = `${heading} — ${lines.join("; ")}`;
     if (whole.length <= bound) {
@@ -317,6 +320,35 @@ export function renderListForConfirmation(
   const withLeftOut = leftOut.length === 0 ? "" : `, with ${String(leftOut.length)} left out`;
   messages.push(`${entries.length === 1 ? "That is" : "Those are"} the ${String(entries.length)} ${noun}${withLeftOut}. Is that right?`);
   return { messages, text: messages.join("\n\n") };
+}
+
+/**
+ * Where the CV's words and the student's answer disagree on one shown value
+ * (P267), said in words; otherwise nothing.
+ *
+ * Vahid: *"The CV says 2021, I said 2015. Mine was taken, which is right. But
+ * the playback shows both and says nothing about them disagreeing. A student
+ * skimming would not notice. Where the document and the student differ on the
+ * same part, say so."* Today the two meet in one shown value only in a date,
+ * so the comparison is of years: the years the CV's words give, against the
+ * years of the value recorded. A value with no year, or CV words with none,
+ * is not compared — silence there means "not compared", not "agrees", and the
+ * ADR says so.
+ */
+function disagreement(fromDocument: readonly ListPartProvenance[], fromStudent: readonly ListPartProvenance[], value: unknown): string {
+  if (fromDocument.length === 0 || fromStudent.length === 0) return "";
+  const recorded = [...new Set(yearsOf(value))];
+  const cv = [...new Set(fromDocument.flatMap((part) => [...part.verbatim.matchAll(/\b(?:19|20)\d{2}\b/g)].map((found) => Number(found[0]))))];
+  if (recorded.length === 0 || cv.length === 0 || recorded.some((year) => cv.includes(year))) return "";
+  return ` — your CV and your answer differ here: your CV gives ${cv.join(" and ")}, you gave ${recorded.join(" and ")}; I have recorded what you said`;
+}
+
+/** Every year a value holds: a date's, or a `year` anywhere inside it. */
+function yearsOf(value: unknown): number[] {
+  if (value instanceof Date) return [value.getUTCFullYear()];
+  if (Array.isArray(value)) return value.flatMap(yearsOf);
+  if (value === null || typeof value !== "object") return [];
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, inner]) => (key === "year" && typeof inner === "number" ? [inner] : yearsOf(inner)));
 }
 
 /**

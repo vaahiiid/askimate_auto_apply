@@ -15611,6 +15611,95 @@ describeIfDatabase("an entry the CV reader could not read into parts is seeded t
   }, 300_000);
 });
 
+describeIfDatabase("where the CV gave a year and the student a different whole date, the CV's reading is on the log beside the answer and the playback says they differ (P267)", () => {
+  // Vahid, 2026-10-02: *"Where the document and the student differ on the
+  // same part, say so."* The walk is rebuilt from the log on every request,
+  // so the CV's reading the answer replaced must be ON the log — a row of its
+  // own, `item0.startOnCv` — or the playback a request later cannot say it.
+  const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX26701";
+  const CV = "01JQDOCREAD000000000000051";
+  const contentHash = "c".repeat(64);
+  const READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode", "start"],
+    student: ["countryCode"],
+    partial: { start: { have: { year: 2015 }, lacking: ["month"] } },
+  };
+  let owner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: CONVERSATION, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: CONVERSATION, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function lastSaid(): Promise<string> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal DESC LIMIT 3`,
+      [CONVERSATION],
+    );
+    return rows.rows.map((row) => row.content).reverse().join("\n\n");
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(CONVERSATION);
+    vault = (() => {
+      const base = fakeVault([{ documentId: CV, studentId: owner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null }]);
+      return { ...base, records: base.records, prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }) };
+    })();
+    const built = instance();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      await built.driver.requestReading({ documentId: CV, conversationId: CONVERSATION, studentId: owner, contentHash });
+      const readings = new PostgresDocumentReadingStore(built.pool);
+      await readings.ask(CV, NOW);
+      await readings.decide(CV, true, NOW);
+      const started = await built.driver.start({ conversationId: CONVERSATION, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed?.documentId).toBe(CV);
+      expect(await built.driver.reportReading({ documentId: CV, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [READ], dropped: 0 }] } })).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("writes the CV's reading as its own row beside the answer, and the playback a request later says the two differ", async () => {
+    expect(await lastSaid()).toContain("Which country is the institution in?");
+    await say("Iran");
+    expect(await lastSaid(), "the narrowed question: which month of 2015").toContain("2015");
+    await say("September 2016");
+    const rows = (await pool.query<{ part_key: string }>("SELECT part_key FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_read' ORDER BY ordinal ASC", [CONVERSATION])).rows.map((row) => row.part_key);
+    expect(rows.slice(-2).sort(), "the answer and the CV's reading it replaced, both on the log").toEqual(["item0.start", "item0.startOnCv"]);
+    for (let guard = 0; guard < 5 && !(await lastSaid()).includes("Is there another qualification"); guard++) await say("none");
+    expect(await lastSaid()).toContain("That is the 1 qualification I read from your CV.");
+    await say("no");
+    const playback = await lastSaid();
+    expect(playback).toContain('Start date: September 2016 (from your CV: "2015"; you said: "September 2016") — your CV and your answer differ here: your CV gives 2015, you gave 2016; I have recorded what you said');
+    const built = instance();
+    try {
+      const pending = (await built.driver.runFor(CONVERSATION))?.pending;
+      const runId = (await new PostgresWorkflowRunStore(built.pool).findByCase(makeCaseId(`case_${CONVERSATION.toLowerCase()}`)))[0]?.runId ?? "";
+      expect(await built.driver.recordDecision({ conversationId: CONVERSATION, runId, decision: { kind: "confirm_value", contentHash: pending?.decision === "confirm_value" ? pending.contentHash : "" } })).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+    const stored = await pool.query<{ value: readonly { start: unknown }[] }>("SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = 'education.prior_qualifications'", [owner]);
+    expect(JSON.stringify(stored.rows[0]?.value[0]?.start), "what the student said is stored").toContain("2016");
+  }, 300_000);
+});
+
 describeIfDatabase("a CV that arrives while its own field is open is asked about at once and the open question yields; entries already typed are named and a yes starts the list again; a CV that arrives ahead of its field is acknowledged (P254)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-09-30: *"The open question yields, and the yes may seed past

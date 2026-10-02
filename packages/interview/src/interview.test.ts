@@ -1715,6 +1715,89 @@ describe("a CV-read entry that should not be listed is left out at the student's
   });
 });
 
+describe("where the CV and the student disagree on one part, the playback says so (P267)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-02: *"End: completed, September 2015 (from your CV:
+  // "…HHE, 2021"; you said: "Sep 2015"). The CV says 2021, I said 2015.
+  // Mine was taken, which is right. But the playback shows both and says
+  // nothing about them disagreeing. A student skimming would not notice.
+  // Where the document and the student differ on the same part, say so."*
+  //
+  // Today a document's words and a student's answer meet in one shown value
+  // only in a date: a field assembled from a CV part and a student part (the
+  // end), or a student's whole date replacing a year the CV gave in part.
+  // The comparison is of years, the one component both carry.
+  // ═══════════════════════════════════════════════════════════════════════
+  const FIELD = "education.prior_qualifications" as const;
+  const document = (value: unknown, verbatim: string, lacking?: readonly string[]) =>
+    proposeValue({ value, origin: "document", verbatim, confidence: 0.9, documentId: "doc_cv", ...(lacking === undefined ? {} : { lacking }) });
+
+  it("says his own line's disagreement in words, and nothing where the years agree or the CV gives none", () => {
+    const entry = { awardTitle: "BBA", end: { kind: "completed", date: { year: 2015, month: 9 } } };
+    const say = (endKindWords: string, endDate: { origin: "document" | "conversation"; verbatim: string }) =>
+      renderListForConfirmation(FIELD, [entry], [
+        { partKey: "item0.awardTitle", origin: "conversation", verbatim: "BBA" },
+        { partKey: "item0.endKind", origin: "document", verbatim: endKindWords },
+        { partKey: "item0.endDate", ...endDate },
+      ], "qualification", 8000).messages[0] ?? "";
+    expect(say("Bachelor's in Business Studies, Azad University, HHE, 2021", { origin: "conversation", verbatim: "Sep 2015" })).toContain(
+      'End: completed, September 2015 (from your CV: "Bachelor\'s in Business Studies, Azad University, HHE, 2021"; you said: "Sep 2015") — your CV and your answer differ here: your CV gives 2021, you gave 2015; I have recorded what you said',
+    );
+    expect(say("2015", { origin: "conversation", verbatim: "Sep 2015" }), "the years agree").not.toContain("differ");
+    expect(say("completed", { origin: "conversation", verbatim: "Sep 2015" }), "the CV gives no year").not.toContain("differ");
+    expect(say("2021", { origin: "document", verbatim: "2021" }), "nothing of the student's to differ from").not.toContain("differ");
+  });
+
+  function seeded(): InterviewState {
+    const readings = new Map<string, ReturnType<typeof document>>([
+      ["any", document(true, "yes")],
+      ["item0.awardTitle", document("BSc", "BSc Computer Science")],
+      ["item0.subject", document("Computer science", "BSc Computer Science")],
+      ["item0.institution", document("University of Tehran", "University of Tehran")],
+      ["item0.countryCode", document("IR", "Iran")],
+      ["item0.level", document("Bachelor's degree", "BSc")],
+      // A start the CV gave as a year alone, and an end it gave as a year alone.
+      ["item0.start", document({ year: 2015 }, "2015", ["month"])],
+      ["item0.endKind", document("completed", "2019")],
+      ["item0.endDate", document({ year: 2019 }, "2019", ["month"])],
+      ["item0.award", document(OMITTED, "none")],
+      ["item0.grade", document("17.2", "17.2")],
+      ["item0.gradeScale", document("twenty_point", "20-point")],
+    ]);
+    return { ...start([FIELD]), partial: new Map([[FIELD, readings]]) };
+  }
+
+  it("keeps the CV's reading beside a whole date that replaced it, and the playback names the disagreement on each part", async () => {
+    let state = seeded();
+    expect(((await nextAction(state, model)) as { partKey?: string }).partKey).toBe("item0.start");
+    state = (await receiveAnswer(state, FIELD, "September 2016", model)).state;
+    const kept = state.partial.get(FIELD)?.get("item0.startOnCv");
+    expect(kept === undefined ? undefined : unwrapProposed(kept).verbatim, "the CV's words, kept beside the answer that replaced them").toBe("2015");
+    expect(kept === undefined ? undefined : unwrapProposed(kept).origin).toBe("document");
+    expect(((await nextAction(state, model)) as { partKey?: string }).partKey).toBe("item0.endDate");
+    state = (await receiveAnswer(state, FIELD, "July 2018", model)).state;
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable(playback.kind);
+    expect(playback.messages[0]).toContain('Start date: September 2016 (from your CV: "2015"; you said: "September 2016") — your CV and your answer differ here: your CV gives 2015, you gave 2016; I have recorded what you said; ');
+    expect(playback.messages[0]).toContain('End: completed, July 2018 (from your CV: "2019"; you said: "July 2018") — your CV and your answer differ here: your CV gives 2019, you gave 2018; I have recorded what you said; ');
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const value = resolveField(confirmed.state.profile, FIELD);
+    if (isFieldUnavailable(value)) return expect.unreachable("just confirmed");
+    expect((unwrapConfirmed(value) as readonly { start: unknown }[])[0]?.start, "what the student said is what is stored").toEqual({ year: 2016, month: 9 });
+  });
+
+  it("an answer that completes the CV's year keeps no second reading and says nothing of a difference", async () => {
+    let state = seeded();
+    state = (await receiveAnswer(state, FIELD, "September", model)).state;
+    expect(state.partial.get(FIELD)?.has("item0.startOnCv")).toBe(false);
+    state = (await receiveAnswer(state, FIELD, "June", model)).state;
+    state = (await receiveAnswer(state, FIELD, "no", model)).state;
+    const playback = await nextAction(state, model);
+    expect(playback.kind === "confirm" ? playback.messages[0] : "").not.toContain("differ");
+  });
+});
+
 describe("an entry the CV reader could not read into parts is asked by hand, its words shown, and can be left out (P266)", () => {
   // Vahid, 2026-10-02: *"a reading where N parts share one span is not a
   // reading, and the entry should be marked unreadable and asked by hand

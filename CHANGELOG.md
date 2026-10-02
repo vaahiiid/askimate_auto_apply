@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.263.0] — 2026-10-02
+
+**P267 — where the CV and the student differ on one part, the playback says so (ADR-0150 amended).**
+
+- **Added** to the list playback: where the years the CV's words give and the years of the value
+  recorded do not meet, the part says *your CV and your answer differ here: your CV gives …, you
+  gave …; I have recorded what you said*.
+- **Added** to the walk: a student's whole date that replaces a year the CV gave in part keeps the
+  CV's reading beside it as `<part>OnCv`, on the log as its own row.
+- **Fixed** the driver's part recording, which wrote nothing when an answer added two parts; it
+  now writes each, the kept CV reading first. Unreachable before this phase.
+- **Recorded** row 125 (closed).
+
+---
+
 ## [0.262.0] — 2026-10-02
 
 **P266 — an entry whose parts came back as one span is not a reading (ADR-0149 amended).**

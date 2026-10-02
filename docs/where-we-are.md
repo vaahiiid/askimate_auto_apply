@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P267 — a disagreement is named
+
+*2026-10-02.* The third of his three findings: the CV said 2021, he said 2015, his was taken and
+the playback showed both without a word. Now a difference of years between what the CV's words
+give and what is recorded is named after the part; a CV reading a whole date replaced is kept to
+be compared, on the log. Building it caught a recording that would have dropped an answer the
+first time one answer added two parts. ADR-0150 amended.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P266 — a line returned as its parts is not a reading
 
 *2026-10-02.* The second of his three findings: six parts of one qualification were all the same

@@ -5565,14 +5565,18 @@ export class RunDriver {
       const before = had?.get(partKey);
       return before === undefined || (isReadInPart(before) && !isReadInPart(reading));
     });
-    /* c8 ignore next -- unreachable: an understood answer adds exactly one part */
-    if (fresh.length !== 1) return;
-    const [partKey, proposal] = fresh[0]!;
-
-    await this.#options.conversations.append({
-      conversationId,
-      event: { kind: "value_part_read", fieldKey, partKey, proposal: encodeValue(proposal) },
-    });
+    // An understood answer adds one part — and, where it replaced what a
+    // document gave in part, the document's reading kept beside it (P267),
+    // `<part>OnCv`, written first. Until P267 this wrote only when exactly
+    // one part was fresh: with two, it would have written NOTHING, and the
+    // student's own answer would have been lost to the next request.
+    const ordered = [...fresh.filter(([partKey]) => partKey.endsWith("OnCv")), ...fresh.filter(([partKey]) => !partKey.endsWith("OnCv"))];
+    for (const [partKey, proposal] of ordered) {
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "value_part_read", fieldKey, partKey, proposal: encodeValue(proposal) },
+      });
+    }
   }
 
   /**

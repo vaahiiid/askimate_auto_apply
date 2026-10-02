@@ -379,8 +379,18 @@ const REMOVED = "removed";
  * can be left out.
  */
 const UNREADABLE = "unreadable";
+/**
+ * The suffix of a document's reading kept beside the student's answer that
+ * replaced it (P267): `item0.startOnCv`. Letters only, as a logged part key
+ * must be (0025).
+ */
+const ON_CV = "OnCv";
 /** The walk's own marks on an entry: never a part of the value. */
 const MARKS: ReadonlySet<string> = new Set([REMOVED, UNREADABLE]);
+/** Whether a part key is one of the walk's own, not a part of the value. */
+function isMark(partKey: string): boolean {
+  return MARKS.has(partKey) || partKey.endsWith(ON_CV);
+}
 /** The conversation store's bound on one message body (`content_is_bounded`, 0001). */
 const MESSAGE_BOUND = 8000;
 
@@ -565,7 +575,7 @@ function assembleList(spec: ListFieldSpec<unknown>, readings: PartReadings): rea
     // An entry left out (P264) is not in the list; its parts stay on the walk
     // as what the document gave, and the playback says it was left out.
     if (!isRemoved(ofItem)) {
-      const item = spec.item.assemble(valuesOf(new Map([...ofItem].filter(([partKey]) => !MARKS.has(partKey)))));
+      const item = spec.item.assemble(valuesOf(new Map([...ofItem].filter(([partKey]) => !isMark(partKey)))));
       if (item === null) return null;
       items.push(item);
     }
@@ -965,6 +975,13 @@ export async function receiveAnswer(
       return withPartRead(state, spec, fieldKey, question.partKey, combined, transcript, attempts);
     }
   }
+  // A whole answer that REPLACES what a document gave in part (P267): the
+  // student's statement wins, and the document's reading is kept beside it,
+  // as `<part>OnCv`, so the playback can say where the two disagree. Vahid:
+  // *"Where the document and the student differ on the same part, say so."*
+  if (held !== undefined && isReadInPart(held) && unwrapProposed(held).origin === "document" && interpreted.value !== OMITTED) {
+    return withPartRead(state, spec, fieldKey, question.partKey, interpreted, transcript, attempts, [[`${question.partKey}${ON_CV}`, held]]);
+  }
   return withPartRead(state, spec, fieldKey, question.partKey, interpreted, transcript, attempts);
 }
 
@@ -1023,10 +1040,13 @@ function withPartRead(
   interpreted: ProposedValue<unknown>,
   transcript: readonly string[],
   attempts: ReadonlyMap<string, number>,
+  /** Readings kept beside this one: a document's reading the answer replaced (P267). */
+  alongside: readonly (readonly [string, ProposedValue<unknown>])[] = [],
 ): ReplyOutcome {
   const label = FIELD_LABELS[fieldKey];
   const readings: PartReadings = new Map([
     ...(state.partial.get(fieldKey) ?? NO_READINGS),
+    ...alongside,
     [partKey, interpreted],
   ]);
 

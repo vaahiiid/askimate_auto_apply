@@ -161,3 +161,20 @@ So, on the text surface:
 
 The table remains the intended surface (row 105); until it exists, the transcript carries what
 the table will.
+
+**Amended 2026-10-02 (P267), on a disagreement shown without being named, in his words:** *"End:
+completed, September 2015 (from your CV: "…HHE, 2021"; you said: "Sep 2015"). The CV says 2021, I
+said 2015. Mine was taken, which is right. But the playback shows both and says nothing about
+them disagreeing. A student skimming would not notice. Where the document and the student differ
+on the same part, say so."*
+
+Built in P267. A document's words and a student's answer meet in one shown value today only in a
+date: a field assembled from a CV part and a student part (the end, from its kind and its date),
+or a student's whole date replacing a year the CV gave in part. The second lost the CV's words
+altogether; the walk now keeps the replaced reading beside the answer as `<part>OnCv`, written to
+the log as its own part row, because the walk is rebuilt from the log on every request. The
+playback compares the years the CV's words give with the years of the value recorded and, where
+none agree, says so after the part: *— your CV and your answer differ here: your CV gives 2021,
+you gave 2015; I have recorded what you said*. A value with no year, or CV words with none, is
+not compared: the playback's silence there means *not compared*, not *agrees*. An answer that
+completes the CV's year (*June*, read with *2019*) keeps no second reading and says nothing.
