@@ -4906,6 +4906,19 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P268 — what the reader held back is asked, not counted
+
+*2026-10-02.* His word on row 124: ask them by hand, with their lines shown. An entry held back for
+two date ranges or an invented span is now asked part by part, its lines shown and the reason said
+plainly — the second as the model getting something wrong and being caught. The sentence's
+promise is asserted by a test. His two notes are in CLAUDE.md: a promise is a test case, and a
+constraint that cannot fire waits for the feature that makes it reachable. Both are measured into
+open rows: 55 promising lines, eight unreachable paths.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P267 — a disagreement is named
 
 *2026-10-02.* The third of his three findings: the CV said 2021, he said 2015, his was taken and

@@ -230,6 +230,7 @@ export type {
   WireFieldValue,
   WireListReading,
   WirePartialReading,
+  UnreadableWhy,
 } from "./reading.js";
 export {
   MAX_ENTRIES_PER_LIST,
@@ -239,6 +240,7 @@ export {
   READING_FAILURES,
   CV_LIST_FIELDS,
   READING_OUTCOMES,
+  UNREADABLE_WHY,
   parseClaimedReading,
   parseReadingReport,
 } from "./reading.js";

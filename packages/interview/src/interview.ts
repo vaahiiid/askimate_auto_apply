@@ -481,6 +481,8 @@ function nextListQuestion(
   }
   if (values.get(ANY) !== true) return undefined;
   let standing = 0;
+  /** A held-back entry whose lines read as two (P268): the closing question names the second. */
+  let secondOwed = false;
   for (let index = 0; ; index++) {
     const ofItem = readingsOfItem(readings, index);
     // An entry left out (P264) is asked nothing more; the walk goes on to
@@ -499,16 +501,14 @@ function nextListQuestion(
       // An entry the reader could not read into parts (P266) is asked by
       // hand, and its first question says what the CV said, once.
       const unreadable = ofItem.get(UNREADABLE);
-      const opening =
-        unreadable === undefined
-          ? ""
-          : `I could not read this ${spec.itemLabel} from your CV into its parts. Your CV says: "${unwrapProposed(unreadable).verbatim}". I will ask you for each part. `;
+      const opening = unreadable === undefined ? "" : byHandOpening(spec.itemLabel, unwrapProposed(unreadable));
       const hinted = first
         ? { ...asked, exactly: `${asked.exactly ?? `For ${about}: ${opening}${asked.rationale} ${asked.question}`} ${removalHint(spec)}` }
         : asked;
       return { part: { ...hinted, partKey: itemKey(index, part.partKey) }, suffix, about };
     }
     if (!removed) standing += 1;
+    if (unwrapProposed(ofItem.get(UNREADABLE) ?? proposeValue({ value: null, origin: "conversation", verbatim: "", confidence: 0 })).value === "two_ranges") secondOwed = true;
     const another = itemKey(index, ANOTHER);
     if (!readings.has(another)) {
       const label = `another ${spec.itemLabel}`;
@@ -521,7 +521,7 @@ function nextListQuestion(
       if (!fromDocument) return { part, suffix: label };
       // The count is of the entries that STAND (P264), not of the entries read.
       return {
-        part: { ...part, exactly: completenessQuestionAfterDocument(spec, standing) },
+        part: { ...part, exactly: completenessQuestionAfterDocument(spec, standing, secondOwed) },
         suffix: label,
       };
     }
@@ -544,17 +544,43 @@ function nextListQuestion(
  * cannot drift apart, and the instruction is the plain one every yes/no
  * question carries.
  */
-export function completenessQuestionAfterDocument(spec: FieldSpec<unknown>, count: number): string {
+export function completenessQuestionAfterDocument(spec: FieldSpec<unknown>, count: number, secondOwed = false): string {
   const itemLabel = isList(spec) ? spec.itemLabel : "entry";
+  // P268: after an entry whose lines read as two, the second is on the CV
+  // and was promised a place here — "not on your CV" alone would be untrue.
+  const which = secondOwed ? `, either one not on your CV or the second of the two that read as one` : "";
   // Every entry the document gave was left out (P264): said as that, not as
   // "the 0 jobs I read from your CV".
   if (count === 0) {
-    return `I have left out every ${itemLabel} I read from your CV. Is there a ${itemLabel} to add? Please answer yes or no.`;
+    return `I have left out every ${itemLabel} I read from your CV. Is there a ${itemLabel} to add${which}? Please answer yes or no.`;
+  }
+  if (secondOwed) {
+    return `That is the ${String(count)} ${count === 1 ? itemLabel : `${itemLabel}s`} I read from your CV. Is there another ${itemLabel} to add${which}? Please answer yes or no.`;
   }
   return (
     `That is the ${String(count)} ${count === 1 ? itemLabel : `${itemLabel}s`} I read from your CV. ` +
     `Is there another ${itemLabel} to add that is not on your CV? Please answer yes or no.`
   );
+}
+
+/**
+ * The opening of the first question about an entry asked by hand (P266,
+ * P268): what went wrong, in plain terms, and the CV's own lines. Vahid: *"for
+ * two date ranges, that the lines look like two jobs rather than one; for an
+ * invented span, that what was read back was not in the document. That
+ * second one is worth a student knowing: it is the model getting something
+ * wrong, and we caught it."* A mark written before P268 holds `true`, and was
+ * written for one span.
+ */
+function byHandOpening(itemLabel: string, mark: { readonly value: unknown; readonly verbatim: string }): string {
+  const words = `Your CV says: "${mark.verbatim}".`;
+  if (mark.value === "two_ranges") {
+    return `I could not read this ${itemLabel} from your CV as one entry: its lines look like two ${itemLabel}s rather than one. ${words} I will ask you for each part of the first; you can add the second when I ask whether there is another. `;
+  }
+  if (mark.value === "invented") {
+    return `When I read this ${itemLabel} from your CV, part of what came back was not in your CV — a reading error, which I caught — so I have used none of it. ${words} I will ask you for each part. `;
+  }
+  return `I could not read this ${itemLabel} from your CV into its parts. ${words} I will ask you for each part. `;
 }
 
 /** The sentence that teaches the removal phrase (P264), said on the first question about a document's entry. */

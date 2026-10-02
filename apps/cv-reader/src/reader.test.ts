@@ -198,11 +198,47 @@ describe("an unreadable entry is reported with its words and nothing taken (P266
           lowestConfidence: 0.8,
           dropped: null,
           unreadable: LINE,
+          heldBack: null,
         },
       ],
     };
     const wire = readingOf(reading, parts);
     expect(wire.dropped).toBe(0);
-    expect(wire.entries).toEqual([{ index: 1, fields: {}, spans: {}, confidence: 0.8, toAsk: ["awardTitle", "institution", "countryCode", "grade"], student: ["countryCode"], unreadable: LINE }]);
+    expect(wire.entries).toEqual([{ index: 1, fields: {}, spans: {}, confidence: 0.8, toAsk: ["awardTitle", "institution", "countryCode", "grade"], student: ["countryCode"], unreadable: LINE, why: "one_span" }]);
+  });
+
+  it("offers a HELD-BACK entry the same way, its lines from the cut and why it was held back — and counts nothing as dropped (P268, row 124)", () => {
+    // Vahid: *"Same shape as the unreadable case: the entry's lines shown,
+    // every part asked, 'leave it out' available."*
+    const parts = [{ partKey: "position" }, { partKey: "employer" }, { partKey: "basis" }];
+    const held = (heldBack: "two_ranges" | "invented"): ListReading => ({
+      fieldKey: "employment.history",
+      sectionLines: 3,
+      cut: { entries: [{ index: 1, from: 2, to: 3, lines: ["Analyst, Pardis, Sep 2021 – Present", "Developer, Nikan, Jun 2019 – Aug 2021"], dateRanges: 2, letterLines: 0 }], none: null, checks: {} } as unknown as ListReading["cut"],
+      entries: [
+        {
+          index: 1,
+          lines: 2,
+          parts: [
+            { partKey: "position", source: "document", status: heldBack === "two_ranges" ? "skipped" : "read" },
+            { partKey: "employer", source: "document", status: heldBack === "two_ranges" ? "skipped" : "ungrounded", claimedSpan: "Pardis Holdings" },
+            { partKey: "basis", source: "student", status: heldBack === "two_ranges" ? "skipped" : "student" },
+          ],
+          fields: {},
+          spans: {},
+          partial: {},
+          lowestConfidence: 0.8,
+          dropped: "held back",
+          unreadable: null,
+          heldBack,
+        },
+      ],
+    });
+    for (const why of ["two_ranges", "invented"] as const) {
+      const wire = readingOf(held(why), parts);
+      expect(wire.dropped, why).toBe(0);
+      expect(wire.entries, why).toEqual([{ index: 1, fields: {}, spans: {}, confidence: 0.8, toAsk: ["position", "employer", "basis"], student: ["basis"], unreadable: "Analyst, Pardis, Sep 2021 – Present / Developer, Nikan, Jun 2019 – Aug 2021", why }]);
+      expect(JSON.stringify(wire), "the invented words never travel").not.toContain("Pardis Holdings");
+    }
   });
 });

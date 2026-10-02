@@ -159,3 +159,34 @@ from something that can be re-read, and the record says what that was.
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.
+
+## A sentence that promises an action is a test case
+
+Decided by Vahid on 2026-10-02, after *"I could not read whole, so I will ask you about it"* had
+been in the product for days, said after every reading that could not read an entry, while nothing
+asked about it. He read it twice without noticing.
+
+In his words: **"A sentence that promises an action is a test case: if it says we will do
+something, something should assert that we do."**
+
+So: a sentence a student reads that says *I will …* ships with a test that the thing is done — the
+number it promises, the question it promises, the action it promises — or it does not ship. The
+promises already in the product are measured and listed on row 126.
+
+## A constraint that cannot fire is waiting for the feature that makes it reachable
+
+Added 2026-10-02 at Vahid's instruction, after the driver recorded a student's answer only when
+exactly one part of it was new. That could not fail until P267 made an answer that adds two parts
+possible — and then it would have dropped the answer silently. It was caught by the end-to-end
+test written for P267, not by anything that knew to look.
+
+In his words: **"the save-only-when-exactly-one-part-is-new bug is the kind that waits. It could
+not fire until P267 made two-part answers possible, and then it would have dropped a student's
+answer silently. Worth a line about latent constraints that become reachable when a feature
+arrives."**
+
+So: a feature that makes a new shape possible — two parts where there was one, a list where there
+was a value, a second of anything — is checked against the code that assumes the old shape before
+it ships. The places that say so are the first to read: a guard that returns early on the
+"impossible" case, an `unreachable` comment, a coverage exclusion. Row 127 lists
+the eight the code still calls unreachable.

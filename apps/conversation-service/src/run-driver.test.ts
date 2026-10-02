@@ -15700,6 +15700,115 @@ describeIfDatabase("where the CV gave a year and the student a different whole d
   }, 300_000);
 });
 
+describeIfDatabase("the sentence's promise is a test case: every entry it says it could not read is asked, held back or not, with what went wrong said plainly (P268, row 124)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-02: *"Row 124: ask them by hand, with their lines shown
+  // … Counting it and saying nothing is the same promise-without-delivery
+  // you just fixed for the unreadable ones."* And: *"A sentence that
+  // promises an action is a test case: if it says we will do something,
+  // something should assert that we do."* This asserts it: the number the
+  // sentence says it will ask about is the number of entries the walk asks
+  // by hand, and each is asked with its own reason.
+  // ═══════════════════════════════════════════════════════════════════════
+  const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX26801";
+  const CV = "01JQDOCREAD000000000000061";
+  const contentHash = "d".repeat(64);
+  const INVENTED_LINES = "BA Business, Azad University, 2008 – 2012";
+  const MERGED_LINES = "Diploma, Tehran College, 2004 – 2006 / Certificate, Tehran College, 2006 – 2007";
+  const READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  };
+  const ALL = ["awardTitle", "subject", "institution", "countryCode", "level", "start", "end", "grade", "gradeScale", "award"];
+  const INVENTED = { index: 2, fields: {}, spans: {}, confidence: 0.8, toAsk: ALL, student: ["countryCode"], unreadable: INVENTED_LINES, why: "invented" as const };
+  const MERGED = { index: 3, fields: {}, spans: {}, confidence: 0.8, toAsk: ALL, student: ["countryCode"], unreadable: MERGED_LINES, why: "two_ranges" as const };
+  let owner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: CONVERSATION, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: CONVERSATION, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function said(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [CONVERSATION],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(CONVERSATION);
+    vault = (() => {
+      const base = fakeVault([{ documentId: CV, studentId: owner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null }]);
+      return { ...base, records: base.records, prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }) };
+    })();
+    const built = instance();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      await built.driver.requestReading({ documentId: CV, conversationId: CONVERSATION, studentId: owner, contentHash });
+      const readings = new PostgresDocumentReadingStore(built.pool);
+      await readings.ask(CV, NOW);
+      await readings.decide(CV, true, NOW);
+      const started = await built.driver.start({ conversationId: CONVERSATION, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed?.documentId).toBe(CV);
+      expect(await built.driver.reportReading({ documentId: CV, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [READ, INVENTED, MERGED], dropped: 0 }] } })).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("says it will ask about two, seeds two slots to be asked by hand, and asks each with its own reason; the closing question names the second of the two that read as one", async () => {
+    const sentence = (await said()).find((each) => each.startsWith("I read your CV")) ?? "";
+    const promised = /; (\w+) I could not read whole, so I will ask you about (it|them)\./.exec(sentence);
+    expect(promised, sentence).not.toBeNull();
+    const marks = (await pool.query<{ part_key: string }>("SELECT part_key FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_read' AND part_key LIKE '%.unreadable'", [CONVERSATION])).rows;
+    expect(promised?.[1], "the sentence's number").toBe("two");
+    expect(marks.length, "is the number of entries seeded to be asked").toBe(2);
+    // The runbook's query for "which entries could not be read, and why", run as written there.
+    const runbook = await pool.query<{ part_key: string; why: unknown; cv_words: string }>(
+      `SELECT e.ordinal, e.field_key, e.part_key,
+              e.proposal->'value' AS why, left(e.proposal->>'verbatim', 120) AS cv_words
+       FROM conversation_events e
+       WHERE e.conversation_id = $1 AND e.kind = 'value_part_read' AND e.part_key LIKE '%.unreadable'
+       ORDER BY e.ordinal`,
+      [CONVERSATION],
+    );
+    expect(runbook.rows.map((row) => [row.part_key, row.why, row.cv_words])).toEqual([
+      ["item1.unreadable", "invented", INVENTED_LINES],
+      ["item2.unreadable", "two_ranges", MERGED_LINES],
+    ]);
+
+    await say("Iran");
+    await say("none");
+    expect((await said()).at(-1)).toContain(`For qualification 2: When I read this qualification from your CV, part of what came back was not in your CV — a reading error, which I caught — so I have used none of it. Your CV says: "${INVENTED_LINES}".`);
+    await say("leave it out");
+    expect((await said()).at(-1)).toContain(`For qualification 3: I could not read this qualification from your CV as one entry: its lines look like two qualifications rather than one. Your CV says: "${MERGED_LINES}".`);
+    await say("leave it out");
+    expect((await said()).at(-1)).toBe("That is the 1 qualification I read from your CV. Is there another qualification to add, either one not on your CV or the second of the two that read as one? Please answer yes or no.");
+    await say("no");
+    const playback = (await said()).slice(-4);
+    expect(playback[1]).toContain(`Left out at your word ("leave it out") — the qualification I asked you about as qualification 2, as I read it from your CV: What your CV said: "${INVENTED_LINES}"`);
+    expect(playback[2]).toContain(`the qualification I asked you about as qualification 3, as I read it from your CV: What your CV said: "${MERGED_LINES}"`);
+    expect(playback[3]).toBe("That is the 1 qualification, with 2 left out. Is that right?");
+  }, 300_000);
+});
+
 describeIfDatabase("a CV that arrives while its own field is open is asked about at once and the open question yields; entries already typed are named and a yes starts the list again; a CV that arrives ahead of its field is acknowledged (P254)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-09-30: *"The open question yields, and the yes may seed past

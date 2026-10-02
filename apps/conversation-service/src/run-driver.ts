@@ -8472,7 +8472,9 @@ export class RunDriver {
       if (entry.unreadable !== undefined) {
         // The CV's words alone, as the slot's one reading: the walk asks
         // every part, and the first question says what the CV said.
-        await append(`item${String(position)}.unreadable`, proposeValue({ value: true, origin: "document", verbatim: entry.unreadable, confidence: entry.confidence, documentId }));
+        // The mark's value is WHY (P268): one span, two ranges, or an invented
+        // span — the first question says which, in plain terms.
+        await append(`item${String(position)}.unreadable`, proposeValue({ value: entry.why ?? "one_span", origin: "document", verbatim: entry.unreadable, confidence: entry.confidence, documentId }));
       }
       for (const part of spec.item.parts) {
         const reading = walkPartFromDocument(part.partKey, entry.fields, entry.spans, entry.partial ?? {});

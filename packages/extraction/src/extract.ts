@@ -121,6 +121,13 @@ export interface ListEntryReading {
    * it, to be asked by hand, its words shown. `null` for a reading.
    */
   readonly unreadable: string | null;
+  /**
+   * Why an entry was held back, when it was (P268, row 124): `two_ranges`, two
+   * date ranges cut as one; `invented`, a part's span the document does not
+   * hold. Held back is not dropped: the report carries the entry's lines and
+   * the interview asks it by hand, saying why. `null` for an entry that stands.
+   */
+  readonly heldBack: "two_ranges" | "invented" | null;
 }
 
 /**
@@ -190,6 +197,7 @@ export async function readListEntries(
     // The merge detector first (segments.ts): two date ranges in one entry is
     // two jobs until a person says otherwise — held back, named, never read
     // as one and never offered as one.
+    let heldBack: "two_ranges" | "invented" | null = cutEntry.dateRanges > 1 ? "two_ranges" : null;
     let dropped: string | null =
       cutEntry.dateRanges > 1
         ? `Held back: the entry carries ${String(cutEntry.dateRanges)} date ranges, which reads as ${String(cutEntry.dateRanges)} entries cut as one.`
@@ -228,6 +236,7 @@ export async function readListEntries(
         // entry it invented for is not offered at all.
         parts.push({ partKey: part.partKey, source: "document", status: "ungrounded", spanLength: grounded.verbatim.length, claimedSpan: grounded.verbatim, reason: grounding.reason });
         dropped = `Part "${part.partKey}" was discarded. ${grounding.reason}`.trim();
+        heldBack = "invented";
         continue;
       }
       returned.push({ partKey: part.partKey, span: grounded.verbatim });
@@ -279,6 +288,7 @@ export async function readListEntries(
       lowestConfidence,
       dropped,
       unreadable,
+      heldBack,
     });
   }
   return { fieldKey: targetKey, sectionLines: section.length, cut, entries: readings };

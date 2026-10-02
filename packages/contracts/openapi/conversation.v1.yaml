@@ -3210,6 +3210,13 @@ components:
             The words most of the entry's parts came back as — the line, not its
             parts (P266). Only on an entry with no field, no span and nothing read
             in part; the interview asks it by hand and shows these words.
+        why:
+          type: string
+          enum: [one_span, two_ranges, invented]
+          description: >-
+            Why the entry could not be read (P268), only beside `unreadable` —
+            its parts came back as one line, its lines read as two entries, or a
+            part's reading quoted words the document does not hold.
 
     PartialReading:
       type: object

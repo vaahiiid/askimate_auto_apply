@@ -1142,6 +1142,10 @@ describe("what a reading may carry, and what it may not", () => {
     expect(parseReadingReport(withEntry({ unreadable: "" }))).toBeNull();
     expect(parseReadingReport(withEntry({ unreadable: "x".repeat(4001) }))).toBeNull();
     expect(parseReadingReport(withEntry({ unreadable: 3 }))).toBeNull();
+    // P268: why it could not be read, from a closed set, and only beside the words.
+    for (const why of ["one_span", "two_ranges", "invented"]) expect(parseReadingReport(withEntry({ why })), why).not.toBeNull();
+    expect(parseReadingReport(withEntry({ why: "the model was tired" }))).toBeNull();
+    expect(parseReadingReport({ ...report, lists: [{ ...report.lists[0], entries: [{ ...ENTRY, why: "invented" }] }] }), "a reason with no words is a reason for nothing").toBeNull();
   });
 
   it("carries which of the parts to ask are the student's, and a part read IN PART with its words — and refuses either where it contradicts the rest (P248)", () => {

@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.264.0] — 2026-10-02
+
+**P268 — an entry held back is asked by hand, with what went wrong said plainly (ADR-0149 amended).**
+
+- **Added** `heldBack` to the reader's entry (`two_ranges`, `invented`) and `why` to the wire entry
+  (`one_span`, `two_ranges`, `invented`; contract, parser, OpenAPI; only beside `unreadable`).
+- **Changed** the report: a held-back entry is offered with its own lines from the cut and the
+  reason — never the invented words — and nothing is counted as dropped.
+- **Added** the reason to the by-hand walk: the first question says it plainly; after an entry
+  whose lines read as two, the closing question names the second.
+- **Added** a test that the sentence's *I will ask you about them* is kept: its number equals the
+  entries asked by hand.
+- **Recorded** row 124 (closed), rows 126 and 127 (open, measured), his two notes in CLAUDE.md, and
+  the detector's threshold as unmeasured.
+
+---
+
 ## [0.263.0] — 2026-10-02
 
 **P267 — where the CV and the student differ on one part, the playback says so (ADR-0150 amended).**

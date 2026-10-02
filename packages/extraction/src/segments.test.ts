@@ -96,6 +96,8 @@ describe("the cut held by structure: the checks and the two detectors", () => {
     expect(cut.entries[0]?.dateRanges).toBe(2);
     const reading = await readListEntries(target("employment.history"), text, merged);
     expect(reading.entries[0]?.dropped).toContain("2 date ranges");
+    // P268: and says WHY in a form the report can carry, so the student is told.
+    expect(reading.entries[0]?.heldBack).toBe("two_ranges");
     expect(reading.entries[0]?.fields, "held back: nothing of it is offered").toEqual({});
     expect(reading.entries[0]?.parts.every((part) => part.status === "skipped"), "and nothing of it is read").toBe(true);
   });
@@ -237,5 +239,37 @@ describe("an entry whose parts all came back as one span is not a reading: marke
     expect(bad?.spans).toEqual({});
     expect(bad?.partial).toEqual({});
     expect(bad?.parts.find((part) => part.partKey === "institution")?.reason).toContain("parts came back as the same words");
+  });
+});
+
+describe("an entry held back is named by why, so it can be asked by hand with the reason said (P268, row 124)", () => {
+  // Vahid, 2026-10-02: *"An entry held back because a span was invented, or
+  // because two date ranges read as one, is an entry the CV has something to
+  // say about and we could not read. Counting it and saying nothing is the
+  // same promise-without-delivery you just fixed for the unreadable ones."*
+  it("names an entry whose reading quoted words the document does not hold as invented", async () => {
+    const text = await plain("Education\nBSc Computer Science, University of Tehran, 2015 – 2019\n");
+    const line = linesOf(text).findIndex((each) => each.startsWith("BSc")) + 1;
+    const base = cuttingAs([{ from: line, to: line }]);
+    const inventing: ModelClient = {
+      ...base,
+      extractFromDocument: <T>(request: ExtractionRequest<T>) => {
+        const part = request.fieldKey.split(".").at(-1) ?? "";
+        if (part !== "institution") return Promise.resolve({ kind: "not_understood" as const, reason: "not stated" });
+        const span = "University of Isfahan";
+        const value = request.parse(span);
+        if (value === null) return Promise.resolve({ kind: "not_understood" as const, reason: "not stated" });
+        return Promise.resolve(proposeValue({ value, origin: "document" as const, verbatim: span, confidence: 0.8, documentId: request.documentId }));
+      },
+    };
+    const reading = await readListEntries(target("education.prior_qualifications"), text, inventing);
+    expect(reading.entries[0]?.dropped).toContain("institution");
+    expect(reading.entries[0]?.heldBack).toBe("invented");
+    expect(reading.entries[0]?.fields).toEqual({});
+  });
+
+  it("names nothing held back on an entry that stands", async () => {
+    const reading = await readListEntries(target("employment.history"), await plain(PROSE), model);
+    expect(reading.entries.map((entry) => entry.heldBack)).toEqual(reading.entries.map(() => null));
   });
 });

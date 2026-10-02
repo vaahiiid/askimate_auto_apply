@@ -122,7 +122,17 @@ export interface WireEntryReading {
    * showing these words. Absent on a reading.
    */
   readonly unreadable?: string;
+  /**
+   * Why the entry could not be read (P268), beside `unreadable` and never
+   * without it: `one_span`, its parts came back as one line; `two_ranges`, its
+   * lines carry two date ranges and read as two entries; `invented`, a part's
+   * reading quoted words the document does not hold. The question says which.
+   */
+  readonly why?: UnreadableWhy;
 }
+
+export const UNREADABLE_WHY = ["one_span", "two_ranges", "invented"] as const;
+export type UnreadableWhy = (typeof UNREADABLE_WHY)[number];
 
 export interface WirePartialReading {
   readonly have: Readonly<Record<string, WireFieldValue>>;
@@ -278,6 +288,8 @@ function parseEntry(value: unknown): WireEntryReading | null {
     if (!isString(unreadable) || unreadable.length === 0 || unreadable.length > MAX_SPAN_LENGTH) return null;
     if (Object.keys(fields).length > 0 || Object.keys(spans).length > 0 || Object.keys(partial).length > 0) return null;
   }
+  const why = record["why"];
+  if (why !== undefined && (unreadable === undefined || !isMember(UNREADABLE_WHY, why))) return null;
 
   return {
     index,
@@ -288,6 +300,7 @@ function parseEntry(value: unknown): WireEntryReading | null {
     student: student as string[],
     ...(Object.keys(partial).length === 0 ? {} : { partial }),
     ...(unreadable === undefined ? {} : { unreadable }),
+    ...(why === undefined ? {} : { why }),
   };
 }
 

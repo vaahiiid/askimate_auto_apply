@@ -20,6 +20,7 @@
 import { createHash } from "node:crypto";
 
 import type { ClaimedReading, ReadingFailure, ReadingReport, WireEntryReading, WireFieldValue, WireListReading, WirePartialReading } from "@askimate/aas-contracts";
+import { MAX_SPAN_LENGTH } from "@askimate/aas-contracts";
 import { planFor, readListEntries, textExtractorFor } from "@askimate/aas-extraction";
 import type { ListReading } from "@askimate/aas-extraction";
 import type { ModelClient } from "@askimate/aas-llm";
@@ -34,9 +35,27 @@ export interface ReadDocumentOptions {
 /** A reading of a list, as the contract carries it: each standing entry's fields, words and what is left to ask. */
 export function readingOf(reading: ListReading, parts: readonly { readonly partKey: string }[]): WireListReading {
   const order = parts.map((part) => part.partKey);
-  const entries: WireEntryReading[] = reading.entries
-    .filter((entry) => entry.dropped === null)
-    .map((entry) => ({
+  const entries: WireEntryReading[] = reading.entries.flatMap((entry): WireEntryReading[] => {
+    // P268, row 124: an entry held back — two date ranges cut as one, or a
+    // part's span the document does not hold — is offered to be asked by
+    // hand, with the entry's own lines from the cut and why. The invented
+    // words never travel: only the document's lines do.
+    if (entry.dropped !== null) {
+      const lines = reading.cut.entries.find((cut) => cut.index === entry.index)?.lines ?? [];
+      const words = boundedWords(lines.map((line) => line.trim()).filter((line) => line.length > 0).join(" / "));
+      if (entry.heldBack === null || words.length === 0) return [];
+      return [{
+        index: entry.index,
+        fields: {},
+        spans: {},
+        confidence: entry.lowestConfidence,
+        toAsk: order,
+        student: order.filter((key) => entry.parts.some((part) => part.partKey === key && part.source === "student")),
+        unreadable: words,
+        why: entry.heldBack,
+      }];
+    }
+    return [{
       index: entry.index,
       fields: entry.fields as Record<string, WireFieldValue>,
       spans: entry.spans,
@@ -48,13 +67,25 @@ export function readingOf(reading: ListReading, parts: readonly { readonly partK
       ...(Object.keys(entry.partial).length === 0 ? {} : { partial: entry.partial as Record<string, WirePartialReading> }),
       // P266: the parts came back as the line. Offered with nothing taken, to
       // be asked by hand with these words shown.
-      ...(entry.unreadable === null ? {} : { unreadable: entry.unreadable }),
-    }));
+      ...(entry.unreadable === null ? {} : { unreadable: entry.unreadable, why: "one_span" as const }),
+    }];
+  });
   return {
     fieldKey: reading.fieldKey,
     entries,
-    dropped: reading.entries.filter((entry) => entry.dropped !== null).length,
+    // What is not offered at all: since P268, only a held-back entry with no
+    // reason or no lines, which the reader does not produce.
+    dropped: reading.entries.length - entries.length,
   };
+}
+
+/**
+ * The entry's lines as the contract bounds a span. Cut, and said to be cut,
+ * past the bound: an ellipsis, never a silent end — these are words shown
+ * beside a question, not a value stored.
+ */
+function boundedWords(words: string): string {
+  return words.length <= MAX_SPAN_LENGTH ? words : `${words.slice(0, MAX_SPAN_LENGTH - 1)}…`;
 }
 
 function failed(leaseId: string, failure: ReadingFailure, usage?: ReadingReport["usage"]): ReadingReport {

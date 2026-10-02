@@ -138,3 +138,31 @@ the walk asks every part by hand, and its first question says *I could not read 
 qualification from your CV into its parts. Your CV says: "…". I will ask you for each part.* and
 how to leave it out; the playback shows the entry as the student's answers with the CV's words
 beside them.
+
+**The threshold, accepted as reasoning, not as a measurement (2026-10-02).** Vahid: *"Your
+threshold for the identical-spans detector — three parts and more than half — I accept as your
+reasoning. Record that the number is unmeasured and would be revisited if a real CV trips it
+wrongly."* It is unmeasured: no real CV has been read against it. It is revisited the first time a
+real CV's entry is marked unreadable when its parts were right, or passed when they were not.
+
+## Amended 2026-10-02 (P268, row 124): an entry held back is asked by hand, saying why
+
+Vahid: *"Row 124: ask them by hand, with their lines shown. An entry held back because a span was
+invented, or because two date ranges read as one, is an entry the CV has something to say about
+and we could not read. Counting it and saying nothing is the same promise-without-delivery you
+just fixed for the unreadable ones — and the sentence already tells the student about it. Stopping
+the sentence would be choosing silence over work. Same shape as the unreadable case: the entry's
+lines shown, every part asked, 'leave it out' available. The opening sentence says what went wrong
+in plain terms — for two date ranges, that the lines look like two jobs rather than one; for an
+invented span, that what was read back was not in the document. That second one is worth a
+student knowing: it is the model getting something wrong, and we caught it."*
+
+Built in P268. The reader names why an entry was held back (`two_ranges`, `invented`); the report
+offers it with the entry's own lines from the cut — never the invented words — and `why`, beside
+the one-span case (`one_span`); nothing is counted as dropped. The service seeds the mark with the
+reason. The first question says it plainly: *I could not read this job from your CV as one entry:
+its lines look like two jobs rather than one … I will ask you for each part of the first; you can
+add the second when I ask whether there is another*; or *When I read this job from your CV, part
+of what came back was not in your CV — a reading error, which I caught — so I have used none of
+it*. After an entry whose lines read as two, the closing question names the second: *Is there
+another job to add, either one not on your CV or the second of the two that read as one?*

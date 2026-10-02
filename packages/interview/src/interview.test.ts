@@ -1715,6 +1715,46 @@ describe("a CV-read entry that should not be listed is left out at the student's
   });
 });
 
+describe("an entry the reader held back is asked by hand with what went wrong said plainly (P268, row 124)", () => {
+  // Vahid, 2026-10-02: *"Same shape as the unreadable case: the entry's lines
+  // shown, every part asked, 'leave it out' available. The opening sentence
+  // says what went wrong in plain terms — for two date ranges, that the lines
+  // look like two jobs rather than one; for an invented span, that what was
+  // read back was not in the document. That second one is worth a student
+  // knowing: it is the model getting something wrong, and we caught it."*
+  const FIELD = "employment.history" as const;
+  const LINES = "Analyst, Pardis, Sep 2021 – Present / Developer, Nikan, Jun 2019 – Aug 2021";
+  const HINT = 'If this job should not be listed, say "leave it out".';
+  const document = (value: unknown, verbatim: string) => proposeValue({ value, origin: "document", verbatim, confidence: 0.9, documentId: "doc_cv" });
+  const seeded = (why: string | true): InterviewState => ({
+    ...start([FIELD]),
+    partial: new Map([[FIELD, new Map([["any", document(true, "yes")], ["item0.unreadable", document(why, LINES)]])]]),
+  });
+
+  it("two date ranges: says the lines look like two jobs, shows them, says how to add the second — and the closing question names it", async () => {
+    const state = seeded("two_ranges");
+    const first = await nextAction(state, model);
+    const said = first.kind === "ask" ? first.say : "";
+    expect(said.startsWith(`For job 1: I could not read this job from your CV as one entry: its lines look like two jobs rather than one. Your CV says: "${LINES}". I will ask you for each part of the first; you can add the second when I ask whether there is another. `), said).toBe(true);
+    expect(said.endsWith(HINT)).toBe(true);
+    // Left out, the closing question still names the second the student may owe.
+    const after = await nextAction((await receiveAnswer(state, FIELD, "leave it out", model)).state, model);
+    expect(after.kind === "ask" ? after.say : "").toBe("I have left out every job I read from your CV. Is there a job to add, either one not on your CV or the second of the two that read as one? Please answer yes or no.");
+  });
+
+  it("an invented span: says what was read back was not in the CV, a reading error caught, and that none of it was used", async () => {
+    const first = await nextAction(seeded("invented"), model);
+    const said = first.kind === "ask" ? first.say : "";
+    expect(said.startsWith(`For job 1: When I read this job from your CV, part of what came back was not in your CV — a reading error, which I caught — so I have used none of it. Your CV says: "${LINES}". I will ask you for each part. `), said).toBe(true);
+    expect(said.endsWith(HINT)).toBe(true);
+  });
+
+  it("a mark written before P268 (true) is read as one span, as it was written", async () => {
+    const first = await nextAction(seeded(true), model);
+    expect(first.kind === "ask" ? first.say : "").toContain("I could not read this job from your CV into its parts.");
+  });
+});
+
 describe("where the CV and the student disagree on one part, the playback says so (P267)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-10-02: *"End: completed, September 2015 (from your CV:

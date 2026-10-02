@@ -466,6 +466,26 @@ in P137 (ADR-0114): two attempts, the box reopened between them, then a person.
 
 ## Reading what happened
 
+### Which entries the reader could not read, and why (P266, P268)
+
+The reader's log line says how many entries each list offered; it does not say which came back
+unreadable. The conversation's log does, one row per entry asked by hand, with the reason and the
+CV's own words:
+
+```sql
+SELECT e.ordinal, e.field_key, e.part_key,
+       e.proposal->'value' AS why, left(e.proposal->>'verbatim', 120) AS cv_words
+FROM conversation_events e
+WHERE e.conversation_id = '<id>' AND e.kind = 'value_part_read' AND e.part_key LIKE '%.unreadable'
+ORDER BY e.ordinal;
+```
+
+`why` is `"one_span"` (the parts came back as one line), `"two_ranges"` (its lines read as two
+entries), or `"invented"` (a part's reading quoted words the CV does not hold). A row holding
+`true` was written before P268 and means one span. No row for an entry means it was read into its
+parts. To compare two readings of the same CV, run it after each: the same entry with the same
+`why` twice is the model doing the same thing twice.
+
 ### Was a list played back and confirmed after an entry correction? (row 121)
 
 For a conversation `<id>` and the field `employment.history`, in `aas_local_conversation`:
