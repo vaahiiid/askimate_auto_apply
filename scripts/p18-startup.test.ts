@@ -402,6 +402,9 @@ describeIfDatabase("running, and stopping", () => {
       // a sweep that reports nothing is indistinguishable from one that does
       // not run.
       expect(await untilSaid(service, /retention sweep: /)).toContain("retention sweep: off — no document store, so there is nothing to delete");
+      // P275, row 130: every request to delete confirmed details that waits
+      // for a person, named at the start — and "none" said when none does.
+      expect(await untilSaid(service, /open deletion requests: /)).toContain("open deletion requests: none");
     } finally {
       const code = await service.stop("SIGTERM");
       expect(code, "a clean shutdown exits zero").toBe(0);

@@ -138,6 +138,7 @@ beforeAll(async () => {
     "0035_a_later_cv_supersedes_and_nothing_is_said_over_an_open_question",
   "0036_a_resolution_carries_its_own_mark",
   "0037_the_retention_sweep_job",
+  "0038_a_deletion_request_reaches_a_person",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(

@@ -527,6 +527,14 @@ no row is the list never entering the profile.
   (the port is the stack's base). Each line names the run, what it is stuck on and against which
   page, and whether the student has been told. `resolve <id> --did-happen|--did-not-happen` records
   what a person established on the portal; neither retries anything by itself.
+- `pnpm run deletion-requests` (since 0.268.0, P275) — a student's request to delete the details
+  they confirmed, waiting for a person: the same certificate and port as `interventions`. Each
+  line names the request, the student, the conversation and how long it has waited; the service's
+  own start line names every open one the same way, or says `open deletion requests: none`. The
+  student was told what their university already has and *"I will tell you here when it is
+  done"* — so `close <id> --by <name> --deleted` (after doing the deletion by hand: nothing here
+  deletes a confirmed detail, row 130's stage B) or `--declined --reason "…"` is what tells them,
+  in the conversation. A second closing is not recorded and tells nobody twice.
 - `scripts/local-stack.sh status` — pids and endpoints.
 
 ## Reading the login page the way the runner sees it (ADR-0128)

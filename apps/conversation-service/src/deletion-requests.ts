@@ -19,6 +19,18 @@ import type { DocumentType } from "@askimate/aas-domain";
 export type DeletionRequest =
   /** Every document held. */
   | { readonly scope: "all" }
+  /**
+   * The details the student confirmed — their own statements in the
+   * application, not a document (P275, row 130). Not ours to delete in the
+   * chat: the request is passed to a person.
+   */
+  | { readonly scope: "details" }
+  /**
+   * "Everything", "my data": the documents, or the documents AND the
+   * confirmed details? Asked, never guessed (P275) — a wrong reading here
+   * either deletes or ignores a student's data.
+   */
+  | { readonly scope: "everything" }
   /** Every held document of one kind. */
   | { readonly scope: "type"; readonly documentType: DocumentType }
   /** "That document" — the one, where one is held; a question where more are. */
@@ -102,8 +114,33 @@ const TYPE_WORDS: readonly (readonly [DocumentType, readonly string[]])[] = [
   ["visa_document", ["visa", "visa document"]],
 ];
 
+/**
+ * The words for EVERYTHING, which may or may not include the confirmed
+ * details. Until P275 these read as every document; since then they are
+ * asked about, because a student who says "delete my data" after the stop
+ * message (D6) means more than their uploads, and we cannot tell how much.
+ */
 const EVERYTHING = [
   "everything",
+  "all my data",
+  "all of my data",
+  "all my information",
+  "all of my information",
+  "my data",
+  "my personal data",
+  "my information",
+  "my personal information",
+  "what you have on me",
+  "what you hold on me",
+  "what you have of mine",
+  "what you hold for me",
+  "what you have about me",
+  "what you've got on me",
+  "what you got on me",
+];
+
+/** Every DOCUMENT, said as documents: these stay documents. */
+const ALL_DOCUMENTS = [
   "all my documents",
   "all of my documents",
   "all the documents",
@@ -114,21 +151,36 @@ const EVERYTHING = [
   "all files",
   "all my uploads",
   "all of my uploads",
-  "all my data",
-  "all of my data",
-  "all my information",
   "my documents",
   "my files",
   "my uploads",
   "the documents",
   "the files",
-  "what you have on me",
-  "what you hold on me",
-  "what you have of mine",
-  "what you hold for me",
-  "what you have about me",
-  "what you've got on me",
-  "what you got on me",
+];
+
+/**
+ * The confirmed details, in a person's words (P275). D31's sentence names
+ * them as "those"; that referent is resolved by the driver, which knows what
+ * it last said, not here.
+ */
+const DETAILS = [
+  "my details",
+  "the details",
+  "those details",
+  "my personal details",
+  "my confirmed details",
+  "the confirmed details",
+  "the details i confirmed",
+  "the details i gave you",
+  "what i confirmed",
+  "what i told you",
+  "my answers",
+  "the answers i gave",
+  "the answers i gave you",
+  "my profile",
+  "my application details",
+  "my confirmed values",
+  "the confirmed values",
 ];
 
 const ONE = [
@@ -190,13 +242,24 @@ export function readDeletionRequest(text: string): DeletionReading | null {
   if (/\bi(?:'ve| have| just| already)? (?:deleted|removed|erased|wiped|discarded|dropped|scrapped|cleared)\b/.test(said)) return { scope: "not_a_request" };
   if (verb === undefined) return { scope: "unclear" };
 
+  // An exception inside the request — "everything except my passport" — was
+  // read, until P275, as a request for the very document it spared: the kind
+  // named won. Which documents are meant is not ours to work out from an
+  // exception, so it is asked about.
+  if (/\b(except|excluding|apart from|other than|but not|save for|besides)\b/.test(said)) return { scope: "unclear" };
+
   // What the verb is about, in the order a wider claim beats a narrower one:
-  // everything, then a kind of document, then "that document".
+  // the details, everything, every document, a kind of document, then "that
+  // document".
   const has = (phrase: string): boolean => new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "u").test(said);
-  if (EVERYTHING.some(has) && !TYPE_WORDS.some(([, words]) => words.some(has))) return { scope: "all" };
   const typed = TYPE_WORDS.find(([, words]) => words.some(has));
+  // The details AND a document in one sentence ("delete my CV and my
+  // details") is more than one request, and how much is not ours to guess:
+  // asked, like everything.
+  if (DETAILS.some(has)) return ALL_DOCUMENTS.some(has) || typed !== undefined || EVERYTHING.some(has) ? { scope: "everything" } : { scope: "details" };
+  if (EVERYTHING.some(has)) return { scope: "everything" };
+  if (ALL_DOCUMENTS.some(has) && typed === undefined) return { scope: "all" };
   if (typed !== undefined) return { scope: "type", documentType: typed[0] };
-  if (EVERYTHING.some(has)) return { scope: "all" };
   if (ONE.some(has)) return { scope: "one" };
   // Deletion, of something this reader cannot name: asked about, never guessed,
   // never an answer (row 98).

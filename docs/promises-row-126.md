@@ -34,7 +34,7 @@ This is that list. Nothing in the code was changed to make it.
 
 ## Contradicted by the code (read first)
 
-*Since the list was made:* D25 fixed in P271 — the reply after a reading now says where the CV is. The abandon path fixed in P272 — the student is told; row 129 holds what it does not do. W7 kept in P274: the sweep deletes a CV a year after its last use and tells the student (row 128). D6 and D31's handoff on row 130.
+*Since the list was made:* D25 fixed in P271 — the reply after a reading now says where the CV is. The abandon path fixed in P272 — the student is told; row 129 holds what it does not do. W7 kept in P274: the sweep deletes a CV a year after its last use and tells the student (row 128). D6 and D31 kept in P275 (row 130, stage A): *remove those too* and *delete my data* reach a person, the student is told what the university already has, and the new promise the handoff makes — *"I will tell you here when it is done"* (P1 below) — is asserted by the test that closes a request.
 
 
 | # | Where | The promise | What the code does |
@@ -133,3 +133,13 @@ RDT is `apps/conversation-service/src/run-driver.test.ts`; lines are at `cbd87b3
 | O2 | the consent choice done whenever the notice appears | RDT:13764, :13979 |
 
 A9 (*"… and I will not know"*) promises not to know something; there is nothing to assert.
+
+## Added since the list was made
+
+Promises written after P269's measurement, each shipped with its assertion. RDT lines at P275.
+
+| # | Where | The promise | Where the action is asserted |
+|---|---|---|---|
+| P1 | run-driver.ts, `#passTheDetailsToAPerson` (P275) | *"I will tell you here when it is done."* | RDT:14868 (a person closes it; the student is told, once), :14928 (a refusal, with the person's reason) |
+| P2 | run-driver.ts, the everything question (P275) | *"I hold a passport, which I can delete myself, now."* | RDT:14887 (*both* deletes the documents at once) |
+

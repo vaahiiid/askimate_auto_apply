@@ -94,6 +94,7 @@ import { encodeCursor, type ConversationRecord } from "./event-store.js";
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
 import type { RunOutcome, RunReading, RunRefusal, WorkDocumentRefusal } from "./run-driver.js";
 import { NothingToHaveHappenedError } from "./run-driver.js";
+import type { DataDeletionRequest, DeletionOutcome } from "./data-deletion-request-store.js";
 import type { ClaimedReading, ReadingReport, WorkDocument } from "@askimate/aas-contracts";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
@@ -250,6 +251,15 @@ export interface RunCoordinator {
     readonly reusability: ReusabilityAssessment;
     readonly didHappen: boolean;
   }): Promise<StoredIntervention>;
+  /** Every request to delete confirmed details waiting for a person, oldest first (P275). */
+  openDeletionRequests(): Promise<readonly DataDeletionRequest[]>;
+  /** A person closes one, and the student is told (P275). `null` when there is no such request. */
+  closeDeletionRequest(input: {
+    readonly requestId: string;
+    readonly closedBy: string;
+    readonly outcome: DeletionOutcome;
+    readonly reason: string | null;
+  }): Promise<{ readonly closedNow: boolean; readonly request: DataDeletionRequest } | null>;
 }
 
 /**
@@ -598,6 +608,48 @@ function onTheWire(record: StoredIntervention): OpenIntervention {
     raisedAt: record.escalation.raisedAt.toISOString(),
     announced: record.announcedAt !== undefined,
   };
+}
+
+/** A deletion request as the internal plane shows it (P275). Identifiers and times; no personal data. */
+function deletionRequestOnTheWire(request: DataDeletionRequest): Record<string, unknown> {
+  return {
+    requestId: request.requestId,
+    conversationId: request.conversationId,
+    studentId: request.studentId,
+    caseId: request.caseId,
+    raisedAt: request.raisedAt.toISOString(),
+    ...(request.closed === undefined
+      ? {}
+      : {
+          closed: {
+            closedAt: request.closed.closedAt.toISOString(),
+            closedBy: request.closed.closedBy,
+            outcome: request.closed.outcome,
+            ...(request.closed.reason === null ? {} : { reason: request.closed.reason }),
+          },
+        }),
+  };
+}
+
+/**
+ * A person's closing of a deletion request (P275), or `null` when it is not
+ * one. A refusal must say why, because the student reads the reason; a
+ * deletion carries none. Bounded, like every other free text on this plane.
+ */
+function parseDeletionClosure(body: unknown): { closedBy: string; outcome: DeletionOutcome; reason: string | null } | null {
+  if (typeof body !== "object" || body === null) return null;
+  const keys = Object.keys(body);
+  if (keys.some((key) => !["closedBy", "outcome", "reason"].includes(key))) return null;
+  const closedBy = readString(body, "closedBy");
+  const outcome = readString(body, "outcome");
+  const reason = readString(body, "reason");
+  const hasReason = (body as Record<string, unknown>)["reason"] !== undefined;
+  if (closedBy === null || closedBy.trim().length === 0 || closedBy.length > 200) return null;
+  if (outcome !== "deleted" && outcome !== "declined") return null;
+  if (hasReason && (reason === null || reason.length > 2000)) return null;
+  if (outcome === "declined" && (reason === null || reason.trim().length === 0)) return null;
+  if (outcome === "deleted" && hasReason) return null;
+  return { closedBy, outcome, reason: outcome === "declined" ? reason : null };
 }
 
 export function createConversationRoutes(options: ConversationRoutesOptions): Router {
@@ -1982,6 +2034,63 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           }
           throw error;
         }
+      })().catch(next);
+    },
+  );
+
+  // ── GET /internal/v1/deletion-requests ─────────────────────────────────
+  //
+  // P275, row 130: what is waiting for a person — a student's request to
+  // delete the details they confirmed. Pull, derived from the store, for the
+  // reason the interventions list is.
+  router.get(
+    "/internal/v1/deletion-requests",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const open = await options.runs.openDeletionRequests();
+        res.status(200).json({ requests: open.map(deletionRequestOnTheWire) });
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/deletion-requests/:requestId/closure ─────────────
+  //
+  // A person closes a request, and the student is told (P275) — the
+  // service is the one writer (ADR-0048). `closedBy` is ASSERTED, on the
+  // terms of an intervention's specialist. A second closing answers 200 with
+  // `closedNow: false` and the closing that stands: it is not recorded, and
+  // the student is not told twice.
+  router.post(
+    "/internal/v1/deletion-requests/:requestId/closure",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const closure = parseDeletionClosure(req.body);
+        if (closure === null) {
+          problem(res, "validation_failed", { pointers: ["/closedBy", "/outcome", "/reason"] });
+          return;
+        }
+        const closed = await options.runs.closeDeletionRequest({ requestId: String(req.params["requestId"]), ...closure });
+        if (closed === null) {
+          problem(res, "not_found");
+          return;
+        }
+        res.status(200).json({ closedNow: closed.closedNow, request: deletionRequestOnTheWire(closed.request) });
       })().catch(next);
     },
   );

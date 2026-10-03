@@ -342,6 +342,8 @@ export async function start(options: StartOptions): Promise<RunningService | nul
     );
     // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
     await sayWhatHasWaited(driver, options.log, new Date());
+    // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+    await sayWhatWaitsForAPerson(driver, options.log, new Date());
     const sweeper =
       config.documents === undefined
         ? (options.log("retention sweep: off — no document store, so there is nothing to delete"), undefined)
@@ -459,6 +461,38 @@ async function sayWhatHasWaited(
     }
   } catch (error) {
     log(`open interventions older than a day: could not be read — ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Every request to delete a student's confirmed details that waits for a
+ * person, with its age (P275, row 130) — said at every start, as P260 says
+ * the interventions. Every one, not only the old: a student was told "a
+ * person has it", and the start line is where a person learns there is one.
+ * "none" is said too, because a line that only appears when something waits
+ * is indistinguishable from a check that did not run.
+ */
+async function sayWhatWaitsForAPerson(
+  driver: { openDeletionRequests(): Promise<readonly { readonly requestId: string; readonly studentId: string; readonly conversationId: string; readonly raisedAt: Date }[]> },
+  log: Log,
+  now: Date,
+): Promise<void> {
+  try {
+    const open = await driver.openDeletionRequests();
+    if (open.length === 0) {
+      log("open deletion requests: none");
+      return;
+    }
+    for (const request of open) {
+      const hours = Math.floor((now.getTime() - request.raisedAt.getTime()) / 3_600_000);
+      const age = hours < 48 ? `${String(hours)} hour${hours === 1 ? "" : "s"}` : `${String(Math.floor(hours / 24))} days`;
+      log(
+        `open deletion request ${request.requestId} (student ${request.studentId}, conversation ${request.conversationId}): ` +
+          `the confirmed details, raised ${age} ago, waiting for a person — pnpm run deletion-requests`,
+      );
+    }
+  } catch (error) {
+    log(`open deletion requests: could not be read — ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

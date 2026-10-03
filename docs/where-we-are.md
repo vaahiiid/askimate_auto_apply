@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P275 — a request to delete what was confirmed reaches a person
+
+*2026-10-03.* D6 and D31, stage A, on his word: a student who asks for the details they confirmed
+to be deleted is told a person has it, what their university already has — read from the run's
+own ledger, not assumed — and that they will be told when it is done; a person closes it with a
+command, and that is what tells them. *Everything* and *my data* are asked about now rather than
+read as every document. Writing it found *"delete everything except my passport"* deleting the
+passport, and fixed it. The four contradicted promises of row 126 are all kept; nothing deletes a
+confirmed detail (stage B, unpromised).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P274 — a CV is deleted a year after it was last used
 
 *2026-10-03.* The promise every student reads before handing over a CV is kept: the clock moves

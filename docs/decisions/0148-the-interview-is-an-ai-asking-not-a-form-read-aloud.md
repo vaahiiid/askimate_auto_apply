@@ -506,6 +506,50 @@ carries, and a sentence to the student naming what was already sent. **Settled b
 data needs to know what is beyond our reach before they believe it is gone."* The rest of the
 sizing stays open.
 
+## Deleting the confirmed values — stage A built, stage B not promised (P275, 2026-10-03)
+
+His word, 2026-10-03: *"D6 and D31: stage A only, the handoff. Five hours. A request that reaches
+a person and a student who is told what the university already has is the whole of what I
+promised. Stage B — deleting confirmed values — stays unbuilt and unpromised until someone
+actually asks for it."*
+
+Built, against the deterministic stand-in client only:
+
+- **The words.** The deletion reader (`deletion-requests.ts`) reads the confirmed details in a
+  person's words — *my details*, *my answers*, *what I told you*, *my profile* — as their own
+  request. *Everything*, *my data*, *what you have on me* — which until now read as every
+  document — are **asked**: *"Do you want me to delete only your documents, or the details you
+  have confirmed as well?"*, answered from a closed set (*just the documents*, *just the
+  details*, *both*, or the way back); anything else is asked again, never passed to the
+  interview. D31's *"those"* is resolved against the sentence that named them, and only there.
+  Found while writing it: *"delete everything except my passport"* read as a request to delete
+  the passport — the named kind won. An exception inside a request is now asked about.
+- **The request.** Migration 0038, `data_deletion_requests`: one row per request, at most one
+  open per student (a partial unique index), a closing whole — when, by whom, and *deleted* or
+  *declined* — and a refusal that says why. Identifiers only.
+- **What the student reads.** *"I have passed your request to delete the details you confirmed
+  to a person on the team: deleting those is not something I do in the chat."* Then what the
+  university already has — **measured from the run's own ledger**, not assumed: the pages saved
+  (a succeeded `advance_portal_page`, named by the blueprint's page title), the account (a
+  succeeded `create_portal_account`, or the run's situation, the source the stop message reads),
+  and the documents sent (`document_transmissions`, with the day). *"That stays with them: I
+  cannot take it back … To have it deleted there, ask them directly."* Or, when the ledger holds
+  none of it: *"Nothing of yours has reached a university from me."* Then: *"I will tell you here
+  when it is done."* Said again while it is open, the student is told it is already with a
+  person, and when it was passed on.
+- **The person.** The service's start line names every open request with its age, or says
+  `open deletion requests: none`. `pnpm run deletion-requests` lists them and `close <id> --by
+  <name> --deleted | --declined --reason "…"` closes one through two internal routes, the service
+  the one writer (ADR-0048); closing tells the student — *done*, or the person's reason quoted.
+  A second closing is not recorded and tells nobody twice. `--by` is asserted, not authenticated.
+
+**What the measurement cannot see,** said here because the sentence is quoted to a student: a
+page whose save was never recorded as succeeded (an attempt left `verify_first` or escalated) is
+not named, though the portal may hold what was typed on it; a value typed on a page that failed
+cleanly is not named; and only this conversation's case is measured — a student's other
+applications are other conversations. Nothing here deletes a confirmed detail: closing a request
+with *deleted* is a person's word that they did it by hand.
+
 ## What this does not decide
 
 The order of building, which he set: §6–§7, then §3–§5, then the CV path. The retention row's

@@ -108,6 +108,7 @@ import { ConversationEventStore } from "./event-store.js";
 import { RunSessionStore } from "./session-store.js";
 import { PortalConsentStore } from "./consent-store.js";
 import { TransmissionStore } from "./transmission-store.js";
+import { DataDeletionRequestStore } from "./data-deletion-request-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { PostgresDocumentReadingStore } from "./document-reading-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
@@ -423,6 +424,8 @@ function buildInstance(
     // run that stops silently and a run that stops and says so must not be
     // indistinguishable in the tests either.
     interventions: new PostgresInterventionStore(instancePool),
+    // P275: a request to delete the confirmed details, waiting for a person.
+    deletionRequests: new DataDeletionRequestStore(instancePool),
     // ADR-0097: the preview names what the student holds, from the metadata
     // store. Present in every instance so "holds nothing" is a table with no
     // rows, not a driver built without the question.
@@ -14700,8 +14703,15 @@ describeIfDatabase("a student asks for a document to be deleted, in the chat, an
     expect(reply, "and names what IS held").toContain("passport");
   }, 120_000);
 
-  it("deletes everything on 'get rid of everything you have on me', naming each", async () => {
-    const reply = await say("get rid of everything you have on me");
+  // P275: "everything" may mean the confirmed details too, so it is asked —
+  // and "just the documents" deletes every document, naming each.
+  it("asks whether 'everything you have on me' means the details too, then deletes every document on 'just the documents'", async () => {
+    const asked = await say("get rid of everything you have on me");
+    expect(asked).toContain("Do you want me to delete only your documents, or the details you have confirmed as well?");
+    expect(asked, "names what is held").toContain("passport");
+    expect(asked, "the way back").toContain("If you did not mean a deletion");
+    expect(vault.records.some((r) => r.state !== "purged"), "nothing deleted on a question").toBe(true);
+    const reply = await say("just the documents");
     expect(reply).toContain("I have deleted");
     expect(reply).toContain("passport");
     expect(reply).toContain("stay");
@@ -14722,6 +14732,201 @@ describeIfDatabase("a student asks for a document to be deleted, in the chat, an
     const before = await deletions();
     await say("my CV is on its way");
     expect(await deletions(), "no deletion reply for a sentence that asks for none").toBe(before);
+  }, 120_000);
+});
+
+describeIfDatabase("a request to delete the confirmed details reaches a person, and the student is told what the university already has (P275, row 130; D6, D31)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-03: *"D6 and D31: stage A only, the handoff. … A request
+  // that reaches a person and a student who is told what the university
+  // already has is the whole of what I promised."* And of the promise the
+  // handoff makes: *"A sentence that promises an action is a test case."*
+  // So the last test here closes the request and reads what the student is
+  // told — "I will tell you here when it is done", kept.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX27501";
+  let owner = "";
+  let vault: ReturnType<typeof fakeVault>;
+
+  const held = (documentId: string, documentType: DocumentRecord["documentType"]): DocumentRecord => ({
+    documentId,
+    studentId: owner,
+    documentType,
+    purpose: documentType === "passport" ? "identity_verification" : "application_submission",
+    state: "confirmed",
+    contentHash: "d".repeat(64),
+    contentType: "application/pdf",
+    sizeBytes: 1000,
+    uploadedAt: NOW,
+    dates: {},
+    retentionPolicyReference: documentType === "passport" ? "AAS-RET-B1-01" : "AAS-RET-ADR0148-10",
+    retentionTriggeredAt: null,
+  });
+
+  async function say(what: string): Promise<string> {
+    const built = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, vault);
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+    return lastSaid();
+  }
+  async function lastSaid(): Promise<string> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    return rows.rows[0]?.content ?? "";
+  }
+  async function openRequests(): Promise<number> {
+    return Number((await pool.query<{ n: string }>("SELECT count(*) AS n FROM data_deletion_requests WHERE conversation_id = $1 AND closed_at IS NULL", [conversation])).rows[0]?.n ?? 0);
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    vault = fakeVault([held("doc_cv_275", "cv"), held("doc_pp_275", "passport")]);
+    const built = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, vault);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("keeps D31: after a document is deleted, 'remove those too' is passed to a person, and says nothing has reached a university when nothing has", async () => {
+    const deleted = await say("Delete my CV");
+    expect(deleted, "D31, as it is said").toContain("If you want any of those removed too, tell me and I will say what that takes.");
+    const reply = await say("remove those too");
+    expect(reply).toContain("I have passed your request to delete the details you confirmed to a person on the team");
+    expect(reply, "what that takes, said").toContain("deleting those is not something I do in the chat");
+    expect(reply, "measured: no page saved, no account, nothing sent").toContain("Nothing of yours has reached a university from me");
+    expect(reply).toContain("I will tell you here when it is done.");
+    expect(await openRequests(), "one request, held where a person reads it").toBe(1);
+  }, 120_000);
+
+  it("raises it ONCE: asked again while it is open, the student is told it is already with a person", async () => {
+    const reply = await say("please delete my details");
+    expect(reply).toContain("and it is still open");
+    expect(reply).toContain("I will tell you here when it is done.");
+    expect(await openRequests()).toBe(1);
+  }, 120_000);
+
+  it("names what the university already has, measured from the run's own ledger: the account, the pages saved, the documents sent", async () => {
+    // What a run's reports would have written: the account, a saved page,
+    // and the passport attached — the same stores the driver reads.
+    const instancePool = new pg.Pool({ connectionString: connectionString(), max: 2 });
+    try {
+      const bound = await new ApplicationBindingStore(instancePool).caseFor(conversation);
+      if (bound === null) expect.unreachable("no case");
+      const runs = new PostgresWorkflowRunStore(instancePool);
+      const run = (await runs.findByCase(makeCaseId(bound.caseId)))[0];
+      if (run === undefined) expect.unreachable("no run");
+      const accountKey = idempotencyKeyFor({ runId: run.runId, action: "create_portal_account", target: run.runId });
+      await runs.recordIntent(run.runId, { idempotencyKey: accountKey, action: "create_portal_account", target: run.runId, startedAt: NOW });
+      await runs.completeIntent(run.runId, accountKey, "succeeded", NOW);
+      const pageTarget = `page-personal@sha256:${"e".repeat(64)}`;
+      const pageKey = idempotencyKeyFor({ runId: run.runId, action: "advance_portal_page", target: pageTarget });
+      await runs.recordIntent(run.runId, { idempotencyKey: pageKey, action: "advance_portal_page", target: pageTarget, startedAt: NOW });
+      await runs.completeIntent(run.runId, pageKey, "succeeded", NOW);
+      await new TransmissionStore(instancePool).record({
+        runId: run.runId,
+        intentKey: "attach_275",
+        caseId: bound.caseId,
+        disclosureId: "disc_275",
+        documentId: "doc_pp_275",
+        contentHash: "d".repeat(64),
+        toHost: "portal.example.test",
+        institutionName: "Example University",
+        transmittedAt: NOW,
+        now: NOW,
+      });
+    } finally {
+      await instancePool.end();
+    }
+    const reply = await say("delete my answers");
+    expect(reply).toContain("Example University already has");
+    expect(reply, "the account").toContain("the account created in your name there");
+    expect(reply, "the page, by its title").toContain('what I filled in on its form ("Personal details")');
+    expect(reply, "the document sent, and when").toContain("your passport, which I sent on 31 August 2026");
+    expect(reply).toContain("I cannot take it back");
+    expect(await openRequests()).toBe(1);
+  }, 120_000);
+
+  it("keeps the promise: a person closes it, the student is told it is done — once", async () => {
+    const built = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, vault);
+    try {
+      const open = await built.driver.openDeletionRequests();
+      const mine = open.find((request) => request.conversationId === conversation);
+      if (mine === undefined) expect.unreachable("the request is not open");
+      const closed = await built.driver.closeDeletionRequest({ requestId: mine.requestId, closedBy: "vahid", outcome: "deleted", reason: null });
+      expect(closed?.closedNow).toBe(true);
+      expect(await lastSaid()).toBe("Your request to delete the details you confirmed is done: a person on the team has deleted them.");
+      const twice = await built.driver.closeDeletionRequest({ requestId: mine.requestId, closedBy: "someone else", outcome: "declined", reason: "no" });
+      expect(twice?.closedNow, "a second closing is not recorded").toBe(false);
+      expect(await lastSaid(), "and the student is not told twice").toBe("Your request to delete the details you confirmed is done: a person on the team has deleted them.");
+      expect(await built.driver.closeDeletionRequest({ requestId: "ddr_nothing", closedBy: "vahid", outcome: "deleted", reason: null })).toBeNull();
+    } finally {
+      await built.pool.end();
+    }
+    expect(await openRequests()).toBe(0);
+  }, 120_000);
+
+  it("asks which 'my data' means (D6), asks again for an answer outside the set, and on 'both' deletes the documents and passes the details on", async () => {
+    const asked = await say("I want my data deleted");
+    expect(asked).toContain("Do you want me to delete only your documents, or the details you have confirmed as well?");
+    expect(asked).toContain("a passport");
+    expect(vault.records.find((r) => r.documentId === "doc_pp_275")?.state, "nothing on a question").toBe("confirmed");
+    const again = await say("hmm, what do you suggest?");
+    expect(again, "asked again, never an interview answer").toContain('Say "just the documents", "just the details", or "both".');
+    const reply = await say("both");
+    expect(reply).toContain("I have deleted everything I held for you: a passport.");
+    expect(reply).toContain("I have passed your request to delete the details you confirmed to a person on the team");
+    expect(vault.records.find((r) => r.documentId === "doc_pp_275")?.state).toBe("purged");
+    expect(await openRequests(), "a new request, the last one being closed").toBe(1);
+  }, 120_000);
+
+  it("through the internal plane: listed for a person, refused without a certificate or a reason, and a refusal reaches the student in the person's words", async () => {
+    const instance = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, vault);
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: () => Promise.resolve(true),
+      authoriseService: (req) => req.header("x-service-cert") === "operator",
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(0, "127.0.0.1", () => resolve(s_));
+    });
+    const address = listening.address();
+    const base = `http://127.0.0.1:${String(typeof address === "object" && address !== null ? address.port : 0)}`;
+    const headers = { "content-type": "application/json", "x-service-cert": "operator" };
+    try {
+      expect((await fetch(`${base}/internal/v1/deletion-requests`)).status, "the internal plane is not open").toBe(403);
+      const listed = (await (await fetch(`${base}/internal/v1/deletion-requests`, { headers })).json()) as { requests: { requestId: string; conversationId: string }[] };
+      const mine = listed.requests.find((request) => request.conversationId === conversation);
+      if (mine === undefined) expect.unreachable("the request is not listed");
+      const closure = (body: unknown): Promise<Response> =>
+        fetch(`${base}/internal/v1/deletion-requests/${mine.requestId}/closure`, { method: "POST", headers, body: JSON.stringify(body) });
+      expect((await closure({ closedBy: "vahid", outcome: "declined" })).status, "a refusal says why").toBe(400);
+      expect((await closure({ closedBy: "vahid", outcome: "deleted", reason: "done" })).status, "a deletion carries no reason").toBe(400);
+      expect((await fetch(`${base}/internal/v1/deletion-requests/ddr_nothing/closure`, { method: "POST", headers, body: JSON.stringify({ closedBy: "vahid", outcome: "deleted" }) })).status).toBe(404);
+      const refused = await closure({ closedBy: "vahid", outcome: "declined", reason: "the application was submitted and the law requires us to keep it" });
+      expect(refused.status).toBe(200);
+      const body = (await refused.json()) as { closedNow: boolean; request: { closed?: { outcome: string } } };
+      expect(body.closedNow).toBe(true);
+      expect(body.request.closed?.outcome).toBe("declined");
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+    expect(await lastSaid()).toBe('A person on the team has looked at your request to delete the details you confirmed, and has not deleted them. They said: "the application was submitted and the law requires us to keep it"');
+    expect(await openRequests()).toBe(0);
   }, 120_000);
 });
 

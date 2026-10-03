@@ -41,18 +41,51 @@ describe("a student asking for a document to be deleted, the way a person says i
     }
   });
 
-  it("reads 'everything' as every document held", () => {
+  it("reads every DOCUMENT, said as documents, as every document held", () => {
+    for (const said of ["delete all my documents", "remove all of my files", "please delete my documents", "wipe all my uploads"]) {
+      expect(readDeletionRequest(said), said).toEqual({ scope: "all" });
+    }
+  });
+
+  // P275, row 130. Until then these read as every document. Since the stop
+  // message (D6) invites "your data deleted", "everything" may mean the
+  // confirmed details too — and which is asked, never guessed.
+  it("reads 'everything' and 'my data' as EVERYTHING — to be asked whether the details are meant too", () => {
     for (const said of [
       "get rid of everything you have on me",
       "Delete everything you hold for me",
-      "delete all my documents",
-      "remove all of my files",
       "erase everything",
       "wipe all my data",
-      "please delete my documents",
+      "please delete my data",
+      "I want my personal data deleted",
       "I want you to delete what you've got on me",
+      "delete everything, my CV too",
     ]) {
-      expect(readDeletionRequest(said), said).toEqual({ scope: "all" });
+      expect(readDeletionRequest(said), said).toEqual({ scope: "everything" });
+    }
+  });
+
+  it("reads the confirmed details, in a person's words, as the DETAILS — and with a document beside them, as everything", () => {
+    for (const said of [
+      "delete my details",
+      "please remove the details I confirmed",
+      "erase my answers",
+      "I want my profile deleted",
+      "remove what I told you",
+      "delete the confirmed details",
+    ]) {
+      expect(readDeletionRequest(said), said).toEqual({ scope: "details" });
+    }
+    for (const said of ["delete my CV and my details", "remove my documents and my answers", "delete everything, my details too"]) {
+      expect(readDeletionRequest(said), said).toEqual({ scope: "everything" });
+    }
+  });
+
+  // Found in P275: the kind named used to win, so the one document the
+  // student spared was the one deleted.
+  it("reads an exception inside a request as UNCLEAR, never as the document it spares", () => {
+    for (const said of ["delete everything except my passport", "remove all my documents apart from the CV", "delete my files other than my transcript", "erase it all but not my passport"]) {
+      expect(readDeletionRequest(said), said).toEqual({ scope: "unclear" });
     }
   });
 

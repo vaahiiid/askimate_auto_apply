@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.268.0] — 2026-10-03
+
+**P275 — a request to delete the confirmed details reaches a person (row 130, stage A; ADR-0148
+amended).**
+
+- **Added** the confirmed details to the deletion reader — *delete my details*, *my answers*,
+  *what I told you* — as their own request, passed to a person and never deleted in the chat.
+- **Changed** *everything*, *my data* and *what you have on me*, which read as every document:
+  they are now asked — *"Do you want me to delete only your documents, or the details you have
+  confirmed as well?"* — and answered from a closed set; anything else is asked again.
+- **Fixed** *"delete everything except my passport"*, which deleted the passport: an exception
+  inside a request is asked about.
+- **Added** migration 0038, `data_deletion_requests` — raised once per student, closed whole, a
+  refusal saying why — and the student's sentence: a person has it; what the university already
+  has, measured from the run's ledger; *"I will tell you here when it is done."*
+- **Added** `pnpm run deletion-requests` (list, close) over two internal routes, published in the
+  contract; closing tells the student, once. The service's start line names every open request.
+- **Recorded** D6 and D31 kept (row 126); row 130's stage A closed, stage B unbuilt and
+  unpromised.
+
+---
+
 ## [0.267.0] — 2026-10-03
 
 **P274 — the retention sweep (row 128; ADR-0096 amended).**

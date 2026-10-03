@@ -132,7 +132,7 @@ import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mapping";
 import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
-import { readStudentMessage, readUseRequest, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
+import { readDeletionRequest, readStudentMessage, readUseRequest, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
@@ -216,7 +216,7 @@ import type { DocumentReading, DocumentReadingStore } from "./document-reading-s
 import { readingSentence, structureOf } from "./reading-account.js";
 import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
-import type { ApplicationBindingStore } from "./application-store.js";
+import type { ApplicationBindingStore, ConversationCase } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
 import type { ProposedValue } from "@askimate/aas-domain";
 import { isReadInPart, proposeValue, provenanceOf, unwrapProposed } from "@askimate/aas-domain";
@@ -229,6 +229,7 @@ import type { WorkLease, WorkLeaseStore } from "./work-store.js";
 import type { RunSessionStore } from "./session-store.js";
 import type { PortalConsentStore } from "./consent-store.js";
 import type { TransmissionStore } from "./transmission-store.js";
+import type { DataDeletionRequest, DataDeletionRequestStore, DeletionOutcome } from "./data-deletion-request-store.js";
 
 /**
  * A reviewed blueprint and its reviewed mapping set, by id.
@@ -1416,6 +1417,49 @@ function yesOrNo(text: string): boolean | null {
   return null;
 }
 const DELETION_WAY_BACK = "If you did not mean a deletion, say so and we will carry on where we were.";
+// D31 (row 126): said after every document deletion. Since P275 it is kept —
+// the details are passed to a person, and the student is told what that takes.
+const DETAILS_OFFER = "If you want any of those removed too, tell me and I will say what that takes.";
+// P275, row 130: "everything" or "my data" may mean the confirmed details too.
+// Asked, never guessed. Its prefix is how the answer to it is recognised.
+const EVERYTHING_QUESTION = "Do you want me to delete only your documents, or the details you have confirmed as well?";
+const EVERYTHING_CHOICES = `Say "just the documents", "just the details", or "both".`;
+
+/**
+ * The answer to the everything question (P275), or `null` when it is not one
+ * of the closed set. A sentence with a "not" or a "keep" in it is not read —
+ * "keep the documents, delete the details" is asked again rather than taken
+ * apart, because a wrong reading here deletes or ignores a student's data.
+ */
+function everythingAnswer(text: string): "documents" | "details" | "both" | "neither" | null {
+  const said = text.toLowerCase().replace(/[’‘\u0060]/g, "'").replace(/[^a-z' ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (/^(?:no|nope|nah|neither|nothing|none)(?: thanks| thank you)?$|^(?:no )?(?:never ?mind|i didn'?t mean that|i did not mean that|carry on)$/.test(said)) return "neither";
+  if (/\b(?:not|don'?t|do not|without|except|but|keep|leave)\b/.test(said)) return null;
+  const documents = /\b(?:documents?|files?|uploads?)\b/.test(said);
+  const details = /\b(?:details?|answers?|profile)\b/.test(said);
+  if (/\b(?:both|everything|all of it|the lot|as well|too|also)\b|^(?:yes )?all$/.test(said) || (documents && details)) return "both";
+  if (documents) return "documents";
+  if (details) return "details";
+  return null;
+}
+
+/** A plain yes to D31's offer (P275): the details are meant. */
+function acceptsTheDetailsOffer(text: string): boolean {
+  const said = text.toLowerCase().replace(/[^a-z' ]+/g, " ").replace(/\s+/g, " ").trim();
+  return /^(?:yes|yes please|yeah|yep|please do|do it|go ahead|ok|okay|yes those too|yes them too|those too|them too|those as well|them as well)$/.test(said);
+}
+
+/**
+ * What a person's closing of a deletion request tells the student (P275): the
+ * other half of "I will tell you here when it is done". A refusal carries the
+ * person's own reason, quoted, because a refusal the student cannot read the
+ * reason for is no answer.
+ */
+function deletionClosedMessage(outcome: DeletionOutcome, reason: string | null): string {
+  return outcome === "deleted"
+    ? "Your request to delete the details you confirmed is done: a person on the team has deleted them."
+    : `A person on the team has looked at your request to delete the details you confirmed, and has not deleted them. They said: "${reason ?? ""}"`;
+}
 
 /** A document type in a person's words: "CV", "academic transcript". */
 function documentWords(documentType: string): string {
@@ -2437,6 +2481,15 @@ export interface RunDriverOptions {
    * three save. An id derived from the run alone collides on the second.
    */
   readonly newInterventionId?: (runId: string, idempotencyKey: string, now: Date) => string;
+  /**
+   * Where a request to delete the student's confirmed details waits for a
+   * person (P275, row 130). Optional for the reason `interventions` is;
+   * absent, the student is told plainly that the request cannot reach anyone
+   * from here, and nothing is said to be passed on.
+   */
+  readonly deletionRequests?: DataDeletionRequestStore;
+  /** Deletion request ids, injected so a test can make one predictable. */
+  readonly newDeletionRequestId?: (now: Date) => string;
   /** Lease ids, injected so a test can make a claim predictable. */
   readonly newLeaseId?: (runId: string, now: Date) => string;
   readonly now: () => Date;
@@ -5253,9 +5306,13 @@ export class RunDriver {
     // below takes `StudentAnswer`, which only the `answer` branch holds, so
     // a message about deletion cannot reach it — not by a check that could
     // be forgotten, but because there is no value of the right type to pass.
+    //
+    // The everything question (P275) is answered first: "just the documents"
+    // names no verb and would otherwise be read as an answer to the interview.
+    if (await this.#answeredTheEverythingQuestion(input.conversationId, said.content)) return;
     const read = readStudentMessage(said.content);
     if (read.kind === "deletion") {
-      await this.#deleteAtRequest(input.conversationId, read.reading);
+      await this.#deleteAtRequest(input.conversationId, read.reading, said.content);
       return;
     }
     const answer: StudentAnswer = read.answer;
@@ -5263,6 +5320,8 @@ export class RunDriver {
     // The way back from the deletion question (row 98): a plain no after it
     // deletes nothing and carries on where the interview was.
     if (await this.#declinedTheDeletionQuestion(input.conversationId, answer)) return;
+    // A plain yes to D31's offer: the details are meant (P275).
+    if (await this.#acceptedTheDetailsOffer(input.conversationId, answer)) return;
 
     // ── The CV question, answered in words rather than pressed (P251) ────
     //
@@ -5409,13 +5468,28 @@ export class RunDriver {
    * name, and nothing is said; the documents panel is only shown on a
    * started application, so nothing can be held there either.
    */
-  async #deleteAtRequest(conversationId: string, request: DeletionReading): Promise<void> {
+  async #deleteAtRequest(conversationId: string, reading: DeletionReading, text: string, andTheDetails = false): Promise<void> {
     const say = async (content: string): Promise<void> => {
       await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
     };
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null) return;
     const vault = this.#options.disclosure?.vault;
+    // D31's "those" (P275): "remove those too", straight after the offer that
+    // named them, is resolved against what was last said — the referent is
+    // ours, not a guess. Anywhere else it stays a question.
+    const lastSaid = await this.#lastAssistantLine(conversationId);
+    const request: DeletionReading =
+      (reading.scope === "unclear" || reading.scope === "one") && lastSaid?.endsWith(DETAILS_OFFER) === true && /\b(those|them|these)\b/i.test(text)
+        ? { scope: "details" }
+        : // Nothing can be held without a vault, so "everything" is the details.
+          reading.scope === "everything" && vault === undefined
+          ? { scope: "details" }
+          : reading;
+    if (request.scope === "details") {
+      await say(await this.#passTheDetailsToAPerson(conversationId, bound));
+      return;
+    }
     if (vault === undefined) {
       await say("I am not able to hold documents in this conversation, so there is nothing of yours here to delete.");
       return;
@@ -5443,7 +5517,17 @@ export class RunDriver {
       await say(
         held.length === 0
           ? `${DELETION_QUESTION} I hold no documents for you, so there is nothing to delete. ${DELETION_WAY_BACK}`
-          : `${DELETION_QUESTION} I hold ${listed(held)}. Tell me which — for example "delete my ${documentWords(held[0]?.documentType ?? "cv")}" — or say "delete everything". ${DELETION_WAY_BACK}`,
+          : `${DELETION_QUESTION} I hold ${listed(held)}. Tell me which — for example "delete my ${documentWords(held[0]?.documentType ?? "cv")}" — or say "delete all my documents". ${DELETION_WAY_BACK}`,
+      );
+      return;
+    }
+    // Everything, or "my data" (P275): the documents, or the details as well?
+    if (request.scope === "everything") {
+      await say(
+        `${EVERYTHING_QUESTION} ` +
+          (held.length === 0 ? "I hold no documents for you. " : `I hold ${listed(held)}, which I can delete myself, now. `) +
+          `The details you confirmed are your own statements in your application, and a person on the team deletes those. ` +
+          `${EVERYTHING_CHOICES} ${DELETION_WAY_BACK}`,
       );
       return;
     }
@@ -5459,8 +5543,12 @@ export class RunDriver {
     if (request.scope === "one" && held.length > 1) {
       await say(
         `I hold ${String(held.length)} documents for you: ${listed(held)}. Which one should I delete? ` +
-          `You can say "delete my ${documentWords(held[0]?.documentType ?? "cv")}", or "delete everything".`,
+          `You can say "delete my ${documentWords(held[0]?.documentType ?? "cv")}", or "delete all my documents".`,
       );
+      return;
+    }
+    if (chosen.length === 0 && andTheDetails) {
+      await say(`I hold no documents for you, so there were none to delete. ${await this.#passTheDetailsToAPerson(conversationId, bound)}`);
       return;
     }
     if (chosen.length === 0) {
@@ -5486,7 +5574,6 @@ export class RunDriver {
         ? `The ${String(fromThese)} ${fromThese === 1 ? "detail" : "details"} you confirmed from ${chosen.length === 1 ? "it" : "them"} ` +
           `stay in your application, because those are your own statements now. `
         : "The details you have confirmed stay in your application, because those are your own statements now. ";
-    const ask = "If you want any of those removed too, tell me and I will say what that takes.";
 
     // What is beyond our reach: a document a university already has.
     const sent = (await this.#options.transmissions?.forCase(bound.caseId)) ?? [];
@@ -5503,7 +5590,152 @@ export class RunDriver {
         : chosen.length === 1
           ? `I have deleted your ${documentWords(chosen[0]?.documentType ?? "cv")}.`
           : `I have deleted your ${andList(chosen.map((record) => documentWords(record.documentType)))}.`;
-    await say(`${what} ${kept}${ask}${beyond}`);
+    if (andTheDetails) {
+      await say(`${what} ${await this.#passTheDetailsToAPerson(conversationId, bound)}`);
+      return;
+    }
+    await say(`${what} ${kept}${DETAILS_OFFER}${beyond}`);
+  }
+
+  /** The last thing the assistant said in a conversation, or `null`. */
+  async #lastAssistantLine(conversationId: string): Promise<string | null> {
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const last = [...events].reverse().find((event) => event.kind === "message" && event.actor === "assistant");
+    return last === undefined || last.kind !== "message" ? null : (last.content ?? null);
+  }
+
+  /**
+   * The answer to the everything question (P275). `false` when the question
+   * is not the last thing said, or when the answer is a deletion sentence of
+   * its own, which is read as one. Anything else outside the closed set is
+   * asked again — never passed to the interview as an answer (row 98).
+   */
+  async #answeredTheEverythingQuestion(conversationId: string, text: string): Promise<boolean> {
+    const lastSaid = await this.#lastAssistantLine(conversationId);
+    if (lastSaid === null || !lastSaid.startsWith(EVERYTHING_QUESTION)) return false;
+    const choice = everythingAnswer(text);
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    if (choice === "neither") {
+      await say("Understood — nothing is deleted. Back to where we were.");
+      await this.#askAfterWriting(conversationId);
+      return true;
+    }
+    if (choice === null) {
+      if (readDeletionRequest(text) !== null) return false;
+      await say(`${EVERYTHING_QUESTION} ${EVERYTHING_CHOICES} ${DELETION_WAY_BACK}`);
+      return true;
+    }
+    if (choice === "details") await this.#deleteAtRequest(conversationId, { scope: "details" }, text);
+    else await this.#deleteAtRequest(conversationId, { scope: "all" }, text, choice === "both");
+    return true;
+  }
+
+  /** A plain yes straight after D31's offer: the details are meant (P275). */
+  async #acceptedTheDetailsOffer(conversationId: string, answer: StudentAnswer): Promise<boolean> {
+    if (!acceptsTheDetailsOffer(answer)) return false;
+    const lastSaid = await this.#lastAssistantLine(conversationId);
+    if (lastSaid?.endsWith(DETAILS_OFFER) !== true) return false;
+    await this.#deleteAtRequest(conversationId, { scope: "details" }, answer);
+    return true;
+  }
+
+  /**
+   * Passes a request to delete the confirmed details to a person, and says
+   * what that takes (P275, row 130; D6 and D31). Raised once: said again
+   * while one is open, the student is told it is already with a person.
+   *
+   * What the student reads names what is beyond our reach, MEASURED rather
+   * than assumed (`#whatIsBeyondReach`), and promises one thing: that they
+   * will be told here when it is done — which `closeDeletionRequest` keeps.
+   * The deletion itself is a person's (stage B is not built).
+   */
+  async #passTheDetailsToAPerson(conversationId: string, bound: ConversationCase): Promise<string> {
+    const store = this.#options.deletionRequests;
+    if (store === undefined) {
+      return "Deleting the details you confirmed is done by a person on the team, and I have no way to reach one from here, so nothing has been passed on and nothing is deleted.";
+    }
+    const now = this.#options.now();
+    const raised = await store.raise({
+      requestId: this.#options.newDeletionRequestId?.(now) ?? `ddr_${randomUUID().replace(/-/g, "")}`,
+      conversationId,
+      studentId: bound.studentId,
+      caseId: bound.caseId,
+      now,
+    });
+    const beyond = await this.#whatIsBeyondReach(bound);
+    const passed = raised.raised
+      ? "I have passed your request to delete the details you confirmed to a person on the team: deleting those is not something I do in the chat."
+      : `I passed your request to delete the details you confirmed to a person on the team on ${dayOf(raised.request.raisedAt)}, and it is still open.`;
+    return `${passed} ${beyond} I will tell you here when it is done.`;
+  }
+
+  /**
+   * What a university already has from this application, measured from the
+   * run's own ledger (P275): the pages the run saved (a succeeded
+   * `advance_portal_page`), the account it created, and the documents it
+   * sent. Said as beyond our reach, because it is: nothing here reaches back
+   * through a portal to remove it (ADR-0053 §4).
+   *
+   * Measured for THIS conversation's case. A student's other applications
+   * are other conversations, and their deletion requests are their own.
+   */
+  async #whatIsBeyondReach(bound: ConversationCase): Promise<string> {
+    const nothing = "Nothing of yours has reached a university from me, so nothing is out of reach.";
+    const entry = await this.#entryAdmitting(bound);
+    const runs = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
+    const pageRefs = new Set<string>();
+    let account = false;
+    for (const run of runs) {
+      for (const record of await this.#options.stores.runs.listIntents(run.runId, "advance_portal_page")) {
+        if (record.completed?.outcome === "succeeded") pageRefs.add(record.intent.target.split("@")[0] ?? "");
+      }
+      // The ledger's own evidence that the portal created it, or the run's
+      // situation — the source the stop message reads (#accountsOn).
+      if ((await this.#options.stores.runs.listIntents(run.runId, "create_portal_account")).some((record) => record.completed?.outcome === "succeeded")) account = true;
+      else if (entry !== null && (await this.#accountsOn(run, entry)).length > 0) account = true;
+    }
+    const sent = (await this.#options.transmissions?.forCase(bound.caseId)) ?? [];
+    const institution = entry?.blueprint.institutionName ?? sent[0]?.institutionName ?? "the university";
+    const titles = [...pageRefs].map((ref) => entry?.blueprint.pages.find((page) => page.pageRef === ref)?.title ?? ref);
+    const types = new Map((await this.#options.disclosure?.vault.listForStudent(bound.studentId) ?? []).map((record) => [record.documentId, record.documentType]));
+    const documents = [...new Set(sent.map((transmission) => documentWords(types.get(transmission.documentId) ?? "document")))];
+    const parts = [
+      ...(account ? [`the account created in your name there`] : []),
+      ...(titles.length === 0 ? [] : [`what I filled in on its form (${andList(titles.map((title) => `"${title}"`))})`]),
+      ...(documents.length === 0 ? [] : [`your ${andList(documents)}, which I sent on ${andList([...new Set(sent.map((t) => dayOf(t.transmittedAt)))])}`]),
+    ];
+    if (parts.length === 0) return nothing;
+    return `${institution} already has ${andList(parts)}. That stays with them: I cannot take it back, and deleting here does not delete it there. To have it deleted there, ask ${institution} directly.`;
+  }
+
+  /** Every request to delete confirmed details waiting for a person, oldest first (P275). */
+  public async openDeletionRequests(): Promise<readonly DataDeletionRequest[]> {
+    return (await this.#options.deletionRequests?.open()) ?? [];
+  }
+
+  /**
+   * A person closes a deletion request, and the student is told (P275) —
+   * the promise "I will tell you here when it is done", kept. A second
+   * closing is not recorded and tells nobody anything twice. `null` when no
+   * such request exists.
+   */
+  public async closeDeletionRequest(input: {
+    readonly requestId: string;
+    readonly closedBy: string;
+    readonly outcome: DeletionOutcome;
+    readonly reason: string | null;
+  }): Promise<{ readonly closedNow: boolean; readonly request: DataDeletionRequest } | null> {
+    const store = this.#options.deletionRequests;
+    if (store === undefined) return null;
+    const closed = await store.close({ ...input, now: this.#options.now() });
+    if (closed === null || !closed.closedNow) return closed;
+    await this.#options.conversations.append({
+      conversationId: closed.request.conversationId,
+      event: { kind: "message", actor: "assistant", content: deletionClosedMessage(input.outcome, input.reason) },
+    });
+    return closed;
   }
 
   /**

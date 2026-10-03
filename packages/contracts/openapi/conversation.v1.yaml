@@ -1133,6 +1133,88 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
+  /internal/v1/deletion-requests:
+    get:
+      operationId: listDeletionRequests
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: What is waiting for a person — requests to delete confirmed details.
+      description: >-
+        P275, row 130. A student who asks for the details they confirmed to be
+        deleted is told the request is passed to a person (D6, D31); this is
+        where a person reads it. Pull, derived from the store, as the
+        interventions list is. Identifiers and times only.
+      responses:
+        "200":
+          description: Every open request, oldest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/DeletionRequest" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment drives no runs.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/deletion-requests/{requestId}/closure:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: closeDeletionRequest
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: A person closes a deletion request, and the student is told.
+      description: >-
+        P275. The other half of "I will tell you here when it is done": the
+        service writes the closing and tells the student, as the one writer
+        (ADR-0048). `closedBy` is ASSERTED, not authenticated, on the terms of
+        an intervention's specialist. A refusal carries its reason, which the
+        student reads. A second closing is NOT recorded: the answer is 200
+        with `closedNow: false` and the closing that stands, and the student
+        is not told twice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeletionClosure" }
+      responses:
+        "200":
+          description: The request as it now stands, and whether this call closed it.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [closedNow, request]
+                properties:
+                  closedNow: { type: boolean }
+                  request: { $ref: "#/components/schemas/DeletionRequest" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "503":
+          description: This deployment drives no runs.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
   /internal/v1/conversations/{conversationId}/events:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     post:
@@ -3571,6 +3653,42 @@ components:
               - unexpected_portal_behaviour
               - information_unobtainable
         notes: { type: string }
+
+    DeletionRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        A student's request to delete the details they confirmed, passed to a
+        person (P275). Identifiers and times; the details themselves are not
+        copied here.
+      required: [requestId, conversationId, studentId, caseId, raisedAt]
+      properties:
+        requestId: { type: string }
+        conversationId: { type: string }
+        studentId: { type: string }
+        caseId: { type: string }
+        raisedAt: { type: string, format: date-time }
+        closed:
+          type: object
+          additionalProperties: false
+          required: [closedAt, closedBy, outcome]
+          properties:
+            closedAt: { type: string, format: date-time }
+            closedBy: { type: string }
+            outcome: { type: string, enum: [deleted, declined] }
+            reason: { type: string }
+
+    DeletionClosure:
+      type: object
+      additionalProperties: false
+      description: >-
+        How a person closed a deletion request. `declined` requires `reason`,
+        which the student reads; `deleted` takes none.
+      required: [closedBy, outcome]
+      properties:
+        closedBy: { type: string, minLength: 1, maxLength: 200 }
+        outcome: { type: string, enum: [deleted, declined] }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
 
     OpenIntervention:
       type: object

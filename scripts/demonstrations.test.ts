@@ -226,6 +226,31 @@ describe("the published demonstrations", () => {
     });
   });
 
+  describe("deletion-requests", () => {
+    // P275, row 130. Closing one tells a student, so the command must refuse
+    // without the credential, and refuse a closing that does not say which —
+    // all before it reaches the service. The URL points at nothing: a refusal
+    // that needed the network would fail here rather than pass.
+    const offline = { AAS_SERVICE_CERT: "operator", AAS_CONVERSATION_URL: "http://127.0.0.1:9" };
+    it("REFUSES without the service credential, and names the boundary it protects", () => {
+      const bare = run("deletion-requests.ts", [], { AAS_SERVICE_CERT: "" });
+      expect(bare.code).not.toBe(0);
+      expect(bare.out).toContain("AAS_SERVICE_CERT");
+      expect(bare.out).toContain("ADR-0048");
+    });
+    it("REFUSES a closing without a name, without a choice, or a refusal without its reason", () => {
+      const noName = run("deletion-requests.ts", ["close", "ddr_x", "--deleted"], offline);
+      expect(noName.code).not.toBe(0);
+      expect(noName.out).toContain("--by is required");
+      const noChoice = run("deletion-requests.ts", ["close", "ddr_x", "--by", "vahid"], offline);
+      expect(noChoice.code).not.toBe(0);
+      expect(noChoice.out).toContain("Say exactly one of --deleted or --declined");
+      const noReason = run("deletion-requests.ts", ["close", "ddr_x", "--by", "vahid", "--declined"], offline);
+      expect(noReason.code).not.toBe(0);
+      expect(noReason.out).toContain("--declined needs --reason");
+    });
+  });
+
   describe("inspect:attached", () => {
     // P79. It attaches to a browser a person signed in to; with nothing to
     // attach to it must say how to call it and stop, opening no browser.
@@ -306,7 +331,7 @@ describe("the published demonstrations", () => {
       "measure-cv",
     ];
     const GUARDED_HERE = [
-      "extraction-demo", "interview-demo", "catalogue", "interventions", "inspect-discovery",
+      "extraction-demo", "interview-demo", "catalogue", "interventions", "deletion-requests", "inspect-discovery",
       "inspect:attached", "inspect-dependencies", "country-mappings",
     ];
 
