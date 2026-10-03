@@ -397,6 +397,11 @@ describeIfDatabase("running, and stopping", () => {
       // than a day — and says so when there is none, because a line that
       // prints nothing when nothing is wrong prints nothing when something is.
       expect(await untilSaid(service, /open interventions older than a day: /)).toContain("open interventions older than a day: none");
+      // P274, row 128: the retention sweep says whether it is there. With no
+      // document store there is nothing to delete, and the line says so —
+      // a sweep that reports nothing is indistinguishable from one that does
+      // not run.
+      expect(await untilSaid(service, /retention sweep: /)).toContain("retention sweep: off — no document store, so there is nothing to delete");
     } finally {
       const code = await service.stop("SIGTERM");
       expect(code, "a clean shutdown exits zero").toBe(0);

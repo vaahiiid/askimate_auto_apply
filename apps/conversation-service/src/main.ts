@@ -32,7 +32,9 @@ import { conversationConfigFrom, type ConversationConfig } from "./config.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { httpSecureRequestOpener } from "./secure-requests.js";
-import { buildDocumentPort, buildRunDriver, conversationStore, resolveCatalogue } from "./wiring.js";
+import { buildDocumentPort, buildRunDriver, conversationStore, loadGoverningSchedule, resolveCatalogue } from "./wiring.js";
+import { WorkerLeaseStore } from "./worker-leases.js";
+import type { RetentionSchedule } from "@askimate/aas-domain";
 
 /**
  * Both schemas, in the order they must be applied.
@@ -340,8 +342,21 @@ export async function start(options: StartOptions): Promise<RunningService | nul
     );
     // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
     await sayWhatHasWaited(driver, options.log, new Date());
+    const sweeper =
+      config.documents === undefined
+        ? (options.log("retention sweep: off — no document store, so there is nothing to delete"), undefined)
+        : await startRetentionSweep({
+            driver,
+            leases: new WorkerLeaseStore(pool),
+            // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+            schedule: await loadGoverningSchedule(config.documents.retentionScheduleDir, new Date()),
+            log: options.log,
+            // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+            now: () => new Date(),
+          });
 
     const close = async (): Promise<void> => {
+      await sweeper?.stop();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await pool.end();
     };
@@ -350,6 +365,56 @@ export async function start(options: StartOptions): Promise<RunningService | nul
     await pool.end().catch(() => undefined);
     throw error;
   }
+}
+
+/**
+ * The retention sweep (P274, row 128): once at the start, then hourly, under
+ * the `sweep_retention` lease so two instances of the service cannot both
+ * delete a document and both tell its student.
+ *
+ * It says what it did at the start — how many it deleted, or that it could not
+ * run and why — and afterwards only when it deleted something or failed: an
+ * hourly line that says nothing happened is noise, but the start line must say
+ * the sweep is there, because a sweep that reports nothing is indistinguishable
+ * from a sweep that does not run.
+ */
+async function startRetentionSweep(input: {
+  readonly driver: { sweepRetention(input: { readonly schedule: RetentionSchedule; readonly batch: number }): Promise<{ readonly purged: readonly string[] }> };
+  readonly leases: WorkerLeaseStore;
+  readonly schedule: RetentionSchedule;
+  readonly log: Log;
+  readonly now: () => Date;
+}): Promise<{ readonly stop: () => Promise<void> }> {
+  const holder = `conversation-service-${String(process.pid)}`;
+  let holding: string | undefined;
+  const once = async (): Promise<number | null> => {
+    const lease = await input.leases.claim({ job: "sweep_retention", holder, now: input.now(), leaseSeconds: 300, ...(holding === undefined ? {} : { holding }) });
+    if (lease === null) return null;
+    holding = lease.leaseId;
+    return (await input.driver.sweepRetention({ schedule: input.schedule, batch: 100 })).purged.length;
+  };
+  try {
+    const purged = await once();
+    input.log(purged === null ? "retention sweep: hourly; another instance holds it now" : `retention sweep: hourly; ${String(purged)} deleted on start`);
+  } catch (error) {
+    input.log(`retention sweep: hourly; could not run on start — ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const timer = setInterval(() => {
+    once()
+      .then((purged) => {
+        if (purged !== null && purged > 0) input.log(`retention sweep: ${String(purged)} deleted`);
+      })
+      .catch((error: unknown) => {
+        input.log(`retention sweep: could not run — ${error instanceof Error ? error.message : String(error)}`);
+      });
+  }, 60 * 60 * 1000);
+  timer.unref();
+  return {
+    stop: async () => {
+      clearInterval(timer);
+      if (holding !== undefined) await input.leases.release("sweep_retention", holding).catch(() => undefined);
+    },
+  };
 }
 
 /**

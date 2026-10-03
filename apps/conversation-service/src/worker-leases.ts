@@ -37,6 +37,9 @@ export const WORKER_JOBS = [
   // ADR-0096, migration 0018: removes the document intakes nobody came back
   // to confirm. The only job that is not about a run or an intervention.
   "sweep_document_intakes",
+  // P274, migration 0037: deletes what a retention period has run out on. Run
+  // by the conversation service, which holds the vault; the worker does not.
+  "sweep_retention",
 ] as const;
 export type WorkerJob = (typeof WORKER_JOBS)[number];
 

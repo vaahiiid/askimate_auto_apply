@@ -34,7 +34,7 @@ This is that list. Nothing in the code was changed to make it.
 
 ## Contradicted by the code (read first)
 
-*Since the list was made:* D25 fixed in P271 — the reply after a reading now says where the CV is. The abandon path fixed in P272 — the student is told; row 129 holds what it does not do. W7's sweep is costed on row 128, D6 and D31's handoff on row 130; both wait on his word.
+*Since the list was made:* D25 fixed in P271 — the reply after a reading now says where the CV is. The abandon path fixed in P272 — the student is told; row 129 holds what it does not do. W7 kept in P274: the sweep deletes a CV a year after its last use and tells the student (row 128). D6 and D31's handoff on row 130.
 
 
 | # | Where | The promise | What the code does |

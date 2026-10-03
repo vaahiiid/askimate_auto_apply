@@ -483,6 +483,8 @@ beforeAll(async () => {
     transition: notHere("transition"),
     startRetentionClock: notHere("startRetentionClock"),
     purgeContents: notHere("purgeContents"),
+    recordUse: notHere("recordUse"),
+    dueForRetention: notHere("dueForRetention"),
   };
 
   // The student's own session, minted by the service's own issuer rather than

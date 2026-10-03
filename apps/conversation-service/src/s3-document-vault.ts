@@ -198,6 +198,20 @@ export class S3DocumentVault implements DocumentVault {
     return updated;
   }
 
+  public async recordUse(documentId: DocumentId, at: Date): Promise<DocumentRecord> {
+    const stored = await this.#records.get(documentId);
+    if (stored === null) throw new DocumentNotFoundError(documentId);
+    if (stored.record.state === "purged") return stored.record;
+    if (stored.record.retentionTriggeredAt !== null && stored.record.retentionTriggeredAt >= at) return stored.record;
+    const updated: DocumentRecord = { ...stored.record, retentionTriggeredAt: at };
+    await this.#records.update(updated, null);
+    return updated;
+  }
+
+  public dueForRetention(input: { readonly policyReference: string; readonly before: Date; readonly limit: number }): Promise<readonly DocumentRecord[]> {
+    return this.#records.due(input);
+  }
+
   public async purgeContents(documentId: DocumentId, now: Date): Promise<DocumentRecord> {
     const stored = await this.#records.get(documentId);
     if (stored === null) throw new DocumentNotFoundError(documentId);

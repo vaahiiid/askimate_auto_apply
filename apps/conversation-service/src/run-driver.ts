@@ -220,6 +220,8 @@ import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
 import type { ProposedValue } from "@askimate/aas-domain";
 import { isReadInPart, proposeValue, provenanceOf, unwrapProposed } from "@askimate/aas-domain";
+import { decideRetention } from "@askimate/aas-domain";
+import type { RetentionSchedule } from "@askimate/aas-domain";
 
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
@@ -1364,6 +1366,10 @@ const CV_GAVE_NOTHING = "I have already read your CV, and it gave nothing I coul
 const CV_KEPT_WHAT_YOU_SAID = "I have already read your CV. You had already told me about your jobs and qualifications, so I kept what you said.";
 const CV_COULD_NOT_BE_READ = "I tried to read your CV and could not read it as text, so I asked you about your jobs and qualifications instead.";
 const CV_DELETED = "Your CV has been deleted, so I cannot use it now. You can upload it again from the documents panel.";
+// P274, row 128: the year has run since the CV's last use. In his words, the
+// three things it says: a year since we last used it, deleted as we said we
+// would, upload it again any time. Nothing to act on, and no promise.
+const CV_DELETED_AT_THE_YEAR = "It has been a year since I last used your CV, so I have deleted it, as I said I would when you gave it to me. You can upload it again from the documents panel at any time.";
 // P252, row 107. Vahid: *"ask, do not hold silently… that we have it, that the
 // jobs and qualifications are already filled in and confirmed, and asking
 // whether they want to go back and use the CV for either — with the honest
@@ -8108,6 +8114,9 @@ export class RunDriver {
       await this.#options.disclosure?.vault.transition(earlier, "superseded", now);
     }
     await readings.request({ ...input, now });
+    // P274, row 128: giving the CV is its first use — the clock from "the
+    // last time I use it" starts here, and every reading moves it on.
+    await this.#options.disclosure?.vault.recordUse(input.documentId, now);
     // Nothing is said over an open question (P256). When the student has
     // something to answer, the arrival is recorded and told at the next
     // quiet moment, by `#sayWhatArrived`; the one exception is P254's — a
@@ -8337,6 +8346,51 @@ export class RunDriver {
    * reader took the document, or the reading was already reported. Nothing
    * of a refused report is written.
    */
+  /**
+   * Deletes what a retention policy's period has run out on (P274, row 128).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * The CV upload sentence promises *"I will keep it for one year from the
+   * last time I use it"*, and until P274 nothing kept that promise: no clock
+   * was ever started and nothing deleted. Vahid: *"Build the sweep. 'Until
+   * you ask' means a CV sits in the vault for ever for every student who
+   * never asks, and that is not what row 97 decided."*
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * For every policy whose action is deletion: the documents whose clock is
+   * past its period, oldest first, at most `batch` each; `decideRetention`
+   * has the last word; the contents go (ADR-0010 — the record and its hash
+   * stay). A CV's student is told, once, in each conversation that read it —
+   * his words: *"one message saying it has been a year since we last used
+   * their CV, that we have deleted it as we said we would, and that they can
+   * upload it again any time."* The sweep runs in this service because the
+   * worker may not hold a vault (ADR-0096); the caller holds its lease.
+   */
+  public async sweepRetention(input: { readonly schedule: RetentionSchedule; readonly batch: number }): Promise<{ readonly purged: readonly string[] }> {
+    const vault = this.#options.disclosure?.vault;
+    if (vault === undefined) return { purged: [] };
+    const now = this.#options.now();
+    const purged: string[] = [];
+    for (const policy of input.schedule.policies) {
+      if (policy.action !== "delete") continue;
+      const before = new Date(now.getTime() - policy.retainForDays * 86_400_000);
+      const due = await vault.dueForRetention({ policyReference: policy.policyReference, before, limit: input.batch });
+      for (const record of due) {
+        if (decideRetention({ policy, triggeredAt: record.retentionTriggeredAt, now }).action !== "delete") continue;
+        await vault.purgeContents(record.documentId, now);
+        purged.push(record.documentId);
+        if (record.documentType !== "cv") continue;
+        const reading = await this.#options.readings?.readingFor(record.documentId);
+        if (reading === null || reading === undefined) continue;
+        await this.#options.conversations.append({
+          conversationId: reading.conversationId,
+          event: { kind: "message", actor: "assistant", content: CV_DELETED_AT_THE_YEAR },
+        });
+      }
+    }
+    return { purged };
+  }
+
   public async reportReading(input: { readonly documentId: string; readonly report: ReadingReport }): Promise<boolean> {
     const readings = this.#options.readings;
     if (readings === undefined) return false;
@@ -8362,6 +8416,8 @@ export class RunDriver {
       now,
     });
     if (!done) return false;
+    // A reading is a use (P274): the year runs from the last one.
+    if (input.report.outcome === "read") await this.#options.disclosure?.vault.recordUse(input.documentId, now);
     // The sentence — his split: what the document gave, what it did not say,
     // what is the student's to tell — is owed now and said at the first
     // quiet moment (P256): at once when the student has nothing to answer,

@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P274 — a CV is deleted a year after it was last used
+
+*2026-10-03.* The promise every student reads before handing over a CV is kept: the clock moves
+on to each use, the sweep deletes what a year has run out on, and the student is told, once. It
+runs in the service, under its own lease, because the worker may not hold a vault. The CV's own
+words on the conversation log stay his question — and his proposed sentence, checked against the
+log, is nearly right: *what you confirmed* is too narrow; *what was said in our conversation,
+including the lines of your CV I read back to you* is true, and moves the question to the log's
+own retention (row 128).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P273 — what the deletion handoff costs
 
 *2026-10-03.* D6 and D31 sized rather than built: the reader knows documents only and nothing

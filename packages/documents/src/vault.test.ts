@@ -545,6 +545,41 @@ describe("the retention clock", () => {
   });
 });
 
+describe("the clock from the last use, and what is due (P274, row 128)", () => {
+  // Vahid, 2026-10-03: *"Build the sweep. 'Until you ask' means a CV sits in
+  // the vault for ever for every student who never asks, and that is not what
+  // row 97 decided."* Row 97: one year from LAST use. `startRetentionClock`
+  // starts once and never moves, which is right for a trigger that happens
+  // once; a `last_used` clock moves on to every use, and never back.
+  const DAY = 86_400_000;
+
+  it("moves the clock on to each use, and never back", async () => {
+    const vault = new InMemoryDocumentVault();
+    const record = await stored(vault, storable());
+    expect((await vault.recordUse(record.documentId, NOW)).retentionTriggeredAt).toEqual(NOW);
+    const later = new Date(NOW.getTime() + 100 * DAY);
+    expect((await vault.recordUse(record.documentId, later)).retentionTriggeredAt, "a later use moves it on").toEqual(later);
+    expect((await vault.recordUse(record.documentId, NOW)).retentionTriggeredAt, "an earlier one does not move it back").toEqual(later);
+  });
+
+  it("lists what is due under a policy: its clock past the period, not purged — and nothing else", async () => {
+    const vault = new InMemoryDocumentVault();
+    const due = await stored(vault, storable());
+    const fresh = await stored(vault, storable());
+    const never = await stored(vault, storable());
+    const gone = await stored(vault, storable());
+    await vault.recordUse(due.documentId, NOW);
+    await vault.recordUse(fresh.documentId, new Date(NOW.getTime() + 300 * DAY));
+    await vault.recordUse(gone.documentId, NOW);
+    await vault.purgeContents(gone.documentId, NOW);
+    const before = new Date(NOW.getTime() + 200 * DAY);
+    const listed = await vault.dueForRetention({ policyReference: due.retentionPolicyReference, before, limit: 10 });
+    expect(listed.map((record) => record.documentId)).toEqual([due.documentId]);
+    expect(listed.map((record) => record.documentId)).not.toContain(never.documentId);
+    expect(await vault.dueForRetention({ policyReference: "AAS-RET-SOMETHING-ELSE", before, limit: 10 })).toEqual([]);
+  });
+});
+
 describe("reuse eligibility", () => {
   it("allows reuse of a confirmed or verified document", async () => {
     const vault = new InMemoryDocumentVault();

@@ -420,9 +420,10 @@ export const CAPABILITIES: readonly Capability[] = [
     // it its first production caller — not the retention sweep, which still
     // does not exist, but the Run Driver answering a student's own request in
     // the chat: "delete my CV". The record on the row survives with its hash;
-    // the bytes go. This entry moving is the visible act; the sweep that fires
-    // when a period elapses is still not built, and its absence is now a
-    // gap in a caller, not a capability with none.
+    // the bytes go. This entry moving is the visible act. The sweep that fires
+    // when a period elapses was its second caller, built in P274 (row 128):
+    // `RunDriver.sweepRetention`, run by the conversation service under the
+    // `sweep_retention` lease.
     status: { kind: "reachable" },
   },
   {

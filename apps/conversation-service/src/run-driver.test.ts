@@ -111,6 +111,7 @@ import { TransmissionStore } from "./transmission-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { PostgresDocumentReadingStore } from "./document-reading-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
+import { loadGoverningSchedule } from "./wiring.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
@@ -14600,6 +14601,21 @@ function fakeVault(records: DocumentRecord[]): DocumentVault & { readonly record
     prepareRetrieval: refuse,
     transition: refuse,
     startRetentionClock: refuse,
+    recordUse: (documentId: string, at: Date) => {
+      const index = records.findIndex((r) => r.documentId === documentId);
+      const found = records[index];
+      if (found === undefined) throw new Error(`no document ${documentId}`);
+      if (found.state === "purged" || (found.retentionTriggeredAt !== null && found.retentionTriggeredAt >= at)) return Promise.resolve(found);
+      const used: DocumentRecord = { ...found, retentionTriggeredAt: at };
+      records[index] = used;
+      return Promise.resolve(used);
+    },
+    dueForRetention: (input: { readonly policyReference: string; readonly before: Date; readonly limit: number }) =>
+      Promise.resolve(
+        records
+          .filter((r) => r.retentionPolicyReference === input.policyReference && r.state !== "purged" && r.retentionTriggeredAt !== null && r.retentionTriggeredAt <= input.before)
+          .slice(0, input.limit),
+      ),
   };
   return vault;
 }
@@ -15961,6 +15977,108 @@ describeIfDatabase("'use my CV' after a reading is answered with where the CV tr
     const said = await lastSaid(READ_NOTHING);
     expect(said).not.toContain("I do not hold a CV");
     expect(said).toBe("I have already read your CV, and it gave nothing I could fill in.");
+  }, 120_000);
+});
+
+describeIfDatabase("the CV is deleted a year after it was last used, and the student is told (P274, row 128)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // The sentence every student reads before handing over a CV: *"I will
+  // keep it for one year from the last time I use it"*. Until P274 nothing
+  // started the clock and nothing deleted. Vahid, 2026-10-03: *"Build the
+  // sweep."* And: *"The student is told when a CV is deleted at the year …
+  // one message saying it has been a year since we last used their CV, that
+  // we have deleted it as we said we would, and that they can upload it again
+  // any time."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPX27401";
+  const CV = "01JQDOCREAD000000000000081";
+  const contentHash = "f".repeat(64);
+  const DAY = 86_400_000;
+  const at = (days: number): Date => new Date(NOW.getTime() + days * DAY);
+  const TOLD = "It has been a year since I last used your CV, so I have deleted it, as I said I would when you gave it to me. You can upload it again from the documents panel at any time.";
+  const READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  };
+  let owner = "";
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+
+  function instance(now: Date): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => now, vault);
+  }
+  async function toldCount(): Promise<number> {
+    const rows = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' AND mb.content = $2`,
+      [CONVERSATION, TOLD],
+    );
+    return Number(rows.rows[0]?.n ?? 0);
+  }
+  async function sweepAt(now: Date): Promise<readonly string[]> {
+    const built = instance(now);
+    try {
+      // Loaded as the service loads it: once, at its start — here on day 100,
+      // when version 3 governs (the CV's policy arrived in version 2, after
+      // this file's NOW). A schedule loaded after its policies' review dates
+      // refuses to load, by design (ADR-0023), so it is not loaded at the
+      // sweep's own date.
+      const schedule = await loadGoverningSchedule("config/retention", at(100));
+      return (await built.driver.sweepRetention({ schedule, batch: 50 })).purged;
+    } finally {
+      await built.pool.end();
+    }
+  }
+  const state = (): string | undefined => vault.records.find((record) => record.documentId === CV)?.state;
+  const clock = (): Date | null | undefined => vault.records.find((record) => record.documentId === CV)?.retentionTriggeredAt;
+
+  beforeAll(async () => {
+    owner = await ownConversation(CONVERSATION);
+    vault = (() => {
+      const base = fakeVault([{ documentId: CV, studentId: owner, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null }]);
+      return { ...base, records: base.records, prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }) };
+    })();
+    // Day 0: the CV is given — its first use.
+    const first = instance(NOW);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(first.pool), owner);
+      await first.driver.requestReading({ documentId: CV, conversationId: CONVERSATION, studentId: owner, contentHash });
+      const readings = new PostgresDocumentReadingStore(first.pool);
+      await readings.ask(CV, NOW);
+      await readings.decide(CV, true, NOW);
+      const started = await first.driver.start({ conversationId: CONVERSATION, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    } finally {
+      await first.pool.end();
+    }
+    expect(clock(), "the clock starts when the CV is given").toEqual(NOW);
+    // Day 100: it is read — a later use.
+    const reading = instance(at(100));
+    try {
+      const claimed = await reading.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+      expect(claimed?.documentId).toBe(CV);
+      expect(await reading.driver.reportReading({ documentId: CV, report: { leaseId: claimed?.leaseId ?? "", outcome: "read", lists: [{ fieldKey: "education.prior_qualifications", entries: [READ], dropped: 0 }] } })).toBe(true);
+    } finally {
+      await reading.pool.end();
+    }
+    expect(clock(), "and moves on to the reading").toEqual(at(100));
+  }, 300_000);
+
+  it("is NOT deleted a year after it was given, because it was used since", async () => {
+    expect(await sweepAt(at(366))).toEqual([]);
+    expect(state()).toBe("confirmed");
+    expect(await toldCount()).toBe(0);
+  }, 120_000);
+
+  it("IS deleted a year after its last use, and the student is told once — a second sweep says nothing again", async () => {
+    expect(await sweepAt(at(466))).toEqual([CV]);
+    expect(state(), "deleted from the vault").toBe("purged");
+    expect(await toldCount(), "told, once").toBe(1);
+    expect(await sweepAt(at(467))).toEqual([]);
+    expect(await toldCount(), "and not again").toBe(1);
   }, 120_000);
 });
 

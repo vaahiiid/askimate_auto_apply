@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.267.0] — 2026-10-03
+
+**P274 — the retention sweep (row 128; ADR-0096 amended).**
+
+- **Added** `recordUse` and `dueForRetention` to the document vault (both vaults, and the record
+  store's query): a `last_used` clock moves on to each use and never back.
+- **Added** `RunDriver.sweepRetention`: deletes what a deleting policy's period has run out on,
+  `decideRetention` deciding; a CV's student is told once — *"It has been a year since I last
+  used your CV, so I have deleted it, as I said I would when you gave it to me. You can upload it
+  again from the documents panel at any time."*
+- **Added** the sweep to the conversation service: at the start and hourly, under the new
+  `sweep_retention` lease (migration 0037); the start line says whether it runs.
+- **Changed** the CV's clock: started when the CV is given, moved on at every reading.
+- **Recorded** row 128 (sweep built; the CV's words on the conversation log an open question).
+
+---
+
 ## [0.266.0] — 2026-10-03
 
 **P272 — a run a person abandons is said so to the student (row 126).**

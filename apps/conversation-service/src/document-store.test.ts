@@ -287,6 +287,21 @@ describeIfDatabase("the record store", () => {
     expect(await store.listForStudent("stu_nobody")).toEqual([]);
   });
 
+  it("lists what a policy's period has run out on — clock past it, not purged — and nothing else (P274, row 128)", async () => {
+    const store = new PostgresDocumentRecordStore(pool);
+    const DAY = 86_400_000;
+    const id = (): string => `01JQDUE000${String(++counter).padStart(16, "0")}`;
+    const [due, fresh, never, gone] = [id(), id(), id(), id()];
+    for (const documentId of [due, fresh, never, gone]) await store.insert(record(documentId), `k/${documentId}`);
+    await store.update({ ...record(due), retentionTriggeredAt: NOW }, null);
+    await store.update({ ...record(fresh), retentionTriggeredAt: new Date(NOW.getTime() + 300 * DAY) }, null);
+    await store.update({ ...record(gone), retentionTriggeredAt: NOW, state: "purged" }, NOW);
+    const listed = (await store.due({ policyReference: record(due).retentionPolicyReference, before: new Date(NOW.getTime() + 200 * DAY), limit: 1000 })).map((r) => r.documentId);
+    expect(listed).toContain(due);
+    for (const not of [fresh, never, gone]) expect(listed, not).not.toContain(not);
+    expect(await store.due({ policyReference: "AAS-RET-NOBODY", before: new Date(NOW.getTime() + 200 * DAY), limit: 1000 })).toEqual([]);
+  });
+
   it("updates state and the retention clock, and the purge is WHOLE in the schema", async () => {
     const store = new PostgresDocumentRecordStore(pool);
     const documentId = `01JQPURGE0${String(++counter).padStart(16, "0")}`;

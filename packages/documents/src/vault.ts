@@ -167,6 +167,20 @@ export interface DocumentVault {
   startRetentionClock(documentId: DocumentId, at: Date): Promise<DocumentRecord>;
 
   /**
+   * Moves a `last_used` clock on to this use, and never back (P274, row 128).
+   * Row 97: a CV is kept for one year from the LAST time it is used, which a
+   * clock that starts once cannot say. A purged document is left as it is.
+   */
+  recordUse(documentId: DocumentId, at: Date): Promise<DocumentRecord>;
+
+  /**
+   * The documents a policy's period has run out on (P274): held under that
+   * policy, their clock at or before `before`, not purged — oldest first, at
+   * most `limit`. The sweep's question; the decision stays `decideRetention`'s.
+   */
+  dueForRetention(input: { readonly policyReference: string; readonly before: Date; readonly limit: number }): Promise<readonly DocumentRecord[]>;
+
+  /**
    * Removes contents, keeping metadata and hash.
    *
    * What both retention expiry and a right-to-erasure request call. The record

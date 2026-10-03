@@ -356,6 +356,25 @@ export class InMemoryDocumentVault implements DocumentVault {
     return Promise.resolve(updated);
   }
 
+  public recordUse(documentId: DocumentId, at: Date): Promise<DocumentRecord> {
+    const record = this.#records.get(documentId);
+    if (record === undefined) return Promise.reject(new DocumentNotFoundError(documentId));
+    if (record.state === "purged") return Promise.resolve(record);
+    if (record.retentionTriggeredAt !== null && record.retentionTriggeredAt >= at) return Promise.resolve(record);
+    const updated: DocumentRecord = { ...record, retentionTriggeredAt: at };
+    this.#records.set(documentId, updated);
+    return Promise.resolve(updated);
+  }
+
+  public dueForRetention(input: { readonly policyReference: string; readonly before: Date; readonly limit: number }): Promise<readonly DocumentRecord[]> {
+    return Promise.resolve(
+      [...this.#records.values()]
+        .filter((record) => record.retentionPolicyReference === input.policyReference && record.state !== "purged" && record.retentionTriggeredAt !== null && record.retentionTriggeredAt <= input.before)
+        .sort((a, b) => (a.retentionTriggeredAt?.getTime() ?? 0) - (b.retentionTriggeredAt?.getTime() ?? 0))
+        .slice(0, input.limit),
+    );
+  }
+
   public purgeContents(documentId: DocumentId, _now: Date): Promise<DocumentRecord> {
     const record = this.#records.get(documentId);
     if (record === undefined) return Promise.reject(new DocumentNotFoundError(documentId));

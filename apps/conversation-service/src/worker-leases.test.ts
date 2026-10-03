@@ -15,7 +15,7 @@ import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 
 import { MIGRATIONS_DIR } from "./index.js";
-import { DEFAULT_WORKER_LEASE_SECONDS, WorkerLeaseStore } from "./worker-leases.js";
+import { DEFAULT_WORKER_LEASE_SECONDS, WORKER_JOBS, WorkerLeaseStore } from "./worker-leases.js";
 
 const NOW = new Date("2026-09-02T10:00:00Z");
 
@@ -165,6 +165,20 @@ describeIfDatabase("one worker holds a job at a time", () => {
         [NOW, new Date(NOW.getTime() + 60_000)],
       ),
     ).rejects.toThrow(/worker_leases_job_kind_check/);
+  });
+
+  it("takes and gives back the retention sweep's lease — every job in the closed set is one the schema admits (P274)", async () => {
+    // WORKER_JOBS and the CHECK are two lists of one vocabulary; a job in the
+    // code the schema refuses is a sweep that never runs and says so only in
+    // an error nobody reads.
+    const leases = new WorkerLeaseStore(pool);
+    for (const job of WORKER_JOBS) {
+      // An hour on, so a lease an earlier test in this suite left held has lapsed.
+      const lease = await leases.claim({ job, holder: "p274", now: new Date(NOW.getTime() + 60 * 60 * 1000) });
+      expect(lease, job).not.toBeNull();
+      if (lease !== null) await leases.release(job, lease.leaseId);
+    }
+    expect(WORKER_JOBS).toContain("sweep_retention");
   });
 
   it("REFUSES a lease that starts already spent", async () => {

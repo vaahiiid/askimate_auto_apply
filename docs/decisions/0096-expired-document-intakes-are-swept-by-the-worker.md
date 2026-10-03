@@ -67,3 +67,27 @@ and neither errors. Tested with the two racing.
 - **The runner's fetch** — as ADR-0095 left it.
 
 **Declared-but-unreachable surface: six, unchanged.**
+
+## Amended 2026-10-03 (P274, row 128): the retention sweep exists, and runs in the service
+
+Vahid: *"Build the sweep. 'Until you ask' means a CV sits in the vault for ever for every student
+who never asks, and that is not what row 97 decided."* And: *"The student is told when a CV is
+deleted at the year … one message saying it has been a year since we last used their CV, that we
+have deleted it as we said we would, and that they can upload it again any time."*
+
+Built in P274. The retention sweep this ADR left without a caller is `RunDriver.sweepRetention`:
+for every policy whose action is deletion, the documents whose clock is past its period (a
+`dueForRetention` query on the vault), `decideRetention` having the last word, the contents purged
+with the record and hash kept (ADR-0010). It runs in the **conversation service**, not the worker,
+because the worker may not hold a vault — this ADR's boundary, which `pnpm run boundaries` keeps —
+once at the start and then hourly, under a worker lease of its own (`sweep_retention`, migration
+0037) so two instances cannot both delete a document and both tell its student. The start line
+says whether it runs: *retention sweep: off — no document store* or *hourly; N deleted on start*.
+
+The clock from *the last time I use it*: `recordUse` moves a `last_used` clock on to each use and
+never back — giving the CV is its first use, every reading a later one. `startRetentionClock` is
+unchanged; it starts once, which is right for a trigger that happens once. A CV deleted at its
+year is said so in the conversation that read it, in his three points, once.
+
+Not built: clocks for the other eight `last_used` policies, whose documents have no use recorded
+anywhere yet; they join the sweep the day a use is.

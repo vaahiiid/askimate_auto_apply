@@ -33,6 +33,8 @@ export interface DocumentRecordStore {
   listForStudent(studentId: string): Promise<readonly DocumentRecord[]>;
   /** Replaces the record's mutable metadata. The object key and the hash never change. */
   update(record: DocumentRecord, purgedAt: Date | null): Promise<void>;
+  /** Not purged, under this policy, clock at or before `before`; oldest first (P274). */
+  due(input: { readonly policyReference: string; readonly before: Date; readonly limit: number }): Promise<readonly DocumentRecord[]>;
 }
 
 /** Development and tests. Every record lives in this process's heap. */
@@ -63,6 +65,16 @@ export class InMemoryDocumentRecordStore implements DocumentRecordStore {
     if (row === undefined) return Promise.reject(new Error(`no document ${record.documentId}`));
     this.#rows.set(record.documentId, { record, objectKey: row.objectKey });
     return Promise.resolve();
+  }
+
+  public due(input: { readonly policyReference: string; readonly before: Date; readonly limit: number }): Promise<readonly DocumentRecord[]> {
+    return Promise.resolve(
+      [...this.#rows.values()]
+        .map((row) => row.record)
+        .filter((record) => record.retentionPolicyReference === input.policyReference && record.state !== "purged" && record.retentionTriggeredAt !== null && record.retentionTriggeredAt <= input.before)
+        .sort((a, b) => (a.retentionTriggeredAt?.getTime() ?? 0) - (b.retentionTriggeredAt?.getTime() ?? 0))
+        .slice(0, input.limit),
+    );
   }
 }
 
@@ -173,5 +185,17 @@ export class PostgresDocumentRecordStore implements DocumentRecordStore {
       ],
     );
     if (result.rowCount !== 1) throw new Error(`no document ${record.documentId}`);
+  }
+
+  public async due(input: { readonly policyReference: string; readonly before: Date; readonly limit: number }): Promise<readonly DocumentRecord[]> {
+    const rows = await this.#pool.query<DocumentRow>(
+      `SELECT ${COLUMNS} FROM documents
+        WHERE retention_policy_reference = $1 AND state <> 'purged'
+          AND retention_triggered_at IS NOT NULL AND retention_triggered_at <= $2
+        ORDER BY retention_triggered_at, document_id
+        LIMIT $3`,
+      [input.policyReference, input.before, input.limit],
+    );
+    return rows.rows.map(recordOf);
   }
 }
