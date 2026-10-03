@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.272.0] — 2026-10-03
+
+**P279 — the student told what the university's form will not take (ADR-0065 amended).**
+
+- **Changed** the message when a run stops on values the form will not take: instead of *"There
+  is something about it I cannot complete on my own"*, it names — in the interview's words — the
+  institution, award title, subject or other part the form's own list does not hold, quotes the
+  student's values, says the choice from their list is theirs and that there is not yet a way to
+  make it here, and names any rule that is ours to add by the form's own labels.
+- **Added** the part a refused value came from to `no_matching_option` and `no_matching_case`.
+
+---
+
 ## [0.271.0] — 2026-10-03
 
 **P278 — an abandoned application winds down like a stopped one (row 129; ADR-0053 amended).**

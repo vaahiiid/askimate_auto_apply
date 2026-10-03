@@ -91,7 +91,7 @@ ADR status uses exactly that vocabulary:
 | [0062](./0062-the-question-the-run-is-waiting-on-is-in-the-log.md) | The question the run is waiting on is in the log, so the interview has two voices | Accepted |
 | [0063](./0063-the-published-contract-names-the-routes-that-exist.md) | The published contract names the routes that exist, checked against the real router | Accepted |
 | [0064](./0064-the-interviews-decision-to-stop-reaches-the-system.md) | The interview's decision to stop reaches the system, so a run cannot strand at a question nobody will answer | Accepted |
-| [0065](./0065-a-run-only-a-person-can-carry-on-stops-and-says-so.md) | A run only a person can carry on stops, and says so — the orchestrator's hand-over reaches the system | Accepted |
+| [0065](./0065-a-run-only-a-person-can-carry-on-stops-and-says-so.md) | A run only a person can carry on stops, and says so — the orchestrator's hand-over reaches the system | Accepted · amended 2026-10-03 (P279): a stop on the form's lists or our missing rules tells the student which, in their words |
 | [0066](./0066-three-declarations-name-a-document-and-one-decides.md) | Three declarations name a document, and one of them decides: the reviewed mapping | Accepted |
 | [0067](./0067-aas-obtains-documents-and-the-policy-not-the-design-is-what-blocks.md) | AAS obtains documents; what blocks it is policy, not design | Accepted |
 | [0068](./0068-the-storage-boundary-refuses-what-adr-0022-says-it-refuses.md) | The storage boundary refuses what ADR-0022 says it refuses, by type rather than by convention | Accepted |

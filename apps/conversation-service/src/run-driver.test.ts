@@ -6852,6 +6852,82 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
   }, 300_000);
 });
 
+/**
+ * P279: the three shapes Vahid's own profile met on the signed Sheffield maps,
+ * on the fixture's fields — a value not on the form's list (nationality), a
+ * part of a value not on it (the address's country, through `part`), and a
+ * value our mapping has no rule for (a `switch` with no case for it).
+ */
+const BLOCKED_BY_THE_FORM: CatalogueEntry = {
+  ...ENTRY,
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.fieldRef === "nationality"
+        ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "option" as const, options: { British: "GB" } } } }
+        : mapping.fieldRef === "personal_statement"
+          ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "contact.address" as const, format: { kind: "part" as const, path: "countryCode", then: { kind: "option" as const, options: { GB: "United Kingdom" } } } } }
+          : mapping.fieldRef === "email"
+            ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "contact.address" as const, format: { kind: "switch" as const, path: "countryCode", cases: { GB: { kind: "part" as const, path: "postalCode" } } } } }
+            : mapping,
+    ),
+  },
+};
+
+describeIfDatabase("a run stopped on values the form will not take tells the student which, in their words (P279)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-03, after his profile met the signed maps: *"the student's
+  // message says none of it … Make the message say what blocked it, in the
+  // student's terms. Not the field names, not 'not one of this field's
+  // options' — the university's form does not offer their institution, their
+  // qualification, their subject. Where the student could resolve it by
+  // choosing from the portal's own list, say so."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX27901";
+  let owner = "";
+
+  it("names each value the form's list does not hold, by the student's word for it, and the rule that is ours to add — and chooses nothing", async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(BLOCKED_BY_THE_FORM));
+    let status = "";
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles, owner);
+      await confirmInto(profiles, "contact.address", { line1: "12 Valiasr Street", city: "Tehran", postalCode: "1966", countryCode: "IR" }, "12 Valiasr Street, Tehran 1966, Iran", owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      for (let round = 0; round < 3 && status !== "escalated"; round += 1) {
+        const moved = await instance.driver.advance({ runId: started.position.runId, conversationId: conversation });
+        status = moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`;
+      }
+    } finally {
+      await instance.pool.end();
+    }
+    expect(status, "stopped for a person, as the mechanism should").toBe("escalated");
+    const said = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    expect(said.rows[0]?.content).toBe(
+      "I have had to pass your Example University application to a member of the team, because their form will not take some of your details as they are. " +
+        'Their form asks you to choose your nationality from its own list, and "Iranian" is not on it. ' +
+        'Their form asks you to choose your country from its own list, and "IR" is not on it. ' +
+        "If yours is on their list under another name, which one it is is yours to say, and I will not choose it for you. There is not yet a way to make that choice here. " +
+        'I do not yet have a rule for how their form takes the email address for "IR"; that is ours to add. ' +
+        "Nothing you have given me is lost, and nothing has been submitted.",
+    );
+    expect(said.rows[0]?.content, "never the old sentence").not.toContain("something about it I cannot complete");
+    // The person still gets the whole account, in the specialist's terms.
+    const raised = await pool.query<{ encountered: string }>(
+      `SELECT i.encountered FROM interventions i JOIN workflow_runs r ON r.run_id = i.run_id
+        WHERE r.case_id = $1`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    expect(raised.rows[0]?.encountered ?? "", "the intervention keeps its own detail").toContain("is not one of this field's options");
+  }, 300_000);
+});
+
 describeIfDatabase("an application a person abandons before any account exists is closed at once, and the student is told so (P278, row 129)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // The other half of row 129. An abandon winds the case down as a stop does;

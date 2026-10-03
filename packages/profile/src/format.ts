@@ -205,7 +205,17 @@ export type RenderRefusal =
    * exactly the temptation to let software decide what a student's nationality
    * is. It stops and asks (brief §3.1).
    */
-  | { readonly kind: "no_matching_option"; readonly detail: string; readonly value: string }
+  | {
+      readonly kind: "no_matching_option";
+      readonly detail: string;
+      readonly value: string;
+      /**
+       * The value's own part the refused value came from — `institution` of a
+       * qualification — when a `part` rule led to it (P279). The outermost
+       * part: what the student would call it. Absent on a value with no parts.
+       */
+      readonly part?: string;
+    }
   /** The rule does not fit the value's type — a mapping mistake, not a data one. */
   | { readonly kind: "rule_does_not_fit"; readonly detail: string }
   /** A `part` rule named a path the value does not have. */
@@ -224,7 +234,7 @@ export type RenderRefusal =
    */
   | { readonly kind: "not_derivable"; readonly detail: string }
   /** A `switch` met a part value none of its cases names (P218). */
-  | { readonly kind: "no_matching_case"; readonly detail: string; readonly value: string };
+  | { readonly kind: "no_matching_case"; readonly detail: string; readonly value: string; readonly part?: string };
 
 export type RenderResult =
   | { readonly rendered: true; readonly value: ConfirmedValue<string> }
@@ -358,7 +368,13 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
         };
       }
       const part = container[rule.path];
-      return applyRule(part, rule.then ?? { kind: "text" });
+      const applied = applyRule(part, rule.then ?? { kind: "text" });
+      // Which part a refused value came from (P279), so the student can be
+      // told "your institution", not a box's name. The outermost part wins:
+      // an enclosing `part` writes over what an inner one wrote.
+      return typeof applied !== "string" && (applied.kind === "no_matching_option" || applied.kind === "no_matching_case")
+        ? { ...applied, part: rule.path }
+        : applied;
     }
 
     case "switch": {

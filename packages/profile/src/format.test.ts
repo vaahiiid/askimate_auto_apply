@@ -219,6 +219,24 @@ describe("rendering one item of a list-valued field (P96)", () => {
     return result.value;
   }
 
+  // P279: a refusal says which part of the item it came from — the outermost
+  // part, the student's word for it — so they can be told "your institution".
+  it("names the part a refused value came from, the outermost one, and none on a value with no parts", () => {
+    const list = confirmedList();
+    const institution = renderConfirmedItem(list, 0, { kind: "part", path: "institution", then: { kind: "option", options: { Sheffield: "1" } } });
+    if (institution.rendered || institution.refusal.kind !== "no_matching_option") expect.unreachable("refused, not on the list");
+    expect(institution.refusal.part).toBe("institution");
+    expect(institution.refusal.value).toBe("A");
+    const month = renderConfirmedItem(list, 0, { kind: "part", path: "start", then: { kind: "part", path: "month", then: { kind: "option", options: { "1": "Jan" } } } });
+    if (month.rendered || month.refusal.kind !== "no_matching_option") expect.unreachable("refused");
+    expect(month.refusal.part, "the outermost part").toBe("start");
+    const grading = renderConfirmedItem(list, 0, { kind: "switch", path: "institution", cases: { Sheffield: { kind: "text" } } });
+    if (grading.rendered || grading.refusal.kind !== "no_matching_case") expect.unreachable("no case");
+    expect(grading.refusal.part, "a switch at the item's top names no part of its own").toBeUndefined();
+    const bare = renderConfirmed(confirmedList(), { kind: "option", options: {} });
+    if (!bare.rendered && bare.refusal.kind === "no_matching_option") expect(bare.refusal.part).toBeUndefined();
+  });
+
   it("renders the named item through the rule, carrying the list's provenance", () => {
     const list = confirmedList();
     const second = renderConfirmedItem(list, 1, { kind: "part", path: "subject" });

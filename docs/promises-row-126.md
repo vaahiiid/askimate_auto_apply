@@ -142,4 +142,5 @@ Promises written after P269's measurement, each shipped with its assertion. RDT 
 |---|---|---|---|
 | P1 | run-driver.ts, `#passTheDetailsToAPerson` (P275) | *"I will tell you here when it is done."* | RDT:14868 (a person closes it; the student is told, once), :14928 (a refusal, with the person's reason) |
 | P2 | run-driver.ts, the everything question (P275) | *"I hold a passport, which I can delete myself, now."* | RDT:14887 (*both* deletes the documents at once) |
+| P3 | run-driver.ts, `blockedByTheFormMessage` (P279) | *"…which one it is is yours to say, and I will not choose it for you."* | RDT, the P279 describe: the run stops `escalated` and the whole message is asserted; nothing is typed, because the plan refused (`format.test.ts`, *REFUSES an unmapped value rather than choosing the closest option*) |
 

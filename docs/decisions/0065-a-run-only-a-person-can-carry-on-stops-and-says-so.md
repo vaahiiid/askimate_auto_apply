@@ -179,3 +179,22 @@ Three deliberate choices:
   that need no decision — implemented.
 - ADR-0064 §2's stated reason is corrected, and both stops now have the assertion that would have
   caught it.
+
+## Amended 2026-10-03 (P279): a stop on the form's lists says what blocked it
+
+His word, after his own profile met the signed Sheffield maps and the student was told *"There is
+something about it I cannot complete on my own"*: *"That is the 'with a member of the team' class we
+ruled against. The intervention knows exactly what is missing … Make the message say what blocked
+it, in the student's terms. Not the field names, not 'not one of this field's options' — the
+university's form does not offer their institution, their qualification, their subject. Where the
+student could resolve it by choosing from the portal's own list, say so."*
+
+So the one-sentence rule above now has one exception. When the plan stopped on `render_refused`
+values — a value the form's own list does not hold, or a value our mapping has no rule for — the
+student reads which: the part in the interview's own word (*your institution*, *your award title*,
+*your subject*), their own values quoted, that which entry of the university's list is theirs to say
+and will not be chosen for them, that there is not yet a way to make that choice here (row 25's
+option B, not built), and the form's labels for a rule that is ours to add. Nothing of the mapping
+reaches them: no box reference, no rule text. The intervention keeps its own detail unchanged. Every
+other reason for a hand-over keeps the one sentence.
+

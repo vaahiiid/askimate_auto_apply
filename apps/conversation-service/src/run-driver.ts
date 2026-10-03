@@ -141,7 +141,7 @@ import type { PreviewAttachment, PreviewDeployment } from "@askimate/aas-prepara
 import type { WorkDocument,
   OwnActReading,
 } from "@askimate/aas-contracts";
-import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
+import type { FillBlocker, FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
   accountDeclared,
@@ -187,7 +187,7 @@ import type {
   RunStep,
   PageAttachment,
 } from "@askimate/aas-orchestrator";
-import { FIELD_LABELS, isFinancialField, resolveField } from "@askimate/aas-profile";
+import { FIELD_LABELS, isFinancialField, partLabel, resolveField } from "@askimate/aas-profile";
 import type {
   ConfirmedProfile,
   ConfirmedProfileStore,
@@ -1262,7 +1262,11 @@ function reviewMessage(entry: CatalogueEntry): string {
 /**
  * What the student reads when their run has been handed to a specialist.
  *
- * ONE sentence whatever the reason, and deliberately so. The `detail` behind a
+ * Since P279, said only when `blockedByTheFormMessage` has nothing to name:
+ * a stop on values the university's form will not take says which, in the
+ * student's words (Vahid, 2026-10-03: *"'something' … is the 'with a member
+ * of the team' class we ruled against"*). For every other reason it is still
+ * ONE sentence, and deliberately so. The `detail` behind a
  * `specialist` step names artefacts a specialist works with — a field ref, a
  * mapping, a document ref — and reading those to a student explains nothing and
  * invites them to try to fix it. What they need is the truth: a person has it,
@@ -1279,6 +1283,88 @@ function specialistMessage(entry: CatalogueEntry): string {
     `team. There is something about it I cannot complete on my own, and I would rather a person ` +
     `looked at it than guess. Nothing you have given me is lost, and nothing has been submitted.`
   );
+}
+
+/**
+ * What the student reads when the plan stopped on values the university's form
+ * will not take as they are (P279) — or `null` when that is not why it stopped,
+ * and `specialistMessage` is said instead.
+ *
+ * Vahid, 2026-10-03, after his own profile met the signed Sheffield maps: *"The
+ * intervention knows exactly what is missing — two institutions, two
+ * qualifications, a subject, two grading systems — and the student is the one
+ * person who could answer most of it. 'The university's list does not have
+ * your institution; a person will add it' is a different message from
+ * 'something'."* And: *"Not the field names, not 'not one of this field's
+ * options' — the university's form does not offer their institution, their
+ * qualification, their subject. Where the student could resolve it by
+ * choosing from the portal's own list, say so."*
+ *
+ * Two kinds, said apart because they are settled by different people:
+ *
+ *   - the form's own list does not hold the value (`no_matching_option`): the
+ *     part named in the interview's words — "your institution" — and the
+ *     values themselves, which are the student's own. Which entry of the
+ *     university's list it is, if any, is theirs to say; nothing here lets
+ *     them say it yet, and the message says that rather than promise it;
+ *   - our mapping has no rule for the value (`no_matching_case`): named by the
+ *     form's own labels, and said to be ours.
+ *
+ * Every value is the student's own answer, read back to them; nothing of the
+ * mapping, no box reference, no rule text.
+ */
+function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillBlocker[]): string | null {
+  const refused = blockers.flatMap((blocker) =>
+    blocker.kind === "render_refused" && (blocker.refusal.kind === "no_matching_option" || blocker.refusal.kind === "no_matching_case")
+      ? [{ blocker, refusal: blocker.refusal }]
+      : [],
+  );
+  if (refused.length === 0) return null;
+  const structural = blockers.filter((blocker) => blocker.kind !== "value_unavailable");
+  const quoted = (values: Iterable<string>): string => andList([...values].map((value) => `"${value}"`));
+  // The form's own label, as a word in a sentence: "Grading System:" is a
+  // label on a page; "grading system" is what the student reads.
+  const said = (label: string): string => label.replace(/[\s:.…]+$/u, "").toLowerCase();
+
+  // The form's lists, by the student's word for the part, in the order met.
+  const lists = new Map<string, Set<string>>();
+  // Our missing rules: the form's labels, and the values they were met for.
+  const ruleLabels = new Set<string>();
+  const ruleValues = new Set<string>();
+  for (const { blocker, refusal } of refused) {
+    if (refusal.kind === "no_matching_option") {
+      const word =
+        (refusal.part === undefined ? null : partLabel(blocker.fieldKey, refusal.part)) ??
+        (refusal.part === undefined ? FIELD_LABELS[blocker.fieldKey].toLowerCase() : said(blocker.label));
+      lists.set(word, (lists.get(word) ?? new Set<string>()).add(refusal.value));
+    } else {
+      ruleLabels.add(said(blocker.label));
+      ruleValues.add(refusal.value);
+    }
+  }
+  const sentences: string[] = [
+    `I have had to pass your ${entry.blueprint.institutionName} application to a member of the team, ` +
+      `because their form will not take some of your details as they are.`,
+  ];
+  for (const [word, values] of lists) {
+    sentences.push(
+      `Their form asks you to choose your ${word} from its own list, and ${quoted(values)} ${values.size === 1 ? "is" : "are"} not on it.`,
+    );
+  }
+  if (lists.size > 0) {
+    sentences.push(
+      `If yours is on their list under another name, which one it is is yours to say, and I will not choose it for you. ` +
+        `There is not yet a way to make that choice here.`,
+    );
+  }
+  if (ruleLabels.size > 0) {
+    sentences.push(
+      `I do not yet have a rule for how their form takes the ${andList([...ruleLabels])} for ${quoted(ruleValues)}; that is ours to add.`,
+    );
+  }
+  if (structural.length > refused.length) sentences.push("There is also something else about it that a person needs to look at.");
+  sentences.push("Nothing you have given me is lost, and nothing has been submitted.");
+  return sentences.join(" ");
 }
 
 /**
@@ -6663,6 +6749,7 @@ export class RunDriver {
     },
     step: RunStep,
     now: Date,
+    state: RunState,
   ): Promise<RunOutcome | null> {
     // ADR-0123: a `fix_content` the interview cannot act on is the same fact
     // — this run cannot go on until a person looks — through the
@@ -6686,7 +6773,10 @@ export class RunDriver {
       expected:
         `A specialist reviews the case and the reviewed artefacts behind it, and either supplies ` +
         `what is missing or stops the application. This run cannot proceed on its own.`,
-      message: content === null ? specialistMessage(input.entry) : contentRejectedMessage(input.entry),
+      message:
+        content !== null
+          ? contentRejectedMessage(input.entry)
+          : (blockedByTheFormMessage(input.entry, this.#planBlockers(input.entry, state)) ?? specialistMessage(input.entry)),
       now,
     });
 
@@ -7555,6 +7645,17 @@ export class RunDriver {
    * `state.filled` — so by the time the flag exists, the account has already
    * been derived without it.
    */
+  /**
+   * The plan's blockers for this run as it stands (P279): what the student is
+   * told when the run stops for a person on values the form will not take.
+   * The same plan the orchestrator stopped on — `planFill` over the run's
+   * profile — read for its words, not to decide anything.
+   */
+  #planBlockers(entry: CatalogueEntry, state: RunState): readonly FillBlocker[] {
+    const usable = checkUsable(entry.mappingSet, entry.blueprint);
+    return usable.usable ? planFill(entry.blueprint, usable.mappingSet, state.profile).blockers : [];
+  }
+
   async #hasFilled(state: RunState, runId: RunId, entry: CatalogueEntry): Promise<boolean> {
     // Filled means EVERY page is saved, which is the same question `#nextPage`
     // answers with `null`.
@@ -7963,7 +8064,7 @@ export class RunDriver {
     //
     // Returns a position rather than falling through, for the revision reason
     // spelled out above the stop before it.
-    const handed = await this.#stopForSpecialist(input, step, now);
+    const handed = await this.#stopForSpecialist(input, step, now, situation.state);
     if (handed !== null) return handed;
 
     // A restart becomes `running` in the same write as its decision

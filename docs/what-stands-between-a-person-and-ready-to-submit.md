@@ -397,6 +397,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-10-03 (P276):** the boundary and reachability checks read source through the parser; over the whole history, nothing was hidden (row 131). Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P277):** the student is told that deleting a CV leaves the lines read back to them in the record of the conversation; the log's own retention is row 132, unanswered. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P278):** an abandoned application winds down like a stopped one, its account handed over (row 129; ADR-0053 amended). Nothing on this list moved: the distance is unchanged.
+- **2026-10-03 (P279):** a run stopped on the form's lists tells the student which of their values, in their words (ADR-0065 amended). Nothing on this list moved: the distance is unchanged — step 2's read and the signature are what move it.
 - **2026-10-03 (P272):** an abandoned application is said so to the student (row 126); row 129 open. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P270, P271):** the retention sweep's cost measured (row 128); *use my CV* after a reading answered truly (row 126, D25). Nothing on this list moved: the distance is unchanged.
 - **2026-10-02 (P269):** the 72 promises the product makes, each with whether a test asserts its action (row 126, `docs/promises-row-126.md`). Nothing on this list moved: the distance is unchanged.

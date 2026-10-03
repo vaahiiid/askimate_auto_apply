@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P279 — the form's lists, said to the student
+
+*2026-10-03.* His profile met the signed Sheffield maps and the plan refused ten things rather than
+choose the closest — the mechanism working — and the student was told "something". Now they are
+told which: their institutions, award titles and subject are not on the university's lists, which
+entry it is is theirs to say, there is not yet a way to say it here, and the grading rules are ours
+to add.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P278 — nobody's account
 
 *2026-10-03.* An application a person abandons now winds down as a student's stop does: the
