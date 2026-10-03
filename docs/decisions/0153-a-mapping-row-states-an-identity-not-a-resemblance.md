@@ -1,6 +1,6 @@
 # ADR-0153 — A mapping row states an identity, not a resemblance
 
-**Status:** Accepted · decided by Vahid, 2026-10-03, in his own words · applied by review; enforced mechanically nowhere yet
+**Status:** Accepted · decided by Vahid, 2026-10-03, in his own words · enforced on a typeahead's rows keyed on the student's words since P282; by review elsewhere
 
 ## Context
 
@@ -46,3 +46,24 @@ So:
   names could be refused; it would have refused *"Azad University" → UNI30764*.
 - **The interview cannot yet offer a portal's list** (blocker 25, option B), so "the fix is the
   student's answer" is today a correction the student makes by retyping — which is how he makes it.
+
+## The narrow check, built (P282, 2026-10-03)
+
+His word: *"On ADR-0153's narrow check: build it. 'For a typeahead, refuse a row whose key is not
+the recorded text of the entry it names' would have caught the exact mistake I was about to make,
+and it costs little. That it cannot cover every identity does not make it worthless — it covers
+the case where the vocabulary is the portal's own list, which is where the temptation to equate is
+strongest."*
+
+**Measured before it was built,** over the signed Sheffield entry: as first stated it refused
+**231 of the entry's 240 typeahead rows** — every row of the institution-country box, keyed on ISO
+codes (`AD` → `ANDORRA`, read as *Andorra*): an identity across vocabularies, this ADR's own
+exception, which would have refused his signed entry and stopped his stack. Run against the case it
+must find — *"Azad University" → UNI30764*, read as *Islamic Azad University* — it refused it.
+
+**As built,** `checkUsable` refuses (`row_not_identity`) a typeahead row whose key is the student's
+words and is not the text the reviewer recorded for the entry it names. A row keyed on a closed
+vocabulary of ours — an ISO country code (a country field, or a `countryCode` part) or a token of
+`VOCABULARY_WORDS`, `isClosedVocabulary` — is left to review. Over the signed entry: the nine
+institution rows are each keyed on their entry's own text and pass; the country rows are skipped;
+the entry loads as before.

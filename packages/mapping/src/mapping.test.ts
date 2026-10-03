@@ -1594,13 +1594,15 @@ describe("a typeahead mapping names the value the form submits (P118, ADR-0109)"
     );
     expect(text.usable).toBe(false);
     if (!text.usable) expect(text.refusal.kind).toBe("typeahead_invalid");
-    // An option rule whose every target is an entry: accepted. One target
-    // that is the escape: refused.
+    // An option rule whose every target is an entry, keyed on the entry's own
+    // recorded text: accepted. (Until P282 this example keyed a sentence of
+    // the student's onto the entry — a resemblance, which ADR-0153 refuses.)
+    // One target that is the escape: refused.
     const onto = checkUsable(
       courseAs({
         kind: "profile_field",
         fieldKey: "study.personal_statement",
-        format: { kind: "option", options: { "Because it is the course I want.": "PG-EX-2026" } },
+        format: { kind: "option", options: { "MSc Example Studies": "PG-EX-2026" } },
       }),
       BLUEPRINT,
     );
@@ -1614,6 +1616,35 @@ describe("a typeahead mapping names the value the form submits (P118, ADR-0109)"
       BLUEPRINT,
     );
     expect(ontoEscape.usable).toBe(false);
+  });
+
+  // P282, ADR-0153. Vahid: *"For a typeahead, refuse a row whose key is not
+  // the recorded text of the entry it names."* His own near-miss, in the
+  // fixture's terms: the student's words for one entry mapped to another
+  // entry's value.
+  it("REFUSES a typeahead row whose key is not the text of the entry it names — the 'Azad University' row", () => {
+    const resemblance = checkUsable(
+      courseAs({
+        kind: "profile_field",
+        fieldKey: "study.personal_statement",
+        format: { kind: "option", options: { "MSc Example": "PG-EX-2026", "MA Other Studies": "PG-OT-2026" } },
+      }),
+      BLUEPRINT,
+    );
+    expect(resemblance.usable).toBe(false);
+    if (!resemblance.usable) {
+      expect(resemblance.refusal.kind).toBe("row_not_identity");
+      expect(resemblance.refusal.detail).toContain('maps "MSc Example" to PG-EX-2026, which the form reads as "MSc Example Studies"');
+      expect(resemblance.refusal.detail, "the exact row is not named").not.toContain('"MA Other Studies" to');
+    }
+  });
+
+  it("leaves to review a typeahead row keyed on a closed vocabulary of ours — an ISO country code is an identity across vocabularies", () => {
+    const byCode = checkUsable(
+      courseAs({ kind: "profile_field", fieldKey: "identity.nationality", format: { kind: "option", options: { IR: "PG-EX-2026" } } }),
+      BLUEPRINT,
+    );
+    expect(byCode.usable, byCode.usable ? "" : byCode.refusal.detail).toBe(true);
   });
 
   it("REFUSES a mapped typeahead that records no entries at all", () => {

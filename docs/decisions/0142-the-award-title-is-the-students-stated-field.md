@@ -51,3 +51,11 @@ award title that means the answer may become the form's category — his Master'
 in International Business*, answered *MSc* — and the profile then holds the category, not the title
 as printed. Recorded, not settled: whether the printed title should be kept beside the answer is
 open.
+
+## Said plainly (P282, 2026-10-03), at his instruction
+
+His own profile now holds **"MSc"** where his certificate says **"Master's in International
+Business"**. That is a real loss of what the document says: the profile no longer carries the title
+as printed, only the form's category for it. In his words: *"The right answer may be that the award
+title is two things — what the certificate says, and what the form's category is — but I am not
+deciding that today."* Open.

@@ -32,6 +32,7 @@ export {
   partLabel,
   VOCABULARY_WORDS,
   vocabularyWords,
+  isClosedVocabulary,
   FINANCIAL_FIELDS,
   LIST_VALUED_FIELD_KEYS,
   PROFILE_FIELD_KEYS,

@@ -400,6 +400,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-10-03 (P279):** a run stopped on the form's lists tells the student which of their values, in their words (ADR-0065 amended). Nothing on this list moved: the distance is unchanged — step 2's read and the signature are what move it.
 - **2026-10-03 (P280):** the form's "Not in list" stays the student's own act (ADR-0109 affirmed) and the stop explains it. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P281):** a mapping row states an identity (ADR-0153); a select's escape is the student's own act (ADR-0109 extended); the per-entry hand entry deferred (row 133). Nothing on this list moved: the distance is unchanged.
+- **2026-10-03 (P282):** a typeahead row keyed on the student's words must be the entry's own text (ADR-0153); row 133 raised as closer to a precondition for students outside the easy cases. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P272):** an abandoned application is said so to the student (row 126); row 129 open. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P270, P271):** the retention sweep's cost measured (row 128); *use my CV* after a reading answered truly (row 126, D25). Nothing on this list moved: the distance is unchanged.
 - **2026-10-02 (P269):** the 72 promises the product makes, each with whether a test asserts its action (row 126, `docs/promises-row-126.md`). Nothing on this list moved: the distance is unchanged.

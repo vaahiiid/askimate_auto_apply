@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P282 — the check that would have caught it, measured before it was trusted
+
+*2026-10-03.* He asked for the narrow check. Measured first, it would have refused his own signed
+entry — 231 country rows keyed on ISO codes, the very exception the rule names — so it was narrowed
+to rows keyed on the student's words, and refuses the row he nearly wrote. Row 133 now reads as what
+it is: the difference between a run that stops dead and one that asks the student for one thing.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P281 — a row is a rule about every student
 
 *2026-10-03.* The fix he reached for — a row sending *Azad University* to his institution — would

@@ -649,6 +649,21 @@ export const VOCABULARY_WORDS = {
   },
 } as const satisfies Partial<Record<ProfileFieldKey, Readonly<Record<string, Readonly<Record<string, string>>>>>>;
 
+/**
+ * Whether a value of this field — or of this part of it — comes from a closed
+ * vocabulary of ours rather than from the student's own words (P282): an ISO
+ * country code (a country field, or a `countryCode` part, read through the
+ * reviewed table), or a token of `VOCABULARY_WORDS`. A mapping row keyed on
+ * one of these states an identity between two vocabularies — `IR` → the
+ * portal's Iran — which no label comparison can judge (ADR-0153).
+ */
+export function isClosedVocabulary(fieldKey: ProfileFieldKey, partKey: string | undefined): boolean {
+  if (partKey === undefined) return isCountryField(fieldKey);
+  if (partKey === "countryCode") return true;
+  const field = (VOCABULARY_WORDS as Partial<Record<ProfileFieldKey, Readonly<Record<string, unknown>>>>)[fieldKey];
+  return field?.[partKey] !== undefined;
+}
+
 /** The words for a vocabulary token in this field's part, or `null` where the part holds none. */
 export function vocabularyWords(fieldKey: ProfileFieldKey, partKey: string, token: string): string | null {
   const field = (VOCABULARY_WORDS as Partial<Record<ProfileFieldKey, Readonly<Record<string, Readonly<Record<string, string>>>>>>)[fieldKey];

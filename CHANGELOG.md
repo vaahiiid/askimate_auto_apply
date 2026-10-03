@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.275.0] — 2026-10-03
+
+**P282 — a typeahead row keyed on the student's words must be the entry's own text (ADR-0153's
+narrow check); row 133's priority raised.**
+
+- **Added** `row_not_identity`: `checkUsable` refuses a typeahead row whose key is the student's
+  words and is not the text recorded for the entry it names — the row *"Azad University" →
+  UNI30764* is refused. Rows keyed on a closed vocabulary of ours (ISO country codes, vocabulary
+  tokens) are left to review: measured first, the check as first stated would have refused 231 of
+  the signed entry's 240 typeahead rows.
+- **Recorded** row 133 as closer to a precondition than a convenience, on his word, and ADR-0142's
+  loss — his profile holds "MSc" where his certificate says "Master's in International Business".
+
+---
+
 ## [0.274.0] — 2026-10-03
 
 **P281 — a mapping row states an identity (ADR-0153); a select's escape is the student's own act

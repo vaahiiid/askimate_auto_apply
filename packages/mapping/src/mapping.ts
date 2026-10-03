@@ -31,7 +31,7 @@ import type { ApplicationBlueprint, BlueprintField, FieldLocator } from "@askima
 import { allFields, allRequiredDocuments, escapeOf } from "@askimate/aas-blueprint";
 import type { Brand } from "@askimate/aas-domain";
 import type { FormatRule, OrdinaryFieldKey } from "@askimate/aas-profile";
-import { LIST_VALUED_FIELD_KEYS } from "@askimate/aas-profile";
+import { isClosedVocabulary, LIST_VALUED_FIELD_KEYS } from "@askimate/aas-profile";
 
 /** Where a portal field's value comes from. */
 export type ValueSource =
@@ -318,6 +318,8 @@ export type MappingRefusal =
    * (P281, ADR-0109 extended): both are the student's own act.
    */
   | { readonly kind: "escape_named"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A typeahead row keyed on the student's words names an entry whose recorded text is other words (ADR-0153, P282). */
+  | { readonly kind: "row_not_identity"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A fronted control (P153) that is mapped, or whose `frontedBy` is not another field on the same page. */
   | { readonly kind: "fronted_field_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /**
@@ -871,6 +873,47 @@ export function checkUsable(
       escapeProblems.push(`${field.fieldRef} is shown only when ${opener?.fieldRef ?? "?"}'s escape is chosen, so what it says is the student's to write`);
     }
   }
+  // ── ADR-0153: a typeahead row keyed on the student's words states an identity ──
+  //
+  // Vahid, 2026-10-03: *"For a typeahead, refuse a row whose key is not the
+  // recorded text of the entry it names … it covers the case where the
+  // vocabulary is the portal's own list, which is where the temptation to
+  // equate is strongest."* The row he nearly wrote — *"Azad University" →
+  // UNI30764*, whose text is *Islamic Azad University* — is refused here.
+  // Measured before it was built (P282): the rule as first stated refused 231
+  // of the signed entry's 240 typeahead rows, every one the country box's,
+  // keyed on ISO codes — an identity across vocabularies, ADR-0153's own
+  // exception. So a row keyed on a closed vocabulary of ours
+  // (`isClosedVocabulary`) is left to review, and every other key is the
+  // student's words and must be the text the reviewer recorded.
+  const identityProblems: string[] = [];
+  const identityFields: string[] = [];
+  for (const field of fields) {
+    if (field.inputType !== "typeahead") continue;
+    const mapping = mappingFor(mappingSet, field.fieldRef);
+    if (mapping?.source.kind !== "profile_field") continue;
+    const fieldKey = mapping.source.fieldKey;
+    for (const row of optionRowsOf(mapping.source.format)) {
+      if (isClosedVocabulary(fieldKey, row.part)) continue;
+      const text = field.options?.find((option) => option.value === row.target)?.label;
+      if (text === undefined || text === row.key) continue;
+      identityFields.push(field.fieldRef);
+      identityProblems.push(`${field.fieldRef} maps "${row.key}" to ${row.target}, which the form reads as "${text}"`);
+    }
+  }
+  if (identityProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "row_not_identity",
+        fieldRefs: [...new Set(identityFields)],
+        detail:
+          `A mapping row states an identity, not a resemblance (ADR-0153): ${identityProblems.join("; ")}. ` +
+          `Where the student's words and the form's text differ, the student's answer is what changes.`,
+      },
+    };
+  }
+
   if (escapeProblems.length > 0) {
     return {
       usable: false,
@@ -1045,6 +1088,17 @@ function hasOptions(field: BlueprintField): boolean {
     field.inputType === "radio" ||
     field.inputType === "typeahead"
   );
+}
+
+/**
+ * Every row of an option rule, with the part its key is a value of — the
+ * innermost `part` before the option (P282). Through `part` and `switch`.
+ */
+function optionRowsOf(rule: FormatRule, part?: string): readonly { readonly key: string; readonly target: string; readonly part: string | undefined }[] {
+  if (rule.kind === "option") return Object.entries(rule.options).map(([key, target]) => ({ key, target, part }));
+  if (rule.kind === "part") return rule.then === undefined ? [] : optionRowsOf(rule.then, rule.path);
+  if (rule.kind === "switch") return Object.values(rule.cases).flatMap((branch) => optionRowsOf(branch, part));
+  return [];
 }
 
 /** The values an option rule can produce, or null when the rule is not one (through `part`). */
