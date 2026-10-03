@@ -4317,16 +4317,58 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
       await instance.pool.end();
     }
 
-    expect(await statusOf()).toBe("abandoned");
+    // P278, row 129: an abandon winds the case down as a stop does. Vahid:
+    // *"An abandon treated like a stop, the run kept alive until the account
+    // is handed over, the intervention named as the reason."*
+    expect(await statusOf(), "kept alive, to hand the account over").toBe("running");
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    const caseLog = async (): Promise<readonly { type: string; reason?: string }[]> =>
+      await new PostgresCaseStore(pool).read(caseRef);
+    expect(fold(await new PostgresCaseStore(pool).read(caseRef)).state).toBe("WINDING_DOWN");
+    expect(
+      (await caseLog()).find((event) => event.type === "CaseCancelled")?.reason,
+      "the intervention named as the reason",
+    ).toBe(`A person abandoned the application (intervention ${held.interventionId}).`);
     const after = (await messages()).slice(before);
     expect(after, "told once, and only this").toHaveLength(1);
     expect(after[0]).toMatch(/^Someone on the team has looked at your .+ application, and it cannot go on, so I have stopped work on it and I will not start anything new on it\./);
-    expect(after[0], "the account the run created is named as existing — nothing more is promised about it").toContain("The account at ");
-    expect(after[0]).not.toMatch(/moving again|come back to you/);
+    expect(after[0], "the account is theirs, and will be handed over").toContain("it is yours, and I will help you take control of it before we finish");
+    expect(after[0], "and they will be told when that is done").toContain("I will tell you when it is finished");
+    expect(after[0]).not.toMatch(/moving again/);
     expect(after[0], "the specialist's own words are not the student's").not.toContain("cannot be completed on this portal");
-    // "I will not start anything new on it", asserted.
+    // "I will not start anything new on it", asserted: the case is winding down.
     await pool.query("DELETE FROM work_leases");
     expect(await claim(), "no work for an abandoned run").toBeNull();
+
+    // The wind-down, walked the way a student walks it: the handover asked,
+    // read, confirmed — then "I will tell you when it is finished", kept.
+    const winding = buildInstance(connectionString());
+    try {
+      for (let round = 0; round < 5; round += 1) {
+        await winding.driver.advance({ runId, conversationId: conversation });
+        const now = await winding.driver.runFor(conversation);
+        if (now?.pending?.decision !== "confirm_handoff") break;
+        const done = await winding.driver.recordDecision({
+          conversationId: conversation,
+          runId,
+          decision: { kind: "confirm_handoff", contentHash: now.pending.contentHash },
+        });
+        expect(done, `round ${String(round)}`).toEqual({ ok: true });
+      }
+      await winding.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await winding.pool.end();
+    }
+    expect(fold(await new PostgresCaseStore(pool).read(caseRef)).state, "concluded once nothing is owed").toBe("CANCELLED");
+    expect(
+      (await caseLog()).some((event) => event.reason === "A person abandoned it, and nothing is outstanding."),
+      "concluded as an abandon, not as the student's stop",
+    ).toBe(true);
+    expect(await statusOf(), "and only now abandoned").toBe("abandoned");
+    const last = (await messages()).at(-1) ?? "";
+    expect(last, "the promise kept").toMatch(/^That is the last of it\. The account at .+ is yours now/);
+    await pool.query("DELETE FROM work_leases");
+    expect(await claim(), "still no work").toBeNull();
   }, 300_000);
 });
 
@@ -6807,6 +6849,96 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
     expect(await lastSaid()).toContain("Is that right?");
     const run = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
     expect(run.rows[0]?.status, "and the run did not stop again").toBe("running");
+  }, 300_000);
+});
+
+describeIfDatabase("an application a person abandons before any account exists is closed at once, and the student is told so (P278, row 129)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // The other half of row 129. An abandon winds the case down as a stop does;
+  // with nothing created on a portal there is nothing to hand over, so the
+  // case concludes at once — and the student reads the stop's own words for
+  // that: nothing submitted, nothing outstanding, closed. Reached the way
+  // P223 reaches it: three failed answers stop the interview for a person.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX27801";
+  const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+  let student = "";
+  let runId = "";
+
+  async function said(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>("INSERT INTO students (subject, email_verified) VALUES ('oidc-p278-abandon', true) RETURNING id");
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
+      await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian", student);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    } finally {
+      await instance.pool.end();
+    }
+    for (const answer of ["30/02/1989", "31/11/1989", "11 Aug 1989", "no, that is wrong"]) await say(answer);
+    const instance2 = buildInstance(connectionString(), opener());
+    try {
+      const seen = await instance2.driver.advance({ runId, conversationId: conversation });
+      expect(seen.ok ? seen.position.status : `refused:${seen.refusal.kind}`, "stopped for a person").toBe("escalated");
+    } finally {
+      await instance2.pool.end();
+    }
+  }, 300_000);
+
+  it("closes the case at once, names the intervention, abandons the run, and tells the student it is closed", async () => {
+    const held = await pool.query<{ intervention_id: string }>("SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL", [runId]);
+    const interventionId = held.rows[0]?.intervention_id ?? "";
+    expect(interventionId).not.toBe("");
+    const before = (await said()).length;
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(interventionId),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the log.", resolution: "Not one we can complete.", resolvedAt: NOW, outcome: "abandon" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    const log = (await new PostgresCaseStore(pool).read(caseRef)) as readonly { type: string; reason?: string }[];
+    expect(fold(await new PostgresCaseStore(pool).read(caseRef)).state, "nothing owed, so concluded").toBe("CANCELLED");
+    expect(log.find((event) => event.type === "CaseCancelled")?.reason).toBe(`A person abandoned the application (intervention ${interventionId}).`);
+    expect(log.some((event) => event.reason === "A person abandoned it, and nothing is outstanding.")).toBe(true);
+    const run = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(run.rows[0]?.status).toBe("abandoned");
+    const after = (await said()).slice(before);
+    expect(after, "told once").toHaveLength(1);
+    expect(after[0]).toMatch(/^Someone on the team has looked at your .+ application, and it cannot go on, so I have stopped work on it and I will not start anything new on it\. Nothing was submitted, and nothing is outstanding — this application is closed\./);
+    expect(after[0], "no account was created, and none is named").not.toContain("The account at");
   }, 300_000);
 });
 

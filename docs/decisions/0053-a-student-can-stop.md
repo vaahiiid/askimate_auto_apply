@@ -229,6 +229,27 @@ the most damaging thing this phase could ship.
   is not one to deploy first.
 - **Documents.** Externally blocked on the retention schedule.
 
+
+## Amended 2026-10-03 (P278, row 129): a person's abandon winds down the same way
+
+His word, 2026-10-03: *"Row 129: build it as you propose. An abandon treated like a stop, the run
+kept alive until the account is handed over, the intervention named as the reason. … The reason is
+the one I gave: a real account on a real portal, in a student's name, that nobody is responsible
+for. That it has never happened is not an argument — it has never happened because nobody has
+abandoned a run yet."*
+
+Until P278 a specialist's `abandon` set the run `abandoned` — terminal — and appended nothing to
+the case, so the case never wound down and an account the run had created was never handed over.
+Now a resolution of `abandon` appends the stop's own `CaseCancelled`, its reason naming the
+intervention (*"A person abandoned the application (intervention iv_…)."*), before the run is
+released to `running` — case first, so no browser work can be offered in between. From there it is
+this ADR's wind-down, one implementation: concluded at once when nothing is owed, otherwise the
+handover raised and the case concluded when the student has the account; the run becomes
+`abandoned` only at the conclusion, and the conclusion's reason says a person abandoned it. The
+student reads the P272 sentence followed by the stop's own account and completion sentences, and,
+on the pass that finishes it, *"That is the last of it."* A case already winding down is not
+cancelled twice; a case that cannot take the stop keeps the abandon as it was before.
+
 ---
 
 *Accepted 2026-09-02. P15 implements it.*

@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P278 — nobody's account
+
+*2026-10-03.* An application a person abandons now winds down as a student's stop does: the
+cancellation on the case names the intervention, the account the run created is handed to the
+student, and the case closes when nothing is owed. His reason: a real account on a real portal,
+in a student's name, that nobody is responsible for.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P277 — what deleting a CV does not delete, said where it is promised
 
 *2026-10-03.* His sentence for the copied words is in the upload sentence, the year message and

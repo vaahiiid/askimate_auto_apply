@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.271.0] — 2026-10-03
+
+**P278 — an abandoned application winds down like a stopped one (row 129; ADR-0053 amended).**
+
+- **Changed** a specialist's `abandon`: it now records the stop's cancellation on the case, naming
+  the intervention, and the run winds down — the account the run created is handed over, and the
+  case is concluded once nothing is owed — instead of being marked abandoned at once and left.
+- **Changed** what the student reads on an abandon: the stop's own account and completion
+  sentences follow it, and the stop's *"That is the last of it"* when the handover is done.
+
+---
+
 ## [0.270.0] — 2026-10-03
 
 **P277 — what deleting a CV does not delete, said (rows 128, 132; ADR-0148 amended).**

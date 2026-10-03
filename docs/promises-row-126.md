@@ -34,7 +34,7 @@ This is that list. Nothing in the code was changed to make it.
 
 ## Contradicted by the code (read first)
 
-*Since the list was made:* D25 fixed in P271 — the reply after a reading now says where the CV is. The abandon path fixed in P272 — the student is told; row 129 holds what it does not do. W7 kept in P274: the sweep deletes a CV a year after its last use and tells the student (row 128). D6 and D31 kept in P275 (row 130, stage A): *remove those too* and *delete my data* reach a person, the student is told what the university already has, and the new promise the handoff makes — *"I will tell you here when it is done"* (P1 below) — is asserted by the test that closes a request.
+*Since the list was made:* D25 fixed in P271 — the reply after a reading now says where the CV is. The abandon path fixed in P272 — the student is told — and wound down in P278 (row 129): the account handed over, and the stop's own *"I will tell you when it is finished"* said and kept on that path too, asserted by the test that walks the handover to *"That is the last of it"*. W7 kept in P274: the sweep deletes a CV a year after its last use and tells the student (row 128). D6 and D31 kept in P275 (row 130, stage A): *remove those too* and *delete my data* reach a person, the student is told what the university already has, and the new promise the handoff makes — *"I will tell you here when it is done"* (P1 below) — is asserted by the test that closes a request.
 
 
 | # | Where | The promise | What the code does |

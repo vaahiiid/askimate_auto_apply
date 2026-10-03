@@ -753,20 +753,47 @@ type StopConclusion =
  */
 /**
  * What the student reads when a person has abandoned their application
- * (P272, row 126).
+ * (P272, row 126; P278, row 129).
  *
- * Only what is true and nothing promised beyond the one thing the code keeps:
- * no work is offered for an abandoned run, so *"I will not start anything new
- * on it"* is asserted by the test that says it. An account the run created is
- * named as existing; what becomes of it is not promised, because an abandoned
- * run does not wind its case down and nothing hands the account over (row 129).
+ * Since P278 an abandon winds the case down the way a stop does — Vahid: *"a
+ * real account on a real portal, in a student's name, that nobody is
+ * responsible for"* is the thing it must not leave — so the rest of the
+ * message is the stop's own: the account is theirs and will be handed over,
+ * what was filled in stays there, and whether anything is still owed. Those
+ * sentences and their promises are the stop's, kept by the same wind-down.
+ * Without a conclusion (the case could not be wound down) only the P272
+ * sentence is said, because nothing more would be true.
  */
-function abandonedMessage(entry: CatalogueEntry, hasAccount: boolean): string {
+/** How a cancellation a person made begins, on the case log (P278): what tells it from a student's stop. */
+const ABANDONED_BY_A_PERSON = "A person abandoned the application";
+
+function abandonedMessage(entry: CatalogueEntry, hasAccount: boolean, conclusion: StopConclusion | null): string {
   const institution = entry.blueprint.institutionName;
-  return (
+  const opening =
     `Someone on the team has looked at your ${institution} application, and it cannot go on, so I ` +
-    `have stopped work on it and I will not start anything new on it.` +
-    (hasAccount ? ` The account at ${institution} that was created in your name still exists.` : "")
+    `have stopped work on it and I will not start anything new on it.`;
+  if (conclusion === null) {
+    return opening + (hasAccount ? ` The account at ${institution} that was created in your name still exists.` : "");
+  }
+  return `${opening} ${stoppedRemainder(institution, hasAccount, conclusion)}`;
+}
+
+/** What a stopped application leaves, said the same way whoever stopped it (ADR-0053; P278). */
+function stoppedRemainder(institution: string, hasAccount: boolean, conclusion: StopConclusion): string {
+  const account = hasAccount
+    ? `The account at ${institution} was created in your name and still exists — it is yours, and ` +
+      `I will help you take control of it before we finish. Anything I already filled in on their ` +
+      `form is still saved there; I cannot remove it, and you can change it yourself once you have ` +
+      `the account. `
+    : ``;
+  const completion = conclusion.concluded
+    ? `Nothing was submitted, and nothing is outstanding — this application is closed. `
+    : `It is stopped, but it is not finished: the account at ${institution} is still in my ` +
+      `hands, and I have to give you control of it before we are done. I will come back to you ` +
+      `about that, and I will tell you when it is finished. Nothing was submitted. `;
+  return (
+    `${account}${completion}If you want your data deleted rather than just ` +
+    `stopped, tell me — that is a separate request and I will pass it to a person.`
   );
 }
 
@@ -776,27 +803,15 @@ function cancellationMessage(
   conclusion: StopConclusion,
 ): string {
   const institution = entry.blueprint.institutionName;
-  const account = hasAccount
-    ? `The account at ${institution} was created in your name and still exists — it is yours, and ` +
-      `I will help you take control of it before we finish. Anything I already filled in on their ` +
-      `form is still saved there; I cannot remove it, and you can change it yourself once you have ` +
-      `the account. `
-    : ``;
   // Named, not enumerated. Every member of `outstanding` comes from
   // `mayConcludeCase`, whose only source is the portal account — so the one
-  // sentence below is the whole list, in the student's terms rather than in
-  // account ids and stage names. If a second source of obligations is ever
-  // added, this wording stops being true and has to change with it; the note
-  // on `#outstandingObligations` says so at the other end.
-  const completion = conclusion.concluded
-    ? `Nothing was submitted, and nothing is outstanding — this application is closed. `
-    : `It is stopped, but it is not finished: the account at ${institution} is still in my ` +
-      `hands, and I have to give you control of it before we are done. I will come back to you ` +
-      `about that, and I will tell you when it is finished. Nothing was submitted. `;
+  // sentence in `stoppedRemainder` is the whole list, in the student's terms
+  // rather than in account ids and stage names. If a second source of
+  // obligations is ever added, that wording stops being true and has to change
+  // with it; the note on `#outstandingObligations` says so at the other end.
   return (
     `I have stopped work on your ${institution} application, and I will not start anything new ` +
-    `on it. ${account}${completion}If you want your data deleted rather than just ` +
-    `stopped, tell me — that is a separate request and I will pass it to a person.`
+    `on it. ${stoppedRemainder(institution, hasAccount, conclusion)}`
   );
 }
 
@@ -4883,6 +4898,10 @@ export class RunDriver {
     readonly held: ApplicationCase;
     readonly now: Date;
   }): Promise<StopConclusion> {
+    // Who stopped it is on the case log, in the cancellation's reason (P278):
+    // the student, or a person who abandoned it.
+    const cancelled = [...(await this.#options.stores.cases.read(input.caseId))].reverse().find((event) => event.type === "CaseCancelled");
+    const abandoned = cancelled?.type === "CaseCancelled" && cancelled.reason.startsWith(ABANDONED_BY_A_PERSON);
     const outstanding = await this.#outstandingObligations({
       record: input.record,
       entry: input.entry,
@@ -4893,7 +4912,7 @@ export class RunDriver {
     const decided = decide(input.held, {
       kind: "transition",
       to: "CANCELLED",
-      reason: "The student stopped it, and nothing is outstanding.",
+      reason: abandoned ? "A person abandoned it, and nothing is outstanding." : "The student stopped it, and nothing is outstanding.",
       outstandingObligations: outstanding,
     });
     /* c8 ignore next -- the guard above is the only thing that refuses this */
@@ -6926,9 +6945,22 @@ export class RunDriver {
       reusability: input.reusability,
     });
 
+    // ── An abandon winds the case down, as a stop does (P278, row 129) ──
+    //
+    // Vahid, 2026-10-03: *"An abandon treated like a stop, the run kept alive
+    // until the account is handed over, the intervention named as the reason.
+    // … a real account on a real portal, in a student's name, that nobody is
+    // responsible for."* The cancellation goes on the CASE first: from that
+    // moment no browser work is offered for it (`claimWork` reads the case),
+    // so the run released below can only wind down. Released before the case
+    // could say so, it would be offered the work it was abandoned at.
+    const windingDown = input.resolution.outcome === "abandon" ? await this.#abandonTheCase(held) : false;
+
     const record = await this.#options.stores.runs.load(held.runId);
     if (record !== null && record.status !== "running") {
-      const next: WorkflowStatus = input.resolution.outcome === "abandon" ? "abandoned" : "running";
+      // An abandon the case could not take (already concluded, or a state the
+      // stop is refused from) stays what it was before P278: abandoned at once.
+      const next: WorkflowStatus = input.resolution.outcome === "abandon" && !windingDown ? "abandoned" : "running";
       await this.#options.stores.runs.saveCheckpoint({
         runId: held.runId,
         checkpoint: record.checkpoint,
@@ -6948,7 +6980,7 @@ export class RunDriver {
     // student's terms, whatever else."* The specialist's own words are theirs
     // and are not passed on: what the student reads is what happened.
     if (input.resolution.outcome === "abandon") {
-      await this.#announceAbandoned(held);
+      await this.#announceAbandoned(held, windingDown);
     } else {
       const target = held.escalation.checkpoint.target;
       if (target.startsWith("interview:")) await this.#askAgainAfterResolution(held, target.slice("interview:".length));
@@ -7127,8 +7159,40 @@ export class RunDriver {
     });
   }
 
-  /** The student's account of an application a person has abandoned (P272). */
-  async #announceAbandoned(held: StoredIntervention): Promise<void> {
+  /**
+   * The cancellation of a case a person abandoned (P278, row 129): the stop's
+   * own event, with the intervention named as the reason, so the same
+   * wind-down follows — the account handed over, the case concluded once
+   * nothing is owed. `true` when the case is now winding down; `false` when
+   * it could not be (already concluded, or refused), and the caller keeps
+   * the abandon as it was.
+   */
+  async #abandonTheCase(held: StoredIntervention): Promise<boolean> {
+    const caseId = makeCaseId(held.caseId);
+    const current = fold(await this.#options.stores.cases.read(caseId));
+    if (current.state === "WINDING_DOWN") return true;
+    const decided = decide(current, {
+      kind: "cancel_case",
+      reason: `${ABANDONED_BY_A_PERSON} (intervention ${held.interventionId}).`,
+    });
+    if (!decided.accepted) return false;
+    const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+    await this.#appendToCase(
+      caseId,
+      current.sequence,
+      decided.events,
+      { conversationId: conversationId ?? "", caseId },
+      this.#options.now(),
+    );
+    return true;
+  }
+
+  /**
+   * The student's account of an application a person has abandoned (P272),
+   * and, since P278, the stop's second act: concluded here if nothing is owed,
+   * so the message says what actually happened rather than what was about to.
+   */
+  async #announceAbandoned(held: StoredIntervention, windingDown: boolean): Promise<void> {
     const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
     if (conversationId === null) return;
     const bound = await this.#options.bindings.caseFor(conversationId);
@@ -7137,9 +7201,20 @@ export class RunDriver {
     if (entry === null) return;
     const record = await this.#options.stores.runs.load(held.runId);
     const accounts = record === null ? [] : await this.#accountsOn(record, entry);
+    const conclusion =
+      windingDown && record !== null
+        ? await this.#concludeCancellation({
+            entry,
+            conversationId,
+            caseId: makeCaseId(held.caseId),
+            record,
+            held: fold(await this.#options.stores.cases.read(makeCaseId(held.caseId))),
+            now: this.#options.now(),
+          })
+        : null;
     await this.#options.conversations.append({
       conversationId,
-      event: { kind: "message", actor: "assistant", content: abandonedMessage(entry, accounts.length > 0) },
+      event: { kind: "message", actor: "assistant", content: abandonedMessage(entry, accounts.length > 0, conclusion) },
     });
   }
 

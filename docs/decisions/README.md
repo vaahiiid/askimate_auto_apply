@@ -79,7 +79,7 @@ ADR status uses exactly that vocabulary:
 | [0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md) | The account lifecycle completes through the student's own decision, and a case can finally conclude | Accepted |
 | [0051](./0051-the-student-supplies-through-the-conversation.md) | The student answers in the conversation, and a correction can reach the portal | Accepted |
 | [0052](./0052-the-system-acts-when-nobody-is-watching.md) | The system acts when nobody is watching: a background worker owns autonomous progression | Accepted |
-| [0053](./0053-a-student-can-stop.md) | A student can stop: cancellation is reachable, and it does not strand their account | Accepted |
+| [0053](./0053-a-student-can-stop.md) | A student can stop: cancellation is reachable, and it does not strand their account | Accepted · amended 2026-10-03 (P278, row 129): a person's abandon winds the case down the same way, the intervention named as the reason, the account handed over |
 | [0054](./0054-the-intent-is-durable-before-the-action.md) | The intent is durable before the action, not after it | Accepted |
 | [0055](./0055-a-process-refuses-to-start-when-it-is-not-safe.md) | A process refuses to start when it is not safe | Accepted |
 | [0056](./0056-verification-is-established-at-login.md) | Verification is established at login, not re-read at every step | Accepted |
