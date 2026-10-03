@@ -392,6 +392,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-10-01 (P260):** the service's start line names every open intervention older than a day, with its age (ADR-0071 amended). Nothing on this list moved: the distance is unchanged.
 - **2026-10-01 (P261):** step 4 measured where it could be, by his reads — verification gates nothing, the notice stands over the registration button; row 88 measured; the reader names the cookies a profile holds (ADR-0128 amended). Nothing on this list moved: the distance is unchanged.
 - **2026-10-01 (P262):** the completeness question asks for another, so yes means another; no yes/no question redefines yes in an instruction (ADR-0147 amended; row 118). Nothing on this list moved: the distance is unchanged.
+- **2026-10-03 (P272):** an abandoned application is said so to the student (row 126); row 129 open. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P270, P271):** the retention sweep's cost measured (row 128); *use my CV* after a reading answered truly (row 126, D25). Nothing on this list moved: the distance is unchanged.
 - **2026-10-02 (P269):** the 72 promises the product makes, each with whether a test asserts its action (row 126, `docs/promises-row-126.md`). Nothing on this list moved: the distance is unchanged.
 - **2026-10-02 (P268):** an entry the reader held back is asked by hand with its lines and the reason said (ADR-0149 amended; row 124). Nothing on this list moved: the distance is unchanged.

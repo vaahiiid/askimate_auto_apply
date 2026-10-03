@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P272 — an abandoned application is said so
+
+*2026-10-03.* The abandon resolution told the student nothing; it now tells them, in their terms,
+and promises only what the code keeps. Writing it found what an abandon does not do: the case is
+not wound down and an account the run created is not handed over (row 129, his word).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P271 — the CV we hold is not called a CV we do not hold
 
 *2026-10-03.* The first of the four contradictions on row 126 to be closed: *use my CV* after a

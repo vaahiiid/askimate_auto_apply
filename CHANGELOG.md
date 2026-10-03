@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.266.0] — 2026-10-03
+
+**P272 — a run a person abandons is said so to the student (row 126).**
+
+- **Fixed** the abandon resolution, which told the student nothing: it now says *"Someone on the
+  team has looked at your … application, and it cannot go on, so I have stopped work on it and I
+  will not start anything new on it."*, naming the account the run created as existing when there
+  is one. The specialist's own words are not passed on.
+- **Recorded** row 129 (open): an abandoned run's case is not wound down and its account is not
+  handed over.
+
+---
+
 ## [0.265.0] — 2026-10-03
 
 **P271 — "use my CV" after a reading is answered with where the CV truly is (row 126, D25).**

@@ -4277,6 +4277,53 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
       await instance.pool.end();
     }
   }, 300_000);
+
+  it("ABANDONED by a person: the student is told, in their terms, and no work is offered — never 'moving again' (P272, row 126)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Found in P269: a resolution of `abandon` set the run's status and told
+    // the student nothing, so every "I will come back to you" (D9, D12, W2,
+    // W5, W6) broke on that path at once. Vahid: *"A run abandoned by a
+    // specialist should say so, in the student's terms, whatever else."*
+    // ═══════════════════════════════════════════════════════════════════
+    // One more stuck page, through the production path, as the second
+    // episode above: offered again, taken, never reported.
+    await pool.query("DELETE FROM work_leases");
+    if ((await claim()) === null) expect.unreachable("a cleanly failed page is offered again");
+    await pool.query("DELETE FROM work_leases");
+    expect(await claim(), "an unfinished action is not work").toBeNull();
+    const held = (await openInterventions())[0];
+    if (held === undefined) expect.unreachable("the stuck page is a person's to look at");
+    const before = (await messages()).length;
+
+    const instance = buildInstance(connectionString());
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: held.interventionId,
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Looked at the portal and the application.",
+          resolution: "This application cannot be completed on this portal.",
+          resolvedAt: NOW,
+          outcome: "abandon",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "abandoned" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+
+    expect(await statusOf()).toBe("abandoned");
+    const after = (await messages()).slice(before);
+    expect(after, "told once, and only this").toHaveLength(1);
+    expect(after[0]).toMatch(/^Someone on the team has looked at your .+ application, and it cannot go on, so I have stopped work on it and I will not start anything new on it\./);
+    expect(after[0], "the account the run created is named as existing — nothing more is promised about it").toContain("The account at ");
+    expect(after[0]).not.toMatch(/moving again|come back to you/);
+    expect(after[0], "the specialist's own words are not the student's").not.toContain("cannot be completed on this portal");
+    // "I will not start anything new on it", asserted.
+    await pool.query("DELETE FROM work_leases");
+    expect(await claim(), "no work for an abandoned run").toBeNull();
+  }, 300_000);
 });
 
 // ───────────────────────────────────────────────────────────────────────────

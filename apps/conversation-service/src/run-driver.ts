@@ -748,6 +748,25 @@ type StopConclusion =
  * The account sentence is conditional because the claim must be true: a student
  * who stops before any account exists must not be told one does.
  */
+/**
+ * What the student reads when a person has abandoned their application
+ * (P272, row 126).
+ *
+ * Only what is true and nothing promised beyond the one thing the code keeps:
+ * no work is offered for an abandoned run, so *"I will not start anything new
+ * on it"* is asserted by the test that says it. An account the run created is
+ * named as existing; what becomes of it is not promised, because an abandoned
+ * run does not wind its case down and nothing hands the account over (row 129).
+ */
+function abandonedMessage(entry: CatalogueEntry, hasAccount: boolean): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `Someone on the team has looked at your ${institution} application, and it cannot go on, so I ` +
+    `have stopped work on it and I will not start anything new on it.` +
+    (hasAccount ? ` The account at ${institution} that was created in your name still exists.` : "")
+  );
+}
+
 function cancellationMessage(
   entry: CatalogueEntry,
   hasAccount: boolean,
@@ -6674,7 +6693,16 @@ export class RunDriver {
     // Told last, and only for a run that will actually continue. A student who
     // hears "it is moving again" about an abandoned application has been
     // misled, which is worse than not being told at all.
-    if (input.resolution.outcome !== "abandon") {
+    //
+    // And an abandoned one is told THAT (P272, row 126). Until P272 it was told
+    // nothing, and every "I will come back to you" said before it — the pause,
+    // the consent stops, the page's own words — broke on this path at once.
+    // Vahid: *"A run abandoned by a specialist should say so, in the
+    // student's terms, whatever else."* The specialist's own words are theirs
+    // and are not passed on: what the student reads is what happened.
+    if (input.resolution.outcome === "abandon") {
+      await this.#announceAbandoned(held);
+    } else {
       const target = held.escalation.checkpoint.target;
       if (target.startsWith("interview:")) await this.#askAgainAfterResolution(held, target.slice("interview:".length));
       else await this.#announceResumed(held);
@@ -6849,6 +6877,22 @@ export class RunDriver {
       await say(resumeMessage(situated.entry));
       await say(next.say);
       return null;
+    });
+  }
+
+  /** The student's account of an application a person has abandoned (P272). */
+  async #announceAbandoned(held: StoredIntervention): Promise<void> {
+    const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+    if (conversationId === null) return;
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return;
+    const entry = await this.#entryAdmitting(bound);
+    if (entry === null) return;
+    const record = await this.#options.stores.runs.load(held.runId);
+    const accounts = record === null ? [] : await this.#accountsOn(record, entry);
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: abandonedMessage(entry, accounts.length > 0) },
     });
   }
 
