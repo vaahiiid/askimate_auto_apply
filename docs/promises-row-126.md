@@ -34,6 +34,9 @@ This is that list. Nothing in the code was changed to make it.
 
 ## Contradicted by the code (read first)
 
+*Since the list was made:* D25 fixed in P271 — the reply after a reading now says where the CV is.
+
+
 | # | Where | The promise | What the code does |
 |---|---|---|---|
 | D25 | run-driver.ts:1339, said at :8432 | *"I do not hold a CV for you. If you upload one … I will ask whether to use it when we reach your jobs."* | Said to a student who types *use my CV* **after a normal reading**. `heldFor` returns only `held`, `offered`, `pending` and `leased` rows, never `read`, so the branch meant for this case — *"I have already read your CV and filled in what it gave."* — cannot be reached, and the student is told something untrue about a CV we hold for a year. No test types *use my CV* after a reading. |

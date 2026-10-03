@@ -1337,6 +1337,14 @@ const STILL_READING_THE_CV = "I'm still reading your CV; I'll carry on the momen
 const DECLINED_THE_CV = "You said no, so I have deleted your CV. I will ask you about your jobs and qualifications as usual.";
 const THE_CV_IS_GONE = "Your CV was deleted when you said no earlier, so I cannot use it now. If you would like me to, upload it again from the documents panel and I will ask you again.";
 const NO_CV_HELD = "I do not hold a CV for you. If you upload one from the documents panel, I will ask whether to use it when we reach your jobs.";
+// P271, row 126 D25: "use my CV" after a reading, said as where the CV is.
+// None of them promises an action: the sentence a student reads is true of
+// what has happened, and asks nothing of a later that nothing checks.
+const CV_ALREADY_USED = "I have already read your CV and filled in what it gave.";
+const CV_GAVE_NOTHING = "I have already read your CV, and it gave nothing I could fill in.";
+const CV_KEPT_WHAT_YOU_SAID = "I have already read your CV. You had already told me about your jobs and qualifications, so I kept what you said.";
+const CV_COULD_NOT_BE_READ = "I tried to read your CV and could not read it as text, so I asked you about your jobs and qualifications instead.";
+const CV_DELETED = "Your CV has been deleted, so I cannot use it now. You can upload it again from the documents panel.";
 // P252, row 107. Vahid: *"ask, do not hold silently… that we have it, that the
 // jobs and qualifications are already filled in and confirmed, and asking
 // whether they want to go back and use the CV for either — with the honest
@@ -8425,7 +8433,28 @@ export class RunDriver {
       return true;
     }
     if (held !== null) {
-      await say(held.state === "pending" || held.state === "leased" ? "I am reading your CV now; I will tell you what it gave as soon as it is done." : "I have already read your CV and filled in what it gave.");
+      // `heldFor` returns held, offered, pending and leased; held is answered
+      // above, offered by the question, so this is a reading under way.
+      await say("I am reading your CV now; I will tell you what it gave as soon as it is done.");
+      return true;
+    }
+    // P271, row 126 D25: a CV already read — or tried. Until P271 nothing
+    // looked for one, and a student who typed "use my CV" after a normal
+    // reading was told "I do not hold a CV for you" about the CV we hold.
+    const read = await readings.readFor(conversationId);
+    if (read !== null) {
+      const record = await this.#options.disclosure?.vault.describe(read.documentId);
+      if (read.used === false || record?.state === "purged") {
+        await say(CV_DELETED);
+      } else if (read.state === "failed") {
+        await say(CV_COULD_NOT_BE_READ);
+      } else if (read.structure?.lists.some((list) => list.seeded) === true) {
+        await say(CV_ALREADY_USED);
+      } else if (read.structure?.lists.every((list) => list.entries.length === 0) !== false) {
+        await say(CV_GAVE_NOTHING);
+      } else {
+        await say(CV_KEPT_WHAT_YOU_SAID);
+      }
       return true;
     }
     const declined = await readings.declinedFor(conversationId);

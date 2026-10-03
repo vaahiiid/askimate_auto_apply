@@ -15809,6 +15809,114 @@ describeIfDatabase("the sentence's promise is a test case: every entry it says i
   }, 300_000);
 });
 
+describeIfDatabase("'use my CV' after a reading is answered with where the CV truly is — never 'I do not hold a CV for you' about one we hold (P271, row 126 D25)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Found in P269: `heldFor` returns held, offered, pending and leased rows,
+  // never a READ one, so the branch meant for a CV already read could not be
+  // reached and a student who typed "use my CV" after a normal reading was
+  // told "I do not hold a CV for you" — about the CV we hold for a year.
+  // Vahid: *"D25 tells a student we hold no CV when we hold one that we read.
+  // Fix the branch."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const READ_AND_SEEDED = "01JBXQ8Z9WKTQ6M4H2NPX27101";
+  const READ_THEN_DELETED = "01JBXQ8Z9WKTQ6M4H2NPX27102";
+  const READ_NOTHING = "01JBXQ8Z9WKTQ6M4H2NPX27103";
+  const READ_FAILED = "01JBXQ8Z9WKTQ6M4H2NPX27104";
+  const CVS: Readonly<Record<string, string>> = { [READ_AND_SEEDED]: "01JQDOCREAD000000000000071", [READ_THEN_DELETED]: "01JQDOCREAD000000000000072", [READ_NOTHING]: "01JQDOCREAD000000000000073", [READ_FAILED]: "01JQDOCREAD000000000000074" };
+  const contentHash = "e".repeat(64);
+  const READ = {
+    index: 1,
+    fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
+    spans: { awardTitle: "BSc Computer Science", subject: "BSc Computer Science", institution: "University of Tehran", level: "BSc", start: "September 2015", end: "June 2019", grade: "17.2 / 20", gradeScale: "17.2 / 20" },
+    confidence: 0.9,
+    toAsk: ["countryCode"],
+    student: ["countryCode"],
+  };
+  const owners = new Map<string, string>();
+  let vault: DocumentVault & { readonly records: DocumentRecord[] };
+
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function say(conversation: string, what: string): Promise<void> {
+    const built = instance();
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function lastSaid(conversation: string): Promise<string> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    return rows.rows[0]?.content ?? "";
+  }
+
+  beforeAll(async () => {
+    for (const conversation of Object.keys(CVS)) owners.set(conversation, await ownConversation(conversation));
+    vault = (() => {
+      const base = fakeVault(Object.entries(CVS).map(([conversation, documentId]) => ({ documentId, studentId: owners.get(conversation) ?? "", documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null })));
+      return { ...base, records: base.records, prepareRetrieval: (id: string, now: Date) => Promise.resolve({ url: `https://vault.test/${id}`, method: "GET" as const, expiresAt: new Date(now.getTime() + 60_000) }) };
+    })();
+    const built = instance();
+    try {
+      const readings = new PostgresDocumentReadingStore(built.pool);
+      for (const [conversation, documentId] of Object.entries(CVS)) {
+        const owner = owners.get(conversation) ?? "";
+        await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+        await built.driver.requestReading({ documentId, conversationId: conversation, studentId: owner, contentHash });
+        await readings.ask(documentId, NOW);
+        await readings.decide(documentId, true, NOW);
+        const started = await built.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+        if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+        const claimed = await built.driver.claimReading({ holder: "reader-1", leaseSeconds: 300 });
+        expect(claimed?.documentId).toBe(documentId);
+        // The third reading offers nothing at all: one entry it could not read, held back with no lines.
+        const lists = conversation === READ_NOTHING ? [{ fieldKey: "education.prior_qualifications", entries: [], dropped: 1 }] : [{ fieldKey: "education.prior_qualifications", entries: [READ], dropped: 0 }];
+        const report = conversation === READ_FAILED ? { leaseId: claimed?.leaseId ?? "", outcome: "failed" as const, failure: "unreadable" as const } : { leaseId: claimed?.leaseId ?? "", outcome: "read" as const, lists };
+        expect(await built.driver.reportReading({ documentId, report })).toBe(true);
+      }
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("a CV read and used: says it was read and what it gave went in", async () => {
+    await say(READ_AND_SEEDED, "use my CV");
+    const said = await lastSaid(READ_AND_SEEDED);
+    expect(said).not.toContain("I do not hold a CV");
+    expect(said).toBe("I have already read your CV and filled in what it gave.");
+  }, 120_000);
+
+  it("a CV read and then deleted at the student's request: says it was deleted, and that it can be uploaded again", async () => {
+    await say(READ_THEN_DELETED, "delete my CV");
+    expect(vault.records.find((record) => record.documentId === CVS[READ_THEN_DELETED])?.state, "deleted").toBe("purged");
+    await say(READ_THEN_DELETED, "use my CV");
+    const said = await lastSaid(READ_THEN_DELETED);
+    expect(said).not.toContain("I do not hold a CV");
+    expect(said, "it was deleted at their request, not at a no").not.toContain("when you said no");
+    expect(said).toBe("Your CV has been deleted, so I cannot use it now. You can upload it again from the documents panel.");
+  }, 120_000);
+
+  it("a CV the reader could not read as text: says so, and what was done instead", async () => {
+    await say(READ_FAILED, "use my CV");
+    const said = await lastSaid(READ_FAILED);
+    expect(said).not.toContain("I do not hold a CV");
+    expect(said).toBe("I tried to read your CV and could not read it as text, so I asked you about your jobs and qualifications instead.");
+  }, 120_000);
+
+  it("a CV read that gave nothing to fill in: says so, rather than that it filled something in", async () => {
+    await say(READ_NOTHING, "use my CV");
+    const said = await lastSaid(READ_NOTHING);
+    expect(said).not.toContain("I do not hold a CV");
+    expect(said).toBe("I have already read your CV, and it gave nothing I could fill in.");
+  }, 120_000);
+});
+
 describeIfDatabase("a CV that arrives while its own field is open is asked about at once and the open question yields; entries already typed are named and a yes starts the list again; a CV that arrives ahead of its field is acknowledged (P254)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-09-30: *"The open question yields, and the yes may seed past

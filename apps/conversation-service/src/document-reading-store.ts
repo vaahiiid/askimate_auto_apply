@@ -113,6 +113,13 @@ export interface DocumentReadingStore {
   heldFor(conversationId: string): Promise<DocumentReading | null>;
   /** The latest document this conversation declined, or `null`: the honest answer to "actually, use my CV" after a no. */
   declinedFor(conversationId: string): Promise<DocumentReading | null>;
+  /**
+   * The latest document this conversation had READ — or tried to, and failed —
+   * or `null` (P271, row 126 D25). The honest answer to "use my CV" after a
+   * reading: `heldFor` never returns these, and the answer was "I do not hold
+   * a CV for you" about a CV held for a year.
+   */
+  readFor(conversationId: string): Promise<DocumentReading | null>;
   /** The latest reading a late yes reopened fields for — pending, leased or read — or `null` (P252). A failed one reopened nothing: no seeding followed. */
   reopenedFor(conversationId: string): Promise<DocumentReading | null>;
   /** The latest document this conversation read before anyone asked — `read` with no decision — or `null` (P253, row 108). Returned while the honest question stands, until it is answered. */
@@ -261,6 +268,17 @@ export class PostgresDocumentReadingStore implements DocumentReadingStore {
     const rows = await this.#pool.query<Row>(
       `SELECT ${COLUMNS} FROM document_readings
         WHERE conversation_id = $1 AND state IN ('held', 'offered', 'pending', 'leased')
+        ORDER BY requested_at DESC LIMIT 1`,
+      [conversationId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : readingOf(row);
+  }
+
+  public async readFor(conversationId: string): Promise<DocumentReading | null> {
+    const rows = await this.#pool.query<Row>(
+      `SELECT ${COLUMNS} FROM document_readings
+        WHERE conversation_id = $1 AND state IN ('read', 'failed')
         ORDER BY requested_at DESC LIMIT 1`,
       [conversationId],
     );
@@ -463,6 +481,14 @@ export class InMemoryDocumentReadingStore implements DocumentReadingStore {
     const open = new Set<ReadingState>(["held", "offered", "pending", "leased"]);
     const found = [...this.#rows.values()]
       .filter((row) => row.conversationId === conversationId && open.has(row.state))
+      .sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())[0];
+    return Promise.resolve(found ?? null);
+  }
+
+  public readFor(conversationId: string): Promise<DocumentReading | null> {
+    const ended = new Set<ReadingState>(["read", "failed"]);
+    const found = [...this.#rows.values()]
+      .filter((row) => row.conversationId === conversationId && ended.has(row.state))
       .sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())[0];
     return Promise.resolve(found ?? null);
   }

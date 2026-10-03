@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P271 — the CV we hold is not called a CV we do not hold
+
+*2026-10-03.* The first of the four contradictions on row 126 to be closed: *use my CV* after a
+reading now gets an answer that is true of where the CV is. Before it, P270 measured what the
+retention sweep would cost (row 128, his word to come) and recorded his rule that a measurement
+with a wrong method is worse than none.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P269 — the list of every promise, and what checks it
 
 *2026-10-02.* His instruction on row 126: the list first, not fifty-four tests. Measured again with

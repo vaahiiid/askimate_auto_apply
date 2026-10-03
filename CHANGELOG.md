@@ -19,6 +19,17 @@ not shipped artefacts.
 
 ---
 
+## [0.265.0] — 2026-10-03
+
+**P271 — "use my CV" after a reading is answered with where the CV truly is (row 126, D25).**
+
+- **Fixed** the reply to *use my CV* after a reading: it said *"I do not hold a CV for you"* about
+  a CV held for a year, because nothing looked for a reading that had ended. `readFor` finds it in
+  both stores; the reply says the CV was read and used, deleted, could not be read, gave nothing,
+  or was read after the student had given those lists — none of them a promise.
+
+---
+
 ## [0.264.0] — 2026-10-02
 
 **P268 — an entry held back is asked by hand, with what went wrong said plainly (ADR-0149 amended).**
