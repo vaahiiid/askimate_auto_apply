@@ -19,6 +19,8 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { codeOnly, withoutComments } from "./source-text.js";
+
 interface PackageManifest {
   readonly name?: string;
   readonly dependencies?: Record<string, string>;
@@ -531,11 +533,7 @@ function main(): void {
     const source = readFileSync(path, "utf8");
     // Strip comments and string literals so the prose explaining the rule does
     // not trip the rule.
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ")
-      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+    const code = codeOnly(source);
 
     for (const forbidden of ["tracing.start", "recordVideo"]) {
       if (!code.includes(forbidden)) continue;
@@ -614,9 +612,7 @@ function main(): void {
   for (const name of runnerSources) {
     const source = readFileSync(join("apps/browser-runner/src", name), "utf8");
     // Comments may explain the rule; code may not break it.
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
     for (const forbidden of RUNNER_FORBIDDEN_IMPORTS) {
       if (!code.includes(forbidden)) continue;
       violations.push(
@@ -719,7 +715,7 @@ function main(): void {
     : [];
   for (const name of workerSources) {
     const source = readFileSync(join("apps/worker/src", name), "utf8");
-    const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
     for (const forbidden of CONVERSATION_FORBIDDEN_IMPORTS) {
       if (!code.includes(forbidden)) continue;
       violations.push(
@@ -739,9 +735,7 @@ function main(): void {
     : [];
   for (const name of conversationSources) {
     const source = readFileSync(join("apps/conversation-service/src", name), "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
     for (const forbidden of CONVERSATION_FORBIDDEN_IMPORTS) {
       if (!code.includes(forbidden)) continue;
       violations.push(
@@ -780,11 +774,7 @@ function main(): void {
   const CLI = "scripts/interventions.ts";
   if (existsSync(CLI)) {
     const source = readFileSync(CLI, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ")
-      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+    const code = codeOnly(source);
     for (const forbidden of [
       "pg",
       "aas-case-store",
@@ -807,11 +797,7 @@ function main(): void {
   const DRIVER = "apps/conversation-service/src/run-driver.ts";
   if (existsSync(DRIVER)) {
     const source = readFileSync(DRIVER, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ")
-      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+    const code = codeOnly(source);
 
     // COMPARING a step's kind, in either direction. The rule used to name only
     // `step.kind ===` and missed `step.kind !==` — the same second copy of the
@@ -893,9 +879,7 @@ function main(): void {
     if (!existsSync(dir)) continue;
     for (const name of readdirSync(dir).filter((file) => file.endsWith(".ts"))) {
       if (name.endsWith(".test.ts")) continue;
-      const code = readFileSync(join(dir, name), "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .replace(/\/\/[^\n]*/g, " ");
+      const code = withoutComments(readFileSync(join(dir, name), "utf8"));
       planningFiles += 1;
       if (!code.includes("requiredDocuments")) continue;
       violations.push(
@@ -930,9 +914,7 @@ function main(): void {
   const SECURE_CLIENT = "apps/conversation-service/src/secure-requests.ts";
   if (existsSync(SECURE_CLIENT)) {
     const source = readFileSync(SECURE_CLIENT, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
 
     for (const forbidden of [
       'record["value"]',
@@ -975,9 +957,7 @@ function main(): void {
   const INTAKE = "apps/browser-runner/src/work-intake.ts";
   if (existsSync(INTAKE)) {
     const source = readFileSync(INTAKE, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
 
     for (const forbidden of [
       "nextStep(",
@@ -1037,7 +1017,7 @@ function main(): void {
     // away gets weakened; this one reads the fields of the interface the
     // runner actually receives, which is what it was always about.
     const declaration = /export interface ClaimedWork \{([\s\S]*?)\n\}/.exec(
-      source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " "),
+      withoutComments(source),
     );
     if (declaration === null) {
       violations.push(
@@ -1084,9 +1064,7 @@ function main(): void {
   const ACCOUNT = "apps/browser-runner/src/create-account.ts";
   if (existsSync(ACCOUNT)) {
     const source = readFileSync(ACCOUNT, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
 
     for (const forbidden of [
       "inputValue()",
@@ -1131,11 +1109,7 @@ function main(): void {
   for (const file of FILLER_SOURCES) {
     if (!existsSync(file)) continue;
     const source = readFileSync(file, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ")
-      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+    const code = codeOnly(source);
 
     if (/console\.(log|debug|info|warn|error|trace|dir)\s*\(/.test(code)) {
       violations.push(
@@ -1167,10 +1141,7 @@ function main(): void {
     : [];
   for (const name of secretSources) {
     const source = readFileSync(join("packages/secrets/src", name), "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ")
-      .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    const code = codeOnly(source);
     if (/\bgetSecret\b|\bpeekSecret\b|\brevealSecret\b/.test(code)) {
       violations.push(
         `packages/secrets/src/${name} defines a secret getter. There is no getter by design: ` +
@@ -1235,9 +1206,7 @@ function main(): void {
     scanned += 1;
 
     const source = readFileSync(file, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
     if (!CONFIRMED_CAST.test(code)) continue;
 
     violations.push(
@@ -1266,9 +1235,7 @@ function main(): void {
   const WORKFLOW_SOURCE = "packages/domain/src/workflow.ts";
   if (existsSync(WORKFLOW_SOURCE)) {
     const source = readFileSync(WORKFLOW_SOURCE, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
+    const code = withoutComments(source);
 
     const definition = /export\s+type\s+CheckpointValue\s*=\s*([^;]+);/.exec(code);
     if (definition === null) {
@@ -1360,9 +1327,7 @@ function main(): void {
       for (const file of readdirSync(root)) {
         if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
         if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
-        const source = readFileSync(join(root, file), "utf8")
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/^\s*\/\/.*$/gm, "");
+        const source = withoutComments(readFileSync(join(root, file), "utf8"), file);
         for (const decision of DECISIONS) {
           // `export function X(` or `const X = (` — a definition, not a
           // re-export and not a call.
@@ -1440,7 +1405,7 @@ function main(): void {
   const CONTROL_DOCUMENT = "apps/secure-service/src/control-document.ts";
   if (existsSync(CONTROL_DOCUMENT)) {
     const source = readFileSync(CONTROL_DOCUMENT, "utf8");
-    const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+    const code = withoutComments(source);
 
     const required = [
       "default-src 'none'",
@@ -1476,9 +1441,7 @@ function main(): void {
         violations.push(`${file} is missing, so the Secure Plane script check is inert.`);
         continue;
       }
-      const body = readFileSync(file, "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .replace(/^\s*\/\/.*$/gm, " ");
+      const body = withoutComments(readFileSync(file, "utf8"));
       for (const match of body.matchAll(/https?:\/\/[A-Za-z0-9.-]+/g)) {
         violations.push(
           `${file} names the absolute URL \`${match[0]}\`. Everything the secure control loads ` +
@@ -1520,9 +1483,7 @@ function main(): void {
         violations.push(`${file} is missing, so the targetOrigin check is inert.`);
         continue;
       }
-      const body = readFileSync(file, "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .replace(/^\s*\/\/.*$/gm, " ");
+      const body = withoutComments(readFileSync(file, "utf8"));
       // `postMessage(x, "*")` and `postMessage(x, '*')`, however spaced or
       // wrapped across lines.
       // A trailing comma is legal and idiomatic — `postMessage(x, "*",)` — and
@@ -1564,9 +1525,7 @@ function main(): void {
     ];
     for (const file of TRANSACTION_USERS) {
       if (!existsSync(file)) continue;
-      const body = readFileSync(file, "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .replace(/^\s*\/\/.*$/gm, " ");
+      const body = withoutComments(readFileSync(file, "utf8"));
       // `lifecycle-outbox.ts` owns its own publisher transaction, so it is
       // allowed BEGIN/COMMIT; `routes.ts` is not, and that is the rule.
       if (file.endsWith("routes.ts") && /query\(\s*["'`](BEGIN|COMMIT|ROLLBACK)/.test(body)) {

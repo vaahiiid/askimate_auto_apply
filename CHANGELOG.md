@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.269.0] — 2026-10-03
+
+**P276 — the source checks read through the parser (row 131).**
+
+- **Fixed** the boundary and reachability checks, which stripped comments and strings with
+  regular expressions and went blind past a backtick in a regex, a lone quote, or a `/*` or
+  `//` inside a string — blind enough to pass a forbidden call. `scripts/source-text.ts`
+  (`codeOnly`, `withoutComments`) asks the TypeScript parser instead, at all twenty-one sites.
+- **Measured** what the blind spot missed, over every version in history of every file the
+  checks read (`scripts/measure-what-the-stripping-missed.ts`): three differing verdicts, all
+  from before the rule concerned existed. Nothing was hidden.
+
+---
+
 ## [0.268.0] — 2026-10-03
 
 **P275 — a request to delete the confirmed details reaches a person (row 130, stage A; ADR-0148

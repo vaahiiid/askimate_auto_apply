@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P276 — the checks that read source, read it as the compiler does
+
+*2026-10-03.* The fourth instrument found lying, in his count: the boundary check could pass a
+forbidden call hidden behind one stray character. Its twenty-one strippers now ask the
+TypeScript parser. Run over every version in the repository's history, the blind spot hid
+nothing from any rule while that rule existed — three versions differ, all older than their rule.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P275 — a request to delete what was confirmed reaches a person
 
 *2026-10-03.* D6 and D31, stage A, on his word: a student who asks for the details they confirmed

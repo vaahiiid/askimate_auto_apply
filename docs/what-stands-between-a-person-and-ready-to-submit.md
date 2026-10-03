@@ -394,6 +394,7 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-10-01 (P262):** the completeness question asks for another, so yes means another; no yes/no question redefines yes in an instruction (ADR-0147 amended; row 118). Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P274):** a CV is deleted a year after its last use and the student is told (row 128; ADR-0096 amended). Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P275):** a request to delete the confirmed details reaches a person, and the student is told what the university already has and when it is done (row 130, stage A; ADR-0148 amended). Nothing on this list moved: the distance is unchanged.
+- **2026-10-03 (P276):** the boundary and reachability checks read source through the parser; over the whole history, nothing was hidden (row 131). Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P272):** an abandoned application is said so to the student (row 126); row 129 open. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P270, P271):** the retention sweep's cost measured (row 128); *use my CV* after a reading answered truly (row 126, D25). Nothing on this list moved: the distance is unchanged.
 - **2026-10-02 (P269):** the 72 promises the product makes, each with whether a test asserts its action (row 126, `docs/promises-row-126.md`). Nothing on this list moved: the distance is unchanged.

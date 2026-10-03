@@ -39,7 +39,10 @@ interface Run {
 async function run(source: string): Promise<Run> {
   const directory = mkdtempSync(join(tmpdir(), "reachability-"));
   const copy = join(directory, "check-reachability.ts");
-  writeFileSync(copy, source, "utf8");
+  // The copy imports the repository's own reader of source (P276) by its
+  // path, so it resolves the parser from the repository, not from the copy's
+  // temporary directory, which has no node_modules.
+  writeFileSync(copy, source.replace('"./source-text.js"', JSON.stringify(join(ROOT, "scripts", "source-text.ts"))), "utf8");
   try {
     return await new Promise<Run>((resolve) => {
       // From the repository root, because the script resolves everything from

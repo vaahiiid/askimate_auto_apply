@@ -96,6 +96,8 @@ import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { withoutComments as commentsRemoved } from "./source-text.js";
+
 const ROOT = process.cwd();
 const DIM = "[2m";
 const RESET = "[0m";
@@ -553,8 +555,18 @@ function sourceFiles(dir: string): readonly string[] {
  * reachability check that reports a comment as a call is exactly the kind of
  * confident wrong answer it exists to prevent.
  */
-function withoutComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+const READ = new Map<string, string>();
+function withoutComments(source: string, fileName: string): string {
+  // Read by the parser since P276 (row 131): the regular expressions this used
+  // could be blinded by a "/*" inside a string, and a caller they could not see
+  // is a reviewed-unreachable entry that stays "unreachable" in silence. Each
+  // file is parsed once, not once per capability.
+  const key = `${fileName}\u0000${source}`;
+  const known = READ.get(key);
+  if (known !== undefined) return known;
+  const read = commentsRemoved(source, fileName);
+  READ.set(key, read);
+  return read;
 }
 
 /** True when a line brings a name in or sends it out rather than using it. */
@@ -572,7 +584,7 @@ function callersOf(capability: Capability, closure: ReadonlySet<string>): readon
   for (const dir of [...closure].sort()) {
     for (const file of sourceFiles(dir)) {
       if (capability.declaredIn.includes(file)) continue;
-      const lines = withoutComments(readFileSync(join(ROOT, file), "utf8")).split("\n");
+      const lines = withoutComments(readFileSync(join(ROOT, file), "utf8"), file).split("\n");
       if (lines.some((line) => !isImportOrExport(line) && pattern.test(line))) found.push(file);
     }
   }
