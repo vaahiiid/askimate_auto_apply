@@ -87,13 +87,19 @@ export function positionLine(run: { readonly status: RunStatus; readonly step: R
  * else — what they will be shown of what was read belongs to the moment it is
  * shown, not here. *"It makes a plain sentence about storage into a sentence
  * that is also selling."*
+ *
+ * Its last clause is his too (P277, row 128), 2026-10-03: *"we delete the
+ * document; the record of our conversation keeps what was said in it,
+ * including the lines of your CV I read back to you."* Without it, "that
+ * deletes the document" read as if nothing of the CV stayed — and the log
+ * keeps lines of it the student never confirmed.
  */
 export const CV_UPLOAD_SENTENCE: StudentWords = mint(
   "Before you hand me your CV: I will keep it for one year from the last time I use it, and I will " +
     "read it only to fill in the sections of your applications that list your jobs and qualifications. " +
     "You can tell me to delete it at any time, just by saying so here. That deletes the document, or all " +
     "of your documents if you ask for that; the details you have already confirmed stay unless you ask " +
-    "for those too.",
+    "for those too, and the record of our conversation keeps what was said in it, including the lines of your CV I read back to you.",
 );
 
 /** Every sentence the line can be, for the test that reads them all. */

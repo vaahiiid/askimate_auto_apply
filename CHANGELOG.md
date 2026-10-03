@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.270.0] — 2026-10-03
+
+**P277 — what deleting a CV does not delete, said (rows 128, 132; ADR-0148 amended).**
+
+- **Changed** the CV upload sentence, the year message, and the reply to a deletion of a CV that
+  was read: each now says *"the record of our conversation keeps what was said in it, including
+  the lines of your CV I read back to you"* — his sentence.
+- **Recorded** row 132 (open, his): how long a conversation log is kept, and what that means for
+  a student who asked us to delete their data.
+
+---
+
 ## [0.269.0] — 2026-10-03
 
 **P276 — the source checks read through the parser (row 131).**

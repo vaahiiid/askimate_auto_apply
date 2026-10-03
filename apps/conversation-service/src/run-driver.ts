@@ -1370,7 +1370,10 @@ const CV_DELETED = "Your CV has been deleted, so I cannot use it now. You can up
 // P274, row 128: the year has run since the CV's last use. In his words, the
 // three things it says: a year since we last used it, deleted as we said we
 // would, upload it again any time. Nothing to act on, and no promise.
-const CV_DELETED_AT_THE_YEAR = "It has been a year since I last used your CV, so I have deleted it, as I said I would when you gave it to me. You can upload it again from the documents panel at any time.";
+const CV_DELETED_AT_THE_YEAR = "It has been a year since I last used your CV, so I have deleted it, as I said I would when you gave it to me. The record of our conversation keeps what was said in it, including the lines of your CV I read back to you. You can upload it again from the documents panel at any time.";
+// P277, row 128, his sentence: what deleting a CV does not delete. Said where a
+// CV that was read is deleted, because the log keeps the lines read back.
+const THE_RECORD_KEEPS = "The record of our conversation keeps what was said in it, including the lines of your CV I read back to you.";
 // P252, row 107. Vahid: *"ask, do not hold silently… that we have it, that the
 // jobs and qualifications are already filled in and confirmed, and asking
 // whether they want to go back and use the CV for either — with the honest
@@ -5590,11 +5593,17 @@ export class RunDriver {
         : chosen.length === 1
           ? `I have deleted your ${documentWords(chosen[0]?.documentType ?? "cv")}.`
           : `I have deleted your ${andList(chosen.map((record) => documentWords(record.documentType)))}.`;
+    // A CV that was read leaves its lines in the conversation (P277).
+    let readCv = false;
+    for (const record of chosen) {
+      if (record.documentType === "cv" && (await this.#options.readings?.readingFor(record.documentId))?.state === "read") readCv = true;
+    }
+    const remains = readCv ? `${THE_RECORD_KEEPS} ` : "";
     if (andTheDetails) {
-      await say(`${what} ${await this.#passTheDetailsToAPerson(conversationId, bound)}`);
+      await say(`${what} ${remains}${await this.#passTheDetailsToAPerson(conversationId, bound)}`);
       return;
     }
-    await say(`${what} ${kept}${DETAILS_OFFER}${beyond}`);
+    await say(`${what} ${remains}${kept}${DETAILS_OFFER}${beyond}`);
   }
 
   /** The last thing the assistant said in a conversation, or `null`. */

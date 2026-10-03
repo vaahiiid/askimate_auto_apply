@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P277 — what deleting a CV does not delete, said where it is promised
+
+*2026-10-03.* His sentence for the copied words is in the upload sentence, the year message and
+the reply to deleting a CV that was read. His own version would have been, in his words, a second
+false promise written while fixing the first. How long the log itself is kept is now its own
+unanswered row, 132, rather than an implication of 128.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P276 — the checks that read source, read it as the compiler does
 
 *2026-10-03.* The fourth instrument found lying, in his count: the boundary check could pass a

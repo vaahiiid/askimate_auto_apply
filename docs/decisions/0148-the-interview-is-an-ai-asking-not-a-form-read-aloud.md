@@ -550,6 +550,17 @@ cleanly is not named; and only this conversation's case is measured — a studen
 applications are other conversations. Nothing here deletes a confirmed detail: closing a request
 with *deleted* is a person's word that they did it by hand.
 
+## What deleting a CV does not delete (P277, 2026-10-03)
+
+His sentence, and his word: *"Your sentence for the copied words is better than mine and I take
+it."* The conversation log keeps the lines of a CV read back to the student — in part readings,
+proposals, by-hand questions and playbacks — including lines they never confirmed (an entry left
+out, a reading set aside, a value their answer replaced). So where a CV is promised deleted, the
+student is told what stays: *"…the record of our conversation keeps what was said in it, including
+the lines of your CV I read back to you."* In the upload sentence (§10's, his, now ending with
+that clause), the year message, and the reply to a deletion of a CV that was read. How long the
+log itself is kept is row 132, unanswered.
+
 ## What this does not decide
 
 The order of building, which he set: §6–§7, then §3–§5, then the CV path. The retention row's

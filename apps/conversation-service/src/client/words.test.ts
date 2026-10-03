@@ -46,8 +46,10 @@ describe("no internal word ever reaches a student's screen (P227, ADR-0147)", ()
         "read it only to fill in the sections of your applications that list your jobs and qualifications. " +
         "You can tell me to delete it at any time, just by saying so here. That deletes the document, or all " +
         "of your documents if you ask for that; the details you have already confirmed stay unless you ask " +
-        "for those too.",
+        "for those too, and the record of our conversation keeps what was said in it, including the lines of your CV I read back to you.",
     );
+    // P277, row 128: what deleting the document does not delete, in his words.
+    expect(sentence).toContain("including the lines of your CV I read back to you");
     expect(sentence).not.toContain("showing you");
     for (const form of forms) expect(sentence).not.toMatch(new RegExp(`\\b${form}\\b`, "i"));
   });

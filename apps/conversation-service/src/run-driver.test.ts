@@ -14690,6 +14690,7 @@ describeIfDatabase("a student asks for a document to be deleted, in the chat, an
   it("deletes the CV on 'Delete my CV', and says what went and what stayed", async () => {
     const reply = await say("Delete my CV");
     expect(reply).toContain("I have deleted your CV");
+    expect(reply, "never read, so no lines of it were read back (P277)").not.toContain("The record of our conversation keeps");
     expect(reply, "the confirmed values stay, and they learn it from us").toContain("stay");
     expect(reply, "and how to ask for those too").toMatch(/ask|tell me/);
     expect(reply, "the passport was not touched").not.toContain("deleted your passport");
@@ -16163,6 +16164,8 @@ describeIfDatabase("'use my CV' after a reading is answered with where the CV tr
   it("a CV read and then deleted at the student's request: says it was deleted, and that it can be uploaded again", async () => {
     await say(READ_THEN_DELETED, "delete my CV");
     expect(vault.records.find((record) => record.documentId === CVS[READ_THEN_DELETED])?.state, "deleted").toBe("purged");
+    // P277, row 128, his sentence: deleting a CV that was read leaves its lines in the log, and says so.
+    expect(await lastSaid(READ_THEN_DELETED)).toContain("The record of our conversation keeps what was said in it, including the lines of your CV I read back to you.");
     await say(READ_THEN_DELETED, "use my CV");
     const said = await lastSaid(READ_THEN_DELETED);
     expect(said).not.toContain("I do not hold a CV");
@@ -16200,7 +16203,7 @@ describeIfDatabase("the CV is deleted a year after it was last used, and the stu
   const contentHash = "f".repeat(64);
   const DAY = 86_400_000;
   const at = (days: number): Date => new Date(NOW.getTime() + days * DAY);
-  const TOLD = "It has been a year since I last used your CV, so I have deleted it, as I said I would when you gave it to me. You can upload it again from the documents panel at any time.";
+  const TOLD = "It has been a year since I last used your CV, so I have deleted it, as I said I would when you gave it to me. The record of our conversation keeps what was said in it, including the lines of your CV I read back to you. You can upload it again from the documents panel at any time.";
   const READ = {
     index: 1,
     fields: { awardTitle: "BSc", subject: "Computer science", institution: "University of Tehran", level: "Bachelor's degree", start: { year: 2015, month: 9 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "17.2", gradeScale: "twenty_point" },
