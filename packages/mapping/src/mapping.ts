@@ -28,7 +28,7 @@
  */
 
 import type { ApplicationBlueprint, BlueprintField, FieldLocator } from "@askimate/aas-blueprint";
-import { allFields, allRequiredDocuments } from "@askimate/aas-blueprint";
+import { allFields, allRequiredDocuments, escapeOf } from "@askimate/aas-blueprint";
 import type { Brand } from "@askimate/aas-domain";
 import type { FormatRule, OrdinaryFieldKey } from "@askimate/aas-profile";
 import { LIST_VALUED_FIELD_KEYS } from "@askimate/aas-profile";
@@ -313,6 +313,11 @@ export type MappingRefusal =
   | { readonly kind: "options_after_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A typeahead field that does not say where its entries are, or entries declared on a field that is not one (gap 2). */
   | { readonly kind: "typeahead_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * A mapping names a select's escape, or fills the box its escape opens
+   * (P281, ADR-0109 extended): both are the student's own act.
+   */
+  | { readonly kind: "escape_named"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A fronted control (P153) that is mapped, or whose `frontedBy` is not another field on the same page. */
   | { readonly kind: "fronted_field_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /**
@@ -830,6 +835,49 @@ export function checkUsable(
         kind: "typeahead_invalid",
         fieldRefs: [...new Set(namedValuesFields)],
         detail: `A typeahead is chosen by the value the form submits (ADR-0109): ${namedValuesProblems.join("; ")}.`,
+      },
+    };
+  }
+
+  // ── ADR-0109 extended (P281): a select's escape, and the box it opens ──
+  //
+  // Vahid, 2026-10-03: *"'Not in list' with the title typed is the student's
+  // own act, same as the institution, and for the same reason — a free-text
+  // box stating what a certificate says is a claim about their own
+  // education."* The typeahead's escape is guarded above, by value; a
+  // select's is guarded here the same way, and so is the box shown only when
+  // the escape is chosen: a mapping that fills it would be making the claim
+  // the escape exists for the student to make.
+  const escapeProblems: string[] = [];
+  const escapeFields: string[] = [];
+  const fields = allFields(blueprint);
+  for (const field of fields) {
+    const mapping = mappingFor(mappingSet, field.fieldRef);
+    if (mapping === undefined) continue;
+    const source = mapping.source;
+    if (source.kind !== "constant" && source.kind !== "profile_field") continue;
+    const escape = field.inputType === "typeahead" ? undefined : escapeOf(field);
+    if (escape !== undefined) {
+      const named = source.kind === "constant" ? [source.value] : (optionTargetsOf(source.format) ?? []);
+      if (named.includes(escape)) {
+        escapeFields.push(field.fieldRef);
+        escapeProblems.push(`${field.fieldRef} would name "${escape}", which is the form's escape, not an answer`);
+      }
+    }
+    const opener = field.visibleWhen === undefined ? undefined : fields.find((other) => other.fieldRef === field.visibleWhen?.whenFieldRef);
+    const opensOn = opener === undefined ? undefined : escapeOf(opener);
+    if (opensOn !== undefined && field.visibleWhen?.operator === "equals" && field.visibleWhen.value === opensOn) {
+      escapeFields.push(field.fieldRef);
+      escapeProblems.push(`${field.fieldRef} is shown only when ${opener?.fieldRef ?? "?"}'s escape is chosen, so what it says is the student's to write`);
+    }
+  }
+  if (escapeProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "escape_named",
+        fieldRefs: [...new Set(escapeFields)],
+        detail: `The form's escape, and the box it opens, are the student's own act (ADR-0109, P281): ${escapeProblems.join("; ")}.`,
       },
     };
   }

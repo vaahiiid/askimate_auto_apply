@@ -50,6 +50,7 @@ import { randomUUID } from "node:crypto";
 import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/aas-account";
 import { mayConcludeCase } from "@askimate/aas-account";
 import type { ApplicationBlueprint, BlueprintField, ConsentBanner } from "@askimate/aas-blueprint";
+import { escapeOf } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
 import { DuplicateSubmissionError } from "@askimate/aas-case-store";
 import type { IntentCompletionDetail } from "@askimate/aas-case-store";
@@ -1346,7 +1347,8 @@ function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillB
       lists.set(word, (lists.get(word) ?? new Set<string>()).add(refusal.value));
       const field = fieldOf(blocker.fieldRef);
       if (field?.inputType === "typeahead" || field?.optionsAfter?.press !== undefined) searched.add(word);
-      const escape = field?.typeahead?.escapeValue;
+      // A typeahead's escape or a select's (P281): `escapeOf` reads either.
+      const escape = field === undefined ? undefined : escapeOf(field);
       if (escape !== undefined) {
         escapes.set(word, {
           label: field?.options?.find((option) => option.value === escape)?.label ?? escape,

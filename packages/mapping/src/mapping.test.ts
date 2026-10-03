@@ -1712,3 +1712,74 @@ describe("a control fronted by another is neither mapped nor left empty (P153)",
     }
   });
 });
+
+describe("a select's escape, and the box it opens, are the student's own act (P281, ADR-0109 extended)", () => {
+  // Vahid, 2026-10-03: *"'Not in list' with the title typed is the student's
+  // own act, same as the institution, and for the same reason — a free-text
+  // box stating what a certificate says is a claim about their own
+  // education. ADR-0109's reasoning covers it even though its mechanism does
+  // not. Extend the rule rather than writing a second one."* Sheffield's award
+  // title is the shape: a select whose *Not in list* submits "" and opens a
+  // free-text box.
+  const ESCAPE = "";
+  const blueprint: ApplicationBlueprint = {
+    ...FIXTURE_BLUEPRINT,
+    pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.flatMap((field): BlueprintField[] =>
+          field.fieldRef === "nationality"
+            ? [
+                { ...field, escapeValue: ESCAPE, options: [...(field.options ?? []), { value: ESCAPE, label: "Not in list" }] },
+                {
+                  fieldRef: "nationality_unlisted",
+                  label: "If not listed, your nationality",
+                  inputType: "text",
+                  dataCategory: "ordinary",
+                  locators: [{ strategy: "id", value: "nationalityUnlisted" }],
+                  validations: [],
+                  visibleWhen: { whenFieldRef: "nationality", operator: "equals", value: ESCAPE },
+                },
+              ]
+            : [field],
+        ),
+      })),
+    })),
+  };
+  const withNationality = (options: Record<string, string>, extra: MappingSet["mappings"] = []): MappingSet => ({
+    ...FIXTURE_MAPPING_SET,
+    mappings: [
+      ...FIXTURE_MAPPING_SET.mappings.map((m) =>
+        m.fieldRef === "nationality" ? { ...m, source: { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "option" as const, options } } } : m,
+      ),
+      ...extra,
+    ],
+  });
+
+  it("accepts a mapping that names only answers, with the escape recorded and its box unmapped", () => {
+    const check = checkUsable(withNationality({ Iranian: "IR" }), blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+  });
+
+  it("REFUSES an option rule that names the select's escape — even when its value is the empty string", () => {
+    const check = checkUsable(withNationality({ Iranian: "IR", Stateless: ESCAPE }), blueprint);
+    expect(check.usable).toBe(false);
+    if (!check.usable) {
+      expect(check.refusal.kind).toBe("escape_named");
+      if (check.refusal.kind === "escape_named") expect(check.refusal.fieldRefs).toEqual(["nationality"]);
+    }
+  });
+
+  it("REFUSES a mapping that fills the box the escape opens — what it says is the student's to write", () => {
+    const check = checkUsable(
+      withNationality({ Iranian: "IR" }, [{ fieldRef: "nationality_unlisted", source: { kind: "profile_field", fieldKey: "identity.nationality", format: { kind: "text" } } }]),
+      blueprint,
+    );
+    expect(check.usable).toBe(false);
+    if (!check.usable) {
+      expect(check.refusal.kind).toBe("escape_named");
+      expect(check.refusal.detail).toContain("nationality_unlisted is shown only when nationality's escape is chosen");
+    }
+  });
+});

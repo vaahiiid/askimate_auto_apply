@@ -33,6 +33,7 @@ export {
   allFields,
   allRequiredDocuments,
   checkExecutable,
+  escapeOf,
   specialCategoryFields,
   unclassifiedFields,
   unmappedFields,

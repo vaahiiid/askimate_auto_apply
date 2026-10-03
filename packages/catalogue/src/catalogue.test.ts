@@ -407,6 +407,20 @@ describe("parsing rebuilds rather than casts", () => {
     });
   });
 
+  it("round-trips a select's escape, the empty string included, and leaves a field without one without (P281)", () => {
+    // Sheffield's award title submits "" for *Not in list*: an empty escape
+    // is a recorded escape, not an absent one.
+    const document = JSON.parse(documentOf()) as { blueprint: { pages: { sections: { fields: { fieldRef: string; escapeValue?: string }[] }[] }[] } };
+    for (const page of document.blueprint.pages)
+      for (const section of page.sections)
+        for (const field of section.fields) if (field.fieldRef === "start_date") field.escapeValue = "";
+    const parsed = parseReviewedEntry(document);
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const fields = parsed.value.blueprint.pages.flatMap((page) => page.sections).flatMap((section) => section.fields);
+    expect(fields.find((field) => field.fieldRef === "start_date")?.escapeValue).toBe("");
+    expect(fields.find((field) => field.fieldRef === "course")?.escapeValue).toBeUndefined();
+  });
+
   it("round-trips a page's repeats (P96), and refuses a list that is not one", () => {
     const parsed = parseReviewedEntry(JSON.parse(documentOf()));
     if (!parsed.ok) expect.unreachable(parsed.refusal.detail);

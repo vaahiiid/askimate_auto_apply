@@ -43,3 +43,11 @@ its own words rather than guess, at his instruction, and wrote the path out into
   asserts the refusal.
 - Nothing is derived. The rule this repeats: *a value the student did not state is never
   supplied by us.*
+
+## A known consequence of ADR-0153 (2026-10-03, P281)
+
+ADR-0153 makes the student's answer the fix where their word and a form's label differ. For an
+award title that means the answer may become the form's category — his Master's, printed *Master's
+in International Business*, answered *MSc* — and the profile then holds the category, not the title
+as printed. Recorded, not settled: whether the printed title should be kept beside the answer is
+open.

@@ -210,6 +210,20 @@ export interface BlueprintField {
    */
   readonly typeahead?: { readonly optionLocator: FieldLocator; readonly escapeValue?: string };
   /**
+   * The form's escape on a field that is NOT a typeahead — a select's *Not in
+   * list* — by its value (P281, ADR-0109 extended). Vahid, 2026-10-03: *"'Not
+   * in list' with the title typed is the student's own act, same as the
+   * institution, and for the same reason — a free-text box stating what a
+   * certificate says is a claim about their own education. ADR-0109's
+   * reasoning covers it even though its mechanism does not. Extend the rule
+   * rather than writing a second one."* So: no mapping may name it, and no
+   * mapping may fill the box it opens (a field whose `visibleWhen` is this
+   * field equal to this value). A typeahead's escape stays on `typeahead`;
+   * `escapeOf` reads either. May be the empty string — Sheffield's
+   * *Not in list* on the award title submits `""`.
+   */
+  readonly escapeValue?: string;
+  /**
    * The canonical profile field this maps to.
    *
    * DELIBERATELY OPTIONAL and deliberately not filled in by discovery. Mapping
@@ -797,4 +811,14 @@ export function unclassifiedFields(blueprint: ApplicationBlueprint): readonly Bl
 /** Fields that ask what this system cannot hold (ADR-0102). */
 export function specialCategoryFields(blueprint: ApplicationBlueprint): readonly BlueprintField[] {
   return allFields(blueprint).filter((field) => field.dataCategory === "special_category");
+}
+
+/**
+ * The form's escape on a field — a typeahead's or a select's *Not in list* —
+ * by its value, or `undefined` when the field records none (ADR-0109, P281).
+ * One reading, so the guard and the student's sentence cannot disagree about
+ * which entry is the escape.
+ */
+export function escapeOf(field: BlueprintField): string | undefined {
+  return field.typeahead?.escapeValue ?? field.escapeValue;
 }

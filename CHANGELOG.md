@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.274.0] — 2026-10-03
+
+**P281 — a mapping row states an identity (ADR-0153); a select's escape is the student's own act
+(ADR-0109 extended); the per-entry hand entry deferred (row 133).**
+
+- **Added** ADR-0153, his rule: a mapping row is a statement about every student and states an
+  identity, not a resemblance; where a student's word and a form's label differ, the student's
+  answer changes.
+- **Added** `escapeValue` on a select (the empty string allowed) and `escapeOf`; `checkUsable` now
+  refuses a mapping that names a select's escape or fills the box it opens (`escape_named`), and
+  the student's message explains a select's escape as it does a typeahead's.
+- **Recorded** row 133 (deferred on his word): one entry only the student can enter stops the whole
+  run, and nothing lets the run carry on around it.
+
+---
+
 ## [0.273.0] — 2026-10-03
 
 **P280 — the form's escape explained, and a searched list said as searched (ADR-0109 affirmed;

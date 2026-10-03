@@ -141,3 +141,18 @@ form records an escape, the student is told — *"If your institution is not on 
 the form has an option for exactly that, "Not in list". Choosing it is yours, not mine: it is a
 statement about your own education, and the university will assess it."* An explanation, not an
 apology; the guard is unchanged.
+
+## Extended 2026-10-03 (P281): a select's escape, and the box it opens
+
+His word: *"'Not in list' with the title typed is the student's own act, same as the institution,
+and for the same reason — a free-text box stating what a certificate says is a claim about their
+own education. ADR-0109's reasoning covers it even though its mechanism does not. Extend the rule
+rather than writing a second one."*
+
+So the rule is one rule over two mechanisms. A field that is not a typeahead records its escape as
+`escapeValue` on the field — Sheffield's award title, whose *Not in list* submits `""` — and
+`escapeOf(field)` reads either kind. `checkUsable` refuses (`escape_named`) a mapping that names a
+select's escape, and a mapping that fills the box shown only when the escape is chosen
+(`visibleWhen` equal to it — Sheffield's `unlistedDegree`). The student's message (P280) explains
+the escape wherever `escapeOf` finds one. Not extended: the runner's own refusal to choose an escape
+is a typeahead's (it carries `typeahead.escapeValue`); a select's escape is refused at the plan.

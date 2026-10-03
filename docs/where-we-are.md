@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P281 — a row is a rule about every student
+
+*2026-10-03.* The fix he reached for — a row sending *Azad University* to his institution — would
+have sent every student who says *Azad University* to an institution they did not name. His rule:
+a mapping row states an identity, not a resemblance; where words differ, the student's answer
+changes. The escape rule now covers a select's *Not in list* and the box it opens. The per-entry
+hand entry is deferred, on his reasoning, until he has met the case as a student does.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P280 — "Not in list" is the student's to choose, and they are told why
 
 *2026-10-03.* He kept ADR-0109 as it was: the form's escape is a statement about the student's

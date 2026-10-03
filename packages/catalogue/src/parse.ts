@@ -337,6 +337,9 @@ function readField(value: unknown, path: string): BlueprintField {
       ...(escapeValue === undefined ? {} : { escapeValue }),
     };
   });
+  // P281: a select's escape, which may be the empty string (Sheffield's award
+  // title submits "" for *Not in list*), so absent and empty are not alike here.
+  const escapeValue = optionalTextAllowingEmpty(source, "escapeValue", path);
   const mapsTo = optionalText(source, "mapsTo", path);
   const frontedBy = optionalText(source, "frontedBy", path);
   // ADR-0102: the reviewer's classification. Optional here — a draft has none
@@ -361,6 +364,7 @@ function readField(value: unknown, path: string): BlueprintField {
     ...(typeahead === undefined ? {} : { typeahead }),
     ...(mapsTo === undefined ? {} : { mapsTo }),
     ...(frontedBy === undefined ? {} : { frontedBy }),
+    ...(escapeValue === undefined ? {} : { escapeValue }),
   };
 }
 
