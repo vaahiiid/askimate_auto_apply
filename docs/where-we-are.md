@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P273 — what the deletion handoff costs
+
+*2026-10-03.* D6 and D31 sized rather than built: the reader knows documents only and nothing
+records a request for a person. The handoff about five hours, the deletion itself about three
+more (row 130, his word).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P272 — an abandoned application is said so
 
 *2026-10-03.* The abandon resolution told the student nothing; it now tells them, in their terms,
