@@ -190,3 +190,17 @@ was a value, a second of anything — is checked against the code that assumes t
 it ships. The places that say so are the first to read: a guard that returns early on the
 "impossible" case, an `unreachable` comment, a coverage exclusion. Row 127 lists
 the eight the code still calls unreachable.
+
+## A measurement whose method is wrong is worse than no measurement
+
+Decided by Vahid on 2026-10-03, after row 126 said *55 lines promise an action* and the true count
+was 72: the pattern could not match *I'll*, and the search covered three of the twelve places the
+student's words live. The 55 had already been carried into a report, a row and a commit message
+before P269 measured it again.
+
+In his words: **"Record that a measurement whose method is wrong is worse than no measurement,
+because it gets quoted."**
+
+So: a number goes into a record with the method that produced it — the command, what it searched,
+what it could not see — and the method is checked before the number is quoted: run it against a
+case it must find, as P269's search was run against the sentences already known to be tested.
