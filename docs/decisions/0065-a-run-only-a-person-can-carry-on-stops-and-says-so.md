@@ -198,3 +198,13 @@ option B, not built), and the form's labels for a rule that is ours to add. Noth
 reaches them: no box reference, no rule text. The intervention keeps its own detail unchanged. Every
 other reason for a hand-over keeps the one sentence.
 
+## Amended 2026-10-03 (P280): a searched list is not a list read whole, and the escape is explained
+
+Two corrections to the P279 message, the first of them mine. P279 said of every list *"… is not on
+it"*. For a typeahead, and for a search-then-select, the mapping holds the entries of the searches
+read — Sheffield's institution box, one search for *Sheff* — so "not on it" claimed more than the
+read can say. Now a searched box (`inputType: "typeahead"`, or `optionsAfter.press`) is said as
+*"which is searched rather than shown whole, and … are not among the entries of it I have read"*;
+a list read whole keeps *"not on it"*. And where the box's form records an escape (`typeahead.
+escapeValue`), the student is told what it is and that choosing it is theirs — ADR-0109, affirmed
+by him the same day, in his words there.

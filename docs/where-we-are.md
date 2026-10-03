@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P280 — "Not in list" is the student's to choose, and they are told why
+
+*2026-10-03.* He kept ADR-0109 as it was: the form's escape is a statement about the student's
+education, and the run stops rather than make it. So the stop explains it — the option exists,
+it is theirs, the university will assess it. Building it found my own overclaim in P279: a
+searched list is not a list read whole, and is now said as what it is.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P279 — the form's lists, said to the student
 
 *2026-10-03.* His profile met the signed Sheffield maps and the plan refused ten things rather than

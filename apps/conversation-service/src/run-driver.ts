@@ -49,7 +49,7 @@ import { randomUUID } from "node:crypto";
 
 import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/aas-account";
 import { mayConcludeCase } from "@askimate/aas-account";
-import type { ApplicationBlueprint, ConsentBanner } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, BlueprintField, ConsentBanner } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
 import { DuplicateSubmissionError } from "@askimate/aas-case-store";
 import type { IntentCompletionDetail } from "@askimate/aas-case-store";
@@ -1326,8 +1326,15 @@ function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillB
   // label on a page; "grading system" is what the student reads.
   const said = (label: string): string => label.replace(/[\s:.…]+$/u, "").toLowerCase();
 
-  // The form's lists, by the student's word for the part, in the order met.
+  // The form's lists, by the student's word for the part, in the order met —
+  // with what the blueprint says of each box (P280): whether the list was read
+  // whole or is searched, so only part of it has been read; and the form's
+  // own escape for a value that is not on it, by its label.
   const lists = new Map<string, Set<string>>();
+  const searched = new Set<string>();
+  const escapes = new Map<string, { readonly label: string; readonly about: string }>();
+  const fieldOf = (fieldRef: string): BlueprintField | undefined =>
+    entry.blueprint.pages.flatMap((page) => page.sections.flatMap((section) => section.fields)).find((field) => field.fieldRef === fieldRef);
   // Our missing rules: the form's labels, and the values they were met for.
   const ruleLabels = new Set<string>();
   const ruleValues = new Set<string>();
@@ -1337,6 +1344,15 @@ function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillB
         (refusal.part === undefined ? null : partLabel(blocker.fieldKey, refusal.part)) ??
         (refusal.part === undefined ? FIELD_LABELS[blocker.fieldKey].toLowerCase() : said(blocker.label));
       lists.set(word, (lists.get(word) ?? new Set<string>()).add(refusal.value));
+      const field = fieldOf(blocker.fieldRef);
+      if (field?.inputType === "typeahead" || field?.optionsAfter?.press !== undefined) searched.add(word);
+      const escape = field?.typeahead?.escapeValue;
+      if (escape !== undefined) {
+        escapes.set(word, {
+          label: field?.options?.find((option) => option.value === escape)?.label ?? escape,
+          about: blocker.fieldKey.startsWith("education.") ? "your own education" : "yourself",
+        });
+      }
     } else {
       ruleLabels.add(said(blocker.label));
       ruleValues.add(refusal.value);
@@ -1347,9 +1363,27 @@ function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillB
       `because their form will not take some of your details as they are.`,
   ];
   for (const [word, values] of lists) {
+    const are = values.size === 1 ? "is" : "are";
+    // A searched list is not a list read whole: "not on it" would claim more
+    // than one search's entries can say (P280).
     sentences.push(
-      `Their form asks you to choose your ${word} from its own list, and ${quoted(values)} ${values.size === 1 ? "is" : "are"} not on it.`,
+      searched.has(word)
+        ? `Their form asks you to choose your ${word} from its own list, which is searched rather than shown whole, and ${quoted(values)} ${are} not among the entries of it I have read.`
+        : `Their form asks you to choose your ${word} from its own list, and ${quoted(values)} ${are} not on it.`,
     );
+    // The form's own escape (P280). Vahid, 2026-10-03: *"The 'Not in list'
+    // option stays the student's own act … an institution that is not on a
+    // university's list is a fact about the student's education that the
+    // university will assess, and a system that quietly selects 'Not in
+    // list' on their behalf is making a claim about their degree."* Told as
+    // an explanation, not an apology.
+    const escape = escapes.get(word);
+    if (escape !== undefined) {
+      sentences.push(
+        `If your ${word} is not on their list at all, the form has an option for exactly that, "${escape.label}". ` +
+          `Choosing it is yours, not mine: it is a statement about ${escape.about}, and the university will assess it.`,
+      );
+    }
   }
   if (lists.size > 0) {
     sentences.push(

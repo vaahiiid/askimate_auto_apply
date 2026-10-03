@@ -6860,6 +6860,28 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
  */
 const BLOCKED_BY_THE_FORM: CatalogueEntry = {
   ...ENTRY,
+  // P280: the nationality box as a typeahead with the form's own escape, the
+  // shape of Sheffield's institution box — searched, so only part of its list
+  // has been read, and "Not in list" the student's own act (ADR-0109).
+  blueprint: {
+    ...ENTRY.blueprint,
+    pages: ENTRY.blueprint.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) =>
+          field.fieldRef === "nationality"
+            ? {
+                ...field,
+                inputType: "typeahead" as const,
+                typeahead: { optionLocator: { strategy: "css" as const, value: "#nationalityOptions [role=option]" }, escapeValue: "Not in list" },
+                options: [...(field.options ?? []), { value: "Not in list", label: "Not in list" }],
+              }
+            : field,
+        ),
+      })),
+    })),
+  },
   mappingSet: {
     ...FIXTURE_MAPPING_SET,
     mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
@@ -6911,7 +6933,9 @@ describeIfDatabase("a run stopped on values the form will not take tells the stu
     );
     expect(said.rows[0]?.content).toBe(
       "I have had to pass your Example University application to a member of the team, because their form will not take some of your details as they are. " +
-        'Their form asks you to choose your nationality from its own list, and "Iranian" is not on it. ' +
+        'Their form asks you to choose your nationality from its own list, which is searched rather than shown whole, and "Iranian" is not among the entries of it I have read. ' +
+        'If your nationality is not on their list at all, the form has an option for exactly that, "Not in list". ' +
+        "Choosing it is yours, not mine: it is a statement about yourself, and the university will assess it. " +
         'Their form asks you to choose your country from its own list, and "IR" is not on it. ' +
         "If yours is on their list under another name, which one it is is yours to say, and I will not choose it for you. There is not yet a way to make that choice here. " +
         'I do not yet have a rule for how their form takes the email address for "IR"; that is ours to add. ' +

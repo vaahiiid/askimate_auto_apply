@@ -123,3 +123,21 @@ same box, two days apart, same country and same typed text, identical labels in 
 Attempt 5's failure was **not** this. The box answered with an empty list and the runner's line now
 says why: the page's own lookup came back with nothing in it. The value question was never reached.
 Recorded as blocker 49's second half, and open.
+
+## Affirmed 2026-10-03 (P280): the escape stays the student's own act, and the run stops for it
+
+His word, when his own qualifications were not among the entries read and the question was whether
+to let the run choose *Not in list*: *"The 'Not in list' option stays the student's own act.
+ADR-0109 was right and I am not changing it to make this run easier. An institution that is not on
+a university's list is a fact about the student's education that the university will assess, and a
+system that quietly selects 'Not in list' on their behalf is making a claim about their degree."*
+
+And of his own run: *"I do that part by hand, and the run stops for it. That is the correct outcome
+and I want to walk it, not avoid it — a student in my position is going to meet this, and I would
+rather see what it feels like. So build for the stop, not around it."*
+
+Built for the stop (P280, ADR-0065 amended): where a value the plan refused sits in a box whose
+form records an escape, the student is told — *"If your institution is not on their list at all,
+the form has an option for exactly that, "Not in list". Choosing it is yours, not mine: it is a
+statement about your own education, and the university will assess it."* An explanation, not an
+apology; the guard is unchanged.

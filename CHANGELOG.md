@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.273.0] — 2026-10-03
+
+**P280 — the form's escape explained, and a searched list said as searched (ADR-0109 affirmed;
+ADR-0065 amended).**
+
+- **Added** to the message for a stop on the form's lists: where the box has the form's own escape,
+  the student is told it exists by its label (*"Not in list"*) and that choosing it is theirs,
+  because it is a statement about their own education that the university will assess.
+- **Fixed** P279's *"not on it"* for a typeahead or a search-then-select, whose entries are one
+  search's: said now as *"searched rather than shown whole … not among the entries of it I have
+  read"*.
+
+---
+
 ## [0.272.0] — 2026-10-03
 
 **P279 — the student told what the university's form will not take (ADR-0065 amended).**
