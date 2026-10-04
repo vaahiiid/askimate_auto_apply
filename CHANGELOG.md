@@ -19,6 +19,16 @@ not shipped artefacts.
 
 ---
 
+## [0.280.0] — 2026-10-04
+
+**P287 — row 134's trap held; the correction route decided, shape first.**
+
+- **Recorded** on row 134, in his words: no grading rule is added for *Azad University*; the stop
+  message as written invites the fix that would cause the harm; a confirmed value is to be
+  correctable by asking, played back and confirmed. Row 135 to be fixed with it.
+
+---
+
 ## [0.279.0] — 2026-10-04
 
 **P286 — his signature verified; a split is not a retyping; rows 134 and 135.**

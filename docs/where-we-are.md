@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P287 — a value a student cannot take back
+
+*2026-10-04.* He decided three days ago that his Master's was at Islamic Azad University, and
+there was no way to tell the chat: a confirmed answer could not be changed. The run's own stop
+message, meanwhile, invites the one fix that would put another university's name on his
+application. He said not to add it, and to build the way back instead, shape first.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P286 — signed, and what the walk will meet
 
 *2026-10-04.* His signature is on `main` and is over exactly the patch. The fourth pass at the
