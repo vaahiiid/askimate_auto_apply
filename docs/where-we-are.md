@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P285 — a loop is not a read either
+
+*2026-10-04.* The comparison came back with 202 of 203 held, from a list rebuilt with a shell
+loop. Built the same way here, without the form, it gave the same numbers, which is what
+showed the run had measured the loop. The count from the form stays five. The check had called
+its input "a read"; it now says "this file" and that it cannot tell where the file came from.
+Three instances in an afternoon: a paraphrase, an ellipsis, a loop.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P284 — a summary is not a read, and an ellipsis is not a list
 
 *2026-10-04.* Stopped before the signature. The grade rows had been built from a sentence about

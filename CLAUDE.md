@@ -233,3 +233,27 @@ So:
   Never retyped, never summarised. A list with an ellipsis in it is a description.
 - The record that carries rows built from a read says how many of them a passed-through line
   confirms.
+
+### Third instance: a list rebuilt by a loop (2026-10-04)
+
+Added 2026-10-04 at the instruction of the message of 15:34 UTC: *"Third instance of the same
+class in one afternoon. Record it."*
+
+The comparison P284 wrote was run on a grade list *"rebuilt … with a shell loop"*, and its output
+was taken as *"202 of 203 confirmed by a read line"*. The one miss, where `bc` printed `0` for
+`0.0`, was the loop's, and the message caught it. But the miss was not the only row the loop left
+unconfirmed:
+
+- A file a loop generates confirms the loop, not the form. P285 rebuilt one the same way and got
+  the same numbers (204 lines, 203 matching, 207 values, 202 held) without the form ever being
+  opened.
+- So the 202 rest on the description, as before. The count confirmed by lines passed through
+  from the form is still 5 of 203, and `0.0` is one of those five.
+
+What this instance adds:
+
+- **A generator is a retyping.** A loop, a `seq` or a spreadsheet fill-down that produces "the
+  list" encodes a belief about the list. Running it through a check measures the belief.
+- **The check said "read" of whatever it was given.** It now says "lines of this file", and says
+  it cannot tell where the file came from. A tool's word for its input is a claim about
+  provenance it usually cannot make.

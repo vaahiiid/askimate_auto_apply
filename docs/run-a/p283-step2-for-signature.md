@@ -103,6 +103,18 @@ pins. If his run is under another student, the test changes with it, and the pat
      it line by line, and every row the entry sends, under that institution, against the read:
      `pnpm exec tsx scripts/read-against-entry.ts docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json grade <file> "Islamic Azad University"`.
      On the shortened list it reports 5 confirmed and 198 not, and exits 1.
+   - **P285:** a list *"rebuilt … with a shell loop"* was run through it and reported 202 of 203
+     held. A loop-built file confirms the loop, not the form: P285 rebuilt one and got the same
+     numbers without opening the form. **The count is unchanged, 5 of 203.** `0.0` is one of the
+     five, from P284's paste. `19.5` is not.
+   - **The export that is not a retyping.** With the grade list loaded (UNI30764, system 6), run
+     this in the DevTools console. It puts the select's own options on the clipboard; paste them
+     into a file unedited:
+     `copy([...document.querySelectorAll('select[name=grade] option')].map(o => o.value + '\t' + o.textContent.trim()).join('\n'))`
+   - **If he signs before that:** the runner sets a select by value, and a value the page does not
+     hold stops the fill with `OptionNotAvailableError`, which lists the page's real options
+     (`apps/browser-runner/src/playwright-fill-session.ts`). A wrong grade row costs a stopped
+     attempt on the education page. It never types a wrong grade.
    - Signing on 5 of 203 is his call to make, not the agent's.
 2. **His profile's words.** The rows key on these strings:
    - institution *Islamic Azad University*

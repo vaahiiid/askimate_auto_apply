@@ -1591,5 +1591,9 @@ re-cut in P284.
     among the built options.
   - The list the form returned is what closes this. Either the `inspect:attached` output file from
     that read, or the console output pasted unedited, all 204 lines.
+  - **P285:** a list rebuilt with a shell loop was run through the comparison and reported 202
+    held. It is not counted, because a loop-built file confirms the loop. The count stays 5 of
+    203. The export that is not a retyping is in
+    [the signature sheet](../../run-a/p283-step2-for-signature.md).
 - **The 86–90 band list** seen first was the list before a grading system was chosen. It is not
   the live one.

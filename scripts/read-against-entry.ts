@@ -17,11 +17,16 @@
  *
  * And the other way: every value the field's mapping rows type, under the
  * switch case named (an institution, say — the blueprint's list is the union
- * of every institution's), that the read does not hold is BUILT, NOT READ: a
+ * of every institution's), that the file does not hold is BUILT, NOT IN FILE: a
  * row that would send the form a value its list never offered.
  *
  * Exits 1 on any difference, on any row the read does not hold, and on any
  * line it cannot read, so silence is never the verdict.
+ *
+ * What it cannot see (P285): where the file came from. A list rebuilt with a
+ * shell loop compares exactly as the form's own output does, and P285 ran one
+ * and counted its matches as confirmed reads. So the summary says "lines of
+ * this file", never "read", and says that it cannot tell the difference.
  */
 
 import { readFileSync } from "node:fs";
@@ -97,22 +102,24 @@ for (const { value, label } of pairs) {
   const have = builtLabel.get(value);
   if (have === undefined) {
     differs += 1;
-    process.stdout.write(`MISSING   ${JSON.stringify(value)} "${label}" — in the read, not in the entry\n`);
+    process.stdout.write(`MISSING   ${JSON.stringify(value)} "${label}" — in the file, not in the entry\n`);
   } else if (have !== label) {
     differs += 1;
-    process.stdout.write(`DIFFERS   ${JSON.stringify(value)} — the read says "${label}", the entry "${have}"\n`);
+    process.stdout.write(`DIFFERS   ${JSON.stringify(value)} — the file says "${label}", the entry "${have}"\n`);
   }
 }
 const readValues = new Set(pairs.map((pair) => pair.value));
 const unreadRows = [...rows].filter((value) => !readValues.has(value));
-for (const value of unreadRows) process.stdout.write(`BUILT, NOT READ   ${JSON.stringify(value)} — a row sends it; the read does not hold it\n`);
+for (const value of unreadRows) process.stdout.write(`BUILT, NOT IN FILE   ${JSON.stringify(value)} — a row sends it; the file does not hold it\n`);
 for (const line of unread) process.stdout.write(`NOT A READ LINE   ${JSON.stringify(line)} — what it stands for is not vouched for\n`);
 
 const confirmed = pairs.length - differs;
 process.stdout.write(
-  `\n${String(pairs.length)} line(s) read; ${String(confirmed)} match the entry's options for ${fieldRef}, ` +
+  `\n${String(pairs.length)} line(s) in ${readPath}; ${String(confirmed)} match the entry's options for ${fieldRef}, ` +
     `${String(differs)} differ or are missing, ${String(unread.length)} could not be read as a line.\n` +
     `${String(rows.size)} value(s) sent by ${fieldRef}'s rows${caseKey === undefined ? "" : ` under "${caseKey}"`}: ` +
-    `${String(rows.size - unreadRows.length)} confirmed by a read line, ${String(unreadRows.length)} not.\n`,
+    `${String(rows.size - unreadRows.length)} held by a line of this file, ${String(unreadRows.length)} not.\n` +
+    `This compares a FILE with the entry. Whether the file is the form's own output — exported, not retyped,\n` +
+    `not rebuilt by a loop — it cannot tell; only where the file came from can say that.\n`,
 );
 process.exit(differs > 0 || unread.length > 0 || unreadRows.length > 0 ? 1 : 0);

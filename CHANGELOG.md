@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.278.0] — 2026-10-04
+
+**P285 — a list rebuilt by a loop is not a read; the third instance recorded.**
+
+- **Changed** `scripts/read-against-entry.ts`: says "lines of this file", never "read", and says it
+  cannot tell whether the file is the form's own output.
+- **Recorded** CLAUDE.md's third instance of the measurement-method rule; the sheet's export
+  that is not a retyping, and what a wrong grade row costs; row 77. The entry, the patch and the
+  hash (`sha256:effa83b5…`) are unchanged.
+
+---
+
 ## [0.277.0] — 2026-10-04
 
 **P284 — stopped before the signature; the step-2 batch re-cut with true notes.**
