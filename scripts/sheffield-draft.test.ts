@@ -136,7 +136,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.31");
+    expect(blueprint.version).toBe("0.2.32");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -172,17 +172,30 @@ describe("the Sheffield drafts, under the real checks", () => {
       ["8", "UK Masters Degree (MA, MSc)"],
       ["9", "UK Research Degree"],
       ["81", "UK Medical Degree (MBBS, MBChB)"],
+      // P283: Islamic Azad University's one system, read by Vahid with
+      // UNI30764 chosen. The list is the union of what each institution
+      // offered; which one applies is the case the map keys on.
+      ["6", "GPA 20 (e.g. 16.5/20)"],
     ]);
     // The grades of system 7: six grades and two non-grades, values as labels.
     expect(field("grade")?.optionsAfter?.fieldRef).toBe("gradingSystemId");
-    expect(values("grade")).toEqual([
+    expect(values("grade").slice(0, 9)).toEqual([
       "Select your grade...", "Still waiting for grade", "Failed to complete course", "1st", "2.1", "2.2", "3rd", "Pass", "Fail",
     ]);
+    // P283: system 6's grades, 0.0 to 20.0 in tenths, values as labels.
+    // "2.1" and "2.2" are in both lists with the same value and label, so
+    // they are held once; the map keys them apart by grading scale.
+    expect(values("grade").slice(9)).toEqual(
+      Array.from({ length: 201 }, (_, tenth) => (tenth / 10).toFixed(1)).filter((grade) => grade !== "2.1" && grade !== "2.2"),
+    );
+    expect(values("grade")).toContain("19.5");
     // One search's results: eighty-five entries after the two placeholders;
     // two values carry a trailing space the label hides — exact match means
-    // the value, space included.
+    // the value, space included. P283 adds the ten of Vahid's whole read for
+    // "international", as identity rows (ADR-0153).
     expect(field("subject")?.optionsAfter?.press?.value).toBe("subjectSearchButton");
-    expect(values("subject")).toHaveLength(87);
+    expect(values("subject")).toHaveLength(97);
+    expect(values("subject")).toContain("International Relations");
     expect(values("subject").slice(0, 2)).toEqual(["Select subject...", "Not in list"]);
     expect(values("subject")).toContain("GCE Applied Business Advanced ");
     expect(field("subject")?.options?.find((o) => o.value === "GCE Applied Business Advanced ")?.label).toBe("GCE Applied Business Advanced");
@@ -427,8 +440,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.31");
-    expect(mappingSet.version).toBe("0.3.42");
+    expect(blueprint.version).toBe("0.2.32");
+    expect(mappingSet.version).toBe("0.3.43");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");

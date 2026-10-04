@@ -412,9 +412,19 @@ describe("the catalogue entry for Run A (P152)", () => {
     //   sha256:80d99170…  25 September, the start-date rows the page hides for
     //                     this course taken off page 12 (0.2.31 / 0.3.41),
     //                     P217 — item 5 closed (unsigned)
-    //   sha256:7b46e6fe…  25 September, THIS one — the education and funding
-    //                     maps as the WHOLE lists read, keyed on two parts
-    //                     where the list needs two (0.3.42), P218
+    //   sha256:7b46e6fe…  25 September, the education and funding maps as
+    //                     the WHOLE lists read, keyed on two parts where the
+    //                     list needs two (0.3.42), P218 (signed, 4e05911)
+    //   sha256:9726453b…  4 October, step 2 of Vahid's own run: the 'Azad'
+    //                     institutions, grading system 6 and its 0.0–20.0
+    //                     grades, the 'international' subjects as identity
+    //                     rows (ADR-0153), the three escapes recorded, and
+    //                     P261's measured registration (0.2.32 / 0.3.43),
+    //                     P283 (never signed: stopped before the signature)
+    //   sha256:effa83b5…  4 October, THIS one — the same rows, the notes made
+    //                     true: dated the day they were written, the grade
+    //                     rows said to rest on a description of the list, and
+    //                     IRAN's absence explained, P284
     //
     // The `degree` mapping reads `awardTitle` — the part the registry now
     // holds, stated by the student and distinct from `level` — onto the
@@ -427,7 +437,10 @@ describe("the catalogue entry for Run A (P152)", () => {
     // did in every signed interval before (P222). What it protects: the
     // content that loads is content that types values the student stated,
     // and the one account it is served to is the one his signature names.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:7b46e6fe2216fe4fb75116d6bc6083205650679e71655be1f38d18e02fde7a73");
+    // P283 and P284 moved it again, for step 2 of his own run, delivered as a patch he
+    // applies and signs in ONE commit with approvals.json — so main never
+    // holds an entry that is not signed, and this test is never red there.
+    expect(labelledHash(toCanonical(value))).toBe("sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
     expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
     if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
@@ -447,7 +460,7 @@ describe("the catalogue entry for Run A (P152)", () => {
       ownAccountOnly?: { studentId: string };
     }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
-    expect(approvals[0]?.contentHash).toBe("sha256:7b46e6fe2216fe4fb75116d6bc6083205650679e71655be1f38d18e02fde7a73");
+    expect(approvals[0]?.contentHash).toBe("sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727");
     expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
     // The four spellings of Iran, from the entry itself: unchanged by this
     // edit, and the reason the countries' signature was spent.
@@ -506,7 +519,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     // it. Nothing typed here came from a map's guess.
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.31, mapping set 0.3.42, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.32, mapping set 0.3.43, reviewed by Vahid Mohammadi.");
     expect(output).toContain("How do you want to study?*: Full Time");
     expect(output).toContain('(sent as "MGT:Management and International Business")');
     expect(output).toContain("MSC, Master of Science");

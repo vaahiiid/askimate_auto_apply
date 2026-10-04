@@ -38,7 +38,7 @@
   },
   "blueprint": {
     "blueprintId": "bp-sheffield-pgt-september-direct",
-    "version": "0.2.31",
+    "version": "0.2.32",
     "status": "reviewed",
     "institutionName": "University of Sheffield",
     "courseName": "MSc Management and International Business",
@@ -181,7 +181,7 @@
         ]
       },
       "accountCreationRequired": true,
-      "notes": "Sign-in required. Registration and login are the same page, the entry point (read signed out, 2026-09-11, ../sheffield-pgt-2026-09-11-entry/): New Applicants takes e-mail, password and its confirmation before Start Application; Logged in Before takes e-mail and password. Password: student_chosen — the form asks for one, and Vahid's direct statement of 2026-09-11 says he typed the one he chose. No CAPTCHA, no magic link or emailed code on the three pages read. Whether the e-mail must be verified before the form opens (AUTH 4) and what follows the login button (AUTH 5) were not observed. The eleven form pages were read through Vahid's own signed-in session (attached inspection, 2026-09-10)."
+      "notes": "Sign-in required. Registration and login are the same page, the entry point (read signed out, 2026-09-11, ../sheffield-pgt-2026-09-11-entry/): New Applicants takes e-mail, password and its confirmation before Start Application; Logged in Before takes e-mail and password. Password: student_chosen — the form asks for one, and Vahid's direct statement of 2026-09-11 says he typed the one he chose. No CAPTCHA, no magic link or emailed code on the three pages read. AUTH 4, measured by three observations on one account and recorded 2026-10-01: registration on 2026-09-11 brought one e-mail, an acknowledgement, no link clicked, straight into the form; Run A signed in to that account on 2026-09-18; two reads on 2026-09-25 were on it, signed in. E-mail verification gates neither the form nor sign-in; portalAuthentication.emailVerificationRequired: false is measured, not inferred. The consent notice stands over the registration button as over the sign-in button: read 2026-10-01 on a fresh profile as the runner, name=startApplicationBtn COVERED by div#ccc-overlay, position fixed, z-index 1, 1280×720 at 0,0, stack div#ccc-overlay > input; a first read on a profile whose CookieControl cookie was already set said nothing over it, which was true of that profile and not of a first visit. The same two paths and the same verification apply to the creation (ADR-0144 §3). What follows the login button (AUTH 5) was not observed by a page read. The eleven form pages were read through Vahid's own signed-in session (attached inspection, 2026-09-10)."
     },
     "pages": [
       {
@@ -24568,6 +24568,142 @@
                     "label": "University of Sheffield's Institute of Work Psychology"
                   },
                   {
+                    "value": "UNI6950",
+                    "label": "Azad University"
+                  },
+                  {
+                    "value": "UNI30764",
+                    "label": "Islamic Azad University"
+                  },
+                  {
+                    "value": "UNI41734",
+                    "label": "Islamic Azad University - Abhar"
+                  },
+                  {
+                    "value": "UNI40952",
+                    "label": "Islamic Azad University - Ardestan"
+                  },
+                  {
+                    "value": "UNI44013",
+                    "label": "Islamic Azad University - Ashtian (دانشگاه آزاد اسلامی واحد آشتیان)"
+                  },
+                  {
+                    "value": "UNI42191",
+                    "label": "Islamic Azad University - Bonab"
+                  },
+                  {
+                    "value": "UNI42133",
+                    "label": "Islamic Azad University - Borujerd"
+                  },
+                  {
+                    "value": "UNI40896",
+                    "label": "Islamic Azad University - Central Tehran Branch"
+                  },
+                  {
+                    "value": "UNI41649",
+                    "label": "Islamic Azad University - Dovlat Abad (دانشــــگاه آزاد اسلامی واحد دولت آباد)"
+                  },
+                  {
+                    "value": "UNI44056",
+                    "label": "Islamic Azad University - Karaj (دانشگاه آزاد اسلامی واحد کرج)"
+                  },
+                  {
+                    "value": "UNI33633",
+                    "label": "Islamic Azad University - Kharg"
+                  },
+                  {
+                    "value": "UNI44305",
+                    "label": "Islamic Azad University - Khomeinishahr (دانشگاه آزاد اسلامی واحد خمینی شهر)"
+                  },
+                  {
+                    "value": "UNI42169",
+                    "label": "Islamic Azad University - Lahijan"
+                  },
+                  {
+                    "value": "UNI33099",
+                    "label": "Islamic Azad University - Lenjan"
+                  },
+                  {
+                    "value": "UNI42192",
+                    "label": "Islamic Azad University - Mahabad"
+                  },
+                  {
+                    "value": "UNI41604",
+                    "label": "Islamic Azad University - Mashad"
+                  },
+                  {
+                    "value": "UNI41733",
+                    "label": "Islamic Azad University - Miyaneh"
+                  },
+                  {
+                    "value": "UNI41284",
+                    "label": "Islamic Azad University - Mobarakeh"
+                  },
+                  {
+                    "value": "UNI32273",
+                    "label": "Islamic Azad University - Najafabad (دانشگاه آزاد اسلامي واحد نجف آباد)"
+                  },
+                  {
+                    "value": "UNI33057",
+                    "label": "Islamic Azad University - Qazvin"
+                  },
+                  {
+                    "value": "UNI41790",
+                    "label": "Islamic Azad University - Science and Research Branch"
+                  },
+                  {
+                    "value": "UNI42240",
+                    "label": "Islamic Azad University - Semnan"
+                  },
+                  {
+                    "value": "UNI33278",
+                    "label": "Islamic Azad University - Shiraz"
+                  },
+                  {
+                    "value": "UNI34124",
+                    "label": "Islamic Azad University - Shustar"
+                  },
+                  {
+                    "value": "UNI41803",
+                    "label": "Islamic Azad University - Tabriz"
+                  },
+                  {
+                    "value": "UNI41777",
+                    "label": "Islamic Azad University - Tehran North (دانشگاه آزاد اسلامی واحد تهران شمال)"
+                  },
+                  {
+                    "value": "UNI26474",
+                    "label": "Islamic Azad University - Tehran Science and Research"
+                  },
+                  {
+                    "value": "UNI41711",
+                    "label": "Islamic Azad University - Tehran South"
+                  },
+                  {
+                    "value": "UNI34050",
+                    "label": "Islamic Azad University - Urmia"
+                  },
+                  {
+                    "value": "UNI44057",
+                    "label": "Islamic Azad University - Varamin / Pishva (دانشگاه آزاد اسلامی واحد ورامین - پیشوا)"
+                  },
+                  {
+                    "value": "UNI30781",
+                    "label": "Islamic Azad University - Yazd (دانشگاه آزاد اسلامی واحد یزد)"
+                  },
+                  {
+                    "value": "UNI42543",
+                    "label": "Islamic Azad University of Falavarjan (دانشگاه آزاد اسلامی واحد فلاورجان)"
+                  },
+                  {
+                    "value": "UNI41767",
+                    "label": "Islamic Azad University, Tehran Medical Branch"
+                  },
+                  {
+                    "value": "UNI5111",
+                    "label": "University of Azad"
+                  },
+                  {
                     "value": "Not in list",
                     "label": "Not in list"
                   }
@@ -24801,7 +24937,8 @@
                     "value": "PHD",
                     "label": "PHD"
                   }
-                ]
+                ],
+                "escapeValue": ""
               },
               {
                 "fieldRef": "unlistedDegree",
@@ -25214,6 +25351,46 @@
                   {
                     "value": "Business Administration",
                     "label": "Business Administration"
+                  },
+                  {
+                    "value": "ESOL International All Modes",
+                    "label": "ESOL International All Modes"
+                  },
+                  {
+                    "value": "International Cuisine",
+                    "label": "International Cuisine"
+                  },
+                  {
+                    "value": "International Independent Project",
+                    "label": "International Independent Project"
+                  },
+                  {
+                    "value": "International Affairs",
+                    "label": "International Affairs"
+                  },
+                  {
+                    "value": "International Studies",
+                    "label": "International Studies"
+                  },
+                  {
+                    "value": "International Trade",
+                    "label": "International Trade"
+                  },
+                  {
+                    "value": "International Project",
+                    "label": "International Project"
+                  },
+                  {
+                    "value": "International Relations",
+                    "label": "International Relations"
+                  },
+                  {
+                    "value": "Labour & International Studies",
+                    "label": "Labour & International Studies"
+                  },
+                  {
+                    "value": "Modern Languages & International Studies",
+                    "label": "Modern Languages & International Studies"
                   }
                 ],
                 "optionsAfter": {
@@ -25222,7 +25399,8 @@
                     "strategy": "id",
                     "value": "subjectSearchButton"
                   }
-                }
+                },
+                "escapeValue": "Not in list"
               },
               {
                 "fieldRef": "unlistedSubject",
@@ -26473,11 +26651,16 @@
                   {
                     "value": "81",
                     "label": "UK Medical Degree (MBBS, MBChB)"
+                  },
+                  {
+                    "value": "6",
+                    "label": "GPA 20 (e.g. 16.5/20)"
                   }
                 ],
                 "optionsAfter": {
                   "fieldRef": "institution-ts-control"
-                }
+                },
+                "escapeValue": "Not in list"
               },
               {
                 "fieldRef": "grade",
@@ -26531,6 +26714,802 @@
                   {
                     "value": "Fail",
                     "label": "Fail"
+                  },
+                  {
+                    "value": "0.0",
+                    "label": "0.0"
+                  },
+                  {
+                    "value": "0.1",
+                    "label": "0.1"
+                  },
+                  {
+                    "value": "0.2",
+                    "label": "0.2"
+                  },
+                  {
+                    "value": "0.3",
+                    "label": "0.3"
+                  },
+                  {
+                    "value": "0.4",
+                    "label": "0.4"
+                  },
+                  {
+                    "value": "0.5",
+                    "label": "0.5"
+                  },
+                  {
+                    "value": "0.6",
+                    "label": "0.6"
+                  },
+                  {
+                    "value": "0.7",
+                    "label": "0.7"
+                  },
+                  {
+                    "value": "0.8",
+                    "label": "0.8"
+                  },
+                  {
+                    "value": "0.9",
+                    "label": "0.9"
+                  },
+                  {
+                    "value": "1.0",
+                    "label": "1.0"
+                  },
+                  {
+                    "value": "1.1",
+                    "label": "1.1"
+                  },
+                  {
+                    "value": "1.2",
+                    "label": "1.2"
+                  },
+                  {
+                    "value": "1.3",
+                    "label": "1.3"
+                  },
+                  {
+                    "value": "1.4",
+                    "label": "1.4"
+                  },
+                  {
+                    "value": "1.5",
+                    "label": "1.5"
+                  },
+                  {
+                    "value": "1.6",
+                    "label": "1.6"
+                  },
+                  {
+                    "value": "1.7",
+                    "label": "1.7"
+                  },
+                  {
+                    "value": "1.8",
+                    "label": "1.8"
+                  },
+                  {
+                    "value": "1.9",
+                    "label": "1.9"
+                  },
+                  {
+                    "value": "2.0",
+                    "label": "2.0"
+                  },
+                  {
+                    "value": "2.3",
+                    "label": "2.3"
+                  },
+                  {
+                    "value": "2.4",
+                    "label": "2.4"
+                  },
+                  {
+                    "value": "2.5",
+                    "label": "2.5"
+                  },
+                  {
+                    "value": "2.6",
+                    "label": "2.6"
+                  },
+                  {
+                    "value": "2.7",
+                    "label": "2.7"
+                  },
+                  {
+                    "value": "2.8",
+                    "label": "2.8"
+                  },
+                  {
+                    "value": "2.9",
+                    "label": "2.9"
+                  },
+                  {
+                    "value": "3.0",
+                    "label": "3.0"
+                  },
+                  {
+                    "value": "3.1",
+                    "label": "3.1"
+                  },
+                  {
+                    "value": "3.2",
+                    "label": "3.2"
+                  },
+                  {
+                    "value": "3.3",
+                    "label": "3.3"
+                  },
+                  {
+                    "value": "3.4",
+                    "label": "3.4"
+                  },
+                  {
+                    "value": "3.5",
+                    "label": "3.5"
+                  },
+                  {
+                    "value": "3.6",
+                    "label": "3.6"
+                  },
+                  {
+                    "value": "3.7",
+                    "label": "3.7"
+                  },
+                  {
+                    "value": "3.8",
+                    "label": "3.8"
+                  },
+                  {
+                    "value": "3.9",
+                    "label": "3.9"
+                  },
+                  {
+                    "value": "4.0",
+                    "label": "4.0"
+                  },
+                  {
+                    "value": "4.1",
+                    "label": "4.1"
+                  },
+                  {
+                    "value": "4.2",
+                    "label": "4.2"
+                  },
+                  {
+                    "value": "4.3",
+                    "label": "4.3"
+                  },
+                  {
+                    "value": "4.4",
+                    "label": "4.4"
+                  },
+                  {
+                    "value": "4.5",
+                    "label": "4.5"
+                  },
+                  {
+                    "value": "4.6",
+                    "label": "4.6"
+                  },
+                  {
+                    "value": "4.7",
+                    "label": "4.7"
+                  },
+                  {
+                    "value": "4.8",
+                    "label": "4.8"
+                  },
+                  {
+                    "value": "4.9",
+                    "label": "4.9"
+                  },
+                  {
+                    "value": "5.0",
+                    "label": "5.0"
+                  },
+                  {
+                    "value": "5.1",
+                    "label": "5.1"
+                  },
+                  {
+                    "value": "5.2",
+                    "label": "5.2"
+                  },
+                  {
+                    "value": "5.3",
+                    "label": "5.3"
+                  },
+                  {
+                    "value": "5.4",
+                    "label": "5.4"
+                  },
+                  {
+                    "value": "5.5",
+                    "label": "5.5"
+                  },
+                  {
+                    "value": "5.6",
+                    "label": "5.6"
+                  },
+                  {
+                    "value": "5.7",
+                    "label": "5.7"
+                  },
+                  {
+                    "value": "5.8",
+                    "label": "5.8"
+                  },
+                  {
+                    "value": "5.9",
+                    "label": "5.9"
+                  },
+                  {
+                    "value": "6.0",
+                    "label": "6.0"
+                  },
+                  {
+                    "value": "6.1",
+                    "label": "6.1"
+                  },
+                  {
+                    "value": "6.2",
+                    "label": "6.2"
+                  },
+                  {
+                    "value": "6.3",
+                    "label": "6.3"
+                  },
+                  {
+                    "value": "6.4",
+                    "label": "6.4"
+                  },
+                  {
+                    "value": "6.5",
+                    "label": "6.5"
+                  },
+                  {
+                    "value": "6.6",
+                    "label": "6.6"
+                  },
+                  {
+                    "value": "6.7",
+                    "label": "6.7"
+                  },
+                  {
+                    "value": "6.8",
+                    "label": "6.8"
+                  },
+                  {
+                    "value": "6.9",
+                    "label": "6.9"
+                  },
+                  {
+                    "value": "7.0",
+                    "label": "7.0"
+                  },
+                  {
+                    "value": "7.1",
+                    "label": "7.1"
+                  },
+                  {
+                    "value": "7.2",
+                    "label": "7.2"
+                  },
+                  {
+                    "value": "7.3",
+                    "label": "7.3"
+                  },
+                  {
+                    "value": "7.4",
+                    "label": "7.4"
+                  },
+                  {
+                    "value": "7.5",
+                    "label": "7.5"
+                  },
+                  {
+                    "value": "7.6",
+                    "label": "7.6"
+                  },
+                  {
+                    "value": "7.7",
+                    "label": "7.7"
+                  },
+                  {
+                    "value": "7.8",
+                    "label": "7.8"
+                  },
+                  {
+                    "value": "7.9",
+                    "label": "7.9"
+                  },
+                  {
+                    "value": "8.0",
+                    "label": "8.0"
+                  },
+                  {
+                    "value": "8.1",
+                    "label": "8.1"
+                  },
+                  {
+                    "value": "8.2",
+                    "label": "8.2"
+                  },
+                  {
+                    "value": "8.3",
+                    "label": "8.3"
+                  },
+                  {
+                    "value": "8.4",
+                    "label": "8.4"
+                  },
+                  {
+                    "value": "8.5",
+                    "label": "8.5"
+                  },
+                  {
+                    "value": "8.6",
+                    "label": "8.6"
+                  },
+                  {
+                    "value": "8.7",
+                    "label": "8.7"
+                  },
+                  {
+                    "value": "8.8",
+                    "label": "8.8"
+                  },
+                  {
+                    "value": "8.9",
+                    "label": "8.9"
+                  },
+                  {
+                    "value": "9.0",
+                    "label": "9.0"
+                  },
+                  {
+                    "value": "9.1",
+                    "label": "9.1"
+                  },
+                  {
+                    "value": "9.2",
+                    "label": "9.2"
+                  },
+                  {
+                    "value": "9.3",
+                    "label": "9.3"
+                  },
+                  {
+                    "value": "9.4",
+                    "label": "9.4"
+                  },
+                  {
+                    "value": "9.5",
+                    "label": "9.5"
+                  },
+                  {
+                    "value": "9.6",
+                    "label": "9.6"
+                  },
+                  {
+                    "value": "9.7",
+                    "label": "9.7"
+                  },
+                  {
+                    "value": "9.8",
+                    "label": "9.8"
+                  },
+                  {
+                    "value": "9.9",
+                    "label": "9.9"
+                  },
+                  {
+                    "value": "10.0",
+                    "label": "10.0"
+                  },
+                  {
+                    "value": "10.1",
+                    "label": "10.1"
+                  },
+                  {
+                    "value": "10.2",
+                    "label": "10.2"
+                  },
+                  {
+                    "value": "10.3",
+                    "label": "10.3"
+                  },
+                  {
+                    "value": "10.4",
+                    "label": "10.4"
+                  },
+                  {
+                    "value": "10.5",
+                    "label": "10.5"
+                  },
+                  {
+                    "value": "10.6",
+                    "label": "10.6"
+                  },
+                  {
+                    "value": "10.7",
+                    "label": "10.7"
+                  },
+                  {
+                    "value": "10.8",
+                    "label": "10.8"
+                  },
+                  {
+                    "value": "10.9",
+                    "label": "10.9"
+                  },
+                  {
+                    "value": "11.0",
+                    "label": "11.0"
+                  },
+                  {
+                    "value": "11.1",
+                    "label": "11.1"
+                  },
+                  {
+                    "value": "11.2",
+                    "label": "11.2"
+                  },
+                  {
+                    "value": "11.3",
+                    "label": "11.3"
+                  },
+                  {
+                    "value": "11.4",
+                    "label": "11.4"
+                  },
+                  {
+                    "value": "11.5",
+                    "label": "11.5"
+                  },
+                  {
+                    "value": "11.6",
+                    "label": "11.6"
+                  },
+                  {
+                    "value": "11.7",
+                    "label": "11.7"
+                  },
+                  {
+                    "value": "11.8",
+                    "label": "11.8"
+                  },
+                  {
+                    "value": "11.9",
+                    "label": "11.9"
+                  },
+                  {
+                    "value": "12.0",
+                    "label": "12.0"
+                  },
+                  {
+                    "value": "12.1",
+                    "label": "12.1"
+                  },
+                  {
+                    "value": "12.2",
+                    "label": "12.2"
+                  },
+                  {
+                    "value": "12.3",
+                    "label": "12.3"
+                  },
+                  {
+                    "value": "12.4",
+                    "label": "12.4"
+                  },
+                  {
+                    "value": "12.5",
+                    "label": "12.5"
+                  },
+                  {
+                    "value": "12.6",
+                    "label": "12.6"
+                  },
+                  {
+                    "value": "12.7",
+                    "label": "12.7"
+                  },
+                  {
+                    "value": "12.8",
+                    "label": "12.8"
+                  },
+                  {
+                    "value": "12.9",
+                    "label": "12.9"
+                  },
+                  {
+                    "value": "13.0",
+                    "label": "13.0"
+                  },
+                  {
+                    "value": "13.1",
+                    "label": "13.1"
+                  },
+                  {
+                    "value": "13.2",
+                    "label": "13.2"
+                  },
+                  {
+                    "value": "13.3",
+                    "label": "13.3"
+                  },
+                  {
+                    "value": "13.4",
+                    "label": "13.4"
+                  },
+                  {
+                    "value": "13.5",
+                    "label": "13.5"
+                  },
+                  {
+                    "value": "13.6",
+                    "label": "13.6"
+                  },
+                  {
+                    "value": "13.7",
+                    "label": "13.7"
+                  },
+                  {
+                    "value": "13.8",
+                    "label": "13.8"
+                  },
+                  {
+                    "value": "13.9",
+                    "label": "13.9"
+                  },
+                  {
+                    "value": "14.0",
+                    "label": "14.0"
+                  },
+                  {
+                    "value": "14.1",
+                    "label": "14.1"
+                  },
+                  {
+                    "value": "14.2",
+                    "label": "14.2"
+                  },
+                  {
+                    "value": "14.3",
+                    "label": "14.3"
+                  },
+                  {
+                    "value": "14.4",
+                    "label": "14.4"
+                  },
+                  {
+                    "value": "14.5",
+                    "label": "14.5"
+                  },
+                  {
+                    "value": "14.6",
+                    "label": "14.6"
+                  },
+                  {
+                    "value": "14.7",
+                    "label": "14.7"
+                  },
+                  {
+                    "value": "14.8",
+                    "label": "14.8"
+                  },
+                  {
+                    "value": "14.9",
+                    "label": "14.9"
+                  },
+                  {
+                    "value": "15.0",
+                    "label": "15.0"
+                  },
+                  {
+                    "value": "15.1",
+                    "label": "15.1"
+                  },
+                  {
+                    "value": "15.2",
+                    "label": "15.2"
+                  },
+                  {
+                    "value": "15.3",
+                    "label": "15.3"
+                  },
+                  {
+                    "value": "15.4",
+                    "label": "15.4"
+                  },
+                  {
+                    "value": "15.5",
+                    "label": "15.5"
+                  },
+                  {
+                    "value": "15.6",
+                    "label": "15.6"
+                  },
+                  {
+                    "value": "15.7",
+                    "label": "15.7"
+                  },
+                  {
+                    "value": "15.8",
+                    "label": "15.8"
+                  },
+                  {
+                    "value": "15.9",
+                    "label": "15.9"
+                  },
+                  {
+                    "value": "16.0",
+                    "label": "16.0"
+                  },
+                  {
+                    "value": "16.1",
+                    "label": "16.1"
+                  },
+                  {
+                    "value": "16.2",
+                    "label": "16.2"
+                  },
+                  {
+                    "value": "16.3",
+                    "label": "16.3"
+                  },
+                  {
+                    "value": "16.4",
+                    "label": "16.4"
+                  },
+                  {
+                    "value": "16.5",
+                    "label": "16.5"
+                  },
+                  {
+                    "value": "16.6",
+                    "label": "16.6"
+                  },
+                  {
+                    "value": "16.7",
+                    "label": "16.7"
+                  },
+                  {
+                    "value": "16.8",
+                    "label": "16.8"
+                  },
+                  {
+                    "value": "16.9",
+                    "label": "16.9"
+                  },
+                  {
+                    "value": "17.0",
+                    "label": "17.0"
+                  },
+                  {
+                    "value": "17.1",
+                    "label": "17.1"
+                  },
+                  {
+                    "value": "17.2",
+                    "label": "17.2"
+                  },
+                  {
+                    "value": "17.3",
+                    "label": "17.3"
+                  },
+                  {
+                    "value": "17.4",
+                    "label": "17.4"
+                  },
+                  {
+                    "value": "17.5",
+                    "label": "17.5"
+                  },
+                  {
+                    "value": "17.6",
+                    "label": "17.6"
+                  },
+                  {
+                    "value": "17.7",
+                    "label": "17.7"
+                  },
+                  {
+                    "value": "17.8",
+                    "label": "17.8"
+                  },
+                  {
+                    "value": "17.9",
+                    "label": "17.9"
+                  },
+                  {
+                    "value": "18.0",
+                    "label": "18.0"
+                  },
+                  {
+                    "value": "18.1",
+                    "label": "18.1"
+                  },
+                  {
+                    "value": "18.2",
+                    "label": "18.2"
+                  },
+                  {
+                    "value": "18.3",
+                    "label": "18.3"
+                  },
+                  {
+                    "value": "18.4",
+                    "label": "18.4"
+                  },
+                  {
+                    "value": "18.5",
+                    "label": "18.5"
+                  },
+                  {
+                    "value": "18.6",
+                    "label": "18.6"
+                  },
+                  {
+                    "value": "18.7",
+                    "label": "18.7"
+                  },
+                  {
+                    "value": "18.8",
+                    "label": "18.8"
+                  },
+                  {
+                    "value": "18.9",
+                    "label": "18.9"
+                  },
+                  {
+                    "value": "19.0",
+                    "label": "19.0"
+                  },
+                  {
+                    "value": "19.1",
+                    "label": "19.1"
+                  },
+                  {
+                    "value": "19.2",
+                    "label": "19.2"
+                  },
+                  {
+                    "value": "19.3",
+                    "label": "19.3"
+                  },
+                  {
+                    "value": "19.4",
+                    "label": "19.4"
+                  },
+                  {
+                    "value": "19.5",
+                    "label": "19.5"
+                  },
+                  {
+                    "value": "19.6",
+                    "label": "19.6"
+                  },
+                  {
+                    "value": "19.7",
+                    "label": "19.7"
+                  },
+                  {
+                    "value": "19.8",
+                    "label": "19.8"
+                  },
+                  {
+                    "value": "19.9",
+                    "label": "19.9"
+                  },
+                  {
+                    "value": "20.0",
+                    "label": "20.0"
                   }
                 ],
                 "optionsAfter": {
@@ -29492,7 +30471,7 @@
         "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
         "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
         "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
-        "AUTH 4 — Must the email be verified before the form is reachable?",
+        "AUTH 4 — Must the email be verified before the form is reachable? NO (Vahid, 2026-10-01, three observations on one account: registration 2026-09-11 went straight into the form with one acknowledgement e-mail and no link clicked; sign-in 2026-09-18; two signed-in reads 2026-09-25)",
         "AUTH 5 — Is MFA or a one-time code required, and where?",
         "AUTH 6 — Is a CAPTCHA present, and where?",
         "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
@@ -29574,13 +30553,14 @@
       "P147 (2026-09-16, ADR-0119): the language page's seventeen handed boxes are un-handed — Vahid, on the page saving empty: 'A hand says the student must do this and the application is not complete until they do, and both are false here in Sheffield's own words. Left empty is the honest state.' With the section marked optional on the draft (0.2.23), the seventeen are ordinary unmapped boxes: listed under the page as left empty, with the form's own words, inside the yes, and never an own act. Whether a student with an English qualification enters it is the interview's question (Run B), not the preview's. Still handed: degree and unlistedDegree on the education page, pending his throwaway save.",
       "P148 (2026-09-16, ADR-0119): degree is required to save — Sheffield refused Vahid's full throwaway entry with the select unchosen, by name. His route, confirmed: map the degree for the levels the synthetic profile holds from the captured options, do not hand it, do not build a page-wider mechanism; a value the map does not name stays a loud blocker; unlistedDegree stays hidden and unmapped. The set now hands nothing to the student on any page.",
       "Education (page7), P149 (2026-09-16): the chain is mapped for the synthetic profile's one Sheffield qualification, six boxes — the country BOX and the institution BOX (the Tom Select controls the runner fills; the hidden selects behind them are set by the boxes and mapped by nothing), the search word and the subject, the grading system and the grade — each through a PARTIAL option map onto the captured lists, naming what the synthetic profile holds and nothing more, so that anything else is a loud blocker at plan time rather than an approximation at the fill. The country box's entries are on the draft (0.2.24) from P101's confirmed reading; the grading systems now follow the institution box, inferred from the dependencies read and P102's shape, not observed as a fill. The search word is 'business', the one the 87 results came from, never the subject typed whole. Only grading system 7 is named, because only its grades were read. The set now covers every box the education page requires to save, for that one qualification.",
-      "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
+      "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page.",
+      "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature."
     ],
     "mappingSetId": "map-sheffield-pgt-2027-09",
-    "version": "0.3.42",
+    "version": "0.3.43",
     "status": "reviewed",
     "blueprintId": "bp-sheffield-pgt-september-direct",
-    "blueprintVersion": "0.2.31",
+    "blueprintVersion": "0.2.32",
     "authoredBy": "Vahid Mohammadi",
     "authoredAt": "2026-09-11T12:00:00Z",
     "mappings": [
@@ -33465,12 +34445,46 @@
                 "Sheffield School of Nursing": "UNI7760",
                 "Sheffield and North Trent College of Nursing and Midwifery": "UNI24866",
                 "University of Sheffield International College": "SHE0600",
-                "University of Sheffield's Institute of Work Psychology": "UNI7619"
+                "University of Sheffield's Institute of Work Psychology": "UNI7619",
+                "Azad University": "UNI6950",
+                "Islamic Azad University": "UNI30764",
+                "Islamic Azad University - Abhar": "UNI41734",
+                "Islamic Azad University - Ardestan": "UNI40952",
+                "Islamic Azad University - Ashtian (دانشگاه آزاد اسلامی واحد آشتیان)": "UNI44013",
+                "Islamic Azad University - Bonab": "UNI42191",
+                "Islamic Azad University - Borujerd": "UNI42133",
+                "Islamic Azad University - Central Tehran Branch": "UNI40896",
+                "Islamic Azad University - Dovlat Abad (دانشــــگاه آزاد اسلامی واحد دولت آباد)": "UNI41649",
+                "Islamic Azad University - Karaj (دانشگاه آزاد اسلامی واحد کرج)": "UNI44056",
+                "Islamic Azad University - Kharg": "UNI33633",
+                "Islamic Azad University - Khomeinishahr (دانشگاه آزاد اسلامی واحد خمینی شهر)": "UNI44305",
+                "Islamic Azad University - Lahijan": "UNI42169",
+                "Islamic Azad University - Lenjan": "UNI33099",
+                "Islamic Azad University - Mahabad": "UNI42192",
+                "Islamic Azad University - Mashad": "UNI41604",
+                "Islamic Azad University - Miyaneh": "UNI41733",
+                "Islamic Azad University - Mobarakeh": "UNI41284",
+                "Islamic Azad University - Najafabad (دانشگاه آزاد اسلامي واحد نجف آباد)": "UNI32273",
+                "Islamic Azad University - Qazvin": "UNI33057",
+                "Islamic Azad University - Science and Research Branch": "UNI41790",
+                "Islamic Azad University - Semnan": "UNI42240",
+                "Islamic Azad University - Shiraz": "UNI33278",
+                "Islamic Azad University - Shustar": "UNI34124",
+                "Islamic Azad University - Tabriz": "UNI41803",
+                "Islamic Azad University - Tehran North (دانشگاه آزاد اسلامی واحد تهران شمال)": "UNI41777",
+                "Islamic Azad University - Tehran Science and Research": "UNI26474",
+                "Islamic Azad University - Tehran South": "UNI41711",
+                "Islamic Azad University - Urmia": "UNI34050",
+                "Islamic Azad University - Varamin / Pishva (دانشگاه آزاد اسلامی واحد ورامین - پیشوا)": "UNI44057",
+                "Islamic Azad University - Yazd (دانشگاه آزاد اسلامی واحد یزد)": "UNI30781",
+                "Islamic Azad University of Falavarjan (دانشگاه آزاد اسلامی واحد فلاورجان)": "UNI42543",
+                "Islamic Azad University, Tehran Medical Branch": "UNI41767",
+                "University of Azad": "UNI5111"
               }
             }
           }
         },
-        "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). The WHOLE list one search returned ('Sheff', United Kingdom, 2026-09-10): ten institutions keyed on the label the form prints and mapped to the value it submits, the escape ('Not in list') excluded because it is the student's own act. A typeahead has no list to be complete against (blocker 25): an institution this search did not return refuses and is asked about, and another search's entries are added whole when that search is read (P218)."
+        "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). The WHOLE list one search returned ('Sheff', United Kingdom, 2026-09-10): ten institutions keyed on the label the form prints and mapped to the value it submits, the escape ('Not in list') excluded because it is the student's own act. A typeahead has no list to be complete against (blocker 25): an institution this search did not return refuses and is asked about, and another search's entries are added whole when that search is read (P218). P283 (2026-10-04): Vahid's search for 'Azad' with Iran chosen, read whole from his own account — thirty-four institutions added, keyed on the text the form prints and mapped to the value it submits (ADR-0153: every row an identity, none a resemblance); the read's first line, 'IRAN Iran', is the country box's own chosen entry (it is the only other line in the empty 'HHE' read) and is not an institution: the read's selector, '.ts-dropdown [data-value]', was not scoped to this box's dropdown and matched the country box's as well. Left out on purpose, not missed. 'Azad University' (UNI6950), 'Islamic Azad University' (UNI30764) and 'University of Azad' (UNI5111) are three entries, each mapped from its own text alone."
       },
       {
         "fieldRef": "subjectSearch",
@@ -33566,12 +34580,22 @@
                 "Skills for Business: Sales and": "business",
                 "Sports Coaching and Business M": "business",
                 "Chinese Studies and Business Studies": "business",
-                "Korean Studies and Business Studies": "business"
+                "Korean Studies and Business Studies": "business",
+                "ESOL International All Modes": "international",
+                "International Cuisine": "international",
+                "International Independent Project": "international",
+                "International Affairs": "international",
+                "International Studies": "international",
+                "International Trade": "international",
+                "International Project": "international",
+                "International Relations": "international",
+                "Labour & International Studies": "international",
+                "Modern Languages & International Studies": "international"
               }
             }
           }
         },
-        "note": "Search: — the word typed into the subject search before subjectSearchButton is pressed (ADR-0105). Every subject the 'business' search returned maps to that one word, because that word is what produced it (P218); a subject from another search maps to its own word when that search is read."
+        "note": "Search: — the word typed into the subject search before subjectSearchButton is pressed (ADR-0105). Every subject the 'business' search returned maps to that one word, because that word is what produced it (P218); a subject from another search maps to its own word when that search is read. P283: the ten subjects of the 'international' search are typed by that word."
       },
       {
         "fieldRef": "subject",
@@ -33667,12 +34691,22 @@
                 "Skills for Business: Sales and": "Skills for Business: Sales and",
                 "Sports Coaching and Business M": "Sports Coaching and Business M",
                 "Chinese Studies and Business Studies": "Chinese Studies and Business Studies",
-                "Korean Studies and Business Studies": "Korean Studies and Business Studies"
+                "Korean Studies and Business Studies": "Korean Studies and Business Studies",
+                "ESOL International All Modes": "ESOL International All Modes",
+                "International Cuisine": "International Cuisine",
+                "International Independent Project": "International Independent Project",
+                "International Affairs": "International Affairs",
+                "International Studies": "International Studies",
+                "International Trade": "International Trade",
+                "International Project": "International Project",
+                "International Relations": "International Relations",
+                "Labour & International Studies": "Labour & International Studies",
+                "Modern Languages & International Studies": "Modern Languages & International Studies"
               }
             }
           }
         },
-        "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). The WHOLE list the search for 'business' returned on 2026-09-10 and again on 2026-09-25: eighty-five subjects, keyed on the label the form prints and mapped to the value it submits — two carry a trailing space the label hides, one is listed twice and the second copy is what the map names (P132). A subject the search did not return refuses and is asked about; another search word's results are added the same way, whole (P218)."
+        "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). The WHOLE list the search for 'business' returned on 2026-09-10 and again on 2026-09-25: eighty-five subjects, keyed on the label the form prints and mapped to the value it submits — two carry a trailing space the label hides, one is listed twice and the second copy is what the map names (P132). A subject the search did not return refuses and is asked about; another search word's results are added the same way, whole (P218). P283 (2026-10-04): the search for 'international', read whole — ten subjects, value equal to label, added by their own text; the select's 'Not in list' recorded as its escape (ADR-0109 extended)."
       },
       {
         "fieldRef": "gradingSystemId",
@@ -33693,11 +34727,21 @@
                     "Master's degree": "8"
                   }
                 }
+              },
+              "Islamic Azad University": {
+                "kind": "part",
+                "path": "gradeScale",
+                "then": {
+                  "kind": "option",
+                  "options": {
+                    "twenty_point": "6"
+                  }
+                }
               }
             }
           }
         },
-        "note": "Grading System: — Sheffield's own list, loaded PER INSTITUTION (P132; twice read, 2026-09-10 and 2026-09-25), following the institution box. Keyed on the institution first (P218): for the University of Sheffield the systems are a level vocabulary and the two the labels name are mapped — 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8; 'UK Research Degree' (9) and 'UK Medical Degree (MBBS, MBChB)' (81) are not derivable from a level and refuse. Any other institution refuses with no_matching_case: its list has never been read (blocker 77), and a row for it would move a loud refusal at the plan to a lost attempt at the fill."
+        "note": "Grading System: — Sheffield's own list, loaded PER INSTITUTION (P132; twice read, 2026-09-10 and 2026-09-25), following the institution box. Keyed on the institution first (P218): for the University of Sheffield the systems are a level vocabulary and the two the labels name are mapped — 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8; 'UK Research Degree' (9) and 'UK Medical Degree (MBBS, MBChB)' (81) are not derivable from a level and refuse. Any other institution refuses with no_matching_case: its list has never been read (blocker 77), and a row for it would move a loud refusal at the plan to a lost attempt at the fill. P283 (2026-10-04): Islamic Azad University's list, read with UNI30764 chosen — one real system, '6' GPA 20 (e.g. 16.5/20), beside the escape — keyed on the grade scale the student states: twenty_point → 6. Every other institution still refuses (blocker 77)."
       },
       {
         "fieldRef": "grade",
@@ -33738,11 +34782,229 @@
                     }
                   }
                 }
+              },
+              "Islamic Azad University": {
+                "kind": "switch",
+                "path": "gradeScale",
+                "cases": {
+                  "twenty_point": {
+                    "kind": "part",
+                    "path": "grade",
+                    "then": {
+                      "kind": "option",
+                      "options": {
+                        "0.0": "0.0",
+                        "0.1": "0.1",
+                        "0.2": "0.2",
+                        "0.3": "0.3",
+                        "0.4": "0.4",
+                        "0.5": "0.5",
+                        "0.6": "0.6",
+                        "0.7": "0.7",
+                        "0.8": "0.8",
+                        "0.9": "0.9",
+                        "1.0": "1.0",
+                        "1.1": "1.1",
+                        "1.2": "1.2",
+                        "1.3": "1.3",
+                        "1.4": "1.4",
+                        "1.5": "1.5",
+                        "1.6": "1.6",
+                        "1.7": "1.7",
+                        "1.8": "1.8",
+                        "1.9": "1.9",
+                        "2.0": "2.0",
+                        "2.1": "2.1",
+                        "2.2": "2.2",
+                        "2.3": "2.3",
+                        "2.4": "2.4",
+                        "2.5": "2.5",
+                        "2.6": "2.6",
+                        "2.7": "2.7",
+                        "2.8": "2.8",
+                        "2.9": "2.9",
+                        "3.0": "3.0",
+                        "3.1": "3.1",
+                        "3.2": "3.2",
+                        "3.3": "3.3",
+                        "3.4": "3.4",
+                        "3.5": "3.5",
+                        "3.6": "3.6",
+                        "3.7": "3.7",
+                        "3.8": "3.8",
+                        "3.9": "3.9",
+                        "4.0": "4.0",
+                        "4.1": "4.1",
+                        "4.2": "4.2",
+                        "4.3": "4.3",
+                        "4.4": "4.4",
+                        "4.5": "4.5",
+                        "4.6": "4.6",
+                        "4.7": "4.7",
+                        "4.8": "4.8",
+                        "4.9": "4.9",
+                        "5.0": "5.0",
+                        "5.1": "5.1",
+                        "5.2": "5.2",
+                        "5.3": "5.3",
+                        "5.4": "5.4",
+                        "5.5": "5.5",
+                        "5.6": "5.6",
+                        "5.7": "5.7",
+                        "5.8": "5.8",
+                        "5.9": "5.9",
+                        "6.0": "6.0",
+                        "6.1": "6.1",
+                        "6.2": "6.2",
+                        "6.3": "6.3",
+                        "6.4": "6.4",
+                        "6.5": "6.5",
+                        "6.6": "6.6",
+                        "6.7": "6.7",
+                        "6.8": "6.8",
+                        "6.9": "6.9",
+                        "7.0": "7.0",
+                        "7.1": "7.1",
+                        "7.2": "7.2",
+                        "7.3": "7.3",
+                        "7.4": "7.4",
+                        "7.5": "7.5",
+                        "7.6": "7.6",
+                        "7.7": "7.7",
+                        "7.8": "7.8",
+                        "7.9": "7.9",
+                        "8.0": "8.0",
+                        "8.1": "8.1",
+                        "8.2": "8.2",
+                        "8.3": "8.3",
+                        "8.4": "8.4",
+                        "8.5": "8.5",
+                        "8.6": "8.6",
+                        "8.7": "8.7",
+                        "8.8": "8.8",
+                        "8.9": "8.9",
+                        "9.0": "9.0",
+                        "9.1": "9.1",
+                        "9.2": "9.2",
+                        "9.3": "9.3",
+                        "9.4": "9.4",
+                        "9.5": "9.5",
+                        "9.6": "9.6",
+                        "9.7": "9.7",
+                        "9.8": "9.8",
+                        "9.9": "9.9",
+                        "10.0": "10.0",
+                        "10.1": "10.1",
+                        "10.2": "10.2",
+                        "10.3": "10.3",
+                        "10.4": "10.4",
+                        "10.5": "10.5",
+                        "10.6": "10.6",
+                        "10.7": "10.7",
+                        "10.8": "10.8",
+                        "10.9": "10.9",
+                        "11.0": "11.0",
+                        "11.1": "11.1",
+                        "11.2": "11.2",
+                        "11.3": "11.3",
+                        "11.4": "11.4",
+                        "11.5": "11.5",
+                        "11.6": "11.6",
+                        "11.7": "11.7",
+                        "11.8": "11.8",
+                        "11.9": "11.9",
+                        "12.0": "12.0",
+                        "12.1": "12.1",
+                        "12.2": "12.2",
+                        "12.3": "12.3",
+                        "12.4": "12.4",
+                        "12.5": "12.5",
+                        "12.6": "12.6",
+                        "12.7": "12.7",
+                        "12.8": "12.8",
+                        "12.9": "12.9",
+                        "13.0": "13.0",
+                        "13.1": "13.1",
+                        "13.2": "13.2",
+                        "13.3": "13.3",
+                        "13.4": "13.4",
+                        "13.5": "13.5",
+                        "13.6": "13.6",
+                        "13.7": "13.7",
+                        "13.8": "13.8",
+                        "13.9": "13.9",
+                        "14.0": "14.0",
+                        "14.1": "14.1",
+                        "14.2": "14.2",
+                        "14.3": "14.3",
+                        "14.4": "14.4",
+                        "14.5": "14.5",
+                        "14.6": "14.6",
+                        "14.7": "14.7",
+                        "14.8": "14.8",
+                        "14.9": "14.9",
+                        "15.0": "15.0",
+                        "15.1": "15.1",
+                        "15.2": "15.2",
+                        "15.3": "15.3",
+                        "15.4": "15.4",
+                        "15.5": "15.5",
+                        "15.6": "15.6",
+                        "15.7": "15.7",
+                        "15.8": "15.8",
+                        "15.9": "15.9",
+                        "16.0": "16.0",
+                        "16.1": "16.1",
+                        "16.2": "16.2",
+                        "16.3": "16.3",
+                        "16.4": "16.4",
+                        "16.5": "16.5",
+                        "16.6": "16.6",
+                        "16.7": "16.7",
+                        "16.8": "16.8",
+                        "16.9": "16.9",
+                        "17.0": "17.0",
+                        "17.1": "17.1",
+                        "17.2": "17.2",
+                        "17.3": "17.3",
+                        "17.4": "17.4",
+                        "17.5": "17.5",
+                        "17.6": "17.6",
+                        "17.7": "17.7",
+                        "17.8": "17.8",
+                        "17.9": "17.9",
+                        "18.0": "18.0",
+                        "18.1": "18.1",
+                        "18.2": "18.2",
+                        "18.3": "18.3",
+                        "18.4": "18.4",
+                        "18.5": "18.5",
+                        "18.6": "18.6",
+                        "18.7": "18.7",
+                        "18.8": "18.8",
+                        "18.9": "18.9",
+                        "19.0": "19.0",
+                        "19.1": "19.1",
+                        "19.2": "19.2",
+                        "19.3": "19.3",
+                        "19.4": "19.4",
+                        "19.5": "19.5",
+                        "19.6": "19.6",
+                        "19.7": "19.7",
+                        "19.8": "19.8",
+                        "19.9": "19.9",
+                        "20.0": "20.0",
+                        "Still waiting for grade": "Still waiting for grade",
+                        "Failed to complete course": "Failed to complete course"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
         },
-        "note": "grade — the WHOLE grade list Sheffield loads for grading system 7, 'UK Bachelors Degree (BA, BSc)' (P132; nine captured values, the honours classes keyed also on their colon spellings 2:1 / 2:2 as the registry's own example writes them), keyed on THREE parts because that is what decides it (P218, blocker 78 closed): the institution (the grading systems are loaded per institution), the level (system 7 is the bachelor's system) and the grade scale (the list carries UK honours classes). Any other institution, level or scale REFUSES with no_matching_case — a list nobody has read is a refusal, never the nearest one. A Sheffield master's therefore stops here, loudly: system 8's list is unread. The 'Still waiting for grade' and 'Failed to complete course' entries are the portal's own words for a student who states them as their grade."
+        "note": "grade — the WHOLE grade list Sheffield loads for grading system 7, 'UK Bachelors Degree (BA, BSc)' (P132; nine captured values, the honours classes keyed also on their colon spellings 2:1 / 2:2 as the registry's own example writes them), keyed on THREE parts because that is what decides it (P218, blocker 78 closed): the institution (the grading systems are loaded per institution), the level (system 7 is the bachelor's system) and the grade scale (the list carries UK honours classes). Any other institution, level or scale REFUSES with no_matching_case — a list nobody has read is a refusal, never the nearest one. A Sheffield master's therefore stops here, loudly: system 8's list is unread. The 'Still waiting for grade' and 'Failed to complete course' entries are the portal's own words for a student who states them as their grade. P283 (2026-10-04): system 6's list, with UNI30764 and system 6 chosen. These rows rest on a DESCRIPTION of the list as relayed — every tenth from 0.0 to 20.0, value equal to label, and the two non-grades — not on the list passed through whole: every line that was passed through (the two non-grades, 0.0, 0.1 and 20.0) matches, and the rest is the description's. Keyed on Islamic Azad University and the twenty_point scale; the 86–90 band list he read first was the list before a system was chosen and is not live."
       },
       {
         "fieldRef": "courseStartYear",

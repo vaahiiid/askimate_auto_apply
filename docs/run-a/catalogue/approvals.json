@@ -1,10 +1,10 @@
 [
   {
-    "contentHash": "sha256:7b46e6fe2216fe4fb75116d6bc6083205650679e71655be1f38d18e02fde7a73",
+    "contentHash": "sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-09-25T19:00:00Z",
+    "approvedAt": "2026-10-04T16:30:00Z",
     "ownAccountOnly": { "studentId": "5774ff16-ff9c-424a-882f-42d0f304968b" },
-    "note": "One signature (ADR-0118), admitting one account only: a fresh student with no profile, for the item-6 run. This entry carries Part 1 and Part 2, the education and funding maps as whole lists from Sheffield's own selects rather than one row per student, the degree map keyed on the award title the student states (ADR-0142), and account creation with the consent notice answered by the student's own choice (ADR-0144). Niloofar's student af398e01 is no longer admitted; her case stays where it is and is not touched by this run."
+    "note": "Step 2: institutions, grading system, grades and subjects from my own reads of Sheffield's form on 4 October 2026. The grade list was read whole from the form and every row it sends is confirmed against it. My institution is Islamic Azad University and my award title is MSc; my doctorate's institution is not on Sheffield's list and that entry stays mine to enter by hand."
   }
 ]
