@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P286 — signed, and what the walk will meet
+
+*2026-10-04.* His signature is on `main` and is over exactly the patch. The fourth pass at the
+grade list came out right, and it drew the line the rule needed: a split cannot invent a value,
+a trim can. Preparing his walk turned up two things the code says plainly and nobody had put
+together. A confirmed answer cannot be changed in the chat, so his corrected Master's reaches the
+run only if it was answered so; and *Azad University* is a real entry of Sheffield's list, so his
+shorthand maps to a different university, stopped today only because no grading rule matches it
+(row 134). And resuming tells him the run is moving again a moment before it stops again (row 135).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P285 — a loop is not a read either
 
 *2026-10-04.* The comparison came back with 202 of 203 held, from a list rebuilt with a shell

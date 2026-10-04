@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.279.0] — 2026-10-04
+
+**P286 — his signature verified; a split is not a retyping; rows 134 and 135.**
+
+- **Recorded** CLAUDE.md: where the line is between a passed-through read and a retyping — what a
+  step can do to a value (a split cannot change one; a trim can).
+- **Recorded** rows 117 and 77 closed by his signature (424ce25); row 134, a confirmed answer
+  cannot be changed in the chat and a shorthand that is another entry's exact text maps to that
+  entry; row 135, the resume message says the run is moving again before the plan is checked.
+
+---
+
 ## [0.278.0] — 2026-10-04
 
 **P285 — a list rebuilt by a loop is not a read; the third instance recorded.**

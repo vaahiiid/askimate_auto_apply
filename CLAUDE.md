@@ -257,3 +257,24 @@ What this instance adds:
 - **The check said "read" of whatever it was given.** It now says "lines of this file", and says
   it cannot tell where the file came from. A tool's word for its input is a claim about
   provenance it usually cannot make.
+
+### Where the line is: a split is not a retyping (2026-10-04)
+
+Added 2026-10-04 at the instruction of the message of 17:50 UTC. It reported the fourth pass at
+the grade list, and this one came out right: the form's own string was taken from the console and
+split into lines in the shell. In its words: **"a transformation that cannot invent a value is not a
+retyping. Worth stating, because the rule as written ('a generator is a retyping') would also
+forbid this, and it should not."**
+
+So the test is what the step can do to a value, not whether a tool touched it:
+
+- **Not a retyping:** a step that can only cut the form's own text at a separator and pass the
+  pieces on unchanged, such as a split on a newline or a tab. Every value that comes out was in
+  what went in, byte for byte.
+- **A retyping:** a step that can produce or alter a value, such as a loop, `seq`, `bc`, a number
+  format, a re-encoding, a paraphrase, or a **trim**. A trim is the quiet one: Sheffield's subject
+  list holds `"GCE Applied Business Advanced "` with a trailing space, and a trim would have
+  changed the value the form submits.
+- **The record still says which it was.** The comparison cannot tell (P285), so the record carries
+  where the file came from and what was done to it. This one: the form's string, split on its
+  separator, nothing else, in the words of the person who did it.
