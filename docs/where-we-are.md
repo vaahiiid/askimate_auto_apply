@@ -4906,6 +4906,21 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P283 — step 2, written for one signature
+
+*2026-10-04.* His three reads and his decisions became rows: the institutions of his "Azad" read,
+the one grading system his institution offers, its grades, and the ten subjects of his
+"international" read, each the portal's own text for the entry it names. *International
+Business* is not among them, and no row pretends it is: the subject is his escape, by hand. P261's
+two lines went in with them. The entry moved to `sha256:9726453b…` and stays off `main` until he
+signs: it is a patch, proven under a temporary approval that was never committed, and a sheet
+that says what he is signing. Row 133 is sharper for it — a part of an entry we CAN map stops the
+run as surely as an entry we cannot.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P282 — the check that would have caught it, measured before it was trusted
 
 *2026-10-03.* He asked for the narrow check. Measured first, it would have refused his own signed

@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.276.0] — 2026-10-04
+
+**P283 — step 2 of Vahid's own run, written for one signature; row 133 sharpened.**
+
+- **Added** `docs/run-a/p283-step2-batch.patch`: the Sheffield entry at blueprint 0.2.32 and
+  mapping set 0.3.43 (`sha256:9726453b…`) — 34 institutions, grading system 6 and its grades, ten
+  subjects, all identity rows (ADR-0153); the subject and grading-system escapes recorded; P261's
+  registration lines — with its drafts, read file and test pins. Applied and signed by him in one
+  commit; the entry on `main` is unchanged until then.
+- **Added** `docs/run-a/p283-step2-for-signature.md`: what the patch changes, what the plan does
+  with it, the hash, the approval to write, and three things only he can confirm.
+- **Recorded** row 133 sharpened to parts of a mappable entry, in his words; row 77 read for his
+  institution; row 117 inside the batch; row 25's escape on his Master's subject.
+
+---
+
 ## [0.275.0] — 2026-10-03
 
 **P282 — a typeahead row keyed on the student's words must be the entry's own text (ADR-0153's
