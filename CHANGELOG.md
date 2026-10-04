@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.277.0] — 2026-10-04
+
+**P284 — stopped before the signature; the step-2 batch re-cut with true notes.**
+
+- **Changed** `docs/run-a/p283-step2-batch.patch`: the same rows, now `sha256:effa83b5…`. Its
+  notes are dated the day they were written, the grade note says the rows rest on a description
+  (5 of 203 confirmed by a passed-through line), and the institution note says why `IRAN Iran`
+  is left out. The first cut, `9726453b…`, was never signed.
+- **Added** `scripts/read-against-entry.ts`: a read, passed through, against a field's options
+  and against every row the entry sends; exits 1 on a difference, an unread row, or a line that
+  is not a read line.
+- **Recorded** CLAUDE.md's second instance of the measurement-method rule (a person retyping a
+  read); the capture record's reason for leaving `IRAN Iran` out; row 77.
+
+---
+
 ## [0.276.0] — 2026-10-04
 
 **P283 — step 2 of Vahid's own run, written for one signature; row 133 sharpened.**

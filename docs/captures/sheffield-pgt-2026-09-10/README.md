@@ -1558,3 +1558,38 @@ subject search's results, as option values and labels the draft can carry and a 
    collects, with each new field classified; raised in P89, not made.
 8. The country select's option map is partial — eight countries whose names the capture shows —
    and refuses to render any other; the reviewer extends it from the captured option list.
+
+## Step 2's reads on his own account — what was passed through, and why `IRAN Iran` is not an institution (P283, P284, 2026-10-04)
+
+Read with Iran as the country, nothing saved. Built into `docs/run-a/p283-step2-batch.patch` (P283),
+re-cut in P284.
+
+- **Institutions, search "Azad": 36 lines, passed through whole.** 34 institutions, the escape
+  *Not in list*, and **`IRAN Iran`**. All 34 institutions are identity rows. The escape is the
+  student's (ADR-0109). **`IRAN Iran` is left out on purpose, and must not be added later as
+  something missed.** It is the country box's own entry. The read ran the selector the agent gave
+  in the step-2 instructions, `.ts-dropdown [data-value]`. That selector is not scoped to one box:
+  Tom Select gives each box its own dropdown (`<name>-ts-dropdown`, P101), so it matched the
+  country box's dropdown as well as the institution box's results. The empty "HHE" read agrees:
+  `IRAN Iran` was its only line. Confirmed in the message of 2026-10-04 14:19 UTC: *"it is the
+  country box's own entry leaking into the dropdown … Leave it out."* Next time, scope the selector
+  to the box being read: `#institution-ts-dropdown [data-value]`.
+- **Subjects, search "international": passed through whole.** Ten subjects, value equal to label,
+  plus the two placeholders. *International Business* is not among them. It is the student's
+  escape, by hand.
+- **Grading systems with UNI30764 chosen:** one system, `6` *GPA 20 (e.g. 16.5/20)*, beside the
+  escape.
+- **Grades with system 6 chosen: NOT passed through whole.**
+  - P283's 201 tenths were built from a summary: *"every tenth from 0.0 to 20.0, value equals
+    label"*. The list sent in P284 to correct that was itself shortened: six lines and
+    `[… through …]`.
+  - Every line that was passed through matches the build: the placeholder, the two non-grades,
+    `0.0`, `0.1` and `20.0`.
+  - So **5 of the 203 mapped rows** are confirmed by a passed-through line. The other **198 rest on
+    the description**. That includes `19.5`, the one his run types.
+  - The comparison found a differing label when given one: a test line `19.5	19.50` was not found
+    among the built options.
+  - The list the form returned is what closes this. Either the `inspect:attached` output file from
+    that read, or the console output pasted unedited, all 204 lines.
+- **The 86–90 band list** seen first was the list before a grading system was chosen. It is not
+  the live one.

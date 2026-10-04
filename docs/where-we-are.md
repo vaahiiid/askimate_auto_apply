@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P284 — a summary is not a read, and an ellipsis is not a list
+
+*2026-10-04.* Stopped before the signature. The grade rows had been built from a sentence about
+the list, and the entry's note called that sentence a read. The list sent to correct it carried
+`[… through …]`, so it confirmed five rows and could not speak for the other 198. Nothing passed
+through differed, so nothing was rebuilt; the notes were made true and the batch re-cut, and a
+script now compares a read with the rows from the form's own output, line by line, and says
+which rows no read line vouches for. The second instance of the rule went into CLAUDE.md: a
+wrong grep the first time, a person retyping the second, the same failure.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P283 — step 2, written for one signature
 
 *2026-10-04.* His three reads and his decisions became rows: the institutions of his "Azad" read,

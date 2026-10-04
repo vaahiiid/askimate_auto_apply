@@ -1,11 +1,16 @@
 # Step 2 of Vahid's own run — the batch for his signature (P283)
 
-**Status: waiting on his signature.** Nothing here is on `main` as entry content. The batch is the
+**Status: stopped before the signature (P284), and re-cut.** The first cut (`sha256:9726453b…`) was never signed: its grade note said the list was "read" when it rested on a summary, and its notes carried the wrong date. The re-cut has the same rows and true notes. Nothing here is on `main` as entry content. The batch is the
 patch [`p283-step2-batch.patch`](./p283-step2-batch.patch), applied and signed in one commit, so
 `main` never holds an entry no approval covers. An unsigned entry would stop his stack and turn CI
 red (`loadCatalogueDirectory`, ADR-0055; the pin in `scripts/run-a-profile.test.ts`).
 
 ## What he decided, in his words (2026-10-04)
+
+**Whose words these are is for him to confirm before he signs.** They came in a message of
+2026-10-04 12:08 UTC, written in the first person. The message of 14:19 UTC that stopped the
+signature speaks of Vahid in the third person (*"Vahid sent the full list and I paraphrased it to
+you"*). CLAUDE.md: a decision is his only if he typed it in his own words.
 
 - Institution: *"Islamic Azad University → UNI30764"*.
 - Grading system: *"6"*. Grade: *"19.5"*. Award title: *"MSc"*.
@@ -48,11 +53,11 @@ part he enters by hand, which is the walk he chose.
 ## The new hash
 
 ```
-sha256:9726453bc7318fed5bbd43e3955c2488282a0622174d845b20096d1209fd1f32
+sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727
 ```
 
 Computed with `pnpm run catalogue hash docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json`
-on the patched tree. Recomputed after applying the patch to a clean checkout of `c513afd`: the same
+on the patched tree. Re-cut in P284; recomputed after applying the patch to a clean checkout of `3090d42`: the same
 hash, and the six files byte-identical to the tested ones.
 
 ## How to sign: one commit
@@ -71,7 +76,7 @@ the same commit:
 ```json
 [
   {
-    "contentHash": "sha256:9726453bc7318fed5bbd43e3955c2488282a0622174d845b20096d1209fd1f32",
+    "contentHash": "sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
     "approvedAt": "<when you sign, UTC>",
@@ -86,10 +91,19 @@ pins. If his run is under another student, the test changes with it, and the pat
 
 ## Before he signs: three things only he can confirm
 
-1. **The grade labels.** The 201 rows rest on his description, *"the 0.0–20.0 one, value equals
-   label"*, not on a list read whole. If any label differs (for example `20` rather than `20.0`),
-   that row is wrong and the others are not. His run uses **`19.5`**. Under the whole-list rule
-   (P218), the full list he offered to send is what makes the rows read rather than inferred.
+1. **The grade labels: still not passed through whole.** P283's rows were built from a summary.
+   The list sent in P284 to correct it was six lines and `[… through …]`.
+   - Every line that was sent matches: the placeholder, the two non-grades, `0.0`, `0.1` and
+     `20.0`.
+   - So **5 of the 203 rows are confirmed, and 198 rest on the description**, `19.5` among them.
+   - Nothing sent differs from what was built, so there is nothing to rebuild.
+   - The entry's grade note now says exactly this, so a signature over it signs what is true.
+   - What closes it is the form's own output: the `inspect:attached` file from that read, or the
+     console output pasted unedited, all 204 lines. `scripts/read-against-entry.ts` then compares
+     it line by line, and every row the entry sends, under that institution, against the read:
+     `pnpm exec tsx scripts/read-against-entry.ts docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json grade <file> "Islamic Azad University"`.
+     On the shortened list it reports 5 confirmed and 198 not, and exits 1.
+   - Signing on 5 of 203 is his call to make, not the agent's.
 2. **His profile's words.** The rows key on these strings:
    - institution *Islamic Azad University*
    - country `IR`
@@ -99,13 +113,15 @@ pins. If his run is under another student, the test changes with it, and the pat
 
    A profile holding anything else (for example *19.50*, or *Azad University*) refuses at that
    box, loudly, before any page. It never types a wrong value.
-3. **`IRAN Iran` left out.** It headed his "Azad" read and was taken as the country box's entry,
-   not an institution. If it is an institution entry, it is one more identity row.
+3. **`IRAN Iran` left out: confirmed** in the message of 2026-10-04 14:19 UTC. It is the country
+   box's entry, caught because the agent's selector `.ts-dropdown [data-value]` was not scoped to
+   one box. The reason is written into the institution row's note and the capture record, so
+   nobody adds it later as something missed.
 
 ## What this was proven against
 
 - The full census ran against the patched tree with a **temporary local approval** over the new
-  hash: 3,269 tests, 162 files, green. Typecheck, lint and boundaries were green too. The approval
+  hash: 3,269 tests, 162 files, green (the second run; the first had Redis down and is not counted). Typecheck, lint and boundaries were green too. The approval
   was never committed.
 - Fail-first: with the signed approval restored and the patched entry kept, `run-a-profile` went
   red. The message was *"signed at item 6 — the directory loads … expected false to be true"*. That

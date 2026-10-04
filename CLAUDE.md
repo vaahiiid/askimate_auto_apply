@@ -204,3 +204,32 @@ because it gets quoted."**
 So: a number goes into a record with the method that produced it — the command, what it searched,
 what it could not see — and the method is checked before the number is quoted: run it against a
 case it must find, as P269's search was run against the sentences already known to be tested.
+
+### Second instance: a person retyping a read (2026-10-04)
+
+Added 2026-10-04 at the instruction of the message that stopped P283 before its signature. That
+message speaks of Vahid in the third person (*"Vahid sent the full list and I paraphrased it to
+you"*), so it is recorded here as that message's words, not as his.
+
+The first instance was a wrong grep. The second was a person passing a read on. Vahid's whole grade
+list for Islamic Azad University's system 6 reached the agent as *"every tenth from 0.0 to 20.0,
+value equals label"*. P283 built 201 rows from that sentence and put them in an entry for his
+signature. In the words of the message:
+
+> **"That I summarised a read rather than passing it through is my error, and it is exactly the
+> class CLAUDE.md now records … the first one was a wrong grep and this one was a human retyping —
+> different causes, same failure."**
+
+The same incident held two more of the same class:
+
+- **The correction was shortened too.** The list sent to correct the summary was six lines and
+  `[… through …]`, so it confirmed 5 of the 203 rows and no more.
+- **The record claimed more than it had.** P283's sheet said the rows rested on a description,
+  while the entry's own note said the list was "read".
+
+So:
+
+- A read reaches a record as its own output: the file the tool wrote, or the paste unedited.
+  Never retyped, never summarised. A list with an ellipsis in it is a description.
+- The record that carries rows built from a read says how many of them a passed-through line
+  confirms.
