@@ -204,13 +204,26 @@ async function resolve(argv: readonly string[]): Promise<void> {
   });
 
   const resolved = (body as { intervention?: OpenIntervention } | null)?.intervention;
+  // P288, row 135: the service re-plans at a resume before it tells the
+  // student anything. A run that stops again has a NEW intervention open
+  // already, and this says so rather than "it is moving".
+  const again =
+    values.abandon === true || resolved === undefined
+      ? undefined
+      : ((await call("/internal/v1/interventions")) as { interventions?: OpenIntervention[] } | null)?.interventions?.find(
+          (item) => item.runId === resolved.runId && item.interventionId !== resolved.interventionId,
+        );
   process.stdout.write(
     `Recorded against ${resolved?.interventionId ?? id}.\n\n` +
       (values.abandon === true
         ? "The run is abandoned. The student has NOT been told it is moving again, because it\nis not.\n"
-        : "The run is back in the pool, and the student has been told. It picks up from where\n" +
-          "the intent ledger says it got to — not from the beginning, and not from anything\n" +
-          "you just typed: a resolution carries no position (ADR-0048 §5).\n"),
+        : again !== undefined
+          ? `The run re-planned and stopped again at once: ${again.interventionId} is open for it\n` +
+            `(${again.target}). The student was told once that someone looked and it still cannot\n` +
+            "go on — not that it is moving.\n"
+          : "The run is back in the pool, and the student has been told it is moving again. It picks\n" +
+            "up from where the intent ledger says it got to — not from the beginning, and not from\n" +
+            "anything you just typed: a resolution carries no position (ADR-0048 §5).\n"),
   );
 }
 

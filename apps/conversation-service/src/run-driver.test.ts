@@ -6952,6 +6952,284 @@ describeIfDatabase("a run stopped on values the form will not take tells the stu
   }, 300_000);
 });
 
+/**
+ * P288, rows 134 and 135: the trap Vahid's profile met, on the fixture's
+ * fields. A typeahead whose entries are keyed on the address's town — the
+ * student's words — holds "Tehran" AND "Tehran North"; a rule elsewhere has a
+ * case for "Tehran North" only. A student who wrote "Tehran" meaning "Tehran
+ * North" would have the run choose the "Tehran" entry, and the only thing
+ * stopping it is the missing rule. His Sheffield case — "Azad University"
+ * (UNI6950) for Islamic Azad University (UNI30764) — in the fixture's shape.
+ */
+const EXACT_ENTRY_TRAP: CatalogueEntry = {
+  ...ENTRY,
+  blueprint: {
+    ...ENTRY.blueprint,
+    pages: ENTRY.blueprint.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) =>
+          field.fieldRef === "nationality"
+            ? {
+                ...field,
+                inputType: "typeahead" as const,
+                typeahead: { optionLocator: { strategy: "css" as const, value: "#nationalityOptions [role=option]" } },
+                options: [
+                  { value: "THR", label: "Tehran" },
+                  { value: "THN", label: "Tehran North" },
+                ],
+              }
+            : field,
+        ),
+      })),
+    })),
+  },
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.fieldRef === "nationality"
+        ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "contact.address" as const, format: { kind: "part" as const, path: "city", then: { kind: "option" as const, options: { Tehran: "THR", "Tehran North": "THN" } } } } }
+        : mapping.fieldRef === "personal_statement"
+          ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "contact.address" as const, format: { kind: "part" as const, path: "countryCode", then: { kind: "option" as const, options: { GB: "United Kingdom" } } } } }
+          : mapping.fieldRef === "email"
+            ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "contact.address" as const, format: { kind: "switch" as const, path: "city", cases: { "Tehran North": { kind: "part" as const, path: "postalCode" } } } } }
+            : mapping,
+    ),
+  },
+};
+
+describeIfDatabase("a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-04: *"a confirmed value should be correctable by asking,
+  // the same way a deletion is asked for, with the correction played back
+  // and confirmed like any other."* And of the stop: *"It names the thing,
+  // states the doubt, and offers the route — all three."* And of the resume:
+  // *"'nothing will be repeated' when the run is about to stop again: fix
+  // that with it."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX28801";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let owner = "";
+  let runId = "";
+
+  async function assistantSaid(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function openFor(): Promise<readonly StoredIntervention[]> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      return (await instance.driver.openInterventions()).filter((item) => item.runId === runId);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function resolve(): Promise<void> {
+    const held = (await openFor())[0];
+    if (held === undefined) expect.unreachable("an intervention is open");
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: held.interventionId,
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the plan.", resolution: "Re-plan on the profile as it stands.", resolvedAt: NOW, outcome: "resume" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "p288" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function town(): Promise<{ city: string; revision: number }> {
+    const row = await pool.query<{ value: { city: string }; revision: number }>(
+      "SELECT value, revision FROM profile_entries WHERE student_id = $1 AND field_key = 'contact.address'",
+      [owner],
+    );
+    return { city: row.rows[0]?.value.city ?? "", revision: row.rows[0]?.revision ?? 0 };
+  }
+  async function status(): Promise<string> {
+    const row = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    return row.rows[0]?.status ?? "";
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles, owner);
+      // The first line names the same district the town will be corrected to,
+      // so two answers come to hold the same words (the ambiguity test below).
+      await confirmInto(profiles, "contact.address", { line1: "Tehran North", city: "Tehran", postalCode: "1966", countryCode: "GB" }, "Tehran North, Tehran 1966", owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      let reached = "";
+      for (let round = 0; round < 3 && reached !== "escalated"; round += 1) {
+        const moved = await instance.driver.advance({ runId, conversationId: conversation });
+        reached = moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`;
+      }
+      expect(reached, "stopped for a person").toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("row 134: names the entry whose exact text the value is, states the doubt and offers the route — never 'ours to add' for it", async () => {
+    const said = await assistantSaid();
+    expect(said.at(-1)).toBe(
+      "I have had to pass your Example University application to a member of the team, because their form will not take some of your details as they are. " +
+        'Their list has an entry called exactly "Tehran". If that is not your town, tell me and I will change it. ' +
+        "Nothing you have given me is lost, and nothing has been submitted.",
+    );
+    expect(said.join("\n"), "the rule that would type the wrong entry is never invited").not.toContain("ours to add");
+  }, 300_000);
+
+  it("row 135: a resolution that re-plans into the same stop says ONE thing — someone looked, it still cannot go on — and never 'moving again'", async () => {
+    const before = (await assistantSaid()).length;
+    const first = (await openFor())[0]?.interventionId;
+    await resolve();
+    const after = (await assistantSaid()).slice(before);
+    expect(after).toEqual([
+      "Someone on the team has looked at your Example University application, but it still cannot go on, because their form will not take some of your details as they are. " +
+        'Their list has an entry called exactly "Tehran". If that is not your town, tell me and I will change it. ' +
+        "Nothing you have given me is lost, and nothing has been submitted.",
+    ]);
+    expect(await status(), "held again, at once").toBe("escalated");
+    const open = await openFor();
+    expect(open, "a NEW intervention for the new stop (blocker 48)").toHaveLength(1);
+    expect(open[0]?.interventionId).not.toBe(first);
+  }, 300_000);
+
+  it("asks back, and changes nothing, for a correction it cannot place", async () => {
+    const before = (await assistantSaid()).length;
+    await say("my town is wrong");
+    await say("my town is Shiraz, not Isfahan");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      'To change an answer you have already confirmed, tell me what it says now and what it should say, in one sentence — for example: "my institution is X, not Y". Nothing has been changed.',
+      'None of the answers you have confirmed says "Isfahan", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: "my institution is X, not Y".',
+    ]);
+    expect(await town()).toEqual({ city: "Tehran", revision: 1 });
+  }, 300_000);
+
+  it("plays the correction back, and a 'leave it' withdraws it with the answer as it was confirmed", async () => {
+    const before = (await assistantSaid()).length;
+    await say("my town is Tehran North, not Tehran");
+    const shown = (await assistantSaid()).slice(before);
+    expect(shown[0]).toBe('You asked me to change the town in your home address from "Tehran" to "Tehran North". Here it is as I would record it — nothing changes until you say it is right.');
+    expect(shown.slice(1).join("\n"), "the whole answer played back, with the new town").toContain("Tehran North");
+    expect(await town(), "nothing changes before the press").toEqual({ city: "Tehran", revision: 1 });
+
+    await say("leave it");
+    expect((await assistantSaid()).at(-1)).toBe('Nothing is changed: the town in your home address stays "Tehran", as you confirmed it.');
+    expect(await town()).toEqual({ city: "Tehran", revision: 1 });
+  }, 300_000);
+
+  it("the press confirms it: a revision on, said back — and the person's resolution re-plans on it, so the run moves and is told so", async () => {
+    await say("my town is Tehran North, not Tehran");
+    const proposals = await pool.query<{ playback_hash: string }>(
+      `SELECT playback_hash FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_proposed' ORDER BY ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      const agreed = await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: proposals.rows[0]!.playback_hash } });
+      expect(agreed).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await town()).toEqual({ city: "Tehran North", revision: 2 });
+    expect((await assistantSaid()).at(-1)).toBe(
+      'Changed: the town in your home address is now "Tehran North". Your application is with a person on the team, and when they look at it again it will be with this answer.',
+    );
+
+    // The promise just made: the person's resolution re-plans on the answer
+    // as it is now. The town no longer stops anything — the trap is gone —
+    // and what stops this fixture next is its own: it requires a passport
+    // nobody uploaded, so it can never reach the preview (`ENTRY`'s note).
+    // Said ONCE, as "still cannot go on", and never "moving again" — the
+    // moving path is the P257 group's, which resolves a run that does move.
+    const before = (await assistantSaid()).length;
+    await resolve();
+    const after = (await assistantSaid()).slice(before);
+    expect(after).toEqual([
+      "Someone on the team has looked at your Example University application, but it still cannot go on on its own, so it is back with them. Nothing you have given me is lost, and nothing has been submitted.",
+    ]);
+    expect(after.join(" "), "the town stops nothing now").not.toContain("Tehran");
+    expect((await openFor()).map((item) => item.escalation.checkpoint.target)).toEqual(["specialist:preview_refused"]);
+    expect(await status()).toBe("escalated");
+  }, 300_000);
+
+  it("words held by two answers are asked about, never chosen between — and the one then named is the one played back", async () => {
+    // The town is now "Tehran North", and so is the first line of the address.
+    const before = (await assistantSaid()).length;
+    await say("it is Tehran, not Tehran North");
+    const asked = (await assistantSaid()).slice(before);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('"Tehran North" is in more than one of your answers: ');
+    expect(asked[0]).toContain("the town in your home address");
+    expect(asked[0]).toContain("Nothing has been changed. Say it again naming which one, and I will change that one.");
+    expect(await town()).toEqual({ city: "Tehran North", revision: 2 });
+
+    // The promise: named, it is that one that is played back.
+    await say("my town is Tehran, not Tehran North");
+    expect((await assistantSaid()).find((line, index) => index >= before + 1 && line.startsWith("You asked me to change"))).toBe(
+      'You asked me to change the town in your home address from "Tehran North" to "Tehran". Here it is as I would record it — nothing changes until you say it is right.',
+    );
+    await say("leave it");
+    expect(await town()).toEqual({ city: "Tehran North", revision: 2 });
+  }, 300_000);
+
+  it("after a page is saved, goes to a person, says what the university already holds, and holds the run — the confirmed answer unchanged", async () => {
+    const page = EXACT_ENTRY_TRAP.blueprint.pages.find((candidate) => candidate.sections.some((section) => section.fields.some((field) => field.fieldRef === "nationality")));
+    if (page === undefined) expect.unreachable("the fixture's page");
+    const target = `${page.pageRef}@sha256:${"0".repeat(64)}`;
+    const store = new PostgresWorkflowRunStore(pool);
+    const key = idempotencyKeyFor({ runId: makeRunId(runId), action: "advance_portal_page", target });
+    await store.recordIntent(makeRunId(runId), { idempotencyKey: key, action: "advance_portal_page", target, startedAt: NOW });
+    await store.completeIntent(makeRunId(runId), key, "succeeded", NOW);
+
+    const before = (await assistantSaid()).length;
+    await say("my town is Tehran, not Tehran North");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      "I cannot change the town in your home address here any more: filling in your application on Example University's form has begun, and an answer is changed after that by a person, not by me. " +
+        `Example University already holds "Tehran North" as the town in your home address, on the page "${page.title}" that I saved, and that is what they have until a person changes it there. ` +
+        'I have stopped your application and passed your correction to a person on the team, in your words: "my town is Tehran, not Tehran North". ' +
+        "Nothing more will be filled in until a person has looked at it.",
+    ]);
+    expect(await town(), "not changed here").toEqual({ city: "Tehran North", revision: 2 });
+    expect(await status(), "held: nothing more is filled in").toBe("escalated");
+    const open = await openFor();
+    expect(open.map((item) => item.escalation.checkpoint.target).sort()).toEqual(["correction:contact.address", "specialist:preview_refused"]);
+    // Nothing advances an escalated run: the promise kept by the work queue.
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      expect((await instance.driver.dueRuns()).map((due) => due.runId)).not.toContain(runId);
+    } finally {
+      await instance.pool.end();
+    }
+
+    // Said again while it is with a person: told so, nothing raised twice.
+    await say("my town is Tehran, not Tehran North");
+    expect((await assistantSaid()).at(-1)).toBe("Your correction to the town in your home address is already with a person on the team, and nothing more will be filled in until they have looked at it.");
+    expect((await openFor()).filter((item) => item.escalation.checkpoint.target === "correction:contact.address")).toHaveLength(1);
+    void caseRef;
+  }, 300_000);
+});
+
 describeIfDatabase("an application a person abandons before any account exists is closed at once, and the student is told so (P278, row 129)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // The other half of row 129. An abandon winds the case down as a stop does;

@@ -143,4 +143,7 @@ Promises written after P269's measurement, each shipped with its assertion. RDT 
 | P1 | run-driver.ts, `#passTheDetailsToAPerson` (P275) | *"I will tell you here when it is done."* | RDT:14868 (a person closes it; the student is told, once), :14928 (a refusal, with the person's reason) |
 | P2 | run-driver.ts, the everything question (P275) | *"I hold a passport, which I can delete myself, now."* | RDT:14887 (*both* deletes the documents at once) |
 | P3 | run-driver.ts, `blockedByTheFormMessage` (P279) | *"…which one it is is yours to say, and I will not choose it for you."* | RDT, the P279 describe: the run stops `escalated` and the whole message is asserted; nothing is typed, because the plan refused (`format.test.ts`, *REFUSES an unmapped value rather than choosing the closest option*) |
-
+| P4 | run-driver.ts, `blockedByTheFormMessage` (P288) | *"Their list has an entry called exactly 'X'. If that is not where you studied, tell me and I will change it."* | RDT, the P288 describe: the sentence asserted whole; then *"my town is Tehran North, not Tehran"* is played back, confirmed, and stored a revision on |
+| P5 | run-driver.ts, `correctionAmbiguous` (P288) | *"Say it again naming which one, and I will change that one."* | RDT, the P288 describe: named, that one is played back |
+| P6 | run-driver.ts, `correctionDone` (P288) | *"…when they look at it again it will be with this answer."* | RDT, the P288 describe: the person's resolution re-plans on the corrected answer, and the town stops nothing |
+| P7 | run-driver.ts, `#correctionToAPerson` (P288) | *"Nothing more will be filled in until a person has looked at it."* | RDT, the P288 describe: the run `escalated`, and `dueRuns` does not offer it |

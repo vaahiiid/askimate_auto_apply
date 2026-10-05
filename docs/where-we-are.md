@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P288 — an answer the student can take back
+
+*2026-10-05.* A confirmation was meant to be the student's authorship of a value, and it could
+not be revised: in his words, a trap that looks like consent. Now it can be, by asking — the
+answer named as it stands and as it should be, played back whole, confirmed by the same press
+as any other. It reaches as far as nothing has been saved on the portal; after that a person
+has it, and the student is told what the university already holds. The stop that invited the
+one rule that would have put another university on his application now names the entry, states
+the doubt and offers the route; and a resume no longer says it is moving a moment before it stops.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P287 — a value a student cannot take back
 
 *2026-10-04.* He decided three days ago that his Master's was at Islamic Azad University, and

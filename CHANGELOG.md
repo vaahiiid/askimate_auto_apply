@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.281.0] — 2026-10-05
+
+**P288 — a confirmed answer can be corrected by asking (ADR-0154).**
+
+- **Added** `correction-requests.ts`: a deterministic reader of a correction that names both the
+  answer as it stands and what it should be; the driver finds the answer by its own words, plays
+  the correction back and stores it on the ordinary press, a revision on. Before any page is saved;
+  after that, to a person, with the run held (row 136).
+- **Changed** the stop's rule sentence: a value that is the exact text of an entry the run would
+  choose is named and the route offered, never offered as a rule to add (row 134).
+- **Changed** a resume re-plans before it speaks: a run that stops again says once that someone
+  looked and it still cannot go on (row 135); `pnpm run interventions resolve` says which.
+- **Added** ADR-0154.
+
+---
+
 ## [0.280.0] — 2026-10-04
 
 **P287 — row 134's trap held; the correction route decided, shape first.**

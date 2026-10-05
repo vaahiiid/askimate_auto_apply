@@ -134,6 +134,7 @@ import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mappi
 import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import { readDeletionRequest, readStudentMessage, readUseRequest, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
+import { namedPlace, placesHolding, readCorrectionRequest, type CorrectionTarget } from "./correction-requests.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
@@ -188,7 +189,7 @@ import type {
   RunStep,
   PageAttachment,
 } from "@askimate/aas-orchestrator";
-import { FIELD_LABELS, isFinancialField, partLabel, resolveField } from "@askimate/aas-profile";
+import { FIELD_LABELS, isClosedVocabulary, isFinancialField, partLabel, resolveField } from "@askimate/aas-profile";
 import type {
   ConfirmedProfile,
   ConfirmedProfileStore,
@@ -1278,7 +1279,14 @@ function reviewMessage(entry: CatalogueEntry): string {
  * the orchestrator's published `RunStep` — and the specialist, who can act on
  * it, already has it in `encountered`. Recorded in ADR-0065 rather than done.
  */
-function specialistMessage(entry: CatalogueEntry): string {
+function specialistMessage(entry: CatalogueEntry, afterResolution = false): string {
+  // P288, row 135: said after a person resolved a stop and the re-plan stopped again.
+  if (afterResolution) {
+    return (
+      `Someone on the team has looked at your ${entry.blueprint.institutionName} application, but it still cannot go on ` +
+      `on its own, so it is back with them. Nothing you have given me is lost, and nothing has been submitted.`
+    );
+  }
   return (
     `I have had to pass your ${entry.blueprint.institutionName} application to a member of the ` +
     `team. There is something about it I cannot complete on my own, and I would rather a person ` +
@@ -1314,7 +1322,22 @@ function specialistMessage(entry: CatalogueEntry): string {
  * Every value is the student's own answer, read back to them; nothing of the
  * mapping, no box reference, no rule text.
  */
-function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillBlocker[]): string | null {
+function blockedByTheFormMessage(
+  entry: CatalogueEntry,
+  blockers: readonly FillBlocker[],
+  context: {
+    /** P288, row 135: said after a person resolved the stop and the re-plan stopped again. */
+    readonly afterResolution?: boolean;
+    /**
+     * P288, row 134: values a rule is missing for that are themselves the
+     * exact text of an entry the run would otherwise choose, each with the
+     * student's word for the part it is.
+     */
+    readonly exactEntries?: ReadonlyMap<string, string>;
+    /** Whether a page is already saved, after which a correction goes to a person (ADR-0154). */
+    readonly anySaved?: boolean;
+  } = {},
+): string | null {
   const refused = blockers.flatMap((blocker) =>
     blocker.kind === "render_refused" && (blocker.refusal.kind === "no_matching_option" || blocker.refusal.kind === "no_matching_case")
       ? [{ blocker, refusal: blocker.refusal }]
@@ -1336,9 +1359,13 @@ function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillB
   const escapes = new Map<string, { readonly label: string; readonly about: string }>();
   const fieldOf = (fieldRef: string): BlueprintField | undefined =>
     entry.blueprint.pages.flatMap((page) => page.sections.flatMap((section) => section.fields)).find((field) => field.fieldRef === fieldRef);
-  // Our missing rules: the form's labels, and the values they were met for.
+  // Our missing rules: the form's labels, and the values they were met for —
+  // save a value that is an entry's exact text (P288, row 134), which is
+  // said as what it is rather than as a rule for us to add.
+  const exactEntries = context.exactEntries ?? new Map<string, string>();
   const ruleLabels = new Set<string>();
   const ruleValues = new Set<string>();
+  const exactSaid = new Map<string, string>();
   for (const { blocker, refusal } of refused) {
     if (refusal.kind === "no_matching_option") {
       const word =
@@ -1356,13 +1383,21 @@ function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillB
         });
       }
     } else {
-      ruleLabels.add(said(blocker.label));
-      ruleValues.add(refusal.value);
+      const word = exactEntries.get(refusal.value);
+      if (word !== undefined) {
+        exactSaid.set(refusal.value, word);
+      } else {
+        ruleLabels.add(said(blocker.label));
+        ruleValues.add(refusal.value);
+      }
     }
   }
   const sentences: string[] = [
-    `I have had to pass your ${entry.blueprint.institutionName} application to a member of the team, ` +
-      `because their form will not take some of your details as they are.`,
+    context.afterResolution === true
+      ? `Someone on the team has looked at your ${entry.blueprint.institutionName} application, but it still cannot go on, ` +
+        `because their form will not take some of your details as they are.`
+      : `I have had to pass your ${entry.blueprint.institutionName} application to a member of the team, ` +
+        `because their form will not take some of your details as they are.`,
   ];
   for (const [word, values] of lists) {
     const are = values.size === 1 ? "is" : "are";
@@ -1396,6 +1431,22 @@ function blockedByTheFormMessage(entry: CatalogueEntry, blockers: readonly FillB
   if (ruleLabels.size > 0) {
     sentences.push(
       `I do not yet have a rule for how their form takes the ${andList([...ruleLabels])} for ${quoted(ruleValues)}; that is ours to add.`,
+    );
+  }
+  // P288, row 134. Vahid: *"A sentence that names a missing rule should not
+  // be read as an instruction to add it when the value the rule would serve
+  // is in doubt."* A value that is an entry's exact text may be the student's
+  // shorthand for another entry; the rule it lacks would make the run choose
+  // that entry. So it is named, the doubt stated, the route offered — never
+  // offered as ours to add. His words: *"It names the thing, states the
+  // doubt, and offers the route — all three."*
+  for (const [value, word] of exactSaid) {
+    const yours = word === "institution" ? "where you studied" : `your ${word}`;
+    // After a page is saved a correction goes to a person (ADR-0154 §2), so
+    // no change is promised here: "tell me" and nothing more.
+    sentences.push(
+      `Their list has an entry called exactly "${value}". If that is not ${yours}, tell me` +
+        (context.anySaved === true ? `.` : ` and I will change it.`),
     );
   }
   if (structural.length > refused.length) sentences.push("There is also something else about it that a person needs to look at.");
@@ -2012,7 +2063,10 @@ export function openOffer(
  */
 export function rejectedFrom(events: readonly ConversationEvent[]): ReadonlySet<ProfileFieldKey> {
   const rejected = new Set<ProfileFieldKey>();
+  // P288: a withdrawn correction set nothing aside; the confirmed answer stands.
+  const withdrawn = withdrawnCorrections(events);
   for (const event of events) {
+    if (withdrawn.has(event)) continue;
     if (event.kind === "value_rejected") rejected.add(event.fieldKey as ProfileFieldKey);
     // A part read after the rejection means the rejection became a walk — an
     // entry of a list being asked for again (P230). The field is not "set
@@ -2339,7 +2393,10 @@ function attemptsFrom(events: readonly ConversationEvent[]): ReadonlyMap<Profile
  */
 function failedAnswersFrom(events: readonly ConversationEvent[]): ReadonlyMap<ProfileFieldKey, number> {
   const failed = new Map<ProfileFieldKey, number>();
+  // P288: a withdrawn correction left a confirmed answer as it was; it is not a failed answer.
+  const withdrawn = withdrawnCorrections(events);
   for (const event of events) {
+    if (withdrawn.has(event)) continue;
     if (event.kind === "answer_unread" || event.kind === "value_rejected") {
       const field = event.fieldKey as ProfileFieldKey;
       failed.set(field, (failed.get(field) ?? 0) + 1);
@@ -2413,6 +2470,148 @@ function pageOf(target: string): string {
  */
 function hashOfText(text: string): string {
   return `sha256:${createHash("sha256").update(text).digest("hex")}`;
+}
+
+/**
+ * The values a missing rule was met for that are themselves the exact text of
+ * an entry the plan chose (P288, row 134), each with the student's word for
+ * the part that holds it. Vahid: *"whenever a value a rule is missing for is
+ * itself the exact text of an entry the run would otherwise choose, say so.
+ * That is the shape of the trap, not its instance."*
+ */
+function exactEntriesOf(entry: CatalogueEntry, plan: MappedFillPlan, profile: RunState["profile"]): ReadonlyMap<string, string> {
+  const missing = new Set(
+    plan.blockers.flatMap((blocker) => (blocker.kind === "render_refused" && blocker.refusal.kind === "no_matching_case" ? [blocker.refusal.value] : [])),
+  );
+  if (missing.size === 0) return new Map();
+  const fields = new Map(entry.blueprint.pages.flatMap((page) => page.sections.flatMap((section) => section.fields)).map((field) => [field.fieldRef, field]));
+  const chosen = new Set<string>();
+  for (const instruction of plan.instructions) {
+    const typed = textOf(instruction.value);
+    const label = instruction.typeahead?.text ?? fields.get(instruction.fieldRef)?.options?.find((option) => option.value === typed)?.label;
+    if (label !== undefined) chosen.add(label);
+  }
+  const confirmed = new Map<string, unknown>([...profile.entries].map(([key, held]) => [key, unwrapConfirmed(held.value)]));
+  const found = new Map<string, string>();
+  for (const value of missing) {
+    if (!chosen.has(value)) continue;
+    const place = placesHolding(confirmed, value)[0];
+    const key = place?.fieldKey as ProfileFieldKey | undefined;
+    const word = place === undefined || key === undefined ? "answer" : place.part === undefined ? FIELD_LABELS[key].toLowerCase() : (partLabel(key, place.part) ?? place.part);
+    found.set(value, word);
+  }
+  return found;
+}
+
+// ── Correcting a confirmed answer by asking (P288, ADR-0154) ─────────────
+//
+// Vahid, 2026-10-04: *"a confirmation is meant to be the student's
+// authorship of a value, and authorship that cannot be revised is not
+// authorship — it is a trap that looks like consent."* The correction is put
+// as an ordinary proposal and confirmed by the ordinary press; these words
+// open its playback, and the log knows a playback is a correction by them —
+// no new kind of event, and so no second writer of the profile.
+
+/** The opening words of a correction's playback. */
+const CORRECTION_OPENING = "You asked me to change";
+
+/** Which answer a correction changes, in the words the interview uses for it. */
+function correctionWhere(target: CorrectionTarget): string {
+  const key = target.fieldKey as ProfileFieldKey;
+  const field = FIELD_LABELS[key].toLowerCase();
+  const word = target.part === undefined ? null : (partLabel(key, target.part) ?? target.part);
+  const spec = FIELD_SPECS[key] as FieldSpec<unknown> | undefined;
+  if (target.item !== undefined && spec !== undefined && isList(spec)) return `the ${word ?? "answer"} of your ${spec.itemLabel} ${String(target.item + 1)}`;
+  if (word !== null) return `the ${word} in your ${field}`;
+  return `your ${field}`;
+}
+
+function correctionOpening(where: string, from: string, to: string): string {
+  return `${CORRECTION_OPENING} ${where} from "${from}" to "${to}". Here it is as I would record it — nothing changes until you say it is right.`;
+}
+
+const CORRECTION_READ = /^You asked me to change (.+) from "(.*)" to "(.*)"\. Here it is as I would record it/su;
+
+/**
+ * The correction the open proposal is, or `null` when it is not one: the
+ * first thing said after the student's last message, before the proposal,
+ * opened with `CORRECTION_OPENING`. Read from the log, never stored.
+ */
+export function openCorrection(events: readonly ConversationEvent[]): { readonly fieldKey: string; readonly where: string; readonly from: string; readonly to: string } | null {
+  let at = -1;
+  events.forEach((event, index) => {
+    if (event.kind === "value_proposed") at = index;
+    else if (event.kind === "value_confirmed" || event.kind === "value_rejected") at = -1;
+  });
+  if (at < 0) return null;
+  const proposal = events[at];
+  if (proposal?.kind !== "value_proposed") return null;
+  let opening: string | null = null;
+  for (let index = at - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.kind !== "message") continue;
+    if (event.actor === "student") break;
+    if (event.actor === "assistant" && (event.content ?? "").startsWith(CORRECTION_OPENING)) opening = event.content ?? null;
+  }
+  const read = opening === null ? null : CORRECTION_READ.exec(opening);
+  if (read === null) return null;
+  return { fieldKey: proposal.fieldKey, where: read[1] ?? "", from: read[2] ?? "", to: read[3] ?? "" };
+}
+
+/**
+ * The `value_rejected` events that withdrew a correction (P288). A withdrawn
+ * correction is not a failed answer and not a reading set aside: the answer
+ * it would have changed stands, confirmed, as it was.
+ */
+function withdrawnCorrections(events: readonly ConversationEvent[]): ReadonlySet<ConversationEvent> {
+  const withdrawn = new Set<ConversationEvent>();
+  let opened = false;
+  let correcting = false;
+  for (const event of events) {
+    if (event.kind === "message" && event.actor === "assistant" && (event.content ?? "").startsWith(CORRECTION_OPENING)) opened = true;
+    else if (event.kind === "message" && event.actor === "student") opened = false;
+    else if (event.kind === "value_proposed") {
+      correcting = opened;
+      opened = false;
+    } else if (event.kind === "value_rejected") {
+      if (correcting) withdrawn.add(event);
+      correcting = false;
+    } else if (event.kind === "value_confirmed") correcting = false;
+  }
+  return withdrawn;
+}
+
+/** A plain "leave it" to a correction's playback (P288). */
+const LEAVE_IT = /^\s*(?:no|nope|leave it|keep it|cancel|never ?mind|don'?t change (?:it|anything)|no,? (?:leave|keep) it(?: as it (?:is|was))?)\b/i;
+
+const CORRECTION_UNCLEAR =
+  `To change an answer you have already confirmed, tell me what it says now and what it should say, in one sentence — ` +
+  `for example: "my institution is X, not Y". Nothing has been changed.`;
+
+function correctionNotFound(from: string): string {
+  return (
+    `None of the answers you have confirmed says "${from}", so nothing has been changed. ` +
+    `Tell me the answer exactly as you gave it and what it should be — for example: "my institution is X, not Y".`
+  );
+}
+
+function correctionAmbiguous(from: string, places: readonly string[]): string {
+  return `"${from}" is in more than one of your answers: ${andList(places)}. Nothing has been changed. Say it again naming which one, and I will change that one.`;
+}
+
+function correctionFixedList(where: string): string {
+  return `${where.charAt(0).toUpperCase()}${where.slice(1)} was chosen from a fixed set of answers, and I cannot change it from your words here. Nothing has been changed.`;
+}
+
+function correctionWithdrawn(where: string, from: string): string {
+  return `Nothing is changed: ${where} stays "${from}", as you confirmed it.`;
+}
+
+function correctionDone(where: string, to: string, held: boolean): string {
+  return (
+    `Changed: ${where} is now "${to}".` +
+    (held ? " Your application is with a person on the team, and when they look at it again it will be with this answer." : "")
+  );
 }
 
 /** What the student is told when it moves again. */
@@ -5266,11 +5465,21 @@ export class RunDriver {
     if (outcome.kind !== "confirmed") return { ok: false, reason: "refused" };
 
     const fieldKey = open.fieldKey as ProfileFieldKey;
+    const correction = openCorrection(events);
     await this.#persist(outcome.state, fieldKey);
     await this.#options.conversations.append({
       conversationId,
       event: { kind: "value_confirmed", fieldKey, playbackHash: open.playbackHash },
     });
+    // P288: a correction confirmed says what changed, and — for a run held
+    // for a person — that the person sees it as it is now, which
+    // `resolveIntervention`'s re-plan makes true.
+    if (correction !== null) {
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content: correctionDone(correction.where, correction.to, await this.#heldForAPerson(conversationId)) },
+      });
+    }
     // The field is settled, so the interview wants the next one. Asked here
     // rather than left to the next advance, because a client that has just
     // confirmed a reading does not advance the run — it re-READS it (ADR-0060),
@@ -5474,6 +5683,14 @@ export class RunDriver {
     // at any time gets the honest answer for where the CV is (ADR-0151).
     if (await this.#answeredTheDocumentQuestionInWords(input.conversationId, answer)) return;
 
+    // ── A correction to an answer already confirmed (P288, ADR-0154) ─────
+    //
+    // Vahid, 2026-10-04: *"a student who realises later that they named the
+    // wrong institution has no route at all."* Read before the interview, as
+    // a deletion is, and only while no playback is open: a playback has its
+    // own correction, below.
+    if (await this.#correctedAtRequest(input.conversationId, answer)) return;
+
     const situated = await this.#interviewSituation(input.conversationId);
     if (situated === null) return;
     const now = this.#options.now();
@@ -5486,6 +5703,9 @@ export class RunDriver {
     // confirmation of something else.
     const open = openProposal(await this.#options.conversations.since(input.conversationId, 0));
     if (open !== null) {
+      // A correction's playback (P288): a plain "leave it" withdraws it, and
+      // the answer stays as it was confirmed.
+      if (await this.#withdrewTheCorrection(input.conversationId, answer)) return;
       // A LIST is not thrown away on a typed "no" (P230, ADR-0148 §7): which
       // entry a sentence names is not ours to guess, so the entries stay on
       // offer as buttons and the student presses the one that is wrong.
@@ -5780,6 +6000,193 @@ export class RunDriver {
     if (choice === "details") await this.#deleteAtRequest(conversationId, { scope: "details" }, text);
     else await this.#deleteAtRequest(conversationId, { scope: "all" }, text, choice === "both");
     return true;
+  }
+
+  /**
+   * A correction to an answer already confirmed, asked for in words (P288,
+   * ADR-0154). Vahid, 2026-10-04: *"a confirmed value should be correctable
+   * by asking, the same way a deletion is asked for, with the correction
+   * played back and confirmed like any other."*
+   *
+   * The answer is found by its own words — the student names what it says
+   * now — never by a guess at which field a sentence is about; words found in
+   * more than one answer are asked about. The correction is put as an
+   * ordinary proposal, so the ordinary press confirms it and the ordinary
+   * writer stores it, a revision on; until then the confirmed answer stands.
+   *
+   * It reaches only as far as no page has been saved on the portal. Vahid:
+   * *"Do not reach further yet — going back to an earlier portal page is
+   * unmeasured."* After that it goes to a person (`#correctionToAPerson`).
+   *
+   * `false` when the message is not a correction this reads, so the
+   * interview answers it: a message that answers the open question is read
+   * as a correction only when it names an answer already confirmed.
+   */
+  async #correctedAtRequest(conversationId: string, text: StudentAnswer): Promise<boolean> {
+    const reading = readCorrectionRequest(text);
+    if (reading.kind === "not_a_request") return false;
+    const events = await this.#options.conversations.since(conversationId, 0);
+    if (openProposal(events) !== null) return false;
+    const answering = answeredQuestion(events) !== null;
+    const say = async (content: string): Promise<true> => {
+      await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+      return true;
+    };
+    if (reading.kind === "unclear") return answering ? false : await say(CORRECTION_UNCLEAR);
+
+    const situated = await this.#interviewSituation(conversationId);
+    if (situated === null) return false;
+    const profile = await this.#options.profiles.load(situated.record.studentRef, this.#options.now());
+    const confirmed = new Map<string, unknown>([...profile.entries].map(([key, held]) => [key, unwrapConfirmed(held.value)]));
+    const everywhere = placesHolding(confirmed, reading.from);
+    if (everywhere.length === 0) return answering ? false : await say(correctionNotFound(reading.from));
+    // A part chosen from a fixed set holds a token, not the student's words:
+    // words put in its place would be a value the set does not have.
+    const places = everywhere.filter((place) => !isClosedVocabulary(place.fieldKey as ProfileFieldKey, place.part));
+    const first = everywhere[0];
+    if (places.length === 0) return first === undefined ? false : await say(correctionFixedList(correctionWhere(first)));
+    const wordsFor = (target: CorrectionTarget): readonly string[] => [
+      FIELD_LABELS[target.fieldKey as ProfileFieldKey],
+      ...(target.part === undefined ? [] : [partLabel(target.fieldKey as ProfileFieldKey, target.part) ?? target.part]),
+    ];
+    const target = namedPlace(places, confirmed, reading.context, wordsFor);
+    if (target === null) return await say(correctionAmbiguous(reading.from, places.map(correctionWhere)));
+    const where = correctionWhere(target);
+
+    const saved = await this.#savedPages(situated.record.runId);
+    if (saved.size > 0) {
+      await this.#correctionToAPerson({ ...situated, conversationId, where, fieldKey: target.fieldKey, from: reading.from, to: reading.to, text, saved });
+      return true;
+    }
+
+    const current = confirmed.get(target.fieldKey);
+    const value =
+      target.item !== undefined && target.part !== undefined && Array.isArray(current)
+        ? (current as readonly unknown[]).map((held, index): unknown => (index === target.item ? { ...(held as Record<string, unknown>), [target.part ?? ""]: reading.to } : held))
+        : target.part !== undefined
+          ? { ...(current as Record<string, unknown>), [target.part]: reading.to }
+          : reading.to;
+    const pending = {
+      fieldKey: target.fieldKey as ProfileFieldKey,
+      proposed: proposeValue<unknown>({ value, origin: "conversation", verbatim: text, confidence: 1 }),
+      ...(target.item !== undefined && target.part !== undefined
+        ? { parts: [{ partKey: `item${String(target.item)}.${target.part}`, origin: "conversation" as const, verbatim: reading.to }] }
+        : {}),
+    };
+    await say(correctionOpening(where, reading.from, reading.to));
+    await this.#putToTheStudent(conversationId, { ...situated.state.interview, pending });
+    return true;
+  }
+
+  /** A plain "leave it" while a correction's playback is open (P288): withdrawn, nothing changed. */
+  async #withdrewTheCorrection(conversationId: string, answer: StudentAnswer): Promise<boolean> {
+    if (!LEAVE_IT.test(answer)) return false;
+    const correction = openCorrection(await this.#options.conversations.since(conversationId, 0));
+    if (correction === null) return false;
+    await this.#withdrawCorrection(conversationId, correction, "");
+    return true;
+  }
+
+  async #withdrawCorrection(conversationId: string, correction: { readonly fieldKey: string; readonly where: string; readonly from: string }, more: string): Promise<void> {
+    await this.#options.conversations.append({ conversationId, event: { kind: "value_rejected", fieldKey: correction.fieldKey } });
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: `${correctionWithdrawn(correction.where, correction.from)}${more}` },
+    });
+    await this.#askAfterWriting(conversationId);
+  }
+
+  /** The pages this run has saved on the portal: a succeeded `advance_portal_page`. */
+  async #savedPages(runId: RunId): Promise<ReadonlySet<string>> {
+    const saved = new Set<string>();
+    for (const record of await this.#options.stores.runs.listIntents(runId, "advance_portal_page")) {
+      if (record.completed?.outcome === "succeeded") saved.add(pageOf(record.intent.target));
+    }
+    return saved;
+  }
+
+  /** Whether this conversation's run is held for a person. */
+  async #heldForAPerson(conversationId: string): Promise<boolean> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null) return false;
+    const runs = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
+    return runs.some((run) => run.status === "escalated" || run.status === "uncertain");
+  }
+
+  /**
+   * A correction asked for after a page was saved on the portal (P288): to a
+   * person, and the run held until one has looked. Vahid: *"After that, the
+   * request goes to a person the way a deletion does, and the student is told
+   * plainly what has already reached the university and what that means."*
+   *
+   * The confirmed answer is NOT changed here. What it costs, in his words:
+   * *"a student who notices their mistake after the fill has begun has no
+   * route except a person, and if the page is saved the university already
+   * holds the wrong value. That is a real gap, not a tidy boundary."*
+   */
+  async #correctionToAPerson(input: {
+    readonly entry: CatalogueEntry;
+    readonly record: WorkflowRunRecord;
+    readonly conversationId: string;
+    readonly where: string;
+    readonly fieldKey: string;
+    readonly from: string;
+    readonly to: string;
+    readonly text: string;
+    readonly saved: ReadonlySet<string>;
+  }): Promise<void> {
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({ conversationId: input.conversationId, event: { kind: "message", actor: "assistant", content } });
+    };
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) {
+      await say(`Changing an answer once filling in your application has begun is done by a person, and I have no way to reach one from here, so nothing has been changed or passed on.`);
+      return;
+    }
+    const institution = input.entry.blueprint.institutionName;
+    const target = `correction:${input.fieldKey}`;
+    const open = await interventions.findForAction(input.record.runId, idempotencyKeyFor({ runId: input.record.runId, action: "advance_portal_page", target }));
+    if (open !== null && open.resolution === undefined) {
+      await say(`Your correction to ${input.where} is already with a person on the team, and nothing more will be filled in until they have looked at it.`);
+      return;
+    }
+    // Which saved pages hold the answer: the pages carrying a box the
+    // reviewed mapping fills from this field.
+    const boxes = new Set(input.entry.mappingSet.mappings.filter((mapping) => mapping.source.kind === "profile_field" && mapping.source.fieldKey === input.fieldKey).map((mapping) => mapping.fieldRef));
+    const holding = input.entry.blueprint.pages.filter(
+      (page) => input.saved.has(page.pageRef) && page.sections.some((section) => section.fields.some((field) => boxes.has(field.fieldRef))),
+    );
+    const titles = andList(holding.map((page) => `"${page.title}"`));
+    const holds =
+      holding.length > 0
+        ? `${institution} already holds "${input.from}" as ${input.where}, on ${holding.length === 1 ? "the page" : "the pages"} ${titles} that I saved, and that is what they have until a person changes it there.`
+        : `"${input.from}" is not on their form yet, but other pages of your application are.`;
+    const now = this.#options.now();
+    await this.#raiseForSpecialist({
+      entry: input.entry,
+      record: input.record,
+      conversationId: input.conversationId,
+      caseId: input.record.caseId,
+      priority: "high",
+      target,
+      encountered:
+        `The student asked to correct ${input.where} from "${input.from}" to "${input.to}" after filling had begun` +
+        `${holding.length > 0 ? `; the saved ${holding.length === 1 ? "page" : "pages"} holding it: ${titles}` : "; no saved page holds it yet"}. ` +
+        `Their words: "${input.text}".`,
+      expected:
+        `A person changes it on ${institution}'s form, or settles with the student that it stays, and resolves this. ` +
+        `The confirmed answer here is unchanged: a correction by asking reaches only as far as no page has been saved (ADR-0154).`,
+      message:
+        `I cannot change ${input.where} here any more: filling in your application on ${institution}'s form has begun, and an answer is changed after that by a person, not by me. ` +
+        `${holds} I have stopped your application and passed your correction to a person on the team, in your words: "${input.text}". ` +
+        `Nothing more will be filled in until a person has looked at it.`,
+      now,
+    });
+    // Held, so the promise just made is kept: nothing advances an escalated run.
+    const fresh = await this.#options.stores.runs.load(input.record.runId);
+    if (fresh !== null && (AUTOMATABLE_STATUSES as readonly string[]).includes(fresh.status)) {
+      await this.#options.stores.runs.saveCheckpoint({ runId: fresh.runId, checkpoint: fresh.checkpoint, expectedRevision: fresh.revision, status: "escalated" });
+    }
   }
 
   /** A plain yes straight after D31's offer: the details are meant (P275). */
@@ -6211,6 +6618,15 @@ export class RunDriver {
     const open = openProposal(events);
     if (open === null) return { ok: false, reason: "not_asked" };
     if (open.playbackHash !== decision.contentHash) return { ok: false, reason: "content_changed" };
+    // P288: an entry pressed as wrong on a CORRECTION's playback is the
+    // correction not being right. It is withdrawn — the confirmed answer
+    // stands — rather than the entry being walked again, which would ask for
+    // an answer the profile already holds.
+    const correction = openCorrection(events);
+    if (correction !== null) {
+      await this.#withdrawCorrection(conversationId, correction, " If something else in it is wrong, tell me what it says now and what it should say, in one sentence.");
+      return { ok: true };
+    }
     const fieldKey = open.fieldKey as ProfileFieldKey;
     const spec = FIELD_SPECS[fieldKey] as FieldSpec<unknown> | undefined;
     const entries = entriesOf(open);
@@ -6782,6 +7198,8 @@ export class RunDriver {
       readonly caseId: CaseId;
       readonly concerns: readonly ResumeConcern[];
       readonly resumed: boolean;
+      /** P288, row 135: this stop follows a person's resolution at once, and is said as that. */
+      readonly afterResolution?: boolean;
     },
     step: RunStep,
     now: Date,
@@ -6812,7 +7230,11 @@ export class RunDriver {
       message:
         content !== null
           ? contentRejectedMessage(input.entry)
-          : (blockedByTheFormMessage(input.entry, this.#planBlockers(input.entry, state)) ?? specialistMessage(input.entry)),
+          : (blockedByTheFormMessage(input.entry, this.#planBlockers(input.entry, state), {
+              afterResolution: input.afterResolution === true,
+              exactEntries: this.#exactEntries(input.entry, state),
+              anySaved: (await this.#savedPages(input.record.runId)).size > 0,
+            }) ?? specialistMessage(input.entry, input.afterResolution === true)),
       now,
     });
 
@@ -7351,6 +7773,28 @@ export class RunDriver {
     if (bound === null || bound.blueprintId === null) return;
     const entry = await this.#entryAdmitting(bound);
     if (entry === null) return;
+    // ── Re-planned before anything is said (P288, row 135) ─────────────
+    //
+    // Vahid: *"Row 135's resume message saying 'nothing will be repeated'
+    // when the run is about to stop again: fix that with it."* Until P288 the
+    // student was told it was moving again, and a moment later the worker's
+    // re-plan met the same blockers and said the stop: two messages, the
+    // first untrue. Now the step is derived here, from the profile as it
+    // stands; a run that would stop for a person again stops now, with ONE
+    // message that says someone looked and it still cannot go on. The stop
+    // is the same `#stopForSpecialist` every other path takes — a new
+    // intervention, as blocker 48 requires — and the worker's own pass finds
+    // it already raised and announced.
+    const situated = await this.#interviewSituation(conversationId);
+    if (situated !== null && situated.record.runId === held.runId && (specialistHandoverOf(situated.step) ?? contentHandoverOf(situated.step)) !== null) {
+      const stopped = await this.#stopForSpecialist(
+        { entry: situated.entry, record: situated.record, conversationId, caseId: situated.record.caseId, concerns: [], resumed: true, afterResolution: true },
+        situated.step,
+        this.#options.now(),
+        situated.state,
+      );
+      if (stopped !== null) return;
+    }
     await this.#options.conversations.append({
       conversationId,
       event: { kind: "message", actor: "assistant", content: resumeMessage(entry) },
@@ -7687,6 +8131,12 @@ export class RunDriver {
    * The same plan the orchestrator stopped on — `planFill` over the run's
    * profile — read for its words, not to decide anything.
    */
+  /** P288, row 134: the plan's values that are an entry's exact text while a rule for them is missing. */
+  #exactEntries(entry: CatalogueEntry, state: RunState): ReadonlyMap<string, string> {
+    const usable = checkUsable(entry.mappingSet, entry.blueprint);
+    return usable.usable ? exactEntriesOf(entry, planFill(entry.blueprint, usable.mappingSet, state.profile), state.profile) : new Map();
+  }
+
   #planBlockers(entry: CatalogueEntry, state: RunState): readonly FillBlocker[] {
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
     return usable.usable ? planFill(entry.blueprint, usable.mappingSet, state.profile).blockers : [];
