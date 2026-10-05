@@ -407,6 +407,37 @@ describe("a list is played back one entry per message, each part named with wher
     })),
   );
 
+  it("names a part's source on that part only — never on another part whose name merely begins the same way (P289)", () => {
+    // Vahid, 2026-10-05, after correcting his award title by asking (P288):
+    // *"Award: September 2020 (you said: "MSc"); … Award title: MSc (you
+    // said: "MSc") … The award DATE is September 2020 and I never said
+    // "MSc" about it. Its value is right; its provenance is wrong."* The part
+    // `awardTitle` was being read as one the field `award` was assembled from,
+    // because its key begins with `award`. A source is a record of who
+    // authored a value; it attaches to the part it was read for, and to a
+    // field assembled from parts only when those parts are not fields of
+    // their own.
+    const qualification = {
+      level: "Master's degree",
+      awardTitle: "MSc",
+      institution: "Islamic Azad University",
+      award: { year: 2020, month: 9 },
+      end: { kind: "completed", date: { year: 2020, month: 9 } },
+    };
+    const parts = [
+      { partKey: "item0.awardTitle", origin: "conversation" as const, verbatim: "MSc" },
+      // `end` IS assembled from `endKind` and `endDate`, which are not fields of the entry.
+      { partKey: "item0.endKind", origin: "conversation" as const, verbatim: "finished" },
+      { partKey: "item0.endDate", origin: "conversation" as const, verbatim: "Sep 2020" },
+    ];
+    const { messages } = renderListForConfirmation("education.prior_qualifications", [qualification], parts, "qualification", 8000);
+    const said = messages[0] ?? "";
+    expect(said).toContain('MSc (you said: "MSc")');
+    const award = said.split("; ").find((line) => line.startsWith("Award:")) ?? said.split("\n").find((line) => line.startsWith("Award:")) ?? "";
+    expect(award, "the award date is not credited with the award title's words").not.toContain('you said: "MSc"');
+    expect(said, "a field assembled from parts still names them").toContain('you said: "finished"');
+  });
+
   it("says each entry in its own message, under the entry's name, every part named, and the question last", () => {
     const { messages, text } = renderListForConfirmation("employment.history", jobs, parts, "job", 8000);
     expect(messages, "seven entries and the question").toHaveLength(8);

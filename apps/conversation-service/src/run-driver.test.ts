@@ -7133,6 +7133,19 @@ describeIfDatabase("a confirmed answer is corrected by asking, and the stop that
     expect(shown.slice(1).join("\n"), "the whole answer played back, with the new town").toContain("Tehran North");
     expect(await town(), "nothing changes before the press").toEqual({ city: "Tehran", revision: 1 });
 
+    // P289, Vahid: *"if a correction can confirm itself, that is worse than
+    // the label."* Nothing but the press confirms it: a typed "yes" is not the
+    // act the playback's hash binds, and changes nothing.
+    const confirmedBefore = await pool.query("SELECT 1 FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_confirmed'", [conversation]);
+    await say("yes");
+    expect(await town(), "a typed yes confirms nothing").toEqual({ city: "Tehran", revision: 1 });
+    expect((await assistantSaid()).some((line) => line.startsWith("Changed:")), "and nothing says it changed").toBe(false);
+    const confirmedAfter = await pool.query("SELECT 1 FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_confirmed'", [conversation]);
+    expect(confirmedAfter.rowCount, "no confirmation was written").toBe(confirmedBefore.rowCount);
+    expect((await assistantSaid()).at(-1), "told what each choice does, and the playback left open as it was").toBe(
+      'To keep this change, press "Yes, that\'s right". To leave your answer as it was, say "leave it". To change it to something else, say "leave it" first, then tell me what it should say. Nothing has been changed yet.',
+    );
+
     await say("leave it");
     expect((await assistantSaid()).at(-1)).toBe('Nothing is changed: the town in your home address stays "Tehran", as you confirmed it.');
     expect(await town()).toEqual({ city: "Tehran", revision: 1 });
@@ -7171,6 +7184,51 @@ describeIfDatabase("a confirmed answer is corrected by asking, and the stop that
     expect(after.join(" "), "the town stops nothing now").not.toContain("Tehran");
     expect((await openFor()).map((item) => item.escalation.checkpoint.target)).toEqual(["specialist:preview_refused"]);
     expect(await status()).toBe("escalated");
+  }, 300_000);
+
+  it("P289: a correction to one part of a list's entry credits the student's words to that part alone, and pressing the entry as wrong withdraws it", async () => {
+    // Vahid, 2026-10-05: *"Award: September 2020 (you said: "MSc") … The award
+    // DATE is September 2020 and I never said "MSc" about it."* His shape: a
+    // qualification with an award date, its award title corrected.
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      await confirmInto(
+        new PostgresConfirmedProfileStore(instance.pool),
+        "education.prior_qualifications",
+        [{
+          level: "Master's degree", awardTitle: "Master's in International Business", subject: "International Business", institution: "Islamic Azad University", countryCode: "IR",
+          start: { year: 2018, month: 9 }, end: { kind: "completed", date: { year: 2020, month: 9 } }, award: { year: 2020, month: 9 }, grade: "19.5", gradeScale: "twenty_point",
+        }],
+        "my Master's",
+        owner,
+      );
+    } finally {
+      await instance.pool.end();
+    }
+    const before = (await assistantSaid()).length;
+    await say("my award title is MSc, not Master's in International Business");
+    const shown = (await assistantSaid()).slice(before);
+    expect(shown[0]).toBe('You asked me to change the award title of your qualification 1 from "Master\'s in International Business" to "MSc". Here it is as I would record it — nothing changes until you say it is right.');
+    const entry = shown.find((line) => line.startsWith("Qualification 1 of 1")) ?? "";
+    expect(entry).toContain('MSc (you said: "MSc")');
+    expect(entry, "the award DATE is not credited with the award title's words").toContain("Award: September 2020;");
+    expect(entry.match(/you said: "MSc"/g), "the student's words on one part, once").toHaveLength(1);
+
+    const proposals = await pool.query<{ playback_hash: string }>(
+      `SELECT playback_hash FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_proposed' ORDER BY ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    const pressing = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      expect(await pressing.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "correct_entry", contentHash: proposals.rows[0]!.playback_hash, entry: 1 } })).toEqual({ ok: true });
+    } finally {
+      await pressing.pool.end();
+    }
+    expect((await assistantSaid()).at(-1)).toBe(
+      'Nothing is changed: the award title of your qualification 1 stays "Master\'s in International Business", as you confirmed it. If something else in it is wrong, tell me what it says now and what it should say, in one sentence.',
+    );
+    const held = await pool.query<{ revision: number }>("SELECT revision FROM profile_entries WHERE student_id = $1 AND field_key = 'education.prior_qualifications'", [owner]);
+    expect(held.rows[0]?.revision, "unchanged").toBe(1);
   }, 300_000);
 
   it("words held by two answers are asked about, never chosen between — and the one then named is the one played back", async () => {

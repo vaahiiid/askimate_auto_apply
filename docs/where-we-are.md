@@ -4906,6 +4906,19 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P289 — who said it
+
+*2026-10-05.* His corrected award title came back with his words beside the award date as well,
+because a rule meant for a field built from parts took a field of its own for one of them. Fixed,
+red first on his line. His sharper question — whether a correction could confirm itself — the
+code answers: only a signed-in press carrying the playback's own hash reaches the line that says
+*Changed*. Testing it found the one way typed words could still reach a correction's playback,
+and closed it: on a correction, only the press keeps it.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P288 — an answer the student can take back
 
 *2026-10-05.* A confirmation was meant to be the student's authorship of a value, and it could

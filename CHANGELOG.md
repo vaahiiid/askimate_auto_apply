@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.282.0] — 2026-10-05
+
+**P289 — a correction's words on its own part only; only the press confirms a correction.**
+
+- **Fixed** the list playback crediting a part's source to another part whose key it begins
+  (`awardTitle` to `award`): a part that is a field of the entry is never assembled into another.
+- **Fixed** a typed message on an open correction's playback reaching the interview's correction
+  path; it is now answered with one sentence, and only the press confirms.
+- **Recorded** ADR-0154 amended; row 137, a correction's stored source is the whole field's.
+
+---
+
 ## [0.281.0] — 2026-10-05
 
 **P288 — a confirmed answer can be corrected by asking (ADR-0154).**

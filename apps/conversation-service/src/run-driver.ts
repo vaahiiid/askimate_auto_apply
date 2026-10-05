@@ -2603,6 +2603,11 @@ function correctionFixedList(where: string): string {
   return `${where.charAt(0).toUpperCase()}${where.slice(1)} was chosen from a fixed set of answers, and I cannot change it from your words here. Nothing has been changed.`;
 }
 
+/** What a typed message on a correction's playback is answered with (P289): only the press keeps it. */
+const CORRECTION_PRESS_OR_LEAVE =
+  `To keep this change, press "Yes, that's right". To leave your answer as it was, say "leave it". ` +
+  `To change it to something else, say "leave it" first, then tell me what it should say. Nothing has been changed yet.`;
+
 function correctionWithdrawn(where: string, from: string): string {
   return `Nothing is changed: ${where} stays "${from}", as you confirmed it.`;
 }
@@ -5704,8 +5709,21 @@ export class RunDriver {
     const open = openProposal(await this.#options.conversations.since(input.conversationId, 0));
     if (open !== null) {
       // A correction's playback (P288): a plain "leave it" withdraws it, and
-      // the answer stays as it was confirmed.
+      // the answer stays as it was confirmed. P289: and nothing typed does
+      // anything else to it. Vahid: *"if a correction can confirm itself, that
+      // is worse than the label."* `#correct` takes typed words on an
+      // interview's playback as the student's own answer, and for a plain
+      // field stores them with no press; on a composite it re-plays the value
+      // without the correction's opening, so "leave it" no longer reads. A
+      // correction is confirmed by the press alone.
       if (await this.#withdrewTheCorrection(input.conversationId, answer)) return;
+      if (openCorrection(await this.#options.conversations.since(input.conversationId, 0)) !== null) {
+        await this.#options.conversations.append({
+          conversationId: input.conversationId,
+          event: { kind: "message", actor: "assistant", content: CORRECTION_PRESS_OR_LEAVE },
+        });
+        return;
+      }
       // A LIST is not thrown away on a typed "no" (P230, ADR-0148 §7): which
       // entry a sentence names is not ours to guess, so the entries stay on
       // offer as buttons and the student presses the one that is wrong.

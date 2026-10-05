@@ -286,7 +286,22 @@ export function renderListForConfirmation(
       const exact = parts.filter((part) => part.partKey === prefix);
       // `employer` must not collect `employerAddress`: the prefix rule applies
       // only to a field no part is named for, which is how `end` is assembled.
-      const matched = exact.length > 0 ? exact : parts.filter((part) => part.partKey.startsWith(prefix) && /^[A-Z]/.test(part.partKey.slice(prefix.length)));
+      //
+      // P289: and never to a part that is a field of the entry in its own
+      // right. `award` had no part of its own on a correction's playback, so
+      // the prefix rule took `awardTitle` as one it was assembled from, and the
+      // award DATE was said as the student's words for the award title — a
+      // source is who authored a value, and that one claimed something Vahid
+      // never said. `end` is assembled from `endKind` and `endDate`, which the
+      // entry does not hold; `awardTitle` the entry holds.
+      const fieldsOfEntry = new Set(Object.keys(entry ?? {}));
+      const matched =
+        exact.length > 0
+          ? exact
+          : parts.filter((part) => {
+              const rest = part.partKey.slice(prefix.length);
+              return part.partKey.startsWith(prefix) && /^[A-Z]/.test(rest) && !fieldsOfEntry.has(`${field}${rest}`);
+            });
       // A document's reading kept beside the answer that replaced it (P267),
       // `<part>OnCv`, is that part's other source.
       const sources = [...new Set([...matched, ...parts.filter((part) => matched.some((source) => part.partKey === `${source.partKey}OnCv`))])];

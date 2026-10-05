@@ -119,3 +119,24 @@ numbers are not text and are not found this way.
   - corrections of a fixed-set answer, a date or a number;
   - buttons for choosing between answers holding the same words: the student names them in a
     sentence instead.
+
+## Amended in P289 (2026-10-05)
+
+His report after correcting his own two answers:
+
+- **The playback credited his words to a second part.** It said *"Award: September 2020 (you said:
+  "MSc")"*. The playback's rule for a field assembled from parts (`end` from `endKind` and
+  `endDate`) took `awardTitle` as a part of `award`, because its key begins with it. Now a part
+  that is a field of the entry in its own right is never assembled into another.
+- **Only the press confirms a correction.** Until P289, a typed message on an open correction went
+  to the interview's `#correct`:
+  - on a plain field, typed words are stored as the answer with no press;
+  - on a composite, the value was re-played without the correction's opening, and *leave it*
+    stopped working.
+
+  Now a typed message on a correction's playback is answered with one sentence: press to keep it,
+  *leave it* to withdraw it. Nothing else happens.
+- **What is stored is not per part (row 137).** The profile holds one source per field. A
+  correction is stored with the correction as the whole field's source, so parts first read from a
+  CV no longer say so. In his words, provenance is *"the record of who authored a value"*. Not
+  built: it is a change to what the profile holds.
