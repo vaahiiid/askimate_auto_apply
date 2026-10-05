@@ -847,6 +847,25 @@ describe("filling a fixture portal", () => {
     expect(await session.readValue(CODE)).toBe("");
   }, 30_000);
 
+  it("chooses the ESCAPE when, and only when, the student chose it — typing the word they searched with (P290, ADR-0109 amended)", async () => {
+    // Vahid, 2026-10-05: *"the runner may choose the form's escape entry
+    // when, and only when, the student has chosen it. Never otherwise, and
+    // never as a fallback when nothing matches."* The search finds nothing of
+    // theirs; the escape is offered beside, and chosen because they chose it.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    const chosen = { ...entries("Not in list", "Not in list"), search: "Zanzibar", chosenByStudent: true as const };
+    await session.fillTypeaheadConstant(BIRTH_COUNTRY, chosen, "Not in list");
+    expect(await session.readValue(CODE)).toBe("Not in list");
+    // The same press with no recorded choice: refused, exactly as before.
+    const fresh = await openSession();
+    await fresh.goto(`${baseUrl}/apply`);
+    await expect(
+      fresh.fillTypeaheadConstant(BIRTH_COUNTRY, { ...entries("Not in list", "Not in list"), search: "Zanzibar" }, "Not in list"),
+    ).rejects.toThrow(ClickRefusedError);
+    expect(await fresh.readValue(CODE)).toBe("");
+  }, 30_000);
+
   it("refuses a list wait on a typeahead's box — it offers entries for what is typed, not a list to wait on (P102)", async () => {
     const session = await openSession();
     await session.goto(`${baseUrl}/apply`);

@@ -76,7 +76,7 @@ import {
 } from "@askimate/aas-secrets";
 import { nextAction } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
-import type { FillPlan, MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
+import type { FillPlan, MappingSet, StudentChoice, UsableMappingSet } from "@askimate/aas-mapping";
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import type {
   AuthorisablePreview,
@@ -137,6 +137,13 @@ export interface RunInputs {
    * would be that happening because nobody set a field.
    */
   readonly passwordDelivery?: PasswordDelivery;
+  /**
+   * P290, ADR-0155: the entries the student chose from the form's own lists
+   * for values of theirs the lists do not hold — the escape among them, only
+   * when they chose it (ADR-0109 amended). Read from the case's record on
+   * every derivation, as the documents are; absent means none.
+   */
+  readonly choices?: readonly StudentChoice[];
 }
 
 /** Where a run has got to. Immutable; each step returns a new one. */
@@ -438,7 +445,7 @@ export function assess(state: RunState): RunAssessment {
   }
 
   const usable = usableCheck.mappingSet;
-  const plan = planFill(state.inputs.blueprint, usable, state.profile);
+  const plan = planFill(state.inputs.blueprint, usable, state.profile, state.inputs.choices);
 
   if (plan.blockers.length > 0) {
     return { ...empty, usable, plan };
@@ -638,7 +645,7 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
 function studentsOwnActs(state: RunState): readonly { readonly text: string; readonly toldLater: boolean }[] {
   const usable = checkUsable(state.inputs.mappingSet, state.inputs.blueprint);
   if (!usable.usable) return [];
-  const plan = planFill(state.inputs.blueprint, usable.mappingSet, state.profile);
+  const plan = planFill(state.inputs.blueprint, usable.mappingSet, state.profile, state.inputs.choices);
   const titles = new Map(
     state.inputs.blueprint.pages.flatMap((page) =>
       page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),

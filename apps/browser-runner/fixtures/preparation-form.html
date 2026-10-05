@@ -122,7 +122,9 @@
       setTimeout(function () {
         list.innerHTML = "";
         if (typed.length === 0) return;
-        COUNTRIES.filter(function (c) { return c[1].toLowerCase().indexOf(typed) === 0; }).forEach(function (c) {
+        // P290: the escape is offered for EVERY search, as Sheffield's is
+        // (Vahid's read of "HHE": nothing found, and "Not in list" still there).
+        COUNTRIES.filter(function (c) { return c[0] === "Not in list" || c[1].toLowerCase().indexOf(typed) === 0; }).forEach(function (c) {
           var entry = document.createElement("li");
           entry.setAttribute("role", "option");
           entry.setAttribute("data-selectable", "");

@@ -58,7 +58,7 @@ import {
 } from "@askimate/aas-conversation";
 
 import * as api from "./transport.js";
-import { CV_UPLOAD_SENTENCE, positionLine, type StudentWords } from "./words.js";
+import { CHOOSING_LINE, CV_UPLOAD_SENTENCE, positionLine, type StudentWords } from "./words.js";
 
 /** Everything drawn, in one object, replaced whole on every read. */
 interface View {
@@ -399,7 +399,8 @@ function drawPending(): void {
   // asking them questions. No internal word reaches this line now: the
   // sentence comes from `words.ts`, typed over the closed vocabularies, and
   // this element accepts nothing else.
-  position(where, positionLine(run));
+  // P290: a choice from the form's own list is the student's, not a person's.
+  position(where, pending?.decision === "choose_entry" ? CHOOSING_LINE : positionLine(run));
   panel.append(where);
 
   if (pending !== null && pending.decision === "consent_choice") {
@@ -488,6 +489,37 @@ function drawPending(): void {
         }),
       );
     }
+  } else if (pending !== null && pending.decision === "choose_entry") {
+    // P290, ADR-0155. Their value is not on the form's list. The form's own
+    // escape first and apart — never after the near-misses — then the
+    // entries exactly as the form returned them: nothing pre-selected,
+    // nothing ranked. A press sends the offer's hash and the id, nothing else.
+    const heading = document.createElement("h2");
+    text(heading, `"${pending.studentWords}" is not on their list — which is yours?`);
+    panel.append(heading);
+    const { contentHash, escape } = pending;
+    const none = document.createElement("p");
+    text(none, "None of these is mine:");
+    panel.append(
+      none,
+      button(escape.label, () => {
+        void answerChoice(contentHash, escape.id);
+      }),
+    );
+    if (pending.entries.length > 0) {
+      const listed = document.createElement("p");
+      text(listed, "Or one of the entries their form offers, in its own order:");
+      panel.append(listed);
+    }
+    for (const entry of pending.entries) {
+      // The same weight as the escape: no entry, and not the escape, is
+      // made to look like the answer.
+      panel.append(
+        button(entry.label, () => {
+          void answerChoice(contentHash, entry.id);
+        }),
+      );
+    }
   } else if (pending !== null) {
     if (pending.decision === "authorise" && view.preview !== null) {
       const heading = document.createElement("h2");
@@ -499,7 +531,7 @@ function drawPending(): void {
       panel.append(heading, body);
     }
 
-    const labels: Readonly<Record<Exclude<api.PendingDecision, { decision: "consent_choice" | "choose_reading" | "use_document" }>["decision"], string>> = {
+    const labels: Readonly<Record<Exclude<api.PendingDecision, { decision: "consent_choice" | "choose_reading" | "choose_entry" | "use_document" }>["decision"], string>> = {
       authorise: "Yes — this is right, fill it in",
       confirm_value: "Yes, that's right",
       confirm_handoff: "Done — I have completed that",
@@ -1206,6 +1238,17 @@ async function answerReading(contentHash: string, choice: string): Promise<void>
   if (id === null || runId === undefined) return;
   view.notice = "";
   const recorded = await api.decide(id, runId, { kind: "choose_reading", contentHash, choice });
+  if (!recorded.ok) report(recorded.code);
+  await refresh();
+}
+
+/** The student's choice from the form's own list (P290): a `choose_entry` with the offer's hash and the id. */
+async function answerChoice(contentHash: string, choice: string): Promise<void> {
+  const id = view.conversationId;
+  const runId = view.run.run?.runId;
+  if (id === null || runId === undefined) return;
+  view.notice = "";
+  const recorded = await api.decide(id, runId, { kind: "choose_entry", contentHash, choice });
   if (!recorded.ok) report(recorded.code);
   await refresh();
 }

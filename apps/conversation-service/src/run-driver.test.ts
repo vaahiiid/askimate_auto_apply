@@ -109,6 +109,7 @@ import { RunSessionStore } from "./session-store.js";
 import { PortalConsentStore } from "./consent-store.js";
 import { TransmissionStore } from "./transmission-store.js";
 import { DataDeletionRequestStore } from "./data-deletion-request-store.js";
+import { EntryChoiceStore } from "./entry-choice-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { PostgresDocumentReadingStore } from "./document-reading-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
@@ -426,6 +427,8 @@ function buildInstance(
     interventions: new PostgresInterventionStore(instancePool),
     // P275: a request to delete the confirmed details, waiting for a person.
     deletionRequests: new DataDeletionRequestStore(instancePool),
+    // P290, ADR-0155: the student's choices from the form's own lists.
+    entryChoices: new EntryChoiceStore(instancePool),
     // ADR-0097: the preview names what the student holds, from the metadata
     // store. Present in every instance so "holds nothing" is a table with no
     // rows, not a driver built without the question.
@@ -17632,6 +17635,260 @@ describeIfDatabase("a CV read by the reader seeds the interview, which asks only
       expect(reading?.pending?.decision === "confirm_value" ? reading.pending.entries : []).toEqual([{ index: 1, label: "qualification 1" }]);
     } finally {
       await built2.pool.end();
+    }
+  }, 300_000);
+});
+
+/**
+ * P290: the fixture's nationality select with the form's escape recorded and
+ * the box it opens mapped from the student's own words — and a student whose
+ * nationality, "Persian", is not on the list.
+ */
+const CHOICE_ENTRY: CatalogueEntry = {
+  ...ENTRY,
+  blueprint: {
+    ...ENTRY.blueprint,
+    pages: ENTRY.blueprint.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.flatMap((field) =>
+          field.fieldRef === "nationality"
+            ? [
+                { ...field, escapeValue: "Not in list", options: [...(field.options ?? []), { value: "Not in list", label: "Not in list" }] },
+                {
+                  fieldRef: "nationality_unlisted",
+                  label: "If not listed, your nationality:",
+                  inputType: "text" as const,
+                  dataCategory: "ordinary" as const,
+                  locators: [{ strategy: "id" as const, value: "nationalityUnlisted" }],
+                  validations: [],
+                  visibleWhen: { whenFieldRef: "nationality", operator: "equals" as const, value: "Not in list" },
+                },
+              ]
+            : [field],
+        ),
+      })),
+    })),
+  },
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: [
+      ...FIXTURE_MAPPING_SET.mappings,
+      { fieldRef: "nationality_unlisted", source: { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "text" as const } } },
+    ],
+  },
+};
+
+describeIfDatabase("a value not on the form's list is the student's to choose — an entry, or the form's own escape (P290, ADR-0155, ADR-0109 amended)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // The shape, in the message of 2026-10-05, 15:02 UTC, which speaks of
+  // Vahid in the third person: *"the student is shown what the portal's list
+  // does hold and chooses."* *"The system never pre-selects, never orders by
+  // similarity, and never says "did you mean"."* *"And what they pick is
+  // stored as their own words, with the portal's entry recorded beside it."*
+  //
+  // Vahid's own, 15:52 UTC: *"ADR-0109 is amended: the runner may choose the
+  // form's escape entry when, and only when, the student has chosen it. Never
+  // otherwise, and never as a fallback when nothing matches. The record of
+  // that choice is what permits the press, so a run with no recorded choice
+  // refuses the escape exactly as it does today."*
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX29001";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let owner = "";
+  let runId = "";
+  const OFFER =
+    'Their form asks you to choose your nationality from its own list, and it does not hold "Persian", which is what you told me. ' +
+    "It holds the 3 entries below, in its own order. If one of them is yours, choose it. " +
+    'If none is, choose "Not in list": that is the form\'s own option for exactly this, and I will type your own words, "Persian", into the box it opens ("if not listed, your nationality"). ' +
+    "Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.";
+
+  async function assistantSaid(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function withDriver<T>(act: (driver: RunDriver, instancePool: pg.Pool) => Promise<T>): Promise<T> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(CHOICE_ENTRY));
+    try {
+      return await act(instance.driver, instance.pool);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function advance(times = 1): Promise<string> {
+    return withDriver(async (driver) => {
+      let reached = "";
+      for (let round = 0; round < times; round += 1) {
+        const moved = await driver.advance({ runId, conversationId: conversation });
+        reached = moved.ok ? `${moved.position.status}:${moved.position.step}` : `refused:${moved.refusal.kind}`;
+      }
+      return reached;
+    });
+  }
+  async function choices() {
+    return withDriver((_driver, instancePool) => new EntryChoiceStore(instancePool).forCase(caseRef));
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    await withDriver(async (driver, instancePool) => {
+      const profiles = new PostgresConfirmedProfileStore(instancePool);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", owner);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", owner);
+      await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", owner);
+      await confirmInto(profiles, "identity.nationality", "Persian", "Persian", owner);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", owner);
+      await confirmInto(profiles, "study.personal_statement", "Because it is the course I want.", "…", owner);
+      const started = await driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    });
+  }, 300_000);
+
+  it("offers the list and the escape, ONCE however often the run is advanced, asks no person, and holds the run for the press", async () => {
+    expect(await advance(3)).toBe("running:specialist");
+    const said = await assistantSaid();
+    expect(said.filter((line) => line === OFFER), "said once").toHaveLength(1);
+    expect(said.join("\n")).not.toContain("member of the team");
+    expect(await withDriver((driver) => driver.openInterventions()).then((open) => open.filter((item) => item.runId === runId))).toEqual([]);
+
+    const reading = await withDriver((driver) => driver.runFor(conversation));
+    const pending = reading?.pending;
+    if (pending?.decision !== "choose_entry") expect.unreachable(`expected choose_entry, got ${JSON.stringify(pending)}`);
+    expect(pending.question).toBe(OFFER);
+    expect(pending.studentWords).toBe("Persian");
+    // The escape apart; the entries as the form holds them. Their VALUES are
+    // not on the wire: the press is re-derived against the run's own offer.
+    expect(pending.escape).toEqual({ id: "escape", label: "Not in list" });
+    expect(pending.entries).toEqual([
+      { id: "e1", label: "Iran (Islamic Republic of)" },
+      { id: "e2", label: "Iraq" },
+      { id: "e3", label: "United Kingdom" },
+    ]);
+  }, 300_000);
+
+  it("words typed while the offer stands choose nothing; a press over another offer, or an id it does not hold, is refused", async () => {
+    const before = (await assistantSaid()).length;
+    await withDriver(async (driver, instancePool) => {
+      const written = await new ConversationEventStore(instancePool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: "Not in list" } });
+      await driver.answerStudent({ conversationId: conversation, event: written.event });
+    });
+    expect(await choices(), "typed words record no choice").toEqual([]);
+    expect((await assistantSaid()).slice(before).join(" "), "and nothing says one was made").not.toContain("You chose");
+
+    const pending = (await withDriver((driver) => driver.runFor(conversation)))?.pending;
+    if (pending?.decision !== "choose_entry") expect.unreachable("the offer stands");
+    await withDriver(async (driver) => {
+      expect(await driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_entry", contentHash: `sha256:${"0".repeat(64)}`, choice: "escape" } })).toMatchObject({ ok: false, reason: "content_changed" });
+      expect(await driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_entry", contentHash: pending.contentHash, choice: "e9" } })).toMatchObject({ ok: false, reason: "refused" });
+    });
+    expect(await choices()).toEqual([]);
+  }, 300_000);
+
+  it("the press records the escape as theirs, beside their own words — and the run plans the escape, and their words in the box it opens, only now", async () => {
+    const pending = (await withDriver((driver) => driver.runFor(conversation)))?.pending;
+    if (pending?.decision !== "choose_entry") expect.unreachable("the offer stands");
+    const decided = await withDriver((driver) => driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_entry", contentHash: pending.contentHash, choice: pending.escape.id } }));
+    expect(decided).toEqual({ ok: true });
+    expect((await assistantSaid()).at(-1)).toBe('You chose "Not in list" for your nationality, where you told me "Persian". That is recorded as your answer.');
+    const held = await choices();
+    expect(held).toHaveLength(1);
+    expect(held[0]).toMatchObject({ fieldRef: "nationality", studentValue: "Persian", value: "Not in list", label: "Not in list", escape: true, offerHash: pending.contentHash });
+
+    // The promise the offer made: their own words, typed into the box the
+    // escape opens — from the plan the run builds with the recorded choice.
+    const profile = await withDriver((_driver, instancePool) => new PostgresConfirmedProfileStore(instancePool).load(owner, NOW));
+    const usable = checkUsable(CHOICE_ENTRY.mappingSet, CHOICE_ENTRY.blueprint);
+    if (!usable.usable) expect.unreachable(usable.refusal.detail);
+    const plan = planFill(CHOICE_ENTRY.blueprint, usable.mappingSet, profile, held);
+    const nationality = plan.instructions.find((instruction) => instruction.fieldRef === "nationality");
+    expect(nationality?.value).toMatchObject({ kind: "chosen", value: "Not in list", escape: true, studentWords: "Persian" });
+    const box = plan.instructions.find((instruction) => instruction.fieldRef === "nationality_unlisted");
+    expect(box?.value.kind === "confirmed" ? unwrapConfirmed(box.value.value) : null).toBe("Persian");
+    expect(plan.blockers.map((blocker) => blocker.fieldRef)).not.toContain("nationality");
+
+    // A second press finds nothing open: the choice stands as made.
+    expect(await withDriver((driver) => driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_entry", contentHash: pending.contentHash, choice: "e1" } }))).toMatchObject({ ok: false, reason: "not_asked" });
+    expect(await choices()).toHaveLength(1);
+  }, 300_000);
+
+  it("the run carries on with it: the nationality stops nothing, and what stops this fixture next is its own", async () => {
+    // `ENTRY` requires a passport nobody uploaded, so it can never reach the
+    // preview — the stop that follows is that one, said by a person's route.
+    expect(await advance(2)).toBe("escalated:specialist");
+    const open = await withDriver((driver) => driver.openInterventions()).then((all) => all.filter((item) => item.runId === runId));
+    expect(open.map((item) => item.escalation.checkpoint.target)).toEqual(["specialist:preview_refused"]);
+    expect((await assistantSaid()).filter((line) => line === OFFER), "the offer is not said again").toHaveLength(1);
+  }, 300_000);
+});
+
+describeIfDatabase("a run already with a person, once the list is on file, is resolved into the student's choice — not stopped again (P290)", () => {
+  // His own run's path: it stopped for a person before any list was on
+  // file; the entry that records the escape is signed; a person resolves.
+  // The re-plan (row 135) now finds a choice the student can make, and puts
+  // it to them — one message, the run theirs to move, no new intervention.
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX29002";
+  let owner = "";
+  let runId = "";
+  async function assistantSaid(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("says ONE thing — someone looked, and here is the list and its escape — and holds the run for the student's press", async () => {
+    owner = await ownConversation(conversation);
+    const before = buildInstance(connectionString(), opener(), catalogueOf(ENTRY));
+    try {
+      const profiles = new PostgresConfirmedProfileStore(before.pool);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", owner);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", owner);
+      await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", owner);
+      await confirmInto(profiles, "identity.nationality", "Persian", "Persian", owner);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", owner);
+      await confirmInto(profiles, "study.personal_statement", "Because it is the course I want.", "…", owner);
+      const started = await before.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      let reached = "";
+      for (let round = 0; round < 3 && reached !== "escalated"; round += 1) {
+        const moved = await before.driver.advance({ runId, conversationId: conversation });
+        reached = moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`;
+      }
+      expect(reached, "no escape on file: a person, as before P290").toBe("escalated");
+    } finally {
+      await before.pool.end();
+    }
+
+    const after = buildInstance(connectionString(), opener(), catalogueOf(CHOICE_ENTRY));
+    try {
+      const held = (await after.driver.openInterventions()).filter((item) => item.runId === runId);
+      expect(held.map((item) => item.escalation.checkpoint.target)).toEqual(["specialist:render_refused"]);
+      const count = (await assistantSaid()).length;
+      await after.driver.resolveIntervention({
+        interventionId: held[0]!.interventionId,
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Signed the entry that records the escape.", resolution: "Re-plan.", resolvedAt: NOW, outcome: "resume" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "p290" },
+        didHappen: false,
+      });
+      const said = (await assistantSaid()).slice(count);
+      expect(said).toHaveLength(1);
+      expect(said[0]).toMatch(/^Someone on the team has looked at your Example University application\. Their form asks you to choose your nationality from its own list, and it does not hold "Persian"/u);
+      expect(said[0], "never 'moving again', never 'still cannot go on'").not.toMatch(/moving again|still cannot go on/u);
+      expect((await after.driver.openInterventions()).filter((item) => item.runId === runId), "no new intervention").toEqual([]);
+      const row = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+      expect(row.rows[0]?.status).toBe("running");
+      expect((await after.driver.runFor(conversation))?.pending?.decision).toBe("choose_entry");
+    } finally {
+      await after.pool.end();
     }
   }, 300_000);
 });

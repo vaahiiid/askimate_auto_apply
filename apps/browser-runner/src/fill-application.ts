@@ -427,6 +427,9 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
               },
               text: instruction.typeahead.text,
               ...(instruction.typeahead.escapeValue === undefined ? {} : { escapeValue: instruction.typeahead.escapeValue }),
+              // P290: what to type for a student's chosen entry, and the choice that permits the escape.
+              ...(instruction.typeahead.search === undefined ? {} : { search: instruction.typeahead.search }),
+              ...(instruction.typeahead.chosenByStudent === true ? { chosenByStudent: true as const } : {}),
             },
           }),
       ...(instruction.item === undefined ? {} : { item: { index: instruction.item.index, count: instruction.item.count } }),
@@ -451,6 +454,15 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
                   : { documentId: instruction.value.provenance.documentId }),
               },
             }
+          : instruction.value.kind === "chosen"
+            ? {
+                kind: "chosen" as const,
+                fieldKey: instruction.value.fieldKey as ProfileFieldKey,
+                text: instruction.value.text,
+                label: instruction.value.label,
+                studentWords: instruction.value.studentWords,
+                escape: instruction.value.escape,
+              }
           : instruction.value.kind === "form_refusal"
             ? {
                 kind: "form_refusal" as const,

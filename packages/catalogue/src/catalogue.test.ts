@@ -421,6 +421,39 @@ describe("parsing rebuilds rather than casts", () => {
     expect(fields.find((field) => field.fieldRef === "course")?.escapeValue).toBeUndefined();
   });
 
+  it("round-trips what a search returned and a list read after an earlier choice — entries of the field's own, never its escape (P290)", () => {
+    type Field = { fieldRef: string; searches?: unknown; listsAfter?: unknown };
+    const withCourse = (patch: Partial<Field>): unknown => {
+      const document = JSON.parse(documentOf()) as { blueprint: { pages: { sections: { fields: Field[] }[] }[] } };
+      for (const page of document.blueprint.pages)
+        for (const section of page.sections)
+          for (const field of section.fields) if (field.fieldRef === "course") Object.assign(field, patch);
+      return document;
+    };
+    const parsed = parseReviewedEntry(
+      withCourse({
+        searches: [{ word: "example", entries: ["PG-EX-2026", "PG-EX-2026-PT", "UG-EX-2026"] }],
+        listsAfter: [{ fieldRef: "study_level", value: "", entries: ["PG-OT-2026"] }],
+      }),
+    );
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const course = parsed.value.blueprint.pages.flatMap((page) => page.sections).flatMap((section) => section.fields).find((field) => field.fieldRef === "course");
+    expect(course?.searches).toEqual([{ word: "example", entries: ["PG-EX-2026", "PG-EX-2026-PT", "UG-EX-2026"] }]);
+    // An empty value is a recorded value: Sheffield's award-title escape submits "".
+    expect(course?.listsAfter).toEqual([{ fieldRef: "study_level", value: "", entries: ["PG-OT-2026"] }]);
+
+    for (const [patch, says] of [
+      [{ searches: [{ word: "example", entries: ["PG-NOPE"] }] }, "is not one of this field's options"],
+      [{ searches: [{ word: "example", entries: ["PG-EX-2026", "Not in list"] }] }, "never among them"],
+      [{ listsAfter: [{ fieldRef: "study_level", value: "x", entries: ["Not in list"] }] }, "never among them"],
+      [{ searches: [{ word: "example" }] }, "expected a list of option values"],
+    ] as const) {
+      const refused = parseReviewedEntry(withCourse(patch));
+      if (refused.ok) expect.unreachable(JSON.stringify(patch));
+      expect(refused.refusal.detail).toContain(says);
+    }
+  });
+
   it("round-trips a page's repeats (P96), and refuses a list that is not one", () => {
     const parsed = parseReviewedEntry(JSON.parse(documentOf()));
     if (!parsed.ok) expect.unreachable(parsed.refusal.detail);

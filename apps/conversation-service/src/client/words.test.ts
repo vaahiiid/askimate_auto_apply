@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { RUN_PHASES, RUN_STATUSES, RUN_STEP_KINDS } from "@askimate/aas-contracts";
 
-import { CV_UPLOAD_SENTENCE, EVERY_SENTENCE, positionLine } from "./words.js";
+import { CHOOSING_LINE, CV_UPLOAD_SENTENCE, EVERY_SENTENCE, positionLine } from "./words.js";
 
 describe("no internal word ever reaches a student's screen (P227, ADR-0147)", () => {
   // ═══════════════════════════════════════════════════════════════════════
@@ -59,6 +59,14 @@ describe("no internal word ever reaches a student's screen (P227, ADR-0147)", ()
     expect(positionLine({ status: "running", step: "specialist" })).toBe(team);
     expect(positionLine({ status: "escalated", step: "interview" })).toBe(team);
     expect(positionLine({ status: "uncertain", step: "execute" })).toBe(team);
+  });
+
+  it("says the choice is the student's while the form's list is offered to them — never that a person has it (P290)", () => {
+    expect(CHOOSING_LINE).toBe("Your application is waiting for you: their form's list does not hold one of your answers, and the choice below is yours.");
+    expect(CHOOSING_LINE).not.toContain("member of the team");
+    expect(EVERY_SENTENCE).toContain(CHOOSING_LINE);
+    const raw = readFileSync(join(import.meta.dirname, "journey.ts"), "utf8");
+    expect(raw).toContain('pending?.decision === "choose_entry" ? CHOOSING_LINE : positionLine(run)');
   });
 
   it("describes a running run by its step, in the present tense", () => {

@@ -90,6 +90,15 @@ export type PendingDecision =
       readonly contentHash: string;
       readonly readings: readonly { readonly id: string; readonly label: string }[];
     }
+  /** P290, ADR-0155. Their value is not on the form's list: the form's escape, and the entries as it returned them. They pick one by its `id`, sending the offer's hash. */
+  | {
+      readonly decision: "choose_entry";
+      readonly contentHash: string;
+      readonly question: string;
+      readonly studentWords: string;
+      readonly escape: { readonly id: string; readonly label: string };
+      readonly entries: readonly { readonly id: string; readonly label: string }[];
+    }
   /** P251, ADR-0151. The interview reached the first field the student's CV could fill and asks before reading it. `late` (P252): the CV arrived after its fields were confirmed; a yes means confirming them again. */
   | {
       readonly decision: "use_document";
@@ -275,6 +284,25 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
           readings.push({ id: reading["id"], label: reading["label"] });
         }
         pending = { decision: "choose_reading", contentHash: raw["contentHash"], readings };
+      } else if (raw["decision"] === "choose_entry") {
+        const list = raw["entries"];
+        const escape = asRecord(raw["escape"]);
+        if (!Array.isArray(list) || typeof raw["contentHash"] !== "string" || typeof raw["question"] !== "string" || typeof raw["studentWords"] !== "string") return null;
+        if (escape === null || typeof escape["id"] !== "string" || typeof escape["label"] !== "string") return null;
+        const entries: { id: string; label: string }[] = [];
+        for (const item of list as readonly unknown[]) {
+          const entry = asRecord(item);
+          if (entry === null || typeof entry["id"] !== "string" || typeof entry["label"] !== "string") return null;
+          entries.push({ id: entry["id"], label: entry["label"] });
+        }
+        pending = {
+          decision: "choose_entry",
+          contentHash: raw["contentHash"],
+          question: raw["question"],
+          studentWords: raw["studentWords"],
+          escape: { id: escape["id"], label: escape["label"] },
+          entries,
+        };
       } else {
         const list = raw["entries"];
         const entries: { index: number; label: string }[] = [];
@@ -286,7 +314,7 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
           }
         }
         pending = {
-          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" | "choose_reading" | "use_document" }>["decision"],
+          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" | "choose_reading" | "choose_entry" | "use_document" }>["decision"],
           contentHash: String(raw["contentHash"]),
           ...(entries.length === 0 ? {} : { entries }),
         };

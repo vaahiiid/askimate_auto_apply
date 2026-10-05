@@ -32,8 +32,13 @@ import { textOf } from "@askimate/aas-mapping";
 /** A typeahead's entries, the text to type for the value, and the escape never to choose (ADR-0109). */
 export interface TypeaheadEntries {
   readonly optionLocator: FieldLocator;
+  /** The entry's own text, which the chosen entry must read exactly. */
   readonly text: string;
   readonly escapeValue?: string;
+  /** P290: what to type when it is not `text` — the word a student's chosen entry was searched with. */
+  readonly search?: string;
+  /** P290: the student chose this entry. The only thing that lets the runner choose the escape (ADR-0109 amended). */
+  readonly chosenByStudent?: true;
 }
 
 export interface ApplicationSession {

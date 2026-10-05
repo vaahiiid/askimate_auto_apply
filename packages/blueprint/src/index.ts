@@ -20,6 +20,8 @@ export type {
   FieldCondition,
   FieldDataCategory,
   FieldInputType,
+  FieldListAfter,
+  FieldSearch,
   FieldLocator,
   FieldOption,
   FieldValidation,

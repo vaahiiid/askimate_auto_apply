@@ -40,6 +40,7 @@ export type {
   FillInstruction,
   FillPlan,
   FillValue,
+  StudentChoice,
   HandoffRequirement,
   HiddenField,
   UploadInstruction,

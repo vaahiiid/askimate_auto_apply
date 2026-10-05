@@ -69,6 +69,15 @@ export type StoredFillValue =
       readonly mappingSetId: string;
       readonly reviewedBy: string;
     }
+  /** P290: the student's own choice from the form's list. Crosses as a choice — never as a confirmed value or a constant. */
+  | {
+      readonly kind: "chosen";
+      readonly fieldKey: ProfileFieldKey;
+      readonly text: string;
+      readonly label: string;
+      readonly studentWords: string;
+      readonly escape: boolean;
+    }
   /** ADR-0102. Crosses as a refusal, never as an answer or a constant. */
   | {
       readonly kind: "form_refusal";
@@ -93,7 +102,7 @@ export interface StoredFillInstruction {
     readonly holds?: FieldLocator;
   };
   /** Where a typeahead's entries are found (ADR-0103, gap 2), the text typed for the value, and the escape (ADR-0109). */
-  readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string };
+  readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string; readonly search?: string; readonly chosenByStudent?: true };
   /** Which item of a repeating page this is (ADR-0103, gap 3). */
   readonly item?: { readonly index: number; readonly count: number };
 }
@@ -130,8 +139,8 @@ function copyOptionsAfter(
 
 /** A typeahead's entry locator, text and escape, copied field by field. */
 function copyTypeahead(
-  typeahead: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string } | undefined,
-): { readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string } } {
+  typeahead: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string; readonly search?: string; readonly chosenByStudent?: true } | undefined,
+): { readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string; readonly search?: string; readonly chosenByStudent?: true } } {
   return typeahead === undefined
     ? {}
     : {
@@ -139,6 +148,9 @@ function copyTypeahead(
           optionLocator: { strategy: typeahead.optionLocator.strategy, value: typeahead.optionLocator.value },
           text: typeahead.text,
           ...(typeahead.escapeValue === undefined ? {} : { escapeValue: typeahead.escapeValue }),
+          // P290: what is typed for a student's chosen entry, and the choice that permits the escape.
+          ...(typeahead.search === undefined ? {} : { search: typeahead.search }),
+          ...(typeahead.chosenByStudent === true ? { chosenByStudent: true as const } : {}),
         },
       };
 }
@@ -244,6 +256,9 @@ function storedValue(value: FillValue): StoredFillValue {
       provenance: provenanceOf(value.value),
     };
   }
+  if (value.kind === "chosen") {
+    return { kind: "chosen", fieldKey: value.fieldKey, text: value.value, label: value.label, studentWords: value.studentWords, escape: value.escape };
+  }
   if (value.kind === "form_refusal") {
     const refusal = value.refusal as unknown as {
       readonly text: string;
@@ -342,6 +357,9 @@ function rebuiltValue(stored: StoredFillValue): FillValue {
       fieldKey: stored.fieldKey,
       value: rehydrateConfirmed({ value: stored.text, provenance: stored.provenance }),
     };
+  }
+  if (stored.kind === "chosen") {
+    return { kind: "chosen", fieldKey: stored.fieldKey, value: stored.text, label: stored.label, studentWords: stored.studentWords, escape: stored.escape };
   }
   if (stored.kind === "form_refusal") {
     // Rebuilt as the branded refusal it was, on the same guarantee as the

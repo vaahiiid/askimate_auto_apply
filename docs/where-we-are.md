@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P290 — the student's choice, and theirs alone
+
+*2026-10-05.* A student whose answer is not on a university's list was told there was no way to
+make the choice here. Now they are shown what the list does hold, exactly as the form returned
+it, with the form's own "Not in list" beside it, first and apart. They choose, and the choice is
+recorded as theirs with their own words beside it. The escape, which the system has always
+refused to press, is pressed now only because a student pressed it, which is his amendment of
+ADR-0109: it refused the agent, not the person. Nothing is offered for a list nobody has read. His
+own run waits on those reads.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P289 — who said it
 
 *2026-10-05.* His corrected award title came back with his words beside the award date as well,

@@ -1801,6 +1801,7 @@ components:
         - $ref: "#/components/schemas/ConsentQuestion"
         - $ref: "#/components/schemas/ReadingChoice"
         - $ref: "#/components/schemas/UseDocumentQuestion"
+        - $ref: "#/components/schemas/EntryChoice"
       description: >-
         ADR-0061. What the run is waiting for the student to do. Three carry
         the hash that decision must carry; the fourth (ADR-0131) carries the
@@ -1808,7 +1809,54 @@ components:
         the student's own and not agreement to something shown. The fifth
         (ADR-0146) carries the readings of an answer the reader read more than
         one way, with the hash of that offer, and waits for the student to say
-        which they meant.
+        which they meant. An entry choice (ADR-0155) carries a value of the
+        student's the form's own list does not hold, what that list holds as
+        the form returned it, and the form's escape beside it.
+
+    EntryChoice:
+      type: object
+      additionalProperties: false
+      required: [decision, contentHash, question, studentWords, escape, entries]
+      description: >-
+        ADR-0155 (P290). A value of the student's that the form's own list
+        does not hold, and what the list does hold, exactly as the form
+        returned it — in its order, nothing pre-selected, nothing ranked by
+        likeness — with the form's escape offered beside the entries, never
+        after them. Vahid: "the runner may choose the form's escape entry when,
+        and only when, the student has chosen it." The answer is a
+        `choose_entry` decision naming one `id` (an entry's, or the escape's)
+        with this hash. The entries' values are the run's, derived again at the
+        press; the client is given only their words.
+      properties:
+        decision:
+          type: string
+          enum: [choose_entry]
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        question:
+          type: string
+          maxLength: 4000
+        studentWords:
+          type: string
+          minLength: 1
+          maxLength: 500
+        escape:
+          type: object
+          additionalProperties: false
+          required: [id, label]
+          properties:
+            id: { type: string, minLength: 1, maxLength: 64 }
+            label: { type: string, maxLength: 200 }
+        entries:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, label]
+            properties:
+              id: { type: string, minLength: 1, maxLength: 64 }
+              label: { type: string, maxLength: 200 }
 
     ReadingChoice:
       type: object
@@ -2025,6 +2073,7 @@ components:
         - $ref: "#/components/schemas/ConsentChoiceDecision"
         - $ref: "#/components/schemas/UseDocumentDecision"
         - $ref: "#/components/schemas/ChooseReadingDecision"
+        - $ref: "#/components/schemas/ChooseEntryDecision"
         - $ref: "#/components/schemas/CorrectEntryDecision"
 
     CorrectEntryDecision:
@@ -2049,6 +2098,28 @@ components:
         entry:
           type: integer
           minimum: 1
+
+    ChooseEntryDecision:
+      type: object
+      additionalProperties: false
+      required: [kind, contentHash, choice]
+      description: >-
+        ADR-0155 (P290). The student chooses from the form's own list — one of
+        the entries it returned, or its escape — by the `id` the offer gave it,
+        carrying the offer's hash so the choice is over the list as shown.
+        Recorded with the application as theirs, with their own words beside
+        the entry; the escape is chosen on the form only because they chose it.
+      properties:
+        kind:
+          type: string
+          enum: [choose_entry]
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        choice:
+          type: string
+          minLength: 1
+          maxLength: 64
 
     ChooseReadingDecision:
       type: object

@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.283.0] — 2026-10-05
+
+**P290 — a student chooses from the form's own list, the escape among the choices (ADR-0155; ADR-0109 amended).**
+
+- **Added** `searches` and `listsAfter` on a blueprint field: what a search returned, and a list
+  read after an earlier box, parsed as the field's own options and never its escape.
+- **Added** migration 0039, `entry_choices`, and `EntryChoiceStore`: a choice recorded with the
+  student's words beside the entry and the offer's hash, one standing per value.
+- **Added** `planFill(…, choices)`: a recorded choice becomes a `chosen` value; a search box takes
+  its word; a typeahead types it and carries `chosenByStudent`, the only thing that lets the runner
+  press the escape. The box an escape opens may hold the student's own words, and nothing else.
+- **Added** the offer (`entry-choice-offer.ts`) and the `choose_entry` decision: derived from the
+  plan and the signed entry, one at a time, before any person; the entries as the form returned
+  them, the escape first and apart. The page's buttons, and a position line that says the choice
+  is the student's.
+- **Changed** the preview: a chosen line is marked as the student's choice; a value kind with no
+  line now fails the build instead of vanishing from what is approved.
+- **Added** ADR-0155; ADR-0109 amended; rows 138 and 139; snippet T in `docs/run-a/p290-reads.md`.
+
+---
+
 ## [0.282.0] — 2026-10-05
 
 **P289 — a correction's words on its own part only; only the press confirms a correction.**

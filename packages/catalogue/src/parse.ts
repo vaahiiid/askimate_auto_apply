@@ -340,6 +340,39 @@ function readField(value: unknown, path: string): BlueprintField {
   // P281: a select's escape, which may be the empty string (Sheffield's award
   // title submits "" for *Not in list*), so absent and empty are not alike here.
   const escapeValue = optionalTextAllowingEmpty(source, "escapeValue", path);
+  // P290: what each search returned, and the lists read after an earlier
+  // choice. Every entry is one of the field's own options, and never its
+  // escape — the escape is offered beside the entries, not among them.
+  const escape = typeahead?.escapeValue ?? escapeValue;
+  const optionValues = new Set((options ?? []).map((option) => option.value));
+  const readEntries = (held: Record<string, unknown>, at: string): readonly string[] => {
+    const raw = held["entries"];
+    if (!Array.isArray(raw)) fail(`${at}.entries`, "expected a list of option values");
+    return raw.map((entry: unknown, index: number) => {
+      if (typeof entry !== "string") fail(`${at}.entries[${String(index)}]`, "expected a string");
+      if (!optionValues.has(entry)) fail(`${at}.entries[${String(index)}]`, `"${entry}" is not one of this field's options`);
+      if (escape !== undefined && entry === escape) fail(`${at}.entries[${String(index)}]`, "the escape is offered beside the entries, never among them");
+      return entry;
+    });
+  };
+  const searches =
+    source["searches"] === undefined
+      ? undefined
+      : list(source, "searches", path, (held, at) => {
+          const block = record(held, at);
+          return { word: text(block, "word", at), entries: readEntries(block, at) };
+        });
+  const listsAfter =
+    source["listsAfter"] === undefined
+      ? undefined
+      : list(source, "listsAfter", path, (held, at) => {
+          const block = record(held, at);
+          return {
+            fieldRef: text(block, "fieldRef", at),
+            value: optionalTextAllowingEmpty(block, "value", at) ?? fail(`${at}.value`, "expected a string"),
+            entries: readEntries(block, at),
+          };
+        });
   const mapsTo = optionalText(source, "mapsTo", path);
   const frontedBy = optionalText(source, "frontedBy", path);
   // ADR-0102: the reviewer's classification. Optional here — a draft has none
@@ -365,6 +398,8 @@ function readField(value: unknown, path: string): BlueprintField {
     ...(mapsTo === undefined ? {} : { mapsTo }),
     ...(frontedBy === undefined ? {} : { frontedBy }),
     ...(escapeValue === undefined ? {} : { escapeValue }),
+    ...(searches === undefined ? {} : { searches }),
+    ...(listsAfter === undefined ? {} : { listsAfter }),
   };
 }
 

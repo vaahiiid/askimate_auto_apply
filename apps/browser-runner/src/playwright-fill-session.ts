@@ -897,13 +897,27 @@ export class PlaywrightPreparationSession implements FillableSession {
    * the answer, not a control.
    */
   async #chooseTypeahead(locator: FieldLocator, entries: TypeaheadEntries, value: string): Promise<void> {
-    if (entries.escapeValue !== undefined && value === entries.escapeValue) {
+    // ── ADR-0109, amended (P290) ───────────────────────────────────────
+    //
+    // Vahid, 2026-10-05: *"the runner may choose the form's escape entry
+    // when, and only when, the student has chosen it. Never otherwise, and
+    // never as a fallback when nothing matches. The record of that choice is
+    // what permits the press, so a run with no recorded choice refuses the
+    // escape exactly as it does today."* `chosenByStudent` is set on an
+    // instruction only by the plan, only from a recorded choice; nothing
+    // here, on a miss or anywhere else, sets it.
+    if (entries.escapeValue !== undefined && value === entries.escapeValue && entries.chosenByStudent !== true) {
       throw new ClickRefusedError({
         allowed: false,
         locator: entries.optionLocator,
         reason: `Refusing to choose the form's escape entry: a student whose answer is not listed is a handoff, not a match (ADR-0109).`,
       });
     }
+    // What is TYPED: the entry's own text, or — for an entry the student
+    // chose from a search's results, the escape among them — the word the
+    // search was made with (P290). What is CHOSEN is still the one entry that
+    // reads `text` exactly and carries `value`.
+    const typed = entries.search ?? entries.text;
     const box = await this.#resolve([locator]);
     // Marked BEFORE anything is typed, so what follows is this box's own
     // lookups and not the page's load (P179).
@@ -968,13 +982,13 @@ export class PlaywrightPreparationSession implements FillableSession {
     for (let attempt = 0; attempt < TYPING_ATTEMPTS; attempt++) {
       await settleFocus(page);
       await box.fill("");
-      await box.pressSequentially(entries.text, { delay: TYPING_DELAY_MS });
+      await box.pressSequentially(typed, { delay: TYPING_DELAY_MS });
       tookText = await box.inputValue().catch(() => null);
-      if (tookText === entries.text) break;
+      if (tookText === typed) break;
     }
 
     const typingWentElsewhere =
-      tookText !== null && tookText !== entries.text
+      tookText !== null && tookText !== typed
         ? `The box did NOT take what was typed \u2014 ${
             tookText.length === 0 ? "it is empty" : `it holds ${String(tookText.length)} characters`
           }, and the page's focus was on ${await focusedElementInWords(page)}. Nothing was asked ` +

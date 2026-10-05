@@ -102,6 +102,17 @@ export interface PreviewEntry {
         readonly kind: "reviewed_constant";
         readonly rationale: string;
         readonly reviewedBy: string;
+      }
+    | {
+        /**
+         * P290 (ADR-0155): an entry the student CHOSE from the form's own list
+         * for words of theirs the list does not hold — or its escape. Shown as
+         * their choice, beside their own words, never as a value they told us.
+         */
+        readonly kind: "student_chose";
+        readonly fieldKey: ProfileFieldKey;
+        readonly studentWords: string;
+        readonly escape: boolean;
       };
 }
 
@@ -460,6 +471,23 @@ export function buildPreview(
         });
         break;
       }
+      case "chosen": {
+        entries.push({
+          fieldRef: instruction.fieldRef,
+          label: instruction.label,
+          text: value.value,
+          ...(value.label !== value.value ? { displayText: value.label } : {}),
+          ...itemOf(instruction),
+          attribution: { kind: "student_chose", fieldKey: value.fieldKey, studentWords: value.studentWords, escape: value.escape },
+        });
+        break;
+      }
+      default: {
+        // A value kind added later fails here at compile time, rather than
+        // vanishing from what the student is asked to say yes to (P290).
+        const unhandled: never = value;
+        throw new Error(`the preview has no line for ${JSON.stringify(unhandled)}`);
+      }
     }
   }
 
@@ -807,10 +835,21 @@ export function renderPreview(preview: SubmissionPreview): string {
       entry.displayText === undefined
         ? `${indent}${entry.label}: ${entry.text}`
         : `${indent}${entry.label}: ${entry.displayText}  (sent as "${entry.text}")`;
-    return entry.attribution.kind === "reviewed_constant"
-      ? // Marked, because it is the one thing here the student did not tell us.
-        [line, `${indent}    (set by AskiMate: ${entry.attribution.rationale})`]
-      : [line];
+    switch (entry.attribution.kind) {
+      case "reviewed_constant":
+        // Marked, because it is the one thing here the student did not tell us.
+        return [line, `${indent}    (set by AskiMate: ${entry.attribution.rationale})`];
+      case "student_chose":
+        // P290: their choice on the form's list, beside the words it did not hold.
+        return [
+          line,
+          entry.attribution.escape
+            ? `${indent}    (you chose this: their list does not hold "${entry.attribution.studentWords}")`
+            : `${indent}    (you chose this on their list for "${entry.attribution.studentWords}")`,
+        ];
+      case "student_confirmed":
+        return [line];
+    }
   };
 
   // Every page in the portal's order, and under it everything that page

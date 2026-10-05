@@ -1313,6 +1313,56 @@ describeIfDatabase("the student's page", () => {
     await page.unroute("**/v1/conversations/*/runs");
   }, 180_000);
 
+  it("offers the form's escape FIRST and apart, then its entries as returned, at one weight, nothing pre-selected — and a press sends the offer's hash and the id (P290, ADR-0155)", async () => {
+    await visitAs(student);
+    const mine = await pool.query<{ id: string }>("SELECT id FROM conversations WHERE student_id = $1", [student]);
+    const conversationId = mine.rows[0]!.id;
+    const hash = `sha256:${"d4".repeat(32)}`;
+    await page.route("**/v1/conversations/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          run: { runId: "run_p290", caseId: "case_p290", conversationId, status: "running", phase: "interviewing", step: "specialist", revision: 1, resumed: true },
+          pending: {
+            decision: "choose_entry",
+            contentHash: hash,
+            question: "Their form asks you to choose your institution from its own list …",
+            studentWords: "HHE",
+            escape: { id: "escape", label: "Not in list" },
+            entries: [{ id: "e1", label: "Azad University" }, { id: "e2", label: "Islamic Azad University, Central Tehran Branch" }],
+          },
+        }),
+      });
+    });
+    const sent: unknown[] = [];
+    await page.route("**/v1/conversations/*/runs/run_p290/decision", async (route) => {
+      sent.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => (document.querySelector("#pending")?.textContent ?? "").includes("is not on their list"), undefined, { timeout: 20_000 });
+
+    // The line says the choice is theirs — not that a person has it.
+    expect(await page.locator("#pending .position").textContent()).toBe(
+      "Your application is waiting for you: their form's list does not hold one of your answers, and the choice below is yours.",
+    );
+    expect(await page.locator("#pending h2").textContent()).toBe('"HHE" is not on their list — which is yours?');
+    const buttons = page.locator("#pending button");
+    const labels = await buttons.allTextContents();
+    // The escape first, then the entries in the form's order; the stop button may follow.
+    expect(labels.slice(0, 3)).toEqual(["Not in list", "Azad University", "Islamic Azad University, Central Tehran Branch"]);
+    const classes = await Promise.all([0, 1, 2].map((index) => buttons.nth(index).getAttribute("class")));
+    expect(new Set(classes).size, "one weight for all three").toBe(1);
+
+    await page.locator("#pending button", { hasText: "Islamic Azad University, Central Tehran Branch" }).click();
+    await page.waitForFunction(() => true);
+    await expect.poll(() => sent.length, { timeout: 10_000 }).toBe(1);
+    expect(sent[0]).toEqual({ kind: "choose_entry", contentHash: hash, choice: "e2" });
+    await page.unroute("**/v1/conversations/*/runs/run_p290/decision");
+    await page.unroute("**/v1/conversations/*/runs");
+  }, 180_000);
+
   it("shows a run handed to a PERSON as exactly that, not as a live interview", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // ADR-0064, through the browser. What this proves is the RENDERING: that

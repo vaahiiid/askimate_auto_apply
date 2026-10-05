@@ -1,6 +1,6 @@
 # ADR-0109 — A typeahead mapping names the value the form submits; the reviewer records the text; both must match at the fill; the preview shows the text; the escape is named by value and never chosen
 
-**Status:** Accepted · 2026-09-13 · decides the value-versus-text question raised in P101 · continues 0103 (gap 2) and 0057
+**Status:** Accepted · 2026-09-13 · amended 2026-10-05 (P290, ADR-0155) · decides the value-versus-text question raised in P101 · continues 0103 (gap 2) and 0057
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-13. Built in P118.
 
 ## Context
@@ -156,3 +156,34 @@ select's escape, and a mapping that fills the box shown only when the escape is 
 (`visibleWhen` equal to it — Sheffield's `unlistedDegree`). The student's message (P280) explains
 the escape wherever `escapeOf` finds one. Not extended: the runner's own refusal to choose an escape
 is a typeahead's (it carries `typeahead.escapeValue`); a select's escape is refused at the plan.
+
+## Amended 2026-10-05 (P290): the escape may be chosen when, and only when, the student chose it
+
+In his own words, 2026-10-05, 15:52 UTC (*"Both decisions, in my own words."*):
+
+> *"ADR-0109 is amended: the runner may choose the form's escape entry when, and only when, the
+> student has chosen it. Never otherwise, and never as a fallback when nothing matches. The record
+> of that choice is what permits the press, so a run with no recorded choice refuses the escape
+> exactly as it does today."*
+
+> *"The reasoning stays what it was: choosing "not in list" is a statement about the student's own
+> education, and a system that makes it for them is making a claim on their behalf. Nothing about
+> that changes — what changes is that the student can now make it, which they could not before.
+> ADR-0109 refused the agent, not the person."*
+
+What changes, and nothing more (ADR-0155 has the whole):
+
+- **The runner.** `#chooseTypeahead` still refuses the escape (`ClickRefusedError`, ADR-0109) for
+  any instruction that does not carry `chosenByStudent`. Only the plan sets that flag, and only from
+  a choice recorded in `entry_choices` (migration 0039) at the student's press. A miss, a
+  fallback, or anything else does not set it.
+- **The plan.** A select's escape is reached only through a recorded choice, as a `chosen` value.
+  `checkUsable` still refuses any mapping row that names an escape, so no rule can choose one.
+- **The box the escape opens** may now hold the student's own words, as they gave them: a
+  profile field rendered as it stands, through no option rule. A constant there, or a word a row
+  translates, is still refused (`escape_named`), because either would be a claim made for them.
+- **Proven:**
+  - the runner test *"chooses the ESCAPE when, and only when, the student chose it"* (the same
+    instruction without the flag is refused);
+  - the plan tests (no choice: the refusal stands and the box stays hidden);
+  - the driver test (typed words record nothing).

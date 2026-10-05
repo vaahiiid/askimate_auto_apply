@@ -341,6 +341,19 @@ export type TransportedValue =
       readonly mappingSetId: string;
       readonly reviewedBy: string;
     }
+  /**
+   * P290, ADR-0155: an entry the student chose from the form's own list. Not a
+   * confirmed value and not a constant; `escape` true only when the student
+   * chose the form's escape, which is what permits the runner to choose it.
+   */
+  | {
+      readonly kind: "chosen";
+      readonly fieldKey: string;
+      readonly text: string;
+      readonly label: string;
+      readonly studentWords: string;
+      readonly escape: boolean;
+    }
   /** ADR-0102: the refusal the form offers. Never an answer; the runner enters it as a refusal. */
   | {
       readonly kind: "form_refusal";
@@ -366,7 +379,7 @@ export interface TransportedInstruction {
     readonly holds?: FillLocator;
   };
   /** Where a typeahead's entries are found (ADR-0103, gap 2): a locator; the text typed for the value and the escape's value (ADR-0109). */
-  readonly typeahead?: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string };
+  readonly typeahead?: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string; readonly search?: string; readonly chosenByStudent?: true };
   /** Which item of a repeating page this is (ADR-0103, gap 3): two counts. */
   readonly item?: { readonly index: number; readonly count: number };
 }
@@ -899,6 +912,18 @@ function parseTransportedValue(value: unknown): TransportedValue | null {
       provenance,
     };
   }
+  if (record["kind"] === "chosen") {
+    if (!nonEmpty(record["fieldKey"]) || typeof record["text"] !== "string" || typeof record["label"] !== "string") return null;
+    if (typeof record["studentWords"] !== "string" || typeof record["escape"] !== "boolean") return null;
+    return {
+      kind: "chosen",
+      fieldKey: record["fieldKey"],
+      text: record["text"],
+      label: record["label"],
+      studentWords: record["studentWords"],
+      escape: record["escape"],
+    };
+  }
   if (record["kind"] === "form_refusal") {
     for (const field of ["text", "rationale", "mappingSetId", "reviewedBy"]) {
       if (typeof record[field] !== "string") return null;
@@ -1000,7 +1025,7 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       };
     }
     const entries = held["typeahead"];
-    let typeahead: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string } | undefined;
+    let typeahead: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string; readonly search?: string; readonly chosenByStudent?: true } | undefined;
     if (entries !== undefined) {
       if (typeof entries !== "object" || entries === null) return null;
       const block = entries as Record<string, unknown>;
@@ -1009,7 +1034,18 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       if (typeof block["text"] !== "string") return null;
       const escapeValue = block["escapeValue"];
       if (escapeValue !== undefined && !nonEmpty(escapeValue)) return null;
-      typeahead = { optionLocator, text: block["text"], ...(escapeValue === undefined ? {} : { escapeValue }) };
+      // P290: what to type for a student's chosen entry, and the choice that permits the escape.
+      const search = block["search"];
+      if (search !== undefined && !nonEmpty(search)) return null;
+      const chosenByStudent = block["chosenByStudent"];
+      if (chosenByStudent !== undefined && chosenByStudent !== true) return null;
+      typeahead = {
+        optionLocator,
+        text: block["text"],
+        ...(escapeValue === undefined ? {} : { escapeValue }),
+        ...(search === undefined ? {} : { search }),
+        ...(chosenByStudent === true ? { chosenByStudent: true as const } : {}),
+      };
     }
     const itemRaw = held["item"];
     let item: { readonly index: number; readonly count: number } | undefined;

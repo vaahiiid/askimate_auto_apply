@@ -72,7 +72,47 @@ export type FillValue =
   | { readonly kind: "confirmed"; readonly value: ConfirmedValue<string>; readonly fieldKey: ProfileFieldKey }
   | { readonly kind: "reviewed_constant"; readonly constant: ReviewedConstant }
   /** The refusal the form offers on a question this system cannot answer (ADR-0102). */
-  | { readonly kind: "form_refusal"; readonly refusal: ReviewedFormRefusal };
+  | { readonly kind: "form_refusal"; readonly refusal: ReviewedFormRefusal }
+  /**
+   * An entry the STUDENT chose from the form's own list for a value of theirs
+   * the list does not hold (P290, ADR-0155) — or the form's escape, when that
+   * is what they chose. Not a confirmed profile value, and not dressed up as
+   * one: their own words stay in the profile as they gave them, and this is
+   * their statement about which entry of THIS form's list they are. Built
+   * only from a recorded choice (`StudentChoice`), never from a mapping.
+   */
+  | {
+      readonly kind: "chosen";
+      readonly fieldKey: ProfileFieldKey;
+      /** What the form submits: the entry's value, or — for a search box — the word whose results they chose from. */
+      readonly value: string;
+      /** What the form shows for it. */
+      readonly label: string;
+      /** The student's own words, which the list did not hold. */
+      readonly studentWords: string;
+      /** The form's escape: permitted to the runner only because the student chose it (ADR-0109 amended). */
+      readonly escape: boolean;
+    };
+
+/**
+ * A student's choice from a form's own list, recorded with the application
+ * (P290, ADR-0155). In the message of 2026-10-05, 15:02 UTC, which speaks of
+ * Vahid in the third person: *"Whatever they pick is their answer, recorded
+ * as theirs, and the run carries on with it."*
+ */
+export interface StudentChoice {
+  readonly fieldRef: string;
+  /** The entry of a repeating page, from 0 — absent off one. */
+  readonly item?: number;
+  /** The student's own value, which the list did not hold: what the plan refused. */
+  readonly studentValue: string;
+  /** The entry chosen, by the value the form submits. */
+  readonly value: string;
+  readonly label: string;
+  readonly escape: boolean;
+  /** For a searched list: the word whose results the entries were — typed into the search box, or the typeahead. */
+  readonly searchedWith?: string;
+}
 
 /** One thing to type into one field. */
 export interface FillInstruction {
@@ -111,7 +151,15 @@ export interface FillInstruction {
    * value, and chooses that entry — a fill, not an advance; it never chooses
    * the escape.
    */
-  readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string };
+  readonly typeahead?: {
+    readonly optionLocator: FieldLocator;
+    readonly text: string;
+    readonly escapeValue?: string;
+    /** P290: what to TYPE, when it is not the entry's own text — the search word a student's chosen entry came from. */
+    readonly search?: string;
+    /** P290: the student chose this entry — the only thing that lets the runner choose the escape (ADR-0109 amended). */
+    readonly chosenByStudent?: true;
+  };
   /**
    * Which item of a repeating page this instruction belongs to (ADR-0103,
    * gap 3): the page is filled `count` times, and this is fill `index`. Absent
@@ -144,6 +192,8 @@ export function textOf(value: FillValue): string {
       return constantText(value.constant);
     case "form_refusal":
       return formRefusalText(value.refusal);
+    case "chosen":
+      return value.value;
   }
 }
 
@@ -247,6 +297,12 @@ export type FillBlocker =
       readonly label: string;
       readonly fieldKey: OrdinaryFieldKey;
       readonly refusal: RenderRefusal;
+      /**
+       * Which entry of a repeating page refused (P290): a choice is the
+       * student's for ONE qualification, and two at the same unlisted
+       * institution are two choices. Absent off a repeating page.
+       */
+      readonly item?: { readonly index: number; readonly count: number };
     }
   /**
    * The student gave more entries of a list than the form has blocks for
@@ -339,6 +395,8 @@ export function planFill(
   blueprint: ApplicationBlueprint,
   mappingSet: UsableMappingSet,
   profile: ConfirmedProfile,
+  /** P290: the student's recorded choices from the form's own lists, for this application. */
+  choices: readonly StudentChoice[] = [],
 ): FillPlan {
   const instructions: FillInstruction[] = [];
   const uploads: UploadInstruction[] = [];
@@ -384,6 +442,49 @@ export function planFill(
     if (field.frontedBy === undefined || first === undefined) continue;
     setBy.set(field.frontedBy, first);
   }
+  // ── P290: a refused value the student has chosen an entry for ─────────
+  //
+  // The choice is looked up by the field, the entry of a repeating page and
+  // the student's own value — the one the plan refused. A search box (the
+  // field a searched list's press follows) takes the word whose results the
+  // student chose from. Nothing here chooses: no choice, no instruction.
+  const searchedBy = new Map(
+    allFields(blueprint).flatMap((field) =>
+      field.optionsAfter?.press === undefined ? [] : [[field.optionsAfter.fieldRef, field.fieldRef] as const],
+    ),
+  );
+  const chosenInstead = (
+    field: BlueprintField,
+    fieldKey: ProfileFieldKey,
+    refusal: { readonly kind: string; readonly value?: string },
+    item: { readonly index: number; readonly count: number } | undefined,
+  ): FillInstruction | null => {
+    if ((refusal.kind !== "no_matching_option" && refusal.kind !== "no_matching_case") || refusal.value === undefined) return null;
+    const value = refusal.value;
+    const recorded = (fieldRef: string): StudentChoice | undefined =>
+      choices.find((choice) => choice.fieldRef === fieldRef && (choice.item ?? -1) === (item?.index ?? -1) && choice.studentValue === value);
+    const own = recorded(field.fieldRef);
+    if (own !== undefined) {
+      const shape = instructionShape(field, setBy);
+      return {
+        ...shape,
+        ...(shape.typeahead === undefined
+          ? {}
+          : { typeahead: { ...shape.typeahead, search: own.searchedWith ?? value, chosenByStudent: true as const } }),
+        value: { kind: "chosen", fieldKey, value: own.value, label: own.label, studentWords: value, escape: own.escape },
+        ...(item === undefined ? {} : { item }),
+      };
+    }
+    // A search box: the word whose results the student chose from.
+    const dependent = searchedBy.get(field.fieldRef);
+    const theirs = dependent === undefined ? undefined : recorded(dependent);
+    if (theirs?.searchedWith === undefined) return null;
+    return {
+      ...instructionShape(field, setBy),
+      value: { kind: "chosen", fieldKey, value: theirs.searchedWith, label: theirs.searchedWith, studentWords: value, escape: false },
+      ...(item === undefined ? {} : { item }),
+    };
+  };
   const companionOf = new Map(
     allRequiredDocuments(blueprint)
       .filter((document) => document.companion !== undefined)
@@ -581,6 +682,11 @@ export function planFill(
 
         const rendered = renderConfirmed(resolution, format);
         if (!rendered.rendered) {
+          const chosen = chosenInstead(field, fieldKey, rendered.refusal, undefined);
+          if (chosen !== null) {
+            instructions.push(chosen);
+            break;
+          }
           blockers.push({
             kind: "render_refused",
             fieldRef: field.fieldRef,
@@ -745,12 +851,18 @@ export function planFill(
         if (mapping.source.kind !== "profile_field") continue; // refused by checkUsable
         const rendered = renderConfirmedItem(resolution, index, mapping.source.format);
         if (!rendered.rendered) {
+          const chosen = chosenInstead(field, fieldKey, rendered.refusal, item);
+          if (chosen !== null) {
+            itemInstructions.push(chosen);
+            continue;
+          }
           itemBlockers.push({
             kind: "render_refused",
             fieldRef: field.fieldRef,
             label: field.label,
             fieldKey,
             refusal: rendered.refusal,
+            item,
           });
           continue;
         }

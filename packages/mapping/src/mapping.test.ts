@@ -8,6 +8,7 @@ import { checkUsable, constantsIn, formRefusalAttribution, isRequired, isRequire
 import type { MappingSet, UsableMappingSet } from "./mapping.js";
 import type { ApplicationBlueprint, BlueprintField, BlueprintPage } from "@askimate/aas-blueprint";
 import { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
+import type { StudentChoice } from "./plan.js";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "./fixtures/portal.js";
 import {
   GATED_PORTAL_BLUEPRINT,
@@ -1802,15 +1803,176 @@ describe("a select's escape, and the box it opens, are the student's own act (P2
     }
   });
 
-  it("REFUSES a mapping that fills the box the escape opens — what it says is the student's to write", () => {
+  it("REFUSES a mapping that puts anything but the student's own words in the box the escape opens — what it says is theirs to write", () => {
+    // P290 (ADR-0109 amended) admits their own words, as they gave them; a
+    // constant is a claim made for them, and is refused as before.
     const check = checkUsable(
-      withNationality({ Iranian: "IR" }, [{ fieldRef: "nationality_unlisted", source: { kind: "profile_field", fieldKey: "identity.nationality", format: { kind: "text" } } }]),
+      withNationality({ Iranian: "IR" }, [
+        { fieldRef: "nationality_unlisted", source: { kind: "constant", value: "Stateless", classification: "application_metadata", rationale: "A word for every applicant." } },
+      ]),
       blueprint,
     );
     expect(check.usable).toBe(false);
     if (!check.usable) {
       expect(check.refusal.kind).toBe("escape_named");
       expect(check.refusal.detail).toContain("nationality_unlisted is shown only when nationality's escape is chosen");
+    }
+    const own = checkUsable(
+      withNationality({ Iranian: "IR" }, [{ fieldRef: "nationality_unlisted", source: { kind: "profile_field", fieldKey: "identity.nationality", format: { kind: "text" } } }]),
+      blueprint,
+    );
+    if (!own.usable) expect.unreachable(own.refusal.detail);
+  });
+});
+
+describe("a student's choice from the form's own list (P290, ADR-0155, ADR-0109 amended)", () => {
+  // Vahid, 2026-10-05: *"the runner may choose the form's escape entry when,
+  // and only when, the student has chosen it. Never otherwise, and never as a
+  // fallback when nothing matches. The record of that choice is what permits
+  // the press, so a run with no recorded choice refuses the escape exactly as
+  // it does today."* The plan reads a RECORDED choice; nothing here chooses.
+  const ESCAPE = "Not in list";
+  const blueprintWith = (shape: "select" | "typeahead"): ApplicationBlueprint => ({
+    ...FIXTURE_BLUEPRINT,
+    pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.flatMap((field): BlueprintField[] =>
+          field.fieldRef === "nationality"
+            ? [
+                {
+                  ...field,
+                  options: [...(field.options ?? []), { value: ESCAPE, label: "Not in list" }],
+                  ...(shape === "select"
+                    ? { escapeValue: ESCAPE }
+                    : { inputType: "typeahead" as const, typeahead: { optionLocator: { strategy: "css" as const, value: "#nationalityOptions li" }, escapeValue: ESCAPE } }),
+                },
+                {
+                  fieldRef: "nationality_unlisted",
+                  label: "If not listed, your nationality",
+                  inputType: "text",
+                  dataCategory: "ordinary",
+                  locators: [{ strategy: "id", value: "nationalityUnlisted" }],
+                  validations: [],
+                  visibleWhen: { whenFieldRef: "nationality", operator: "equals", value: ESCAPE },
+                },
+              ]
+            : [field],
+        ),
+      })),
+    })),
+  });
+  const OWN_WORDS = { fieldRef: "nationality_unlisted", source: { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "text" as const } } };
+  const usableFor = (blueprint: ApplicationBlueprint, extra: MappingSet["mappings"] = [OWN_WORDS]): UsableMappingSet => {
+    const check = checkUsable({ ...FIXTURE_MAPPING_SET, mappings: [...FIXTURE_MAPPING_SET.mappings, ...extra] }, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    return check.mappingSet;
+  };
+  const PERSIAN = withConfirmed(COMPLETE_PROFILE, [["identity.nationality", "Persian"]]);
+  const chose = (value: string, label: string, escape: boolean, more: Partial<StudentChoice> = {}): StudentChoice => ({
+    fieldRef: "nationality",
+    studentValue: "Persian",
+    value,
+    label,
+    escape,
+    ...more,
+  });
+
+  it("with NO recorded choice the refusal stands, the escape is not chosen, and its box stays hidden", () => {
+    const blueprint = blueprintWith("select");
+    const plan = planFill(blueprint, usableFor(blueprint), PERSIAN);
+    const blocker = plan.blockers.find((b) => b.fieldRef === "nationality");
+    if (blocker?.kind !== "render_refused") expect.unreachable("expected a render refusal");
+    expect(blocker.refusal.kind).toBe("no_matching_option");
+    expect(plan.instructions.map((i) => i.fieldRef)).not.toContain("nationality");
+    expect(plan.instructions.map((i) => i.fieldRef)).not.toContain("nationality_unlisted");
+    expect(plan.hidden.map((h) => h.fieldRef)).toContain("nationality_unlisted");
+  });
+
+  it("a recorded choice of an ENTRY fills it, as the student's statement — their own words kept beside it", () => {
+    const blueprint = blueprintWith("select");
+    const plan = planFill(blueprint, usableFor(blueprint), PERSIAN, [chose("IR", "Iran (Islamic Republic of)", false)]);
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("nationality");
+    const nationality = plan.instructions.find((i) => i.fieldRef === "nationality");
+    expect(nationality?.value).toEqual({
+      kind: "chosen",
+      fieldKey: "identity.nationality",
+      value: "IR",
+      label: "Iran (Islamic Republic of)",
+      studentWords: "Persian",
+      escape: false,
+    });
+    expect(nationality === undefined ? "" : textOf(nationality.value)).toBe("IR");
+    // Not the escape, so its box is hidden and nothing is typed in it.
+    expect(plan.hidden.map((h) => h.fieldRef)).toContain("nationality_unlisted");
+  });
+
+  it("a recorded choice of the ESCAPE chooses it, and the box it opens holds the student's own words, as they gave them", () => {
+    const blueprint = blueprintWith("select");
+    const plan = planFill(blueprint, usableFor(blueprint), PERSIAN, [chose(ESCAPE, "Not in list", true)]);
+    const nationality = plan.instructions.find((i) => i.fieldRef === "nationality");
+    expect(nationality?.value).toMatchObject({ kind: "chosen", value: ESCAPE, escape: true, studentWords: "Persian" });
+    const box = plan.instructions.find((i) => i.fieldRef === "nationality_unlisted");
+    expect(box === undefined ? "" : textOf(box.value)).toBe("Persian");
+    expect(plan.blockers).toEqual([]);
+  });
+
+  it("a choice for ANOTHER value, or another entry of a list, permits nothing", () => {
+    const blueprint = blueprintWith("select");
+    for (const choice of [chose("IR", "Iran", false, { studentValue: "Iranian-Kurdish" }), chose("IR", "Iran", false, { item: 0 }), chose("IR", "Iran", false, { fieldRef: "email" })]) {
+      const plan = planFill(blueprint, usableFor(blueprint), PERSIAN, [choice]);
+      expect(plan.blockers.map((b) => b.fieldRef), JSON.stringify(choice)).toContain("nationality");
+      expect(plan.instructions.map((i) => i.fieldRef)).not.toContain("nationality");
+    }
+    // And a value the rules DO hold is planned by them, whatever was chosen for another.
+    const plan = planFill(blueprint, usableFor(blueprint), COMPLETE_PROFILE, [chose(ESCAPE, "Not in list", true)]);
+    expect(plan.instructions.find((i) => i.fieldRef === "nationality")?.value.kind).toBe("confirmed");
+  });
+
+  it("a typeahead carries the word to type and that the STUDENT chose — the only thing that lets the runner press the escape", () => {
+    const blueprint = blueprintWith("typeahead");
+    const set = usableFor(blueprint);
+    const searched = planFill(blueprint, set, PERSIAN, [chose(ESCAPE, "Not in list", true, { searchedWith: "Pers" })]);
+    expect(searched.instructions.find((i) => i.fieldRef === "nationality")?.typeahead).toEqual({
+      optionLocator: { strategy: "css", value: "#nationalityOptions li" },
+      text: "Not in list",
+      escapeValue: ESCAPE,
+      search: "Pers",
+      chosenByStudent: true,
+    });
+    // With no search word recorded, it types the student's own words.
+    const own = planFill(blueprint, set, PERSIAN, [chose("IR", "Iran (Islamic Republic of)", false)]);
+    expect(own.instructions.find((i) => i.fieldRef === "nationality")?.typeahead).toMatchObject({ text: "Iran (Islamic Republic of)", search: "Persian", chosenByStudent: true });
+    // An instruction from the rules is never marked as the student's choice.
+    const ruled = planFill(blueprint, set, COMPLETE_PROFILE);
+    expect(ruled.instructions.find((i) => i.fieldRef === "nationality")?.typeahead?.chosenByStudent).toBeUndefined();
+  });
+
+  it("carries a choice through transport unchanged", () => {
+    const blueprint = blueprintWith("typeahead");
+    const plan = planFill(blueprint, usableFor(blueprint), PERSIAN, [chose(ESCAPE, "Not in list", true, { searchedWith: "Pers" })]);
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    const back = rehydratePlan(stored.plan);
+    const before = plan.instructions.find((i) => i.fieldRef === "nationality");
+    const after = back.instructions.find((i) => i.fieldRef === "nationality");
+    expect(after?.value).toEqual(before?.value);
+    expect(after?.typeahead).toEqual(before?.typeahead);
+  });
+
+  it("the escape's box may hold ONLY the student's own words: a constant, or words passed through an option rule, is still refused", () => {
+    const blueprint = blueprintWith("select");
+    for (const source of [
+      { kind: "constant" as const, value: "Persian", classification: "application_metadata" as const, rationale: "A word for every applicant." },
+      { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "option" as const, options: { Persian: "Persian" } } },
+    ]) {
+      const check = checkUsable({ ...FIXTURE_MAPPING_SET, mappings: [...FIXTURE_MAPPING_SET.mappings, { fieldRef: "nationality_unlisted", source }] }, blueprint);
+      expect(check.usable, source.kind).toBe(false);
+      if (!check.usable) {
+        expect(check.refusal.kind).toBe("escape_named");
+        expect(check.refusal.detail).toContain("may hold only the student's own words, as they gave them");
+      }
     }
   });
 });

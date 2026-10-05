@@ -224,6 +224,23 @@ export interface BlueprintField {
    */
   readonly escapeValue?: string;
   /**
+   * What each search of this field's list returned, in the order the portal
+   * returned it (P290). A searched list — a typeahead, or a select filled by
+   * pressing a search — is never read whole; what IS known of it is one
+   * search at a time, by the word searched. Each entry is an option's VALUE,
+   * among `options`; the escape is not listed here, because it is offered
+   * beside the entries, never among them. An empty `entries` is a search that
+   * returned nothing, which is a reading too.
+   */
+  readonly searches?: readonly FieldSearch[];
+  /**
+   * A list this field holds only once an earlier field is set to a value, read
+   * with it set (P290): Sheffield's grading systems after "Not in list" is
+   * chosen as the institution. Entries by value, among `options`, in the order
+   * the form shows them; the escape is not listed here either.
+   */
+  readonly listsAfter?: readonly FieldListAfter[];
+  /**
    * The canonical profile field this maps to.
    *
    * DELIBERATELY OPTIONAL and deliberately not filled in by discovery. Mapping
@@ -232,6 +249,19 @@ export interface BlueprintField {
    * what goes in a form field.
    */
   readonly mapsTo?: string;
+}
+
+/** One search of a searched list, and what it returned (P290). */
+export interface FieldSearch {
+  readonly word: string;
+  readonly entries: readonly string[];
+}
+
+/** A list read with an earlier field set (P290). */
+export interface FieldListAfter {
+  readonly fieldRef: string;
+  readonly value: string;
+  readonly entries: readonly string[];
 }
 
 export interface FieldLocator {

@@ -59,6 +59,7 @@ import { RunSessionStore } from "./session-store.js";
 import { PortalConsentStore } from "./consent-store.js";
 import { TransmissionStore } from "./transmission-store.js";
 import { DataDeletionRequestStore } from "./data-deletion-request-store.js";
+import { EntryChoiceStore } from "./entry-choice-store.js";
 
 /**
  * The gated TEST portal, as a catalogue.
@@ -240,6 +241,8 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     interventions: new PostgresInterventionStore(wiring.pool),
     // P275, row 130: a request to delete the confirmed details, waiting for a person.
     deletionRequests: new DataDeletionRequestStore(wiring.pool),
+    // P290, ADR-0155: the student's choices from the form's own lists.
+    entryChoices: new EntryChoiceStore(wiring.pool),
     // ADR-0097: the preview names what the student holds. The METADATA
     // store, in every deployment that has the table — the service and the
     // worker build the same driver, so both name the same documents.

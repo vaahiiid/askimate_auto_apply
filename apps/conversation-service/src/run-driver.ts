@@ -143,7 +143,7 @@ import type { PreviewAttachment, PreviewDeployment } from "@askimate/aas-prepara
 import type { WorkDocument,
   OwnActReading,
 } from "@askimate/aas-contracts";
-import type { FillBlocker, FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
+import type { FillBlocker, FillPlan, MappingSet, StoredFillPlan, StudentChoice } from "@askimate/aas-mapping";
 import {
   accountCreated,
   accountDeclared,
@@ -232,6 +232,9 @@ import type { RunSessionStore } from "./session-store.js";
 import type { PortalConsentStore } from "./consent-store.js";
 import type { TransmissionStore } from "./transmission-store.js";
 import type { DataDeletionRequest, DataDeletionRequestStore, DeletionOutcome } from "./data-deletion-request-store.js";
+import type { EntryChoiceStore } from "./entry-choice-store.js";
+import type { EntryChoiceOffer } from "./entry-choice-offer.js";
+import { entryChoiceMessage, entryChoiceOffer, entryChosenMessage, ESCAPE_ID } from "./entry-choice-offer.js";
 
 /**
  * A reviewed blueprint and its reviewed mapping set, by id.
@@ -494,6 +497,20 @@ export type PendingDecision =
       readonly decision: "choose_reading";
       readonly contentHash: string;
       readonly readings: readonly { readonly id: string; readonly label: string }[];
+    }
+  /**
+   * P290, ADR-0155. A value of the student's the form's list does not hold,
+   * and what the list does hold, as the form returned it — with the form's
+   * escape beside it, first and apart. The answer is a `choose_entry` naming
+   * one `id` and carrying the offer's hash. Nothing is pre-selected.
+   */
+  | {
+      readonly decision: "choose_entry";
+      readonly contentHash: string;
+      readonly question: string;
+      readonly studentWords: string;
+      readonly escape: { readonly id: string; readonly label: string };
+      readonly entries: readonly { readonly id: string; readonly label: string }[];
     }
   /**
    * ADR-0131. The sign-in met the portal's consent notice and the student has
@@ -2832,6 +2849,14 @@ export interface RunDriverOptions {
    * from here, and nothing is said to be passed on.
    */
   readonly deletionRequests?: DataDeletionRequestStore;
+  /**
+   * The student's choices from the form's own lists (P290, ADR-0155). Absent,
+   * nothing is offered: a choice that could not be recorded would be a
+   * choice the run forgot, and the value goes to a person as before.
+   */
+  readonly entryChoices?: EntryChoiceStore;
+  /** Entry choice ids, injected so a test can make one predictable. */
+  readonly newEntryChoiceId?: (now: Date) => string;
   /** Deletion request ids, injected so a test can make one predictable. */
   readonly newDeletionRequestId?: (now: Date) => string;
   /** Lease ids, injected so a test can make a claim predictable. */
@@ -3734,6 +3759,8 @@ export class RunDriver {
           // secure control. A run therefore cannot reach account creation
           // without the student having been present — the step enforces it.
           studentPresentAtCreation: true,
+          // P290, ADR-0155: what the student chose from the form's own lists.
+          choices: (await this.#options.entryChoices?.forCase(input.caseId)) ?? [],
         },
         profile: profileView,
         interview: interviewFrom({
@@ -4407,7 +4434,7 @@ export class RunDriver {
       studentRef: record.studentRef,
     });
     const pending = situation.ok
-      ? await this.#pendingDecision(record.caseId, conversationId, situation.step)
+      ? await this.#pendingDecision(record.caseId, conversationId, situation.step, { entry, state: situation.state })
       : null;
     const run: RunPosition = {
       runId: record.runId,
@@ -4513,6 +4540,8 @@ export class RunDriver {
     caseId: CaseId,
     conversationId: string,
     step: RunStep,
+    /** P290: what an offer of the form's own list is derived from, where the caller holds it. */
+    offerFrom?: { readonly entry: CatalogueEntry; readonly state: RunState },
   ): Promise<PendingDecision | null> {
     // P251, ADR-0151: the CV question, while it stands. Derived from the
     // readings table, never from the client.
@@ -4584,7 +4613,21 @@ export class RunDriver {
       };
     }
     const open = openProposal(events);
-    if (open === null) return null;
+    if (open === null) {
+      // P290, ADR-0155: a choice from the form's own list, while the run
+      // stands on a refusal the student can settle. Derived, as the offer is.
+      const offer = offerFrom === undefined || specialistHandoverOf(step) === null ? null : this.#entryChoiceOffer(offerFrom.entry, offerFrom.state);
+      if (offer === null) return null;
+      return {
+        decision: "choose_entry",
+        contentHash: offer.offerHash,
+        question: entryChoiceMessage(offerFrom?.entry.blueprint.institutionName ?? "", offer),
+        studentWords: offer.studentValue,
+        // The escape first and apart; the entries as the form returned them.
+        escape: { id: offer.escape.id, label: offer.escape.label },
+        entries: offer.entries.map((entry) => ({ id: entry.id, label: entry.label })),
+      };
+    }
     const entries = entriesOf(open);
     return { decision: "confirm_value", contentHash: open.playbackHash, ...(entries === null ? {} : { entries }) };
   }
@@ -4972,6 +5015,9 @@ export class RunDriver {
     }
     if (input.decision.kind === "choose_reading") {
       return await this.#chooseReading(input.conversationId, situation.state, input.decision);
+    }
+    if (input.decision.kind === "choose_entry") {
+      return await this.#chooseEntry(input.conversationId, entry, record.caseId, situation, input.decision);
     }
     if (input.decision.kind === "correct_entry") {
       return await this.#correctEntry(input.conversationId, input.decision);
@@ -5396,6 +5442,53 @@ export class RunDriver {
       conversationId,
       event: { kind: "message", actor: "assistant", content: words },
     });
+  }
+
+  /**
+   * The student chose from the form's own list (P290, ADR-0155).
+   *
+   * Bound to the offer as a confirmation is bound to its playback: the offer
+   * is derived again, now, and the hash must be its; the id one of its
+   * entries' or its escape's. Recorded with the student's own words beside
+   * the entry, once — a second press finds the first standing. Only the
+   * press records: words typed while the offer stands choose nothing.
+   */
+  async #chooseEntry(
+    conversationId: string,
+    entry: CatalogueEntry,
+    caseId: CaseId,
+    situation: { readonly step: RunStep; readonly state: RunState },
+    decision: Extract<StudentDecision, { kind: "choose_entry" }>,
+  ): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }> {
+    const store = this.#options.entryChoices;
+    if (store === undefined || specialistHandoverOf(situation.step) === null) return { ok: false, reason: "not_asked" };
+    const offer = this.#entryChoiceOffer(entry, situation.state);
+    if (offer === null) return { ok: false, reason: "not_asked" };
+    if (offer.offerHash !== decision.contentHash) return { ok: false, reason: "content_changed" };
+    const picked = decision.choice === ESCAPE_ID ? offer.escape : offer.entries.find((candidate) => candidate.id === decision.choice);
+    if (picked === undefined) return { ok: false, reason: "refused" };
+    const now = this.#options.now();
+    const recorded = await store.record({
+      choiceId: this.#options.newEntryChoiceId?.(now) ?? `ec_${randomUUID().replace(/-/g, "")}`,
+      caseId,
+      conversationId,
+      fieldRef: offer.fieldRef,
+      ...(offer.item === undefined ? {} : { item: offer.item.index }),
+      studentValue: offer.studentValue,
+      value: picked.value,
+      label: picked.label,
+      escape: picked.id === ESCAPE_ID,
+      ...(offer.source.kind === "search" ? { searchedWith: offer.source.word } : {}),
+      offerHash: offer.offerHash,
+      chosenAt: now,
+    });
+    if (recorded.recorded) {
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content: entryChosenMessage(offer, picked) },
+      });
+    }
+    return { ok: true };
   }
 
   /**
@@ -7231,6 +7324,10 @@ export class RunDriver {
     const handover = specialistHandoverOf(step) ?? content;
     if (handover === null) return null;
 
+    // ── P290, ADR-0155: what the student can settle, they are asked first ──
+    const asked = content === null ? await this.#offerTheirChoice(input, step, state) : null;
+    if (asked !== null) return asked;
+
     await this.#raiseForSpecialist({
       entry: input.entry,
       record: input.record,
@@ -7279,6 +7376,58 @@ export class RunDriver {
         concerns: input.concerns,
       },
     };
+  }
+
+  /**
+   * The offer of the form's own list, put instead of a person when the plan's
+   * first refusal can be settled by the student (P290, ADR-0155) — or `null`.
+   */
+  async #offerTheirChoice(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly concerns: readonly ResumeConcern[];
+      readonly resumed: boolean;
+      readonly afterResolution?: boolean;
+    },
+    step: RunStep,
+    state: RunState,
+  ): Promise<RunOutcome | null> {
+    // The message of 2026-10-05, 15:02 UTC (third person, ADR-0155): *"the
+    // student is shown what the portal's list does hold and chooses."* A
+    // refusal whose list is on file is offered, one at a time, in the plan's
+    // order; the run waits for the press and no person is asked. What no
+    // offer can settle goes to a person exactly as before.
+    const offer = this.#entryChoiceOffer(input.entry, state);
+    if (offer !== null) {
+      const question = entryChoiceMessage(input.entry.blueprint.institutionName, offer, input.afterResolution === true);
+      const said = await this.#options.conversations.since(input.conversationId, 0);
+      // Said once per offer: the worker re-derives this step on every pass.
+      if (!said.some((event) => event.kind === "message" && event.content === question)) {
+        await this.#options.conversations.append({
+          conversationId: input.conversationId,
+          event: { kind: "message", actor: "assistant", content: question },
+        });
+      }
+      return {
+        ok: true,
+        position: {
+          runId: input.record.runId,
+          caseId: input.caseId,
+          conversationId: input.conversationId,
+          status: input.record.status,
+          phase: input.record.checkpoint.phase,
+          step: step.kind,
+          revision: input.record.revision,
+          resumed: input.resumed,
+          concerns: input.concerns,
+        },
+      };
+    }
+
+    return null;
   }
 
   /**
@@ -7920,7 +8069,7 @@ export class RunDriver {
     const record = await this.#options.stores.runs.load(runId);
     const studentRef = record?.studentRef ?? "";
     const profile = await this.#options.profiles.load(studentRef, this.#options.now());
-    const plan = planFill(entry.blueprint, usable.mappingSet, profile);
+    const plan = planFill(entry.blueprint, usable.mappingSet, profile, await this.#choicesFor(record?.caseId));
     const attachments = await this.#heldAttachments(entry, plan, studentRef);
     return entry.blueprint.pages.flatMap((page) =>
       pageAttachmentsOf(
@@ -7939,7 +8088,7 @@ export class RunDriver {
       (await this.#options.stores.runs.load(runId))?.studentRef ?? "",
       this.#options.now(),
     );
-    const plan = planFill(entry.blueprint, usable.mappingSet, profile);
+    const plan = planFill(entry.blueprint, usable.mappingSet, profile, await this.#choicesFor((await this.#options.stores.runs.load(runId))?.caseId));
     const attachments = await this.#heldAttachments(
       entry,
       plan,
@@ -8152,12 +8301,31 @@ export class RunDriver {
   /** P288, row 134: the plan's values that are an entry's exact text while a rule for them is missing. */
   #exactEntries(entry: CatalogueEntry, state: RunState): ReadonlyMap<string, string> {
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
-    return usable.usable ? exactEntriesOf(entry, planFill(entry.blueprint, usable.mappingSet, state.profile), state.profile) : new Map();
+    return usable.usable ? exactEntriesOf(entry, planFill(entry.blueprint, usable.mappingSet, state.profile, state.inputs.choices), state.profile) : new Map();
+  }
+
+  /** The case's recorded choices from the form's own lists (P290), for a plan built outside `#situation`. */
+  async #choicesFor(caseId: string | undefined): Promise<readonly StudentChoice[]> {
+    if (caseId === undefined) return [];
+    return (await this.#options.entryChoices?.forCase(caseId)) ?? [];
+  }
+
+  /**
+   * What the student could settle by choosing from the form's own list, now
+   * (P290, ADR-0155) — or `null`. Only where a choice can be recorded.
+   */
+  #entryChoiceOffer(entry: CatalogueEntry, state: RunState): EntryChoiceOffer | null {
+    if (this.#options.entryChoices === undefined) return null;
+    const usable = checkUsable(entry.mappingSet, entry.blueprint);
+    if (!usable.usable) return null;
+    const choices = state.inputs.choices ?? [];
+    const plan = planFill(entry.blueprint, usable.mappingSet, state.profile, choices);
+    return entryChoiceOffer(entry.blueprint, plan, (choice) => planFill(entry.blueprint, usable.mappingSet, state.profile, [...choices, choice]));
   }
 
   #planBlockers(entry: CatalogueEntry, state: RunState): readonly FillBlocker[] {
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
-    return usable.usable ? planFill(entry.blueprint, usable.mappingSet, state.profile).blockers : [];
+    return usable.usable ? planFill(entry.blueprint, usable.mappingSet, state.profile, state.inputs.choices).blockers : [];
   }
 
   async #hasFilled(state: RunState, runId: RunId, entry: CatalogueEntry): Promise<boolean> {
@@ -8165,7 +8333,7 @@ export class RunDriver {
     // answers with `null`.
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
     if (!usable.usable) return false;
-    const plan = planFill(entry.blueprint, usable.mappingSet, state.profile);
+    const plan = planFill(entry.blueprint, usable.mappingSet, state.profile, state.inputs.choices);
     const attachments = await this.#heldAttachments(entry, plan, state.inputs.studentRef);
     if ((await this.#nextPage(runId, entry, plan, attachments)) !== null) return false;
     // A repeating page's items are their own targets (ADR-0103, gap 3) — one
@@ -9077,7 +9245,7 @@ export class RunDriver {
     const situated = await this.#interviewSituation(conversationId);
     const events = await this.#options.conversations.since(conversationId, 0);
     if (openProposal(events) !== null) return false;
-    if (situated !== null && (await this.#pendingDecision(situated.record.caseId, conversationId, situated.step)) !== null) return false;
+    if (situated !== null && (await this.#pendingDecision(situated.record.caseId, conversationId, situated.step, situated)) !== null) return false;
     const open = openQuestion(events);
     return open === null || (CV_LIST_FIELDS as readonly string[]).includes(open.fieldKey) || supersededByTheDocumentQuestion(events, open.fieldKey);
   }
@@ -9090,11 +9258,13 @@ export class RunDriver {
    * sentence; a held CV — the question, or that it is held; a portal's
    * demand. `true` when a question was put, so the caller asks nothing more.
    */
-  async #sayWhatArrived(conversationId: string, situated: { readonly entry: CatalogueEntry; readonly record: WorkflowRunRecord; readonly step: RunStep } | null): Promise<boolean> {
+  async #sayWhatArrived(conversationId: string, situated: { readonly entry: CatalogueEntry; readonly record: WorkflowRunRecord; readonly step: RunStep; readonly state: RunState } | null): Promise<boolean> {
     const readings = this.#options.readings;
     const events = await this.#options.conversations.since(conversationId, 0);
     if (openProposal(events) !== null) return false;
-    if (situated !== null && (await this.#pendingDecision(situated.record.caseId, conversationId, situated.step)) !== null) return false;
+    // With the state, so an open choice from the form's list (P290) counts:
+    // a CV question is not put over it — one thing to answer at a time (P256).
+    if (situated !== null && (await this.#pendingDecision(situated.record.caseId, conversationId, situated.step, situated)) !== null) return false;
     const open = openQuestion(events);
     const quiet = open === null || supersededByTheDocumentQuestion(events, open.fieldKey);
     if (!quiet) return false;
@@ -9740,7 +9910,7 @@ export class RunDriver {
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
     if (!usable.usable) return false;
     const profile = await this.#options.profiles.load(record.studentRef, this.#options.now());
-    const plan = planFill(entry.blueprint, usable.mappingSet, profile);
+    const plan = planFill(entry.blueprint, usable.mappingSet, profile, await this.#choicesFor(record.caseId));
     // Which item of a repeating page this fill was: the ones already saved
     // on it, counted from the ledger, are the items before this one.
     const repeated = plan.repeats.some((repeat) => repeat.pageRef === input.pageRef);
@@ -11076,6 +11246,8 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
               },
               text: instruction.typeahead.text,
               ...(instruction.typeahead.escapeValue === undefined ? {} : { escapeValue: instruction.typeahead.escapeValue }),
+              ...(instruction.typeahead.search === undefined ? {} : { search: instruction.typeahead.search }),
+              ...(instruction.typeahead.chosenByStudent === true ? { chosenByStudent: true as const } : {}),
             },
           }),
       ...(instruction.item === undefined ? {} : { item: { index: instruction.item.index, count: instruction.item.count } }),
@@ -11100,6 +11272,15 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
                   : { documentId: instruction.value.provenance.documentId }),
               },
             }
+          : instruction.value.kind === "chosen"
+            ? {
+                kind: "chosen" as const,
+                fieldKey: instruction.value.fieldKey,
+                text: instruction.value.text,
+                label: instruction.value.label,
+                studentWords: instruction.value.studentWords,
+                escape: instruction.value.escape,
+              }
           : instruction.value.kind === "form_refusal"
             ? {
                 kind: "form_refusal" as const,

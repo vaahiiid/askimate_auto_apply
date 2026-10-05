@@ -102,8 +102,20 @@ export const CV_UPLOAD_SENTENCE: StudentWords = mint(
     "for those too, and the record of our conversation keeps what was said in it, including the lines of your CV I read back to you.",
 );
 
+/**
+ * P290, ADR-0155: the line while the student is offered a choice from the
+ * form's own list. The run stands on the step a person would otherwise take
+ * (`specialist`, still `running`), and saying "with a member of the team"
+ * beside a choice that is theirs would be untrue twice: nobody else has it,
+ * and nothing comes back until they press.
+ */
+export const CHOOSING_LINE: StudentWords = mint(
+  "Your application is waiting for you: their form's list does not hold one of your answers, and the choice below is yours.",
+);
+
 /** Every sentence the line can be, for the test that reads them all. */
 export const EVERY_SENTENCE: readonly string[] = [
+  CHOOSING_LINE,
   ...Object.values(STEP_WORDS),
   ...Object.values(STATUS_WORDS).flatMap((sentence) => (sentence === null ? [] : [sentence])),
 ];

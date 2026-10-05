@@ -869,8 +869,20 @@ export function checkUsable(
     const opener = field.visibleWhen === undefined ? undefined : fields.find((other) => other.fieldRef === field.visibleWhen?.whenFieldRef);
     const opensOn = opener === undefined ? undefined : escapeOf(opener);
     if (opensOn !== undefined && field.visibleWhen?.operator === "equals" && field.visibleWhen.value === opensOn) {
-      escapeFields.push(field.fieldRef);
-      escapeProblems.push(`${field.fieldRef} is shown only when ${opener?.fieldRef ?? "?"}'s escape is chosen, so what it says is the student's to write`);
+      // P290, ADR-0109 amended. Vahid, 2026-10-05: *"the runner may choose
+      // the form's escape entry when, and only when, the student has chosen
+      // it."* And: *"ADR-0109 refused the agent, not the person."* The box the escape
+      // opens is shown only then, so it may hold the student's OWN words, as
+      // they gave them — a profile field rendered as it stands, through no
+      // option rule — and nothing else: a constant, or words translated by a
+      // row, would still be a claim made for them.
+      const ownWords = source.kind === "profile_field" && (optionTargetsOf(source.format) ?? []).length === 0;
+      if (!ownWords) {
+        escapeFields.push(field.fieldRef);
+        escapeProblems.push(
+          `${field.fieldRef} is shown only when ${opener?.fieldRef ?? "?"}'s escape is chosen, so it may hold only the student's own words, as they gave them`,
+        );
+      }
     }
   }
   // ── ADR-0153: a typeahead row keyed on the student's words states an identity ──

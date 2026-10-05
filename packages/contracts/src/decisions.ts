@@ -63,6 +63,7 @@ export const STUDENT_DECISIONS = [
   "existing_account",
   "consent_choice",
   "choose_reading",
+  "choose_entry",
   "correct_entry",
   "use_document",
 ] as const;
@@ -185,6 +186,18 @@ export type StudentDecision =
       readonly choice: string;
     }
   /**
+   * P290, ADR-0155. The student chose from the form's own list — one of the
+   * entries it returned, or its escape — for a value of theirs it does not
+   * hold. Agreement to something shown, so it carries the offer's hash; and
+   * it names the entry by the `id` the offer gave it. Which field, which
+   * entries and which value are the run's, derived again — never the client's.
+   */
+  | {
+      readonly kind: "choose_entry";
+      readonly contentHash: string;
+      readonly choice: string;
+    }
+  /**
    * P230, ADR-0148 §6–7. The student says ONE entry of a list they were
    * played back is wrong. Bound to the playback's hash, as a confirmation is;
    * names the entry by its 1-based position in the list as shown. The list is
@@ -234,7 +247,7 @@ export function parseStudentDecision(body: unknown): StudentDecision | null {
   }
   const contentHash = readString(body, "contentHash");
   if (contentHash === null) return null;
-  if (kind === "choose_reading") {
+  if (kind === "choose_reading" || kind === "choose_entry") {
     const choice = readString(body, "choice");
     return choice === null ? null : { kind, contentHash, choice };
   }

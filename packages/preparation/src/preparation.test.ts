@@ -191,6 +191,38 @@ describe("the preview", () => {
     expect(text).toContain("(set by AskiMate:");
   });
 
+  it("shows an entry the student CHOSE from the form's list as their choice, beside the words it did not hold (P290, ADR-0155)", () => {
+    const persian = withConfirmed([
+      ["identity.given_name", "Niloofar"],
+      ["identity.family_name", "Hosseini"],
+      ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
+      ["identity.nationality", "Persian"],
+      ["contact.email", "niloofar.hosseini@example.com"],
+      ["study.personal_statement", STATEMENT],
+    ]);
+    const entry = planFill(FIXTURE_BLUEPRINT, usableSet(), persian, [
+      { fieldRef: "nationality", studentValue: "Persian", value: "IR", label: "Iran (Islamic Republic of)", escape: false },
+    ]);
+    const text = renderPreview(previewFor(entry));
+    const lines = (rendered: string): string[] => rendered.split("\n").map((line) => line.trim());
+    const at = lines(text).indexOf('Nationality: Iran (Islamic Republic of)  (sent as "IR")');
+    expect(at, text).toBeGreaterThan(-1);
+    expect(lines(text)[at + 1]).toBe('(you chose this on their list for "Persian")');
+    const escaped = planFill(FIXTURE_BLUEPRINT, usableSet(), persian, [
+      { fieldRef: "nationality", studentValue: "Persian", value: "Not in list", label: "Not in list", escape: true },
+    ]);
+    const shown = lines(renderPreview(previewFor(escaped)));
+    expect(shown[shown.indexOf("Nationality: Not in list") + 1]).toBe('(you chose this: their list does not hold "Persian")');
+    // What is SENT is what the hash binds: another entry is another yes.
+    expect(previewFor(escaped).contentHash).not.toBe(previewFor(entry).contentHash);
+    expect(previewFor(entry).entries.find((line) => line.fieldRef === "nationality")?.attribution).toEqual({
+      kind: "student_chose",
+      fieldKey: "identity.nationality",
+      studentWords: "Persian",
+      escape: false,
+    });
+  });
+
   it("names the portal for EVERY application, with or without documents (P75)", () => {
     // The host has been in the hash since ADR-0098; the text named it only
     // under each attachment, so an application with nothing to attach was a
