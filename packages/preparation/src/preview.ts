@@ -113,6 +113,8 @@ export interface PreviewEntry {
         readonly fieldKey: ProfileFieldKey;
         readonly studentWords: string;
         readonly escape: boolean;
+        /** P291: a search box's word, typed so their chosen entry is among the results — not itself chosen. */
+        readonly searchWord?: true;
       };
 }
 
@@ -478,7 +480,7 @@ export function buildPreview(
           text: value.value,
           ...(value.label !== value.value ? { displayText: value.label } : {}),
           ...itemOf(instruction),
-          attribution: { kind: "student_chose", fieldKey: value.fieldKey, studentWords: value.studentWords, escape: value.escape },
+          attribution: { kind: "student_chose", fieldKey: value.fieldKey, studentWords: value.studentWords, escape: value.escape, ...(value.searchWord === true ? { searchWord: true as const } : {}) },
         });
         break;
       }
@@ -843,9 +845,11 @@ export function renderPreview(preview: SubmissionPreview): string {
         // P290: their choice on the form's list, beside the words it did not hold.
         return [
           line,
-          entry.attribution.escape
-            ? `${indent}    (you chose this: their list does not hold "${entry.attribution.studentWords}")`
-            : `${indent}    (you chose this on their list for "${entry.attribution.studentWords}")`,
+          entry.attribution.searchWord === true
+            ? `${indent}    (typed to search their list, for what you chose for "${entry.attribution.studentWords}")`
+            : entry.attribution.escape
+              ? `${indent}    (you chose this: their list does not hold "${entry.attribution.studentWords}")`
+              : `${indent}    (you chose this on their list for "${entry.attribution.studentWords}")`,
         ];
       case "student_confirmed":
         return [line];

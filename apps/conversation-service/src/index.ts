@@ -116,6 +116,8 @@ export { sweepExpiredIntakes } from "./document-intake-store.js";
 
 // ── ADR-0044: the confirmed profile has its own store ───────────────────────
 export { PostgresConfirmedProfileStore } from "./profile-store.js";
+export { entryChoiceMessage, entryChoiceOffer, ESCAPE_ID } from "./entry-choice-offer.js";
+export type { EntryChoiceOffer } from "./entry-choice-offer.js";
 
 // ── P4: the client for the Secure Interaction Service ───────────────────────
 //

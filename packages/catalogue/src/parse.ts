@@ -373,6 +373,14 @@ function readField(value: unknown, path: string): BlueprintField {
             entries: readEntries(block, at),
           };
         });
+  const escapeLeadsNowhere = optionalText(source, "escapeLeadsNowhere", path);
+  if (escapeLeadsNowhere !== undefined && escape === undefined) {
+    fail(`${path}.escapeLeadsNowhere`, "says where an escape leads, on a field with no escape recorded");
+  }
+  const prompt = optionalText(source, "prompt", path);
+  if (prompt !== undefined && (!optionValues.has(prompt) || prompt === escape)) {
+    fail(`${path}.prompt`, "a list's prompt is one of its own options, and never its escape");
+  }
   const mapsTo = optionalText(source, "mapsTo", path);
   const frontedBy = optionalText(source, "frontedBy", path);
   // ADR-0102: the reviewer's classification. Optional here — a draft has none
@@ -400,6 +408,8 @@ function readField(value: unknown, path: string): BlueprintField {
     ...(escapeValue === undefined ? {} : { escapeValue }),
     ...(searches === undefined ? {} : { searches }),
     ...(listsAfter === undefined ? {} : { listsAfter }),
+    ...(escapeLeadsNowhere === undefined ? {} : { escapeLeadsNowhere }),
+    ...(prompt === undefined ? {} : { prompt }),
   };
 }
 

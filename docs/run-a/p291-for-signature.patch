@@ -1,0 +1,629 @@
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+index e5e6bf02..6f0f0b02 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+@@ -1,6 +1,6 @@
+ {
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "version": "0.2.32",
++  "version": "0.2.33",
+   "status": "draft",
+   "institutionName": "University of Sheffield",
+   "courseName": "MSc Management and International Business",
+@@ -24679,7 +24679,13 @@
+                   "value": "#institution-ts-dropdown [role=\"option\"][data-selectable]"
+                 },
+                 "escapeValue": "Not in list"
+-              }
++              },
++              "searches": [
++                {
++                  "word": "HHE",
++                  "entries": []
++                }
++              ]
+             },
+             {
+               "fieldRef": "unlistedInstitution",
+@@ -24702,7 +24708,12 @@
+                   "value": "95",
+                   "source": "dom_attribute"
+                 }
+-              ]
++              ],
++              "visibleWhen": {
++                "whenFieldRef": "institution-ts-control",
++                "operator": "equals",
++                "value": "Not in list"
++              }
+             },
+             {
+               "fieldRef": "degree",
+@@ -24900,7 +24911,8 @@
+                   "label": "PHD"
+                 }
+               ],
+-              "escapeValue": ""
++              "escapeValue": "",
++              "prompt": "Select qualification..."
+             },
+             {
+               "fieldRef": "unlistedDegree",
+@@ -25362,7 +25374,28 @@
+                   "value": "subjectSearchButton"
+                 }
+               },
+-              "escapeValue": "Not in list"
++              "escapeValue": "Not in list",
++              "searches": [
++                {
++                  "word": "international",
++                  "entries": [
++                    "ESOL International All Modes",
++                    "International Cuisine",
++                    "International Independent Project",
++                    "International Affairs",
++                    "International Studies",
++                    "International Trade",
++                    "International Project",
++                    "International Relations",
++                    "Labour & International Studies",
++                    "Modern Languages & International Studies"
++                  ]
++                },
++                {
++                  "word": "HHE",
++                  "entries": []
++                }
++              ]
+             },
+             {
+               "fieldRef": "unlistedSubject",
+@@ -25382,7 +25415,12 @@
+                   "value": "58",
+                   "source": "dom_attribute"
+                 }
+-              ]
++              ],
++              "visibleWhen": {
++                "whenFieldRef": "subject",
++                "operator": "equals",
++                "value": "Not in list"
++              }
+             },
+             {
+               "fieldRef": "startDateMonth",
+@@ -26622,7 +26660,17 @@
+               "optionsAfter": {
+                 "fieldRef": "institution-ts-control"
+               },
+-              "escapeValue": "Not in list"
++              "escapeValue": "Not in list",
++              "listsAfter": [
++                {
++                  "fieldRef": "institution-ts-control",
++                  "value": "Not in list",
++                  "entries": [
++                    "6"
++                  ]
++                }
++              ],
++              "escapeLeadsNowhere": "Read by Vahid on his own account, 2026-10-06 (P291, read 3 in docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt): with 'Not in list' chosen as the grading system, the grade list printed [[\"\",\"\"]] — one empty option — and the page's visible text boxes printed as the site search, the two Tom Select controls, unlistedInstitution and subjectSearch, so no box opens for a grade (that unlistedGrade stays hidden is his description; the two lists are as printed). In his words: \"A student whose grading system is not on Sheffield's list has no way to state a grade at all.\""
+             },
+             {
+               "fieldRef": "grade",
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+index 0815e233..d4d116b6 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+@@ -61,13 +61,14 @@
+     "P148 (2026-09-16, ADR-0119): degree is required to save — Sheffield refused Vahid's full throwaway entry with the select unchosen, by name. His route, confirmed: map the degree for the levels the synthetic profile holds from the captured options, do not hand it, do not build a page-wider mechanism; a value the map does not name stays a loud blocker; unlistedDegree stays hidden and unmapped. The set now hands nothing to the student on any page.",
+     "Education (page7), P149 (2026-09-16): the chain is mapped for the synthetic profile's one Sheffield qualification, six boxes — the country BOX and the institution BOX (the Tom Select controls the runner fills; the hidden selects behind them are set by the boxes and mapped by nothing), the search word and the subject, the grading system and the grade — each through a PARTIAL option map onto the captured lists, naming what the synthetic profile holds and nothing more, so that anything else is a loud blocker at plan time rather than an approximation at the fill. The country box's entries are on the draft (0.2.24) from P101's confirmed reading; the grading systems now follow the institution box, inferred from the dependencies read and P102's shape, not observed as a fill. The search word is 'business', the one the 87 results came from, never the subject typed whole. Only grading system 7 is named, because only its grades were read. The set now covers every box the education page requires to save, for that one qualification.",
+     "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page.",
+-    "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature."
++    "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature.",
++    "P291 (2026-10-06), from Vahid's six reads on his own account, nothing saved (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, his message as sent): the institution box's 'HHE' search (only the escape), the boxes the institution, subject and award-title escapes open (shown only then, and filled with the student's own words, ADR-0109 amended), the grading list after the institution's escape (GPA 20), the award title's prompt, the grading system's escape recorded as leading nowhere (no grade can be given after it), the subject's 'international' search (his P283 read) and its 'HHE' search (only the escape). One signature."
+   ],
+   "mappingSetId": "map-sheffield-pgt-2027-09",
+-  "version": "0.3.43",
++  "version": "0.3.44",
+   "status": "draft",
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "blueprintVersion": "0.2.32",
++  "blueprintVersion": "0.2.33",
+   "authoredBy": "Vahid Mohammadi",
+   "authoredAt": "2026-09-11T12:00:00Z",
+   "mappings": [
+@@ -3683,7 +3684,22 @@
+           }
+         }
+       },
+-      "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map. SYNTHETIC-PROFILE VALUE (P214): the forty-one rows are the portal's whole list, not a choice; the value the read shows, BSc, is what the synthetic profile STATES as its title (P213), chosen to match what Run A typed on his account, not read from a student."
++      "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map. SYNTHETIC-PROFILE VALUE (P214): the forty-one rows are the portal's whole list, not a choice; the value the read shows, BSc, is what the synthetic profile STATES as its title (P213), chosen to match what Run A typed on his account, not read from a student. P291 (2026-10-06): the empty string IS this select's escape — read 6 printed [\"\",\"Not in list\"] and, chosen, a value of \"\" with unlistedDegree visible — so an empty value here is the student's choice of 'Not in list', never a missing one."
++    },
++    {
++      "fieldRef": "unlistedDegree",
++      "source": {
++        "kind": "profile_field",
++        "fieldKey": "education.prior_qualifications",
++        "format": {
++          "kind": "part",
++          "path": "awardTitle",
++          "then": {
++            "kind": "text"
++          }
++        }
++      },
++      "note": "The box the award title's 'Not in list' opens. On this form that escape SUBMITS THE EMPTY STRING — read 6 (P291): the entry is [\"\",\"Not in list\"], and after choosing it the select's value is \"\" and this box is visible. So an empty award title here is the escape, chosen, not a missing value. The student's own title as they gave it; typed only on their own recorded choice."
+     },
+     {
+       "fieldRef": "institutionCountry-ts-control",
+@@ -3993,6 +4009,21 @@
+       },
+       "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). The WHOLE list one search returned ('Sheff', United Kingdom, 2026-09-10): ten institutions keyed on the label the form prints and mapped to the value it submits, the escape ('Not in list') excluded because it is the student's own act. A typeahead has no list to be complete against (blocker 25): an institution this search did not return refuses and is asked about, and another search's entries are added whole when that search is read (P218). P283 (2026-10-04): Vahid's search for 'Azad' with Iran chosen, read whole from his own account — thirty-four institutions added, keyed on the text the form prints and mapped to the value it submits (ADR-0153: every row an identity, none a resemblance); the read's first line, 'IRAN Iran', is the country box's own chosen entry (it is the only other line in the empty 'HHE' read) and is not an institution: the read's selector, '.ts-dropdown [data-value]', was not scoped to this box's dropdown and matched the country box's as well. Left out on purpose, not missed. 'Azad University' (UNI6950), 'Islamic Azad University' (UNI30764) and 'University of Azad' (UNI5111) are three entries, each mapped from its own text alone."
+     },
++    {
++      "fieldRef": "unlistedInstitution",
++      "source": {
++        "kind": "profile_field",
++        "fieldKey": "education.prior_qualifications",
++        "format": {
++          "kind": "part",
++          "path": "institution",
++          "then": {
++            "kind": "text"
++          }
++        }
++      },
++      "note": "The box the institution's 'Not in list' opens (shown only then: read 1 hidden, read 2 visible, P291). The student's OWN words for their institution, as they gave them, through no option rule (ADR-0109 amended, ADR-0155): typed only when the student chose the escape themselves, a choice recorded in entry_choices. The form printed no label for it (read 1: null)."
++    },
+     {
+       "fieldRef": "subjectSearch",
+       "source": {
+@@ -4215,6 +4246,21 @@
+       },
+       "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). The WHOLE list the search for 'business' returned on 2026-09-10 and again on 2026-09-25: eighty-five subjects, keyed on the label the form prints and mapped to the value it submits — two carry a trailing space the label hides, one is listed twice and the second copy is what the map names (P132). A subject the search did not return refuses and is asked about; another search word's results are added the same way, whole (P218). P283 (2026-10-04): the search for 'international', read whole — ten subjects, value equal to label, added by their own text; the select's 'Not in list' recorded as its escape (ADR-0109 extended)."
+     },
++    {
++      "fieldRef": "unlistedSubject",
++      "source": {
++        "kind": "profile_field",
++        "fieldKey": "education.prior_qualifications",
++        "format": {
++          "kind": "part",
++          "path": "subject",
++          "then": {
++            "kind": "text"
++          }
++        }
++      },
++      "note": "The box the subject's 'Not in list' opens (read 1 hidden; read 4 visible with 'Not in list' chosen after the 'international' search, P291). The student's own words for their subject, as they gave them; typed only on their own recorded choice of the escape. Read 5: the escape is offered even when a search returns nothing."
++    },
+     {
+       "fieldRef": "gradingSystemId",
+       "source": {
+diff --git a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+index f85df9c9..433b0997 100644
+--- a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
++++ b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+@@ -38,7 +38,7 @@
+   },
+   "blueprint": {
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "version": "0.2.32",
++    "version": "0.2.33",
+     "status": "reviewed",
+     "institutionName": "University of Sheffield",
+     "courseName": "MSc Management and International Business",
+@@ -24717,7 +24717,13 @@
+                     "value": "#institution-ts-dropdown [role=\"option\"][data-selectable]"
+                   },
+                   "escapeValue": "Not in list"
+-                }
++                },
++                "searches": [
++                  {
++                    "word": "HHE",
++                    "entries": []
++                  }
++                ]
+               },
+               {
+                 "fieldRef": "unlistedInstitution",
+@@ -24740,7 +24746,12 @@
+                     "value": "95",
+                     "source": "dom_attribute"
+                   }
+-                ]
++                ],
++                "visibleWhen": {
++                  "whenFieldRef": "institution-ts-control",
++                  "operator": "equals",
++                  "value": "Not in list"
++                }
+               },
+               {
+                 "fieldRef": "degree",
+@@ -24938,7 +24949,8 @@
+                     "label": "PHD"
+                   }
+                 ],
+-                "escapeValue": ""
++                "escapeValue": "",
++                "prompt": "Select qualification..."
+               },
+               {
+                 "fieldRef": "unlistedDegree",
+@@ -25400,7 +25412,28 @@
+                     "value": "subjectSearchButton"
+                   }
+                 },
+-                "escapeValue": "Not in list"
++                "escapeValue": "Not in list",
++                "searches": [
++                  {
++                    "word": "international",
++                    "entries": [
++                      "ESOL International All Modes",
++                      "International Cuisine",
++                      "International Independent Project",
++                      "International Affairs",
++                      "International Studies",
++                      "International Trade",
++                      "International Project",
++                      "International Relations",
++                      "Labour & International Studies",
++                      "Modern Languages & International Studies"
++                    ]
++                  },
++                  {
++                    "word": "HHE",
++                    "entries": []
++                  }
++                ]
+               },
+               {
+                 "fieldRef": "unlistedSubject",
+@@ -25420,7 +25453,12 @@
+                     "value": "58",
+                     "source": "dom_attribute"
+                   }
+-                ]
++                ],
++                "visibleWhen": {
++                  "whenFieldRef": "subject",
++                  "operator": "equals",
++                  "value": "Not in list"
++                }
+               },
+               {
+                 "fieldRef": "startDateMonth",
+@@ -26660,7 +26698,17 @@
+                 "optionsAfter": {
+                   "fieldRef": "institution-ts-control"
+                 },
+-                "escapeValue": "Not in list"
++                "escapeValue": "Not in list",
++                "listsAfter": [
++                  {
++                    "fieldRef": "institution-ts-control",
++                    "value": "Not in list",
++                    "entries": [
++                      "6"
++                    ]
++                  }
++                ],
++                "escapeLeadsNowhere": "Read by Vahid on his own account, 2026-10-06 (P291, read 3 in docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt): with 'Not in list' chosen as the grading system, the grade list printed [[\"\",\"\"]] — one empty option — and the page's visible text boxes printed as the site search, the two Tom Select controls, unlistedInstitution and subjectSearch, so no box opens for a grade (that unlistedGrade stays hidden is his description; the two lists are as printed). In his words: \"A student whose grading system is not on Sheffield's list has no way to state a grade at all.\""
+               },
+               {
+                 "fieldRef": "grade",
+@@ -30554,13 +30602,14 @@
+       "P148 (2026-09-16, ADR-0119): degree is required to save — Sheffield refused Vahid's full throwaway entry with the select unchosen, by name. His route, confirmed: map the degree for the levels the synthetic profile holds from the captured options, do not hand it, do not build a page-wider mechanism; a value the map does not name stays a loud blocker; unlistedDegree stays hidden and unmapped. The set now hands nothing to the student on any page.",
+       "Education (page7), P149 (2026-09-16): the chain is mapped for the synthetic profile's one Sheffield qualification, six boxes — the country BOX and the institution BOX (the Tom Select controls the runner fills; the hidden selects behind them are set by the boxes and mapped by nothing), the search word and the subject, the grading system and the grade — each through a PARTIAL option map onto the captured lists, naming what the synthetic profile holds and nothing more, so that anything else is a loud blocker at plan time rather than an approximation at the fill. The country box's entries are on the draft (0.2.24) from P101's confirmed reading; the grading systems now follow the institution box, inferred from the dependencies read and P102's shape, not observed as a fill. The search word is 'business', the one the 87 results came from, never the subject typed whole. Only grading system 7 is named, because only its grades were read. The set now covers every box the education page requires to save, for that one qualification.",
+       "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page.",
+-      "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature."
++      "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature.",
++      "P291 (2026-10-06), from Vahid's six reads on his own account, nothing saved (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, his message as sent): the institution box's 'HHE' search (only the escape), the boxes the institution, subject and award-title escapes open (shown only then, and filled with the student's own words, ADR-0109 amended), the grading list after the institution's escape (GPA 20), the award title's prompt, the grading system's escape recorded as leading nowhere (no grade can be given after it), the subject's 'international' search (his P283 read) and its 'HHE' search (only the escape). One signature."
+     ],
+     "mappingSetId": "map-sheffield-pgt-2027-09",
+-    "version": "0.3.43",
++    "version": "0.3.44",
+     "status": "reviewed",
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "blueprintVersion": "0.2.32",
++    "blueprintVersion": "0.2.33",
+     "authoredBy": "Vahid Mohammadi",
+     "authoredAt": "2026-09-11T12:00:00Z",
+     "mappings": [
+@@ -34176,7 +34225,22 @@
+             }
+           }
+         },
+-        "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map. SYNTHETIC-PROFILE VALUE (P214): the forty-one rows are the portal's whole list, not a choice; the value the read shows, BSc, is what the synthetic profile STATES as its title (P213), chosen to match what Run A typed on his account, not read from a student."
++        "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map. SYNTHETIC-PROFILE VALUE (P214): the forty-one rows are the portal's whole list, not a choice; the value the read shows, BSc, is what the synthetic profile STATES as its title (P213), chosen to match what Run A typed on his account, not read from a student. P291 (2026-10-06): the empty string IS this select's escape — read 6 printed [\"\",\"Not in list\"] and, chosen, a value of \"\" with unlistedDegree visible — so an empty value here is the student's choice of 'Not in list', never a missing one."
++      },
++      {
++        "fieldRef": "unlistedDegree",
++        "source": {
++          "kind": "profile_field",
++          "fieldKey": "education.prior_qualifications",
++          "format": {
++            "kind": "part",
++            "path": "awardTitle",
++            "then": {
++              "kind": "text"
++            }
++          }
++        },
++        "note": "The box the award title's 'Not in list' opens. On this form that escape SUBMITS THE EMPTY STRING — read 6 (P291): the entry is [\"\",\"Not in list\"], and after choosing it the select's value is \"\" and this box is visible. So an empty award title here is the escape, chosen, not a missing value. The student's own title as they gave it; typed only on their own recorded choice."
+       },
+       {
+         "fieldRef": "institutionCountry-ts-control",
+@@ -34486,6 +34550,21 @@
+         },
+         "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). The WHOLE list one search returned ('Sheff', United Kingdom, 2026-09-10): ten institutions keyed on the label the form prints and mapped to the value it submits, the escape ('Not in list') excluded because it is the student's own act. A typeahead has no list to be complete against (blocker 25): an institution this search did not return refuses and is asked about, and another search's entries are added whole when that search is read (P218). P283 (2026-10-04): Vahid's search for 'Azad' with Iran chosen, read whole from his own account — thirty-four institutions added, keyed on the text the form prints and mapped to the value it submits (ADR-0153: every row an identity, none a resemblance); the read's first line, 'IRAN Iran', is the country box's own chosen entry (it is the only other line in the empty 'HHE' read) and is not an institution: the read's selector, '.ts-dropdown [data-value]', was not scoped to this box's dropdown and matched the country box's as well. Left out on purpose, not missed. 'Azad University' (UNI6950), 'Islamic Azad University' (UNI30764) and 'University of Azad' (UNI5111) are three entries, each mapped from its own text alone."
+       },
++      {
++        "fieldRef": "unlistedInstitution",
++        "source": {
++          "kind": "profile_field",
++          "fieldKey": "education.prior_qualifications",
++          "format": {
++            "kind": "part",
++            "path": "institution",
++            "then": {
++              "kind": "text"
++            }
++          }
++        },
++        "note": "The box the institution's 'Not in list' opens (shown only then: read 1 hidden, read 2 visible, P291). The student's OWN words for their institution, as they gave them, through no option rule (ADR-0109 amended, ADR-0155): typed only when the student chose the escape themselves, a choice recorded in entry_choices. The form printed no label for it (read 1: null)."
++      },
+       {
+         "fieldRef": "subjectSearch",
+         "source": {
+@@ -34708,6 +34787,21 @@
+         },
+         "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). The WHOLE list the search for 'business' returned on 2026-09-10 and again on 2026-09-25: eighty-five subjects, keyed on the label the form prints and mapped to the value it submits — two carry a trailing space the label hides, one is listed twice and the second copy is what the map names (P132). A subject the search did not return refuses and is asked about; another search word's results are added the same way, whole (P218). P283 (2026-10-04): the search for 'international', read whole — ten subjects, value equal to label, added by their own text; the select's 'Not in list' recorded as its escape (ADR-0109 extended)."
+       },
++      {
++        "fieldRef": "unlistedSubject",
++        "source": {
++          "kind": "profile_field",
++          "fieldKey": "education.prior_qualifications",
++          "format": {
++            "kind": "part",
++            "path": "subject",
++            "then": {
++              "kind": "text"
++            }
++          }
++        },
++        "note": "The box the subject's 'Not in list' opens (read 1 hidden; read 4 visible with 'Not in list' chosen after the 'international' search, P291). The student's own words for their subject, as they gave them; typed only on their own recorded choice of the escape. Read 5: the escape is offered even when a search returns nothing."
++      },
+       {
+         "fieldRef": "gradingSystemId",
+         "source": {
+diff --git a/docs/run-a/what-will-be-typed.md b/docs/run-a/what-will-be-typed.md
+index b8f45217..2e8059b8 100644
+--- a/docs/run-a/what-will-be-typed.md
++++ b/docs/run-a/what-will-be-typed.md
+@@ -1,4 +1,4 @@
+-REVIEWED — blueprint 0.2.32, mapping set 0.3.43, reviewed by Vahid Mohammadi.
++REVIEWED — blueprint 0.2.33, mapping set 0.3.44, reviewed by Vahid Mohammadi.
+ Profile: 19 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
+ 
+ University of Sheffield — MSc Management and International Business, 2027-09
+@@ -74,7 +74,7 @@ Education — one qualification; the applicant adds one entry per qualification:
+     We are telling University of Sheffield that your Final Academic Certificate, your Final Academic Transcript, your Final Academic Certificate Translation and your Final Academic Transcript Translation are coming later.
+     You attach them yourself. The application is not complete until you do.
+     Nobody is watching this, and nobody will remind you.
+-  Left empty: unlistedInstitution; If your subject is not in the list please enter it here:; unlistedGrade; Unlisted grade description:; Please tick here if this is this the highest qualification level you have taken:
++  Left empty: unlistedGrade; Unlisted grade description:; Please tick here if this is this the highest qualification level you have taken:
+   Nothing you told us goes into these boxes, and the form does not require them.
+ Employment history:
+   Employment history — entry 1 of 1:
+@@ -130,4 +130,4 @@ We did not answer these for you:
+     Not answered on your behalf. Instead we entered "Prefer not to say".
+     Why: Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer.
+ 
+-Reference: sha256:7699f016afe8ebe95dfa5b4f88491399d786ff87ef5032dacb2e3502a4bbb8e5
++Reference: sha256:04a3e97fb3256db8901be0ab75a53cf2a8aa5355825feeb051b31ae55977ae01
+diff --git a/scripts/run-a-profile.test.ts b/scripts/run-a-profile.test.ts
+index f2ac018b..2b948ce3 100644
+--- a/scripts/run-a-profile.test.ts
++++ b/scripts/run-a-profile.test.ts
+@@ -19,8 +19,9 @@ import pg from "pg";
+ 
+ import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
+ import { labelledHash, loadCatalogueDirectory, parseBlueprint, parseMappingSet, parseReviewedEntryText, toCanonical } from "@askimate/aas-catalogue";
+-import { MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
++import { entryChoiceMessage, entryChoiceOffer, ESCAPE_ID, MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
+ import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
++import type { StudentChoice } from "@askimate/aas-mapping";
+ import { migrate } from "@askimate/aas-migrate";
+ import type { ModelClient } from "@askimate/aas-llm";
+ import { beginRun, nextStep, requiredFieldsFor, specialistHandoverOf } from "@askimate/aas-orchestrator";
+@@ -421,10 +422,17 @@ describe("the catalogue entry for Run A (P152)", () => {
+     //                     rows (ADR-0153), the three escapes recorded, and
+     //                     P261's measured registration (0.2.32 / 0.3.43),
+     //                     P283 (never signed: stopped before the signature)
+-    //   sha256:effa83b5…  4 October, THIS one — the same rows, the notes made
++    //   sha256:effa83b5…  4 October — the same rows, the notes made
+     //                     true: dated the day they were written, the grade
+     //                     rows said to rest on a description of the list, and
+-    //                     IRAN's absence explained, P284
++    //                     IRAN's absence explained, P284 (signed, 424ce25)
++    //   sha256:99799bf9…  6 October, THIS one — from his six reads: what the
++    //                     institution box offers for "HHE", the boxes three
++    //                     escapes open (filled with the student's own words),
++    //                     the grading list after the institution's escape,
++    //                     the grading escape recorded as leading nowhere, the
++    //                     award title's prompt, the subject's searches (0.2.33
++    //                     / 0.3.44), P291
+     //
+     // The `degree` mapping reads `awardTitle` — the part the registry now
+     // holds, stated by the student and distinct from `level` — onto the
+@@ -440,7 +448,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // P283 and P284 moved it again, for step 2 of his own run, delivered as a patch he
+     // applies and signs in ONE commit with approvals.json — so main never
+     // holds an entry that is not signed, and this test is never red there.
+-    expect(labelledHash(toCanonical(value))).toBe("sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727");
++    expect(labelledHash(toCanonical(value))).toBe("sha256:99799bf9f85fd1fcc800caa47fdfe969a7a3a33713f0bdb606966f47d9178631");
+     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
+     expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
+     if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
+@@ -460,7 +468,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+       ownAccountOnly?: { studentId: string };
+     }[];
+     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
+-    expect(approvals[0]?.contentHash).toBe("sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727");
++    expect(approvals[0]?.contentHash).toBe("sha256:99799bf9f85fd1fcc800caa47fdfe969a7a3a33713f0bdb606966f47d9178631");
+     expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
+     // The four spellings of Iran, from the entry itself: unchanged by this
+     // edit, and the reason the countries' signature was spent.
+@@ -502,6 +510,75 @@ describe("the catalogue entry for Run A (P152)", () => {
+     expect(labelledHash(toCanonical(edited))).not.toBe(labelledHash(toCanonical(value)));
+   });
+ 
++  it("P291: his two qualifications through the offer — four choices, each with the form's escape beside its entries, then the grading system and the grade for a person", () => {
++    // The shape P286 measured from the intervention (dates synthetic): the
++    // doctorate at HHE, the Master's at Islamic Azad University, both in
++    // International Business. Each offer is answered with its escape, the
++    // cases he named as his: the doctorate's institution, its award title,
++    // and the subject. What stops after that is what no offer can settle.
++    const value = entry();
++    const check = checkUsable(value.mappingSet, value.blueprint);
++    if (!check.usable) expect.unreachable(check.refusal.detail);
++    const qualification = { countryCode: "IR", subject: "International Business", start: { year: 2013, month: 9 }, end: { kind: "completed", date: { year: 2015, month: 9 } }, award: { year: 2015, month: 9 }, grade: "19.5", gradeScale: "twenty_point" };
++    const doctorate = { ...qualification, level: "Doctorate", awardTitle: "Doctorate of Business Administration", institution: "HHE" };
++    const masters = { ...qualification, level: "Master's degree", awardTitle: "MSc", institution: "Islamic Azad University" };
++    const NOW = new Date("2026-10-06T12:00:00Z");
++    const profile = rehydrateProfile({
++      studentId: "his-run",
++      updatedAt: NOW,
++      entries: fixture().entries.map((held) => ({ ...held, ...(held.key === "education.prior_qualifications" ? { value: [doctorate, masters] } : {}), provenance: { source: "seeded", confirmedAt: NOW }, revision: 1 })) as unknown as readonly StoredProfileEntry[],
++    });
++    const choices: StudentChoice[] = [];
++    const plan = () => planFill(value.blueprint, check.mappingSet, profile, choices);
++    const offered: string[] = [];
++    for (let offer = entryChoiceOffer(value.blueprint, plan(), (c) => planFill(value.blueprint, check.mappingSet, profile, [...choices, c])); offer !== null; offer = entryChoiceOffer(value.blueprint, plan(), (c) => planFill(value.blueprint, check.mappingSet, profile, [...choices, c]))) {
++      expect(offer.escape.id).toBe(ESCAPE_ID);
++      offered.push(`${offer.fieldRef}#${String(offer.item?.index)} ${offer.studentValue} ${String(offer.entries.length)}`);
++      if (offered.length === 1) {
++        expect(entryChoiceMessage(value.blueprint.institutionName, offer)).toBe(
++          'This is about entry 1 of the 2 in your previous qualifications. Their form asks you to choose your institution from its own list, and it does not hold "HHE", which is what you told me. ' +
++            'Searched for "HHE", it offers no entry apart from its own option for one that is not on it. If none is, choose "Not in list": that is the form\'s own option for exactly this, ' +
++            'and I will type your own words, "HHE", into the box it opens. Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.',
++        );
++      }
++      if (offer.fieldRef === "degree") {
++        // The box takes 28 characters; his title is 36. Nothing is promised.
++        expect(entryChoiceMessage(value.blueprint.institutionName, offer)).toContain(
++          'The box it opens takes at most 28 characters, and your words, "Doctorate of Business Administration", are 36, so they will not go in as they are; I will not shorten them for you.',
++        );
++      }
++      choices.push({ fieldRef: offer.fieldRef, ...(offer.item === undefined ? {} : { item: offer.item.index }), studentValue: offer.studentValue, value: offer.escape.value, label: offer.escape.label, escape: true, ...(offer.source.kind === "search" ? { searchedWith: offer.source.word } : {}) });
++      expect(offered.length, "no offer is made twice").toBeLessThan(6);
++    }
++    expect(offered).toEqual([
++      "institution-ts-control#0 HHE 0",
++      // The award title's whole list less its escape and its prompt (read 6).
++      "degree#0 Doctorate of Business Administration 41",
++      "subject#0 International Business 10",
++      "subject#1 International Business 10",
++    ]);
++    const after = plan();
++    // The grading system's escape leads nowhere (his read 3), so it is not
++    // offered; with no rule for HHE, the grade cannot be either.
++    expect(after.blockers.map((blocker) => `${blocker.fieldRef}#${String((blocker as { item?: { index: number } }).item?.index)}`)).toEqual(["gradingSystemId#0", "grade#0"]);
++    const typed = (fieldRef: string, item: number): string | undefined => {
++      const found = after.instructions.find((instruction) => instruction.fieldRef === fieldRef && instruction.item?.index === item);
++      return found === undefined ? undefined : textOf(found.value);
++    };
++    // The escapes, and the student's own words in the boxes they open — the
++    // award title's "" among them (read 6: the empty string IS its escape).
++    expect([typed("institution-ts-control", 0), typed("unlistedInstitution", 0), typed("degree", 0), typed("unlistedDegree", 0), typed("subjectSearch", 0), typed("subject", 0), typed("unlistedSubject", 0)]).toEqual([
++      "Not in list", "HHE", "", "Doctorate of Business Administration", "international", "Not in list", "International Business",
++    ]);
++    expect(after.instructions.find((instruction) => instruction.fieldRef === "institution-ts-control" && instruction.item?.index === 0)?.typeahead).toMatchObject({ search: "HHE", chosenByStudent: true });
++    // The Master's: as signed in P286, its subject his escape.
++    expect([typed("institution-ts-control", 1), typed("degree", 1), typed("gradingSystemId", 1), typed("grade", 1), typed("subject", 1), typed("unlistedSubject", 1)]).toEqual(["UNI30764", "MSc", "6", "19.5", "Not in list", "International Business"]);
++    expect(typed("unlistedInstitution", 1), "hidden for the Master's: its institution is on the list").toBeUndefined();
++    // And the validator refuses the 36 characters, as the offer said: the run
++    // will stop to have them shortened, by him, not by the run.
++    expect(validatePlan(value.blueprint, after).violations.map((violation) => `${violation.fieldRef} ${violation.rule.kind} ${String((violation.rule as { value?: string }).value)}`)).toEqual(["unlistedDegree maxlength 28"]);
++  });
++
+   it("the committed page-by-page read IS the command's output for the synthetic profile, and lists no registration page", async () => {
+     const child = spawn(TSX, ["scripts/catalogue.ts", "preview", "docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json", "docs/run-a/synthetic-profile.json"], {
+       cwd: ROOT,
+@@ -519,7 +596,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // it. Nothing typed here came from a map's guess.
+     expect(code).toBe(0);
+     expect(output).toBe(readFileSync(READ, "utf8"));
+-    expect(output).toContain("REVIEWED — blueprint 0.2.32, mapping set 0.3.43, reviewed by Vahid Mohammadi.");
++    expect(output).toContain("REVIEWED — blueprint 0.2.33, mapping set 0.3.44, reviewed by Vahid Mohammadi.");
+     expect(output).toContain("How do you want to study?*: Full Time");
+     expect(output).toContain('(sent as "MGT:Management and International Business")');
+     expect(output).toContain("MSC, Master of Science");
+diff --git a/scripts/sheffield-draft.test.ts b/scripts/sheffield-draft.test.ts
+index 5c0c50be..4c7a5363 100644
+--- a/scripts/sheffield-draft.test.ts
++++ b/scripts/sheffield-draft.test.ts
+@@ -136,7 +136,7 @@ describe("the Sheffield drafts, under the real checks", () => {
+     // The two marks flagged for Iman are carried as observed, not dropped.
+     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
+     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
+-    expect(blueprint.version).toBe("0.2.32");
++    expect(blueprint.version).toBe("0.2.33");
+   });
+ 
+   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
+@@ -214,7 +214,15 @@ describe("the Sheffield drafts, under the real checks", () => {
+     for (const ref of ["institutionCountry-ts-control", "institution-ts-control", "subjectSearch", "subject", "gradingSystemId", "grade"]) {
+       expect(mappingSet.mappings.find((m) => m.fieldRef === ref)?.source.kind, ref).toBe("profile_field");
+     }
+-    expect(mappingSet.mappings.some((m) => ["institutionCountry", "institutionCode", "unlistedInstitution", "unlistedSubject", "unlistedDegree", "unlistedGrade", "unlistedGradeDescription", "highestEducationLevel"].includes(m.fieldRef))).toBe(false);
++    // P291 (ADR-0109 amended): the three boxes an escape opens hold the
++    // student's own words, as they gave them — shown only when that escape is
++    // chosen, and chosen only by the student. The rest stay nobody's.
++    expect(mappingSet.mappings.some((m) => ["institutionCountry", "institutionCode", "unlistedGrade", "unlistedGradeDescription", "highestEducationLevel"].includes(m.fieldRef))).toBe(false);
++    for (const [ref, opener, escape] of [["unlistedInstitution", "institution-ts-control", "Not in list"], ["unlistedSubject", "subject", "Not in list"], ["unlistedDegree", "degree", ""]] as const) {
++      const own = mappingSet.mappings.find((m) => m.fieldRef === ref)?.source;
++      expect(own?.kind === "profile_field" ? own.format : null, ref).toEqual({ kind: "part", path: ref === "unlistedInstitution" ? "institution" : ref === "unlistedSubject" ? "subject" : "awardTitle", then: { kind: "text" } });
++      expect(field(ref)?.visibleWhen, ref).toEqual({ whenFieldRef: opener, operator: "equals", value: escape });
++    }
+   });
+ 
+   it("plan the synthetic profile's Sheffield qualification onto the six chain boxes, and refuse loudly what the maps do not name (P149)", () => {
+@@ -433,6 +441,9 @@ describe("the Sheffield drafts, under the real checks", () => {
+       "fundingDetails", "fundingNationality", "fundingSource", "fundingSourceKnown", "fundingStage",
+       "livedOutsideCountry", "permanentResidence",
+       "position", "startDateMonth", "startDateYear", "startMonth",
++      // P291: mapped now, and marked required on the page like `degree` — with
++      // no qualification at all, unavailable for the same field.
++      "unlistedDegree",
+     ]);
+     // P149's six chain boxes are mapped per qualification but carry no
+     // observed marker, so with no list at all they are neither typed nor
+@@ -440,8 +451,8 @@ describe("the Sheffield drafts, under the real checks", () => {
+   });
+ 
+   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
+-    expect(blueprint.version).toBe("0.2.32");
+-    expect(mappingSet.version).toBe("0.3.43");
++    expect(blueprint.version).toBe("0.2.33");
++    expect(mappingSet.version).toBe("0.3.44");
+     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
+     expect(employment?.repeats?.fieldKey).toBe("employment.history");
+     expect(employment?.title).toBe("Employment history");
+@@ -613,6 +624,9 @@ describe("the Sheffield drafts, under the real checks", () => {
+       "fundingDetails", "fundingNationality", "fundingSource", "fundingSourceKnown", "fundingStage",
+       "livedOutsideCountry", "permanentResidence",
+       "position", "startDateMonth", "startDateYear", "startMonth",
++      // P291: mapped now, and marked required on the page like `degree` — with
++      // no qualification at all, unavailable for the same field.
++      "unlistedDegree",
+     ]);
+     // The preview says it, inside the yes.
+     const page = { ...blueprint, pages: blueprint.pages.filter((p) => p.pageRef === "page8") };

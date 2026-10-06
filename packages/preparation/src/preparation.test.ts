@@ -223,6 +223,52 @@ describe("the preview", () => {
     });
   });
 
+  it("says a search box's word is the word typed to search, not a choice of the student's (P291)", () => {
+    // Sheffield's subject: a search box, a press, a select. The student
+    // chose from what "international" returned; the word itself they did not
+    // choose, and the preview must not say they did.
+    const blueprint: ApplicationBlueprint = {
+      ...FIXTURE_BLUEPRINT,
+      pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.flatMap((field) =>
+            field.fieldRef === "nationality"
+              ? [
+                  { fieldRef: "nationality_search", label: "Search:", inputType: "text" as const, dataCategory: "ordinary" as const, locators: [{ strategy: "id" as const, value: "natSearch" }], validations: [] },
+                  { ...field, optionsAfter: { fieldRef: "nationality_search", press: { strategy: "id" as const, value: "natSearchButton" } } },
+                ]
+              : [field],
+          ),
+        })),
+      })),
+    };
+    const set: MappingSet = {
+      ...FIXTURE_MAPPING_SET,
+      mappings: [...FIXTURE_MAPPING_SET.mappings, { fieldRef: "nationality_search", source: { kind: "profile_field", fieldKey: "identity.nationality", format: { kind: "option", options: { Iranian: "iran" } } } }],
+    };
+    const check = checkUsable(set, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const persian = withConfirmed([
+      ["identity.given_name", "Niloofar"],
+      ["identity.family_name", "Hosseini"],
+      ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
+      ["identity.nationality", "Persian"],
+      ["contact.email", "niloofar.hosseini@example.com"],
+      ["study.personal_statement", STATEMENT],
+    ]);
+    const plan = planFill(blueprint, check.mappingSet, persian, [
+      { fieldRef: "nationality", studentValue: "Persian", value: "IR", label: "Iran (Islamic Republic of)", escape: false, searchedWith: "iran" },
+    ]);
+    const built = buildPreview(blueprint, plan, DOCUMENTS);
+    if (!built.built) expect.unreachable(built.refusal.detail);
+    const lines = renderPreview(built.preview).split("\n").map((line) => line.trim());
+    expect(lines.indexOf("Search:: iran")).toBeGreaterThan(-1);
+    expect(lines[lines.indexOf("Search:: iran") + 1]).toBe('(typed to search their list, for what you chose for "Persian")');
+    expect(lines[lines.indexOf('Nationality: Iran (Islamic Republic of)  (sent as "IR")') + 1]).toBe('(you chose this on their list for "Persian")');
+  });
+
   it("names the portal for EVERY application, with or without documents (P75)", () => {
     // The host has been in the hash since ADR-0098; the text named it only
     // under each attachment, so an application with nothing to attach was a

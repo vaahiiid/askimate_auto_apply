@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P291 — what his reads found
+
+*2026-10-06.* He read the six things the choice needed on his own account, and the patch that
+records them waits for his signature. The reads did more than fill a sheet. They showed that
+Sheffield's "Not in list" for a grading system is a door to nowhere, so it is never offered as a
+way through. They also showed that the code had been reading the award title's empty escape as
+nothing at all, the very misreading he warned of. With the patch, his run would offer four
+choices and then stop where only he can move it: a title too long for the form's box, and a
+grading system the form gives no honest route to.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P290 — the student's choice, and theirs alone
 
 *2026-10-05.* A student whose answer is not on a university's list was told there was no way to

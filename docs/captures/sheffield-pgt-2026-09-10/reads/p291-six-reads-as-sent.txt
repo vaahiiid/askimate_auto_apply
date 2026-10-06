@@ -1,0 +1,72 @@
+All six reads done, on my account, nothing saved. Outputs as the console
+printed them.
+
+1 — UNTOUCHED (country Iran only)
+[["unlistedInstitution","hidden",null],["unlistedSubject","hidden",null],
+ ["unlistedDegree","hidden",null],["unlistedGrade","hidden",null],
+ ["unlistedGradeDescription","hidden",null]]
+
+2 — INSTITUTION, typed "HHE", dropdown open, nothing chosen
+[["Not in list","Not in list",true]]
+One entry only, selectable. On screen I saw exactly that: "Not in list" and
+nothing else. The dropdown stayed open while I used the console.
+
+2 — after choosing "Not in list" for the institution
+[["unlistedInstitution","visible",null],["unlistedSubject","hidden",null],
+ ["unlistedDegree","hidden",null],["unlistedGrade","hidden",null],
+ ["unlistedGradeDescription","hidden",null]]
+
+2 — grading system list, institution = "Not in list"
+[["","Select a grading system..."],["Not in list","Not in list"],
+ ["6","GPA 20 (e.g. 16.5/20)"]]
+Both still offered. The institution's escape does not narrow this list.
+
+3 — grading system = "Not in list"
+visibility: unlistedInstitution visible, every other one hidden
+grade list: [["",""]]
+Every visible text box on the page at that moment:
+[["query","searchterms","Search for"],["","institutionCountry-ts-control",null],
+ ["","institution-ts-control",null],["unlistedInstitution","unlistedInstitution",null],
+ ["subjectSearch","subjectSearch",null]]
+
+THAT IS A FINDING. With the grading system set to "Not in list", the grade
+list holds one empty option and unlistedGrade stays hidden. There is no list
+to choose from and no box to type in. A student whose grading system is not
+on Sheffield's list has no way to state a grade at all.
+
+3 — grading system = "GPA 20", first eight of the grade list
+[["Select your grade...","Select your grade..."],
+ ["Still waiting for grade","Still waiting for grade"],
+ ["Failed to complete course","Failed to complete course"],
+ ["0.0","0.0"],["0.1","0.1"],["0.2","0.2"],["0.3","0.3"],["0.4","0.4"]]
+So the full 0.0–20.0 list returns even with the institution escaped.
+
+4 — subject searched "international", then "Not in list" chosen
+["Not in list", true]   (subject's value, unlistedSubject visible)
+
+5 — subject searched "HHE" (a word chosen to return nothing)
+[["No results found","No results found"],["Not in list","Not in list"]]
+"Not in list" is present even when a search returns nothing.
+
+6 — award title
+Its "Not in list" entry submits the EMPTY STRING, not the words:
+[["Select qualification...","Select qualification..."],["","Not in list"],["BA","BA"]]
+After choosing it: [true, true]  (value is "", unlistedDegree visible)
+
+Three things to take from this beyond the rules.
+
+The grading-system escape is a dead end and the build cannot offer it. Record
+it as a row: on Sheffield, choosing "Not in list" for the grading system
+leaves a student unable to state their grade, so the offer must not present
+that escape as a way through. Whether it should be offered at all with a
+plain sentence saying where it leads is yours to propose.
+
+The subject's escape is always available, including on an empty search, which
+answers the question your sheet said step 5 would settle.
+
+And the award title's escape submits "", which is why its rule was already
+recorded as "when the award title is empty". Worth saying in the entry that
+the empty string IS the escape there, so nobody later reads an empty value as
+a missing one.
+
+Build the patch and print it for my signature.

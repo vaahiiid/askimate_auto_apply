@@ -17701,7 +17701,7 @@ describeIfDatabase("a value not on the form's list is the student's to choose �
   const OFFER =
     'Their form asks you to choose your nationality from its own list, and it does not hold "Persian", which is what you told me. ' +
     "It holds the 3 entries below, in its own order. If one of them is yours, choose it. " +
-    'If none is, choose "Not in list": that is the form\'s own option for exactly this, and I will type your own words, "Persian", into the box it opens ("if not listed, your nationality"). ' +
+    'If none is, choose "Not in list": that is the form\'s own option for exactly this, and I will type your own words, "Persian", into the box it opens. ' +
     "Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.";
 
   async function assistantSaid(): Promise<string[]> {
@@ -17889,6 +17889,60 @@ describeIfDatabase("a run already with a person, once the list is on file, is re
       expect((await after.driver.runFor(conversation))?.pending?.decision).toBe("choose_entry");
     } finally {
       await after.pool.end();
+    }
+  }, 300_000);
+});
+
+describeIfDatabase("an escape read to lead nowhere is never offered, nor explained as a route — the value goes to a person (P291)", () => {
+  // Vahid, 2026-10-06, after reading Sheffield's grading system with *Not in
+  // list* chosen — one empty grade, no box: *"the offer must not present that
+  // escape as a way through."*
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX29003";
+  const DEAD_END: CatalogueEntry = {
+    ...CHOICE_ENTRY,
+    blueprint: {
+      ...CHOICE_ENTRY.blueprint,
+      pages: CHOICE_ENTRY.blueprint.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) =>
+            field.fieldRef === "nationality" ? { ...field, escapeLeadsNowhere: "With it chosen, nothing the form asks next can be answered." } : field,
+          ),
+        })),
+      })),
+    },
+  };
+
+  it("stops for a person, offers nothing, and does not say the escape is a way through", async () => {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(DEAD_END));
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", owner);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", owner);
+      await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", owner);
+      await confirmInto(profiles, "identity.nationality", "Persian", "Persian", owner);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", owner);
+      await confirmInto(profiles, "study.personal_statement", "Because it is the course I want.", "…", owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      let reached = "";
+      for (let round = 0; round < 3 && reached !== "escalated"; round += 1) {
+        const moved = await instance.driver.advance({ runId: started.position.runId, conversationId: conversation });
+        reached = moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`;
+      }
+      expect(reached).toBe("escalated");
+      expect((await instance.driver.runFor(conversation))?.pending ?? null).toBeNull();
+      const rows = await pool.query<{ content: string }>(
+        `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+        [conversation],
+      );
+      const said = rows.rows.map((row) => row.content).join("\n");
+      expect(said).toContain('Their form asks you to choose your nationality from its own list, and "Persian" is not on it.');
+      expect(said, "the escape is not explained as a route").not.toContain("the form has an option for exactly that");
+    } finally {
+      await instance.pool.end();
     }
   }, 300_000);
 });

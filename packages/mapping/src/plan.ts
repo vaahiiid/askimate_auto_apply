@@ -92,6 +92,8 @@ export type FillValue =
       readonly studentWords: string;
       /** The form's escape: permitted to the runner only because the student chose it (ADR-0109 amended). */
       readonly escape: boolean;
+      /** The word typed into a search box so the student's chosen entry is among the results — not itself a choice (P291). */
+      readonly searchWord?: true;
     };
 
 /**
@@ -481,7 +483,7 @@ export function planFill(
     if (theirs?.searchedWith === undefined) return null;
     return {
       ...instructionShape(field, setBy),
-      value: { kind: "chosen", fieldKey, value: theirs.searchedWith, label: theirs.searchedWith, studentWords: value, escape: false },
+      value: { kind: "chosen", fieldKey, value: theirs.searchedWith, label: theirs.searchedWith, studentWords: value, escape: false, searchWord: true },
       ...(item === undefined ? {} : { item }),
     };
   };

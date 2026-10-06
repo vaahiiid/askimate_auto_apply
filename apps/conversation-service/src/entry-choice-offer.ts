@@ -52,7 +52,7 @@ export interface EntryChoiceOffer {
   /** The form's own label for the box. */
   readonly fieldLabel: string;
   /** The entry of a repeating page, from 0, and how many there are. Absent off one. */
-  readonly item?: { readonly index: number; readonly count: number };
+  readonly item?: { readonly index: number; readonly count: number; readonly list: string };
   /** The student's value the plan refused: the key their choice is recorded under. */
   readonly studentValue: string;
   /** `not_listed`: the list does not hold their value. `no_rule`: we have no rule for it. */
@@ -70,7 +70,17 @@ export interface EntryChoiceOffer {
    * not assumed. Absent when nothing would be typed there, and then nothing
    * is promised.
    */
-  readonly ownWordsBox?: { readonly label: string; readonly text: string };
+  readonly ownWordsBox?: {
+    readonly label: string;
+    readonly text: string;
+    /**
+     * The box's recorded length limit, when the words are longer (P291):
+     * Sheffield's award-title box takes 28 characters, and "Doctorate of
+     * Business Administration" is 36. Then nothing is promised — the words
+     * are not shortened for the student (the validator says the same).
+     */
+    readonly tooLong?: { readonly max: number; readonly length: number };
+  };
   /** `sha256:<hex>` over everything above: what a `choose_entry` must carry. */
   readonly offerHash: string;
 }
@@ -124,6 +134,10 @@ function offerFor(
   // honest answer if none of it is theirs.
   const escapeValue = escapeOf(field);
   if (escapeValue === undefined) return null;
+  // An escape read to leave the student no way through (P291, Sheffield's
+  // grading system): not offered at all. His words: *"the offer must not
+  // present that escape as a way through."*
+  if (field.escapeLeadsNowhere !== undefined) return null;
   const labelOf = (value: string): string => field.options?.find((option) => option.value === value)?.label ?? value;
 
   const listed = listOnFile(field, refusal.value, blocker.item?.index, plan, fieldOf);
@@ -157,14 +171,14 @@ function offerFor(
   const content = {
     fieldRef: field.fieldRef,
     fieldLabel: field.label,
-    ...(blocker.item === undefined ? {} : { item: blocker.item }),
+    ...(blocker.item === undefined ? {} : { item: { ...blocker.item, list: FIELD_LABELS[blocker.fieldKey].toLowerCase() } }),
     studentValue: refusal.value,
     why: refusal.kind === "no_matching_option" ? ("not_listed" as const) : ("no_rule" as const),
     about,
     source: listed.source,
     entries,
     escape,
-    ...(box === undefined || ownWords === "" ? {} : { ownWordsBox: { label: box.label, text: ownWords } }),
+    ...(box === undefined || ownWords === "" ? {} : { ownWordsBox: { label: box.label, text: ownWords, ...lengthOver(box, ownWords) } }),
   };
   return { ...content, offerHash: `sha256:${createHash("sha256").update(JSON.stringify(content)).digest("hex")}` };
 }
@@ -182,7 +196,9 @@ function listOnFile(
   fieldOf: ReadonlyMap<string, BlueprintField>,
 ): { readonly source: OfferSource; readonly values: readonly string[] } | null {
   const escape = escapeOf(field);
-  const answers = (values: readonly string[]): readonly string[] => values.filter((entry) => entry !== escape && entry !== "");
+  // Not the escape, not the empty entry, and not the list's own prompt
+  // ("Select qualification...", P291): none of them is an answer.
+  const answers = (values: readonly string[]): readonly string[] => values.filter((entry) => entry !== escape && entry !== "" && entry !== field.prompt);
   // A searched list — a typeahead, or a select a press fills — offers what
   // a search RETURNED: the ONE recorded search whose word is in the
   // student's own words. Their words decide which search, not a likeness;
@@ -218,6 +234,14 @@ function listOnFile(
   return whole.length === 0 ? null : { source: { kind: "whole" }, values: whole };
 }
 
+/** The box's recorded maximum length, where the words exceed it. */
+function lengthOver(box: BlueprintField, text: string): { readonly tooLong?: { readonly max: number; readonly length: number } } {
+  const limits = box.validations.flatMap((rule) => (rule.kind === "maxlength" && rule.value !== undefined && /^[0-9]+$/u.test(rule.value) ? [Number(rule.value)] : []));
+  if (limits.length === 0) return {};
+  const max = Math.min(...limits);
+  return [...text].length > max ? { tooLong: { max, length: [...text].length } } : {};
+}
+
 /** The form's own label, as a word in a sentence. */
 function said(label: string): string {
   return label.replace(/[\s:.…]+$/u, "").toLowerCase();
@@ -232,7 +256,7 @@ export function entryChoiceMessage(institutionName: string, offer: EntryChoiceOf
   const sentences: string[] = [];
   if (afterResolution) sentences.push(`Someone on the team has looked at your ${institutionName} application.`);
   if (offer.item !== undefined && offer.item.count > 1) {
-    sentences.push(`This is about entry ${String(offer.item.index + 1)} of the ${String(offer.item.count)} in your list.`);
+    sentences.push(`This is about entry ${String(offer.item.index + 1)} of the ${String(offer.item.count)} in your ${offer.item.list}.`);
   }
   const source = offer.source;
   if (offer.why === "not_listed") {
@@ -258,7 +282,9 @@ export function entryChoiceMessage(institutionName: string, offer: EntryChoiceOf
     `If none is, choose "${offer.escape.label}": that is the form's own option for exactly this` +
       (offer.ownWordsBox === undefined
         ? `.`
-        : `, and I will type your own words, "${offer.ownWordsBox.text}", into the box it opens ("${said(offer.ownWordsBox.label)}").`),
+        : offer.ownWordsBox.tooLong === undefined
+          ? `, and I will type your own words, "${offer.ownWordsBox.text}", into the box it opens.`
+          : `. The box it opens takes at most ${String(offer.ownWordsBox.tooLong.max)} characters, and your words, "${offer.ownWordsBox.text}", are ${String(offer.ownWordsBox.tooLong.length)}, so they will not go in as they are; I will not shorten them for you.`),
   );
   sentences.push(`Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.`);
   return sentences.join(" ");

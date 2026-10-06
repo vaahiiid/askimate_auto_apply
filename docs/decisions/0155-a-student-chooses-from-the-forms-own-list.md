@@ -146,3 +146,34 @@ The student's words stay in the profile untouched. The choice is about **this** 
   value refused after a save is a correction, and goes to a person (ADR-0154 §2).
 - **Changing a choice once made.** One stands per value. A student who wants another asks, and a
   person can clear it; there is no route in the chat yet.
+
+## Amended in P291 (2026-10-06): what his six reads found
+
+His reads, on his own account with nothing saved, are saved whole as he sent them:
+`docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt`. In his words (15:28 UTC):
+
+> *"The grading-system escape is a dead end and the build cannot offer it. Record it as a row: on
+> Sheffield, choosing "Not in list" for the grading system leaves a student unable to state their
+> grade, so the offer must not present that escape as a way through. Whether it should be offered
+> at all with a plain sentence saying where it leads is yours to propose."*
+
+- **An escape that leads nowhere is recorded, and not offered.** `escapeLeadsNowhere` on a field
+  holds the read. With it, the field is not offered, as a field with no usable escape (§1), and
+  the stop's message does not explain its escape as a route. The proposal he asked for is on
+  row 140 and in `docs/run-a/p291-for-signature.md`; nothing is built on it.
+- **A list's prompt is not an answer.** `prompt` names the option that asks for a choice:
+  Sheffield's award title opens on *Select qualification...*, whose value is that text. The
+  offer of a whole list leaves it out.
+- **The empty string is a value.** The parser dropped a condition's value of `""`, so the box the
+  award title's escape opens (shown when the title equals `""`) could never show. Fixed in the
+  P291 patch, not on `main`: his signature covers the entry as parsed, and the fix moves its hash,
+  so it lands with his signature. His
+  words: *"Worth saying in the entry that the empty string IS the escape there, so nobody later
+  reads an empty value as a missing one."* The code had read it as missing.
+- **The box's own limit is read before anything is promised.** Sheffield's award-title box takes
+  28 characters. Where the student's words are longer, the offer says so instead of promising to
+  type them, ending *"so they will not go in as they are; I will not shorten them for you."* The validator
+  refuses them too, and the run stops to have them shortened by the student.
+- **A search box's word is not a choice.** The preview says *"typed to search their list, for what
+  you chose for …"*. Before, it said *"you chose this on their list"* of a word nobody chose.
+- **The entry sentence names the list:** *"entry 1 of the 2 in your previous qualifications"*.

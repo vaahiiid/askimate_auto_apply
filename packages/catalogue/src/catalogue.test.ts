@@ -442,6 +442,25 @@ describe("parsing rebuilds rather than casts", () => {
     // An empty value is a recorded value: Sheffield's award-title escape submits "".
     expect(course?.listsAfter).toEqual([{ fieldRef: "study_level", value: "", entries: ["PG-OT-2026"] }]);
 
+    // P291: where an escape leads, said only of a field that has one.
+    const deadEnd = parseReviewedEntry(withCourse({ escapeLeadsNowhere: "Nothing opens." } as Partial<Field>));
+    if (!deadEnd.ok) expect.unreachable(deadEnd.refusal.detail);
+    expect(deadEnd.value.blueprint.pages.flatMap((page) => page.sections).flatMap((section) => section.fields).find((field) => field.fieldRef === "course")?.escapeLeadsNowhere).toBe("Nothing opens.");
+    const noEscape = parseReviewedEntry(
+      (() => {
+        const document = JSON.parse(documentOf()) as { blueprint: { pages: { sections: { fields: (Field & { escapeLeadsNowhere?: string })[] }[] }[] } };
+        for (const page of document.blueprint.pages) for (const section of page.sections) for (const field of section.fields) if (field.fieldRef === "start_date") field.escapeLeadsNowhere = "Nothing opens.";
+        return document;
+      })(),
+    );
+    if (noEscape.ok) expect.unreachable("a dead end on a field with no escape");
+    expect(noEscape.refusal.detail).toContain("no escape recorded");
+    // A list's prompt: one of its own options, never its escape.
+    for (const [prompt, ok] of [["PG-OT-2026", true], ["Not in list", false], ["NOPE", false]] as const) {
+      const read = parseReviewedEntry(withCourse({ prompt } as Partial<Field>));
+      expect(read.ok, prompt).toBe(ok);
+    }
+
     for (const [patch, says] of [
       [{ searches: [{ word: "example", entries: ["PG-NOPE"] }] }, "is not one of this field's options"],
       [{ searches: [{ word: "example", entries: ["PG-EX-2026", "Not in list"] }] }, "never among them"],

@@ -241,6 +241,24 @@ export interface BlueprintField {
    */
   readonly listsAfter?: readonly FieldListAfter[];
   /**
+   * That this field's escape, when chosen, leaves the student no way to give
+   * what the form goes on to ask — in the read's own terms (P291). Sheffield's
+   * grading system: with *Not in list* chosen, the grade list holds one empty
+   * option and no box opens for a grade. Vahid, 2026-10-06: *"the offer must
+   * not present that escape as a way through."* A field carrying this is not
+   * offered (ADR-0155 §1, as a field with no usable escape), and the stop's
+   * message does not explain its escape as a route.
+   */
+  readonly escapeLeadsNowhere?: string;
+  /**
+   * The VALUE of the list's own prompt — the option that asks for a choice
+   * and is not one (P291): Sheffield's award title opens on "Select
+   * qualification...", whose value is that text, not "". An offer of the
+   * whole list must not show it as an entry a student could choose. Among
+   * `options`, never the escape.
+   */
+  readonly prompt?: string;
+  /**
    * The canonical profile field this maps to.
    *
    * DELIBERATELY OPTIONAL and deliberately not filled in by discovery. Mapping

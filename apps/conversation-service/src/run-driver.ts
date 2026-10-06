@@ -1392,7 +1392,8 @@ function blockedByTheFormMessage(
       const field = fieldOf(blocker.fieldRef);
       if (field?.inputType === "typeahead" || field?.optionsAfter?.press !== undefined) searched.add(word);
       // A typeahead's escape or a select's (P281): `escapeOf` reads either.
-      const escape = field === undefined ? undefined : escapeOf(field);
+      // Not an escape read to lead nowhere (P291): it is no route to explain.
+      const escape = field === undefined || field.escapeLeadsNowhere !== undefined ? undefined : escapeOf(field);
       if (escape !== undefined) {
         escapes.set(word, {
           label: field?.options?.find((option) => option.value === escape)?.label ?? escape,

@@ -120,7 +120,7 @@ describe("what the student is offered when the form's list does not hold their v
     expect(entryChoiceMessage("Example University", offer)).toBe(
       'Their form asks you to choose your nationality from its own list, and it does not hold "Persian (Tehran)", which is what you told me. ' +
         "It holds the 3 entries below, in its own order. If one of them is yours, choose it. " +
-        'If none is, choose "Not in list": that is the form\'s own option for exactly this, and I will type your own words, "Persian (Tehran)", into the box it opens ("if not listed, your nationality"). ' +
+        'If none is, choose "Not in list": that is the form\'s own option for exactly this, and I will type your own words, "Persian (Tehran)", into the box it opens. ' +
         "Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.",
     );
     // No box mapped for the escape's words: nothing is promised about one.
@@ -154,6 +154,31 @@ describe("what the student is offered when the form's list does not hold their v
     expect(empty.entries).toEqual([]);
     expect(entryChoiceMessage("Example University", empty)).toContain('Searched for "Persian", it offers no entry apart from its own option for one that is not on it.');
     expect(entryChoiceMessage("Example University", empty)).not.toContain("If one of them is yours");
+  });
+
+  it("promises nothing for a box too short for the student's words — says so, and does not shorten them (P291)", () => {
+    // Sheffield's award-title box takes 28 characters; "Doctorate of
+    // Business Administration" is 36.
+    const short = { ...UNLISTED, validations: [{ kind: "maxlength" as const, value: "10", source: "dom_attribute" as const }] };
+    const offer = offerOn(blueprintWith({}, [short]));
+    if (offer === null) expect.unreachable("an offer");
+    expect(offer.ownWordsBox).toEqual({ label: UNLISTED.label, text: "Persian (Tehran)", tooLong: { max: 10, length: 16 } });
+    const said = entryChoiceMessage("Example University", offer);
+    expect(said).toContain('choose "Not in list": that is the form\'s own option for exactly this. The box it opens takes at most 10 characters, and your words, "Persian (Tehran)", are 16, so they will not go in as they are; I will not shorten them for you.');
+    expect(said).not.toContain("I will type");
+  });
+
+  it("a whole list's own prompt is not offered as an entry (P291)", () => {
+    // Sheffield's award title opens on "Select qualification...", whose value
+    // is that text: read 6 printed it first.
+    const offer = offerOn(blueprintWith({ options: [{ value: "Select nationality...", label: "Select nationality..." }, ...THREE, { value: ESCAPE, label: "Not in list" }], prompt: "Select nationality..." }));
+    expect(offer?.entries.map((entry) => entry.value)).toEqual(["IR", "IQ", "GB"]);
+  });
+
+  it("an escape read to lead nowhere is not offered — not as a way through, and not at all (P291)", () => {
+    // Vahid, 2026-10-06, of Sheffield's grading system: *"the offer must not
+    // present that escape as a way through."*
+    expect(offerOn(blueprintWith({ escapeLeadsNowhere: "With it chosen, the grade list holds one empty option and no box opens." }))).toBeNull();
   });
 
   it("no escape on record, no offer: the student would have no honest answer if none of the list is theirs", () => {

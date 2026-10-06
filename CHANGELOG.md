@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.284.0] — 2026-10-06
+
+**P291 — his six reads as an entry patch for his signature; three faults they exposed, fixed.**
+
+- **Added** `docs/run-a/p291-for-signature.patch` and its sheet: the boxes three escapes open,
+  the institution's and subject's searches, the grading list after the institution's escape, the
+  grading escape as leading nowhere, the award title's prompt. Not applied: his to sign.
+- **Added** `escapeLeadsNowhere` and `prompt` on a blueprint field; the offer honours both, and
+  reads a box's length limit before promising to type into it.
+- **Found** the parser dropping a condition's value of `""`: the box the award title's escape
+  opens could never show. The fix is in the patch, not on `main`: it changes what his signed entry
+  parses to (its hash moves), so it lands with his signature.
+- **Fixed** the preview calling a search box's word the student's choice.
+- **Recorded** ADR-0155 amended; rows 140 (the grading escape) and 141 (the boxes' handles).
+
+---
+
 ## [0.283.0] — 2026-10-05
 
 **P290 — a student chooses from the form's own list, the escape among the choices (ADR-0155; ADR-0109 amended).**
