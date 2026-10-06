@@ -428,6 +428,48 @@ index b8f45217..2e8059b8 100644
  
 -Reference: sha256:7699f016afe8ebe95dfa5b4f88491399d786ff87ef5032dacb2e3502a4bbb8e5
 +Reference: sha256:04a3e97fb3256db8901be0ab75a53cf2a8aa5355825feeb051b31ae55977ae01
+diff --git a/packages/catalogue/src/catalogue.test.ts b/packages/catalogue/src/catalogue.test.ts
+index c41d0d4e..dbf25912 100644
+--- a/packages/catalogue/src/catalogue.test.ts
++++ b/packages/catalogue/src/catalogue.test.ts
+@@ -473,6 +473,20 @@ describe("parsing rebuilds rather than casts", () => {
+     }
+   });
+ 
++  it("reads a condition on the EMPTY string as that value, not as no value (P291)", () => {
++    // Sheffield's award title: "Not in list" submits "", and the box it opens
++    // is shown when the title equals "". Read as absent, the condition never
++    // held and the box could never show.
++    const document = JSON.parse(documentOf()) as { blueprint: { pages: { sections: { fields: { fieldRef: string; visibleWhen?: unknown }[] }[] }[] } };
++    for (const page of document.blueprint.pages)
++      for (const section of page.sections)
++        for (const field of section.fields) if (field.fieldRef === "personal_statement") field.visibleWhen = { whenFieldRef: "course", operator: "equals", value: "" };
++    const parsed = parseReviewedEntry(document);
++    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
++    const field = parsed.value.blueprint.pages.flatMap((page) => page.sections).flatMap((section) => section.fields).find((candidate) => candidate.fieldRef === "personal_statement");
++    expect(field?.visibleWhen).toEqual({ whenFieldRef: "course", operator: "equals", value: "" });
++  });
++
+   it("round-trips a page's repeats (P96), and refuses a list that is not one", () => {
+     const parsed = parseReviewedEntry(JSON.parse(documentOf()));
+     if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+diff --git a/packages/catalogue/src/parse.ts b/packages/catalogue/src/parse.ts
+index 8d0b7f03..2a6b2af9 100644
+--- a/packages/catalogue/src/parse.ts
++++ b/packages/catalogue/src/parse.ts
+@@ -308,7 +308,11 @@ function readOption(value: unknown, path: string): FieldOption {
+ 
+ function readCondition(value: unknown, path: string): FieldCondition {
+   const source = record(value, path);
+-  const single = optionalText(source, "value", path);
++  // P291: the empty string is a value. Sheffield's award title submits "" for
++  // its "Not in list", so `unlistedDegree`'s rule is "shown when the award
++  // title equals the empty string" — read as absent until P291, the condition
++  // never held and the box could never show.
++  const single = optionalTextAllowingEmpty(source, "value", path);
+   const many = source["values"] === undefined ? undefined : textList(source, "values", path);
+   return {
+     whenFieldRef: text(source, "whenFieldRef", path),
 diff --git a/scripts/run-a-profile.test.ts b/scripts/run-a-profile.test.ts
 index f2ac018b..2b948ce3 100644
 --- a/scripts/run-a-profile.test.ts

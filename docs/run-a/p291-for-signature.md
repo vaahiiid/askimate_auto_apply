@@ -158,6 +158,10 @@ The approval file keeps **one** entry; the test asserts exactly one:
   length check in the offer. After them, the patched tree was tested again under the same
   temporary approval: the patch's two tests and the five files those changes touch (catalogue,
   mapping, preparation, the offer, the driver), **605 of 605 green**, the hash unchanged.
+- **The patch as committed**, with the parser's fix moved into it: applied to a clean checkout of
+  `d308a367` (the commit before it), it prints the hash above, typechecks, and the same seven test
+  files pass under the temporary approval, **605 of 605**. Without the patch, `main` passes its own
+  census: **3,315 tests, 165 files**.
 - Fail-first: with the signed approval restored and the patched entry kept, `run-a-profile` went
   red: *"signed at item 6 — the directory loads … expected false to be true"*. That is what `main`
   would show if the patch landed unsigned.
