@@ -4906,6 +4906,19 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P292 — fewer questions, on paper first
+
+*2026-10-08.* Counted on his run, one education page asked seven times: four choices, two stops
+for a person, one box too short. Each question was honest, and together they made a product a
+student would leave. ADR-0156 proposes asking only where an answer could be wrong. Otherwise the
+form's own escape is used, with the student's exact words, and shown before anything is filled.
+Answers that hold on every form are kept on the profile, and whatever remains is asked together,
+before the run. Measured, not targeted, that is two questions on his page. It waits for his word.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P291 — what his reads found
 
 *2026-10-06.* He read the six things the choice needed on his own account, and the patch that

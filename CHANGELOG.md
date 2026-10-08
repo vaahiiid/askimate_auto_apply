@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.285.0] — 2026-10-08
+
+**P292 — ask the student only when it matters (ADR-0156, proposed); questions per application measured.**
+
+- **Added** `scripts/questions-per-application.ts` and `questions-his-run.ts`: the measure, and its
+  reading on his run. 7 today; 2 under the proposal, plus intake questions asked once.
+- **Added** ADR-0156, **Proposed**, not agreed: nothing in it is built.
+- **Added** `docs/run-a/p292-reads.md`: the full grade list with the institution escaped, and the
+  words beside each escape box.
+- **Recorded** row 142; rows 140 and 141 updated with the message's relayed decisions, recorded as
+  its words.
+
+---
+
 ## [0.284.0] — 2026-10-06
 
 **P291 — his six reads as an entry patch for his signature; three faults they exposed, fixed.**

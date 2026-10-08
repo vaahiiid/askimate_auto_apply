@@ -1,0 +1,16 @@
+Decisions from Vahid on P291:
+1. Award title: he is correcting it to "DBA" via the chat correction route (ADR-0154). Do not edit his profile yourself.
+2. Row 140: Option A. Offer GPA 20 with "None of these — pass it to a person" in place of the dead-end escape. Plan the read of the full grade list with the institution escaped.
+3. Row 141: plan the read of the visible label beside each escape box.
+
+Bigger issue. He is right that this is a product problem: for one education page his run would interrupt the student 7 times (4 choices + 3 stops). Treat this as the priority over further Sheffield work.
+
+Write a proposed ADR, "Ask the student only when it matters", for his approval before implementing:
+- A field is a question only if there are two or more genuine options AND our default could misstate the student. Otherwise apply a lossless default and show it in the final preview he already approves.
+- The lossless default is always the portal's escape plus the student's own exact words. Never pick or rank a nearby listed entry (ADR-0155's honesty rule stands).
+- A deterministic match is not a question (profile grade scale 20 → "GPA 20").
+- Questions that are not portal-specific (short form of award title; "if my institution is not listed, use Not in list") are asked once at intake and stored as standing rules on the profile, reused across all portals. Say explicitly how this amends ADR-0155's "stored with the application, not the profile".
+- Any remaining questions are asked together before the run starts, never mid-run.
+- Add a measure: questions per application. Count it on his current run before the change (expected 7) and after (state the number you measure, not a target).
+
+Report the before/after count measured on his run, and list every field that would still ask, with the reason.
