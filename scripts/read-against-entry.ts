@@ -1,7 +1,7 @@
 /**
  * A read, passed through, against the rows an entry was built with (P284).
  *
- *   pnpm exec tsx scripts/read-against-entry.ts <entry.json> <fieldRef> <read-file> [<case>]
+ *   pnpm exec tsx scripts/read-against-entry.ts <entry.json> <fieldRef> <read-file> [<case> | "(escaped)"]
  *
  * P283 built 201 grade rows from a sentence describing a list, and the list
  * sent to correct it carried an ellipsis. CLAUDE.md, second instance: a read
@@ -18,7 +18,10 @@
  * And the other way: every value the field's mapping rows type, under the
  * switch case named (an institution, say — the blueprint's list is the union
  * of every institution's), that the file does not hold is BUILT, NOT IN FILE: a
- * row that would send the form a value its list never offered.
+ * row that would send the form a value its list never offered. The case
+ * "(escaped)" names a switch's branch taken after a form's escape (P293): the
+ * rows sent once the student chose "Not in list" in the field it names, to be
+ * compared with the list read with that escape chosen.
  *
  * Exits 1 on any difference, on any row the read does not hold, and on any
  * line it cannot read, so silence is never the verdict.
@@ -80,15 +83,19 @@ function targetsOf(rule: unknown, caseKey: string | undefined, into: Set<string>
   const node = rule as { kind?: string; options?: Record<string, string>; cases?: Record<string, unknown>; then?: unknown };
   if (node.kind === "option" && node.options !== undefined) for (const target of Object.values(node.options)) into.add(target);
   if (node.cases !== undefined) {
-    const named = caseKey !== undefined && caseKey in node.cases ? [node.cases[caseKey]] : Object.values(node.cases);
+    const named = caseKey === "(escaped)" ? [] : caseKey !== undefined && caseKey in node.cases ? [node.cases[caseKey]] : Object.values(node.cases);
     for (const branch of named) targetsOf(branch, caseKey, into);
   }
   if (node.then !== undefined) targetsOf(node.then, caseKey, into);
+  // P293: a switch's branch taken after a form's escape — walked when no case
+  // is named, or when it is named as "(escaped)".
+  const escaped = (node as { escaped?: { then?: unknown } }).escaped;
+  if (escaped !== undefined && (caseKey === undefined || caseKey === "(escaped)")) targetsOf(escaped.then, undefined, into);
 }
 
 const [entryPath, fieldRef, readPath, caseKey] = process.argv.slice(2);
 if (entryPath === undefined || fieldRef === undefined || readPath === undefined) {
-  fail("Usage: tsx scripts/read-against-entry.ts <entry.json> <fieldRef> <read-file>");
+  fail('Usage: tsx scripts/read-against-entry.ts <entry.json> <fieldRef> <read-file> [<case> | "(escaped)"]');
 }
 const entry = JSON.parse(readFileSync(entryPath, "utf8")) as { mappingSet?: { mappings?: { fieldRef: string; source?: { format?: unknown } }[] } };
 const built = optionsOf(entry, fieldRef);

@@ -1,5 +1,9 @@
 # His six reads, as an entry patch for one signature (P291)
 
+**Superseded by [`p293-for-signature.md`](./p293-for-signature.md)** (2026-10-08). Never signed. The
+P293 patch is this one with the GPA 20 row he asked for added, so one signature covers both. Sign
+that one, not this. What follows is kept as P291 wrote it.
+
 **Status: built, not signed.** Nothing here is on `main` as entry content. The batch is the patch
 [`p291-for-signature.patch`](./p291-for-signature.patch), applied and signed in one commit, so
 `main` never holds an entry no approval covers. An unsigned entry stops his stack and turns CI red

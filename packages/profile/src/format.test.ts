@@ -455,3 +455,68 @@ describe("a map keyed on two parts (switch, P218 — blocker 78's shape)", () =>
     expect(elsewhere.refusal.kind).toBe("no_matching_case");
   });
 });
+
+describe("a switch's branch for a form's escape (P293, ADR-0156 §3)", () => {
+  // Vahid, 2026-10-08: "Build a signed mapping row "grade scale 20 → GPA 20"
+  // for Sheffield from my existing read, for my signature." The grading system follows the
+  // institution; for one not on the list, the form shows GPA 20 after its
+  // escape. The branch is taken only when the plan says that escape is in.
+  const SYSTEM: Parameters<typeof renderConfirmed>[1] = {
+    kind: "switch",
+    path: "institution",
+    cases: { "Islamic Azad University": { kind: "part", path: "gradeScale", then: { kind: "option", options: { twenty_point: "6" } } } },
+    escaped: { fieldRef: "institution-ts-control", then: { kind: "part", path: "gradeScale", then: { kind: "option", options: { twenty_point: "6" } } } },
+  };
+  const hhe = (over: Record<string, unknown> = {}) =>
+    confirmed("identity.nationality", { institution: "HHE", gradeScale: "twenty_point", grade: "19.5", ...over } as never);
+  const ESCAPED = { escapedFields: new Set(["institution-ts-control"]) };
+
+  it("takes the branch for a value no case names when the plan put the escape into the field it names", () => {
+    const result = renderConfirmed(hhe(), SYSTEM, ESCAPED);
+    if (!result.rendered) expect.unreachable(result.refusal.detail);
+    expect(unwrapConfirmed(result.value)).toBe("6");
+  });
+
+  it("refuses as before without the escape — an unread list is never the nearest case", () => {
+    for (const context of [undefined, { escapedFields: new Set<string>() }, { escapedFields: new Set(["subject"]) }]) {
+      const result = renderConfirmed(hhe(), SYSTEM, context);
+      if (result.rendered) expect.unreachable("rendered with no escape chosen");
+      expect(result.refusal.kind).toBe("no_matching_case");
+      if (result.refusal.kind === "no_matching_case") expect(result.refusal.value).toBe("HHE");
+    }
+  });
+
+  it("with the escape in, takes the branch even over a case naming the value — the form shows the list after the escape; without it, the case", () => {
+    // The adversarial review of P293: a case read under a LISTED institution
+    // describes a list the form is not showing once the escape is chosen.
+    const named: Parameters<typeof renderConfirmed>[1] = {
+      ...SYSTEM,
+      cases: { HHE: { kind: "part", path: "gradeScale", then: { kind: "option", options: { twenty_point: "7" } } } },
+    };
+    const escaped = renderConfirmed(hhe(), named, ESCAPED);
+    if (!escaped.rendered) expect.unreachable(escaped.refusal.detail);
+    expect(unwrapConfirmed(escaped.value)).toBe("6");
+    const listed = renderConfirmed(hhe(), named);
+    if (!listed.rendered) expect.unreachable(listed.refusal.detail);
+    expect(unwrapConfirmed(listed.value)).toBe("7");
+  });
+
+  it("refuses inside the branch the way its rule does: a scale it does not name is not GPA 20", () => {
+    const result = renderConfirmed(hhe({ gradeScale: "percentage" }), SYSTEM, ESCAPED);
+    if (result.rendered) expect.unreachable("a percentage rendered as GPA 20");
+    expect(result.refusal.kind).toBe("no_matching_option");
+  });
+
+  it("reaches a branch nested under a part, and an entry of a list through renderConfirmedItem", () => {
+    const nested: Parameters<typeof renderConfirmed>[1] = { kind: "part", path: "qualification", then: SYSTEM };
+    const inner = renderConfirmed(confirmed("identity.nationality", { qualification: { institution: "HHE", gradeScale: "twenty_point" } } as never), nested, ESCAPED);
+    if (!inner.rendered) expect.unreachable(inner.refusal.detail);
+    expect(unwrapConfirmed(inner.value)).toBe("6");
+    const list = confirmed("identity.nationality", [{ institution: "HHE", gradeScale: "twenty_point" }] as never);
+    const item = renderConfirmedItem(list, 0, SYSTEM, ESCAPED);
+    if (!item.rendered) expect.unreachable(item.refusal.detail);
+    expect(unwrapConfirmed(item.value)).toBe("6");
+    const without = renderConfirmedItem(list, 0, SYSTEM);
+    expect(without.rendered).toBe(false);
+  });
+});

@@ -849,7 +849,24 @@ function readFormatRule(value: unknown, path: string): FormatRule {
       for (const key of Object.keys(cases)) rebuilt[key] = readFormatRule(cases[key], `${path}.cases.${key}`);
       if (Object.keys(rebuilt).length === 0) fail(`${path}.cases`, "expected at least one case");
       const absent = readAbsent(source["absent"], `${path}.absent`);
-      return { kind, path: text(source, "path", path), cases: rebuilt, ...(absent === undefined ? {} : { absent }) };
+      // P293: the branch for a value no case names, taken only when the plan
+      // put the form's escape into `fieldRef`. Parsed, so it is hashed and
+      // signed with the rest; a field the parser dropped would be neither.
+      const escapedSource = source["escaped"];
+      const escaped =
+        escapedSource === undefined
+          ? undefined
+          : (() => {
+              const held = record(escapedSource, `${path}.escaped`);
+              return { fieldRef: text(held, "fieldRef", `${path}.escaped`), then: readFormatRule(held["then"], `${path}.escaped.then`) };
+            })();
+      return {
+        kind,
+        path: text(source, "path", path),
+        cases: rebuilt,
+        ...(absent === undefined ? {} : { absent }),
+        ...(escaped === undefined ? {} : { escaped }),
+      };
     }
     case "not_derivable": {
       // The reason is REQUIRED and must be substantial. This rule's whole

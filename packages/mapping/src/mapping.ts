@@ -318,6 +318,13 @@ export type MappingRefusal =
    * (P281, ADR-0109 extended): both are the student's own act.
    */
   | { readonly kind: "escape_named"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * A switch's branch for a form's escape (P293, ADR-0156 §3) that the plan could not honour or
+   * that rests on no read: the field whose escape it takes is not before it on its page, records
+   * no usable escape, is filled by no profile mapping, or may be hidden; or its values are not
+   * among the list the form showed after that escape.
+   */
+  | { readonly kind: "escaped_branch_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A typeahead row keyed on the student's words names an entry whose recorded text is other words (ADR-0153, P282). */
   | { readonly kind: "row_not_identity"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A fronted control (P153) that is mapped, or whose `frontedBy` is not another field on the same page. */
@@ -926,6 +933,8 @@ export function checkUsable(
     };
   }
 
+  // A branch that names the form's own escape is the ADR-0109 rule broken,
+  // whatever else is wrong with it, so that refusal is reported first.
   if (escapeProblems.length > 0) {
     return {
       usable: false,
@@ -933,6 +942,107 @@ export function checkUsable(
         kind: "escape_named",
         fieldRefs: [...new Set(escapeFields)],
         detail: `The form's escape, and the box it opens, are the student's own act (ADR-0109, P281): ${escapeProblems.join("; ")}.`,
+      },
+    };
+  }
+
+  // ── P293, ADR-0156 §3: a branch taken only after a form's escape ────────
+  //
+  // Vahid, 2026-10-08: *"Build a signed mapping row "grade scale 20 → GPA 20"
+  // for Sheffield from my existing read, for my signature."* A switch may carry the rule taken
+  // when the plan has put the form's escape into an earlier field for the
+  // same entry. Every condition below is one the plan relies on: the field is
+  // before it on its page (so its value is known), has an escape that leads
+  // somewhere, is filled by a profile mapping (the only way its escape is
+  // chosen), and cannot be hidden (so the escape cannot be dropped after it
+  // was used). The branch renders only from the student's stated answer, so
+  // it carries no `absent` arm. And the values it names are the list the
+  // form showed after that escape: the row rests on a read, or it is refused.
+  const escapedProblems: string[] = [];
+  const escapedRefs: string[] = [];
+  for (const page of blueprint.pages) {
+    const order = page.sections.flatMap((section) => section.fields);
+    const sectionHidden = new Set(page.sections.filter((section) => section.visibleWhen !== undefined).flatMap((section) => section.fields.map((field) => field.fieldRef)));
+    order.forEach((field, index) => {
+      const mapping = mappingSet.mappings.find((candidate) => candidate.fieldRef === field.fieldRef);
+      if (mapping?.source.kind !== "profile_field") return;
+      for (const branch of escapedBranchesOf(mapping.source.format)) {
+        const at = order.findIndex((candidate) => candidate.fieldRef === branch.fieldRef);
+        const opener = at === -1 ? undefined : order[at];
+        const openerMapping = mappingSet.mappings.find((candidate) => candidate.fieldRef === branch.fieldRef);
+        const escape = opener === undefined ? undefined : escapeOf(opener);
+        const targets = optionTargetsOf(branch.then);
+        // Which list the values are checked against:
+        // - the one read after the escape, when the field's list follows the
+        //   escaped field (Sheffield's grading system);
+        // - when it follows ANOTHER field (the grade follows the grading
+        //   system), the lists read after that field set to what its own row
+        //   after the same escape renders — every one of them, since any may
+        //   be the one showing; never a list read for a listed institution;
+        // - the field's own options, when its list is on the page whole.
+        const follows = field.optionsAfter?.fieldRef;
+        const read = follows === branch.fieldRef ? field.listsAfter?.find((list) => list.fieldRef === branch.fieldRef && list.value === escape) : undefined;
+        const followedMapping = follows === undefined || follows === branch.fieldRef ? undefined : mappingSet.mappings.find((candidate) => candidate.fieldRef === follows);
+        const followedValues =
+          followedMapping?.source.kind === "profile_field"
+            ? [...new Set(escapedBranchesOf(followedMapping.source.format).filter((other) => other.fieldRef === branch.fieldRef).flatMap((other) => optionTargetsOf(other.then) ?? []))]
+            : [];
+        const unreadValues = followedValues.filter((value) => !(field.listsAfter ?? []).some((list) => list.fieldRef === follows && list.value === value));
+        const readAfter = (field.listsAfter ?? []).filter((list) => list.fieldRef === follows && followedValues.includes(list.value));
+        const unread =
+          targets === null
+            ? []
+            : follows === branch.fieldRef
+              ? targets.filter((target) => !(read?.entries ?? []).includes(target))
+              : follows !== undefined
+                ? targets.filter((target) => !readAfter.every((list) => list.entries.includes(target)))
+                : targets.filter((target) => !(field.options ?? []).some((option) => option.value === target));
+        const problem =
+          opener === undefined
+            ? `takes the escape of "${branch.fieldRef}", which is not on its page`
+            : at >= index
+              ? `takes the escape of "${branch.fieldRef}", which does not come before it`
+              : escape === undefined
+                ? `takes the escape of "${branch.fieldRef}", which records none`
+                : opener.escapeLeadsNowhere !== undefined
+                  ? `takes the escape of "${branch.fieldRef}", which is read to lead nowhere`
+                  : openerMapping?.source.kind !== "profile_field" || opener.frontedBy !== undefined
+                    ? `takes the escape of "${branch.fieldRef}", which no profile mapping fills, so it is never chosen`
+                    : opener.visibleWhen !== undefined || sectionHidden.has(opener.fieldRef)
+                      ? `takes the escape of "${branch.fieldRef}", which the form may hide, so the escape could be dropped after it was used`
+                      : targets === null
+                        ? `takes the escape of "${branch.fieldRef}" with a rule that names no values of the form's own`
+                        : hasAbsentArm(branch.then)
+                          ? `takes the escape of "${branch.fieldRef}" with an absent arm, which renders a value the student never stated`
+                          : follows === branch.fieldRef && read === undefined
+                            ? `takes the escape of "${branch.fieldRef}", and no list was read after that escape (listsAfter)`
+                            : follows !== undefined && follows !== branch.fieldRef && followedValues.length === 0
+                              ? `takes the escape of "${branch.fieldRef}", but its list follows "${follows}", which has no row after that escape, so what "${follows}" then holds is not known`
+                              : unreadValues.length > 0
+                                ? `takes the escape of "${branch.fieldRef}", but its list follows "${follows}", and no list was read after "${follows}" is ${unreadValues.map((value) => `"${value}"`).join(", ")} (listsAfter)`
+                                : unread.length > 0
+                                  ? `names ${unread.map((value) => `"${value}"`).join(", ")}, which ${
+                                      follows === branch.fieldRef
+                                        ? "the list read after that escape does not hold"
+                                        : follows !== undefined
+                                          ? `the list read after "${follows}" is ${followedValues.map((value) => `"${value}"`).join(", ")} does not hold`
+                                          : "the field's recorded options do not hold"
+                                    }`
+                                  : null;
+        if (problem !== null) {
+          escapedProblems.push(`${field.fieldRef} ${problem}`);
+          escapedRefs.push(field.fieldRef);
+        }
+      }
+    });
+  }
+  if (escapedProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "escaped_branch_invalid",
+        fieldRefs: [...new Set(escapedRefs)],
+        detail: `A rule taken after a form's escape must be one the plan can honour and a read supports (P293, ADR-0156 §3): ${escapedProblems.join("; ")}.`,
       },
     };
   }
@@ -1109,7 +1219,28 @@ function hasOptions(field: BlueprintField): boolean {
 function optionRowsOf(rule: FormatRule, part?: string): readonly { readonly key: string; readonly target: string; readonly part: string | undefined }[] {
   if (rule.kind === "option") return Object.entries(rule.options).map(([key, target]) => ({ key, target, part }));
   if (rule.kind === "part") return rule.then === undefined ? [] : optionRowsOf(rule.then, rule.path);
-  if (rule.kind === "switch") return Object.values(rule.cases).flatMap((branch) => optionRowsOf(branch, part));
+  if (rule.kind === "switch") return branchesOf(rule).flatMap((branch) => optionRowsOf(branch, part));
+  return [];
+}
+
+/** A switch's sub-rules: its cases, and its branch for a form's escape when it has one (P293). */
+function branchesOf(rule: Extract<FormatRule, { kind: "switch" }>): readonly FormatRule[] {
+  return [...Object.values(rule.cases), ...(rule.escaped === undefined ? [] : [rule.escaped.then])];
+}
+
+/** Whether a rule carries an `absent` arm anywhere: a value rendered when the student stated none (P293). */
+function hasAbsentArm(rule: FormatRule): boolean {
+  if (rule.kind === "part") return rule.absent !== undefined || (rule.then !== undefined && hasAbsentArm(rule.then));
+  if (rule.kind === "date") return rule.then !== undefined && hasAbsentArm(rule.then);
+  if (rule.kind === "switch") return rule.absent !== undefined || branchesOf(rule).some((branch) => hasAbsentArm(branch));
+  return false;
+}
+
+/** Every escaped branch in a format, wherever it sits (P293). */
+function escapedBranchesOf(rule: FormatRule): readonly { readonly fieldRef: string; readonly then: FormatRule }[] {
+  if (rule.kind === "part") return rule.then === undefined ? [] : escapedBranchesOf(rule.then);
+  if (rule.kind === "date") return rule.then === undefined ? [] : escapedBranchesOf(rule.then);
+  if (rule.kind === "switch") return [...(rule.escaped === undefined ? [] : [rule.escaped]), ...branchesOf(rule).flatMap((branch) => escapedBranchesOf(branch))];
   return [];
 }
 
@@ -1120,7 +1251,8 @@ function optionTargetsOf(rule: FormatRule): readonly string[] | null {
   if (rule.kind === "switch") {
     // Every case must name its values; one case of free text is free text
     // onto the whole field (P218).
-    const perCase = Object.values(rule.cases).map((branch) => optionTargetsOf(branch));
+    // P293: the branch for a form's escape is one more case.
+    const perCase = branchesOf(rule).map((branch) => optionTargetsOf(branch));
     if (perCase.some((targets) => targets === null)) return null;
     return perCase.flatMap((targets) => targets ?? []);
   }

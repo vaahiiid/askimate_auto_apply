@@ -1976,3 +1976,304 @@ describe("a student's choice from the form's own list (P290, ADR-0155, ADR-0109 
     }
   });
 });
+
+describe("a switch's branch taken after a form's escape (P293, ADR-0156 §3)", () => {
+  // Vahid, 2026-10-08: *"Build a signed mapping row "grade scale 20 → GPA 20"
+  // for Sheffield from my existing read, for my signature."* The grading system follows the
+  // institution; with the institution's escape chosen, the form's list is
+  // GPA 20 alone. The branch is taken only on the plan's own record that the
+  // escape is in for THIS entry, and only where a read says what follows it.
+  const ESCAPE = "Not in list";
+  const GPA_20 = { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: "6" } } } as const;
+  const QUALIFICATIONS = [
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" },
+    { level: "Master's degree", subject: "International Business", institution: "HHE", countryCode: "IR", start: { year: 2021, month: 9 }, end: { kind: "completed", date: { year: 2023, month: 6 } }, grade: "19.5", gradeScale: "iran_20_point" },
+  ];
+  const PROFILE = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
+  const SYSTEM: BlueprintField = {
+    fieldRef: "qualification_system",
+    label: "Grading system",
+    inputType: "select",
+    dataCategory: "ordinary",
+    locators: [{ strategy: "id", value: "qualificationSystem" }],
+    validations: [],
+    options: [
+      { value: "6", label: "GPA 20 (e.g. 16.5/20)" },
+      { value: "7", label: "UK Bachelors Degree (BA, BSc)" },
+    ],
+    optionsAfter: { fieldRef: "qualification_institution" },
+    listsAfter: [{ fieldRef: "qualification_institution", value: ESCAPE, entries: ["6"] }],
+  };
+  // A patch may remove a property (undefined), which `Partial` does not allow here.
+  type Patch = { readonly [K in keyof BlueprintField]?: BlueprintField[K] | undefined };
+  const defined = (field: object): BlueprintField => Object.fromEntries(Object.entries(field).filter(([, value]) => value !== undefined)) as unknown as BlueprintField;
+  const blueprintWith = (institution: Patch = {}, system: Patch = {}, order: "after" | "before" = "after"): ApplicationBlueprint => ({
+    ...GATED_PORTAL_BLUEPRINT,
+    pages: GATED_PORTAL_BLUEPRINT.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.flatMap((field): BlueprintField[] => {
+          if (field.fieldRef !== "qualification_institution") return [field];
+          const opener = defined({
+            ...field,
+            inputType: "select",
+            options: [
+              { value: "SHARIF", label: "Sharif University of Technology" },
+              { value: ESCAPE, label: "Not in list" },
+            ],
+            escapeValue: ESCAPE,
+            ...institution,
+          });
+          const dependent = defined({ ...SYSTEM, ...system });
+          return order === "after" ? [opener, dependent] : [dependent, opener];
+        }),
+      })),
+    })),
+  });
+  // `null` is a switch with no branch; `undefined` would take the default.
+  const setWith = (escaped: object | null = { fieldRef: "qualification_institution", then: GPA_20 }, institution?: MappingSet["mappings"][number]["source"]): MappingSet => ({
+    ...GATED_PORTAL_MAPPING_SET,
+    mappings: [
+      ...GATED_PORTAL_MAPPING_SET.mappings.map((mapping) =>
+        mapping.fieldRef === "qualification_institution"
+          ? {
+              ...mapping,
+              source: institution ?? { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: { kind: "part" as const, path: "institution", then: { kind: "option" as const, options: { "Sharif University of Technology": "SHARIF" } } } },
+            }
+          : mapping,
+      ),
+      {
+        fieldRef: "qualification_system",
+        source: {
+          kind: "profile_field",
+          fieldKey: "education.prior_qualifications",
+          format: { kind: "switch", path: "institution", cases: { "Sharif University of Technology": GPA_20 }, ...(escaped === null ? {} : { escaped }) } as never,
+        },
+      },
+    ],
+  });
+  const refusalOf = (set: MappingSet, blueprint: ApplicationBlueprint): string => {
+    const check = checkUsable(set, blueprint);
+    if (check.usable) return "usable";
+    expect(check.refusal.kind).toBe("escaped_branch_invalid");
+    if (check.refusal.kind === "escaped_branch_invalid") expect(check.refusal.fieldRefs).toEqual(["qualification_system"]);
+    return check.refusal.detail;
+  };
+  const escapedChoice: StudentChoice = { fieldRef: "qualification_institution", studentValue: "HHE", value: ESCAPE, label: "Not in list", escape: true, item: 1 };
+
+  it("accepts a branch whose escape comes first, leads somewhere, is filled from the profile, cannot be hidden, and names what was read after it", () => {
+    expect(refusalOf(setWith(), blueprintWith())).toBe("usable");
+  });
+
+  it("REFUSES a branch the plan could not honour, by what is wrong with it", () => {
+    const cases: readonly [string, MappingSet, ApplicationBlueprint, string][] = [
+      ["no such field", setWith({ fieldRef: "nowhere", then: GPA_20 }), blueprintWith(), `takes the escape of "nowhere", which is not on its page`],
+      ["after it", setWith(), blueprintWith({}, {}, "before"), "which does not come before it"],
+      ["no escape", setWith(), blueprintWith({ escapeValue: undefined }), "which records none"],
+      ["a dead end", setWith(), blueprintWith({ escapeLeadsNowhere: "Nothing the form asks next can be answered." }), "which is read to lead nowhere"],
+      [
+        "not from the profile",
+        setWith(undefined, { kind: "constant", value: "SHARIF", classification: "application_metadata", rationale: "One institution for all." }),
+        blueprintWith(),
+        "which no profile mapping fills, so it is never chosen",
+      ],
+      ["hidden", setWith(), blueprintWith({ visibleWhen: { whenFieldRef: "qualification_level", operator: "equals", value: "Master's degree" } }), "which the form may hide"],
+      ["free text", setWith({ fieldRef: "qualification_institution", then: { kind: "part", path: "gradeScale" } }), blueprintWith(), "with a rule that names no values of the form's own"],
+      ["no read after the escape", setWith(), blueprintWith({}, { listsAfter: [] }), "no list was read after that escape (listsAfter)"],
+      [
+        "an absent arm",
+        setWith({ fieldRef: "qualification_institution", then: { kind: "part", path: "gradeScale", absent: { typed: "6" }, then: { kind: "option", options: { iran_20_point: "6" } } } }),
+        blueprintWith(),
+        "with an absent arm, which renders a value the student never stated",
+      ],
+      [
+        "a value the read does not hold",
+        setWith({ fieldRef: "qualification_institution", then: { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: "7" } } } }),
+        blueprintWith(),
+        `names "7", which the list read after that escape does not hold`,
+      ],
+    ];
+    for (const [name, set, blueprint, expected] of cases) expect(refusalOf(set, blueprint), name).toContain(expected);
+  });
+
+  it("a branch naming the field's own escape is refused as the ADR-0109 rule it breaks, before anything else", () => {
+    const blueprint = blueprintWith({}, { options: [...(SYSTEM.options ?? []), { value: ESCAPE, label: "Not in list" }], escapeValue: ESCAPE });
+    const check = checkUsable(setWith({ fieldRef: "qualification_institution", then: { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: ESCAPE } } } }), blueprint);
+    expect(check.usable).toBe(false);
+    if (!check.usable) expect(check.refusal.kind).toBe("escape_named");
+  });
+
+  it("without optionsAfter, the branch's values must be among the field's own options — refused by the check every option map meets", () => {
+    const fixed = blueprintWith({}, { optionsAfter: undefined, listsAfter: undefined });
+    expect(refusalOf(setWith(), fixed)).toBe("usable");
+    const unlisted = checkUsable(setWith({ fieldRef: "qualification_institution", then: { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: "9" } } } }), fixed);
+    expect(unlisted.usable).toBe(false);
+    if (!unlisted.usable) expect(unlisted.refusal.kind).toBe("option_map_not_offered");
+    // A field with no recorded options meets no such check, so this one refuses it.
+    const unrecorded = blueprintWith({}, { inputType: "text", options: undefined, optionsAfter: undefined, listsAfter: undefined });
+    expect(refusalOf(setWith(), unrecorded)).toContain(`names "6", which the field's recorded options do not hold`);
+  });
+
+  it("plans GPA 20 for the entry whose institution the student chose the escape for, and for no other", () => {
+    const blueprint = blueprintWith();
+    const check = checkUsable(setWith(), blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const plan = planFill(blueprint, check.mappingSet, PROFILE, [escapedChoice]);
+    const systems = plan.instructions.filter((i) => i.fieldRef === "qualification_system").map((i) => [i.item?.index, textOf(i.value), i.value.kind]);
+    expect(systems).toEqual([
+      [0, "6", "confirmed"],
+      [1, "6", "confirmed"],
+    ]);
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("qualification_system");
+    // The institution itself is the student's choice, never the rule's.
+    expect(plan.instructions.find((i) => i.fieldRef === "qualification_institution" && i.item?.index === 1)?.value).toMatchObject({ kind: "chosen", escape: true });
+  });
+
+  it("with no escape chosen — no choice, a choice of an entry, or one for another entry — the grading system refuses as before", () => {
+    const blueprint = blueprintWith();
+    const check = checkUsable(setWith(), blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    for (const choices of [[], [{ ...escapedChoice, value: "SHARIF", label: "Sharif University of Technology", escape: false }], [{ ...escapedChoice, item: 0 }]] as const) {
+      const plan = planFill(blueprint, check.mappingSet, PROFILE, choices);
+      const blocker = plan.blockers.find((b) => b.fieldRef === "qualification_system" && "item" in b && b.item.index === 1);
+      if (blocker?.kind !== "render_refused") expect.unreachable(`expected a refusal for ${JSON.stringify(choices)}`);
+      expect(blocker.refusal.kind).toBe("no_matching_case");
+    }
+  });
+
+  it("a field whose list follows ANOTHER field (the grade, after the grading system) rests on a list read after that field — never on the options gathered for other cases", () => {
+    const GRADE: BlueprintField = {
+      fieldRef: "qualification_grade",
+      label: "Grade",
+      inputType: "select",
+      dataCategory: "ordinary",
+      locators: [{ strategy: "id", value: "qualificationGrade" }],
+      validations: [],
+      options: ["17.2", "19.5"].map((value) => ({ value, label: value })),
+      optionsAfter: { fieldRef: "qualification_system" },
+    };
+    const withGrade = (listsAfter: BlueprintField["listsAfter"]): ApplicationBlueprint => {
+      const base = blueprintWith();
+      return {
+        ...base,
+        pages: base.pages.map((page) => ({
+          ...page,
+          sections: page.sections.map((section) => ({
+            ...section,
+            fields: section.fields.flatMap((field) => (field.fieldRef === "qualification_system" ? [field, defined({ ...GRADE, listsAfter })] : [field])),
+          })),
+        })),
+      };
+    };
+    const byScale = { kind: "part", path: "grade", then: { kind: "option", options: { "17.2": "17.2", "19.5": "19.5" } } } as const;
+    const set: MappingSet = {
+      ...setWith(),
+      mappings: [
+        ...setWith().mappings,
+        {
+          fieldRef: "qualification_grade",
+          source: {
+            kind: "profile_field",
+            fieldKey: "education.prior_qualifications",
+            format: { kind: "switch", path: "institution", cases: { "Sharif University of Technology": byScale }, escaped: { fieldRef: "qualification_institution", then: byScale } },
+          },
+        },
+      ],
+    };
+    const refused = (blueprint: ApplicationBlueprint): string => {
+      const check = checkUsable(set, blueprint);
+      if (check.usable) return "usable";
+      expect(check.refusal.kind).toBe("escaped_branch_invalid");
+      if (check.refusal.kind === "escaped_branch_invalid") expect(check.refusal.fieldRefs).toEqual(["qualification_grade"]);
+      return check.refusal.detail;
+    };
+    expect(refused(withGrade(undefined))).toContain(`but its list follows "qualification_system", and no list was read after "qualification_system" is "6" (listsAfter)`);
+    // A list read for ANOTHER system (a listed institution's) is not the one
+    // the form shows after the escape, whatever it holds (the review of P293).
+    expect(refused(withGrade([{ fieldRef: "qualification_system", value: "7", entries: ["17.2", "19.5"] }]))).toContain(`no list was read after "qualification_system" is "6"`);
+    expect(refused(withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2"] }]))).toContain(`names "19.5", which the list read after "qualification_system" is "6" does not hold`);
+    // And with no row after that escape on the system, what it holds then is unknown.
+    const unknown = checkUsable(
+      { ...set, mappings: set.mappings.map((m) => (m.fieldRef === "qualification_system" && m.source.kind === "profile_field" ? { ...m, source: { ...m.source, format: { kind: "switch" as const, path: "institution", cases: { "Sharif University of Technology": GPA_20 } } } } : m)) },
+      withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"] }]),
+    );
+    expect(unknown.usable).toBe(false);
+    if (!unknown.usable) expect(unknown.refusal.detail).toContain(`its list follows "qualification_system", which has no row after that escape, so what "qualification_system" then holds is not known`);
+    const read = withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"] }]);
+    expect(refused(read)).toBe("usable");
+    const check = checkUsable(set, read);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const plan = planFill(read, check.mappingSet, PROFILE, [escapedChoice]);
+    expect(plan.instructions.filter((i) => i.fieldRef === "qualification_grade").map((i) => [i.item?.index, textOf(i.value)])).toEqual([
+      [0, "17.2"],
+      [1, "19.5"],
+    ]);
+  });
+
+  it("on a page filled once, the branch follows the escape the student chose earlier on the page", () => {
+    // A stand-in shape for the path of a page without repeats: a select whose
+    // escape the student chose, and a later field keyed on another value.
+    const blueprint: ApplicationBlueprint = {
+      ...FIXTURE_BLUEPRINT,
+      pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.flatMap((field): BlueprintField[] =>
+            field.fieldRef === "nationality"
+              ? [
+                  { ...field, options: [...(field.options ?? []), { value: ESCAPE, label: "Not in list" }], escapeValue: ESCAPE },
+                  { ...SYSTEM, fieldRef: "address_system", optionsAfter: { fieldRef: "nationality" }, listsAfter: [{ fieldRef: "nationality", value: ESCAPE, entries: ["6"] }] },
+                ]
+              : [field],
+          ),
+        })),
+      })),
+    };
+    const set = (escaped: boolean): MappingSet => ({
+      ...FIXTURE_MAPPING_SET,
+      mappings: [
+        ...FIXTURE_MAPPING_SET.mappings,
+        {
+          fieldRef: "address_system",
+          source: {
+            kind: "profile_field",
+            fieldKey: "contact.address",
+            format: {
+              kind: "switch",
+              path: "countryCode",
+              cases: { GB: { kind: "part", path: "countryCode", then: { kind: "option", options: { GB: "7" } } } },
+              ...(escaped ? { escaped: { fieldRef: "nationality", then: { kind: "part", path: "countryCode", then: { kind: "option", options: { IR: "6" } } } } } : {}),
+            },
+          },
+        },
+      ],
+    });
+    const profile = withConfirmed(COMPLETE_PROFILE, [
+      ["identity.nationality", "Persian"],
+      ["contact.address", { line1: "1 Example Street", city: "Tehran", postalCode: "00000", countryCode: "IR" }],
+    ]);
+    const chose: StudentChoice = { fieldRef: "nationality", studentValue: "Persian", value: ESCAPE, label: "Not in list", escape: true };
+    const planned = (escaped: boolean, choices: readonly StudentChoice[]) => {
+      const check = checkUsable(set(escaped), blueprint);
+      if (!check.usable) expect.unreachable(check.refusal.detail);
+      return planFill(blueprint, check.mappingSet, profile, choices);
+    };
+    const system = planned(true, [chose]).instructions.find((i) => i.fieldRef === "address_system");
+    expect(system === undefined ? "" : textOf(system.value)).toBe("6");
+    for (const [escaped, choices] of [[true, []], [false, [chose]]] as const) {
+      const plan = planned(escaped, choices);
+      expect(plan.instructions.map((i) => i.fieldRef), String(escaped)).not.toContain("address_system");
+      expect(plan.blockers.find((b) => b.fieldRef === "address_system")?.kind, String(escaped)).toBe("render_refused");
+    }
+  });
+
+  it("the same plan from a set with no branch refuses — the branch, not the choice, is what renders it", () => {
+    const blueprint = blueprintWith();
+    const check = checkUsable(setWith(null), blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const plan = planFill(blueprint, check.mappingSet, PROFILE, [escapedChoice]);
+    expect(plan.blockers.filter((b) => b.fieldRef === "qualification_system").map((b) => ("item" in b ? b.item.index : undefined))).toEqual([1]);
+  });
+});

@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.286.0] — 2026-10-08
+
+**P293 — ADR-0156 approved in his words; the GPA 20 row built for his signature.**
+
+- **Changed** ADR-0156 to **Accepted**: approved by Vahid on 2026-10-08, 17:11 UTC, in his own
+  words, on three conditions recorded in it. Row 140's Option A confirmed by him as the fallback
+  where no signed grading row exists.
+- **Added** a switch's branch for a form's escape (`escaped: { fieldRef, then }`): taken, in place
+  of the cases, only when the plan has put the form's escape into `fieldRef` for that entry, which
+  only the student's recorded choice does. It is parsed, so it is hashed and signed.
+- **Added** `escaped_branch_invalid`: `checkUsable` refuses a branch the plan could not honour or
+  no read supports. That includes an `absent` arm inside it, and a row on a field whose list follows
+  another field (Sheffield's grade) where no list was read after that field set to what its own row
+  after the same escape renders. A branch naming the form's escape is refused first, as
+  `escape_named`.
+- **Added** `docs/run-a/p293-for-signature.patch` and its sheet, **not signed**: P291's batch
+  plus the row *"grade scale 20 → GPA 20"* (`twenty_point` → `6` for a qualification in Iran after
+  the institution's escape),
+  mapping set 0.3.45, `sha256:a7312c27…`. It supersedes P291's patch, which was never signed.
+- **Added** `docs/run-a/p293-questions-measured.md`: on the entry as it will be if he signs the row,
+  his run asks 6 today (5 with "DBA"), 1 under ADR-0156 with the intake answers: the doctorate's
+  grade. Until he signs, `main` asks what P292 measured.
+- **Added** `docs/run-a/p293-reads.md`, superseding `p292-reads.md`: reads R and L in one sitting,
+  with R planned for the grade row.
+- **Changed** `scripts/read-against-entry.ts`: the case `"(escaped)"` compares a read with the rows
+  sent after an escape.
+
+---
+
 ## [0.285.0] — 2026-10-08
 
 **P292 — ask the student only when it matters (ADR-0156, proposed); questions per application measured.**

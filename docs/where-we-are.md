@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P293 — one question fewer, by a row he asked for
+
+*2026-10-08.* He approved ADR-0156 in his own words, on three conditions, and asked that no
+Iranian student be asked about the twenty-point scale. A row can now say what a form shows after
+its own "Not in list": on Sheffield, for a qualification in Iran at an institution not on the
+list, the student's stated twenty-point scale is GPA 20. The row follows the student's own choice of the escape and never
+makes it, and it loads only if a read supports it. His read already did, so the row waits for his
+signature. Measured on his run as it will be if he signs, the grading system no longer asks; the
+grade still does, until a read of the grade list lets a row follow.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P292 — fewer questions, on paper first
 
 *2026-10-08.* Counted on his run, one education page asked seven times: four choices, two stops

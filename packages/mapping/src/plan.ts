@@ -682,7 +682,8 @@ export function planFill(
           break;
         }
 
-        const rendered = renderConfirmed(resolution, format);
+        // P293: the fields whose escape the plan has put in so far.
+        const rendered = renderConfirmed(resolution, format, { escapedFields: escapedAmong(instructions) });
         if (!rendered.rendered) {
           const chosen = chosenInstead(field, fieldKey, rendered.refusal, undefined);
           if (chosen !== null) {
@@ -851,7 +852,8 @@ export function planFill(
           continue;
         }
         if (mapping.source.kind !== "profile_field") continue; // refused by checkUsable
-        const rendered = renderConfirmedItem(resolution, index, mapping.source.format);
+        // P293: the fields whose escape the plan has put in for THIS entry.
+        const rendered = renderConfirmedItem(resolution, index, mapping.source.format, { escapedFields: escapedAmong(itemInstructions) });
         if (!rendered.rendered) {
           const chosen = chosenInstead(field, fieldKey, rendered.refusal, item);
           if (chosen !== null) {
@@ -1018,6 +1020,15 @@ function listsExceedingForm(
  */
 function partFormat(part: readonly string[]): FormatRule {
   return part.reduceRight<FormatRule>((then, path) => ({ kind: "part", path, then }), { kind: "text" });
+}
+
+/**
+ * The fields whose escape these instructions put in (P293): an entry the
+ * student chose, or a default under a standing rule they accepted (ADR-0156),
+ * that is the form's escape. Nothing else is an escape chosen.
+ */
+function escapedAmong(instructions: readonly FillInstruction[]): ReadonlySet<string> {
+  return new Set(instructions.flatMap((instruction) => (instruction.value.kind === "chosen" && instruction.value.escape ? [instruction.fieldRef] : [])));
 }
 
 /** Every field with the conditions that govern it: its own, and its section's. */

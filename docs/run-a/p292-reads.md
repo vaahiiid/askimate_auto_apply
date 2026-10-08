@@ -1,5 +1,8 @@
 # P292: two reads, in one sitting
 
+**Superseded by [`p293-reads.md`](./p293-reads.md)** (P293): the same two reads, with R planned for the
+grade row it has to carry. Use that one.
+
 **What these are for.** The message of 2026-10-08 (saved as
 [`p292-message-as-sent.txt`](./p292-message-as-sent.txt)) asks for both to be planned:
 

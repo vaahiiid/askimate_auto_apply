@@ -63,7 +63,7 @@ export type {
 export { applyConfirmation, isDeclined, renderForConfirmation, renderListForConfirmation } from "./confirmation.js";
 export type { ListPartProvenance } from "./confirmation.js";
 
-export type { DatePattern, FormatRule, RenderRefusal, RenderResult } from "./format.js";
+export type { DatePattern, FormatRule, RenderContext, RenderRefusal, RenderResult } from "./format.js";
 export { isRenderRefused, renderConfirmed, renderConfirmedItem } from "./format.js";
 
 export type { ConfirmedProfile } from "./profile.js";

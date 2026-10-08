@@ -1316,4 +1316,38 @@ describe("a mapping keyed on two parts is parsed as a `switch` (P218)", () => {
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.refusal.path).toContain("cases");
   });
+
+  // P293, ADR-0156 §3: the branch taken after a form's escape is part of what
+  // is signed. A parser that dropped it would let a signed entry render a
+  // value its signature never covered, so it is parsed, and it moves the hash.
+  const SYSTEM = {
+    kind: "switch",
+    path: "institution",
+    cases: { "Islamic Azad University": { kind: "part", path: "gradeScale", then: { kind: "option", options: { twenty_point: "6" } } } },
+  };
+  const ESCAPED = { fieldRef: "institution-ts-control", then: { kind: "part", path: "gradeScale", then: { kind: "option", options: { twenty_point: "6" } } } };
+
+  it("keeps a switch's branch for a form's escape, and the hash moves with it (P293)", () => {
+    const plain = parseMappingSet(withFormat(SYSTEM));
+    const escaped = parseMappingSet(withFormat({ ...SYSTEM, escaped: ESCAPED }));
+    const other = parseMappingSet(withFormat({ ...SYSTEM, escaped: { ...ESCAPED, then: { kind: "part", path: "gradeScale", then: { kind: "option", options: { twenty_point: "7" } } } } }));
+    if (!plain.ok || !escaped.ok || !other.ok) expect.unreachable("each parses");
+    type Parsed = Extract<typeof escaped, { ok: true }>;
+    const format = (parsed: Parsed) => (parsed.value.mappings[0]?.source as { format: Record<string, unknown> }).format;
+    expect(format(escaped)["escaped"]).toEqual(ESCAPED);
+    // A switch without the branch parses as it always did: no key at all, so
+    // every entry already signed keeps its hash.
+    expect("escaped" in format(plain)).toBe(false);
+    const hash = (parsed: Parsed) => contentHash(toCanonical(parsed.value));
+    expect(new Set([hash(plain), hash(escaped), hash(other)]).size).toBe(3);
+  });
+
+  it("REFUSES a branch for an escape that names no field, or whose rule is not one (P293)", () => {
+    const noField = parseMappingSet(withFormat({ ...SYSTEM, escaped: { then: ESCAPED.then } }));
+    expect(noField.ok).toBe(false);
+    if (!noField.ok) expect(noField.refusal.path).toContain("escaped");
+    const noRule = parseMappingSet(withFormat({ ...SYSTEM, escaped: { fieldRef: "institution-ts-control", then: { kind: "nearest" } } }));
+    expect(noRule.ok).toBe(false);
+    if (!noRule.ok) expect(noRule.refusal.path).toContain("escaped.then");
+  });
 });

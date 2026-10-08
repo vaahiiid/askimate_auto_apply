@@ -177,7 +177,30 @@ export type FormatRule =
       readonly path: string;
       readonly cases: Readonly<Record<string, FormatRule>>;
       readonly absent?: "leave_empty" | { readonly typed: string };
+      /**
+       * P293, ADR-0156 §3: the rule taken when — and only when — the plan has
+       * put the form's ESCAPE into `fieldRef` for this entry. The form then
+       * shows the list that follows the escape, so this branch is taken in
+       * place of the cases, even one that names the value. Sheffield's grading
+       * system follows the institution: for an institution not on its list,
+       * an Iranian student's twenty-point scale is GPA 20, as Vahid's read of
+       * the list after "Not in list" (made with Iran chosen) shows. Without
+       * the escape chosen, the cases apply, and a value no case names refuses
+       * as before: an unread list is never the nearest case.
+       */
+      readonly escaped?: { readonly fieldRef: string; readonly then: FormatRule };
     };
+
+/**
+ * What the plan knows when it renders one value (P293): the fields whose
+ * escape it has put in for this entry — chosen by the student, or under a
+ * standing rule they accepted (ADR-0156). Absent, no escape is chosen.
+ */
+export interface RenderContext {
+  readonly escapedFields: ReadonlySet<string>;
+}
+
+const NO_CONTEXT: RenderContext = { escapedFields: new Set() };
 
 /** The date notations seen on application portals. */
 export type DatePattern =
@@ -289,7 +312,7 @@ function formatDate(date: Date, pattern: DatePattern): string {
  * Separated from `renderConfirmed` so `part` can recurse without unwrapping a
  * confirmed value more than once.
  */
-function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
+function applyRule(value: unknown, rule: FormatRule, context: RenderContext = NO_CONTEXT): string | RenderRefusal {
   switch (rule.kind) {
     // ── Always refuses, and says why (blocker 71) ──────────────────────
     //
@@ -317,7 +340,7 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
         return { kind: "rule_does_not_fit", detail: `"date" needs a Date, got ${typeName(value)}.` };
       }
       const rendered = formatDate(value, rule.pattern);
-      return rule.then === undefined ? rendered : applyRule(rendered, rule.then);
+      return rule.then === undefined ? rendered : applyRule(rendered, rule.then, context);
     }
 
     case "number":
@@ -368,7 +391,7 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
         };
       }
       const part = container[rule.path];
-      const applied = applyRule(part, rule.then ?? { kind: "text" });
+      const applied = applyRule(part, rule.then ?? { kind: "text" }, context);
       // Which part a refused value came from (P279), so the student can be
       // told "your institution", not a box's name. The outermost part wins:
       // an enclosing `part` writes over what an inner one wrote.
@@ -384,6 +407,12 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
         if (rule.absent !== undefined) return rule.absent.typed;
         return { kind: "no_such_part", detail: `The confirmed value has no part "${rule.path}".` };
       }
+      // P293: the plan put the form's escape into the field this branch
+      // names, so the form now shows the list that follows the escape — not
+      // the list a case was read under, even for a value a case names.
+      if (rule.escaped !== undefined && context.escapedFields.has(rule.escaped.fieldRef)) {
+        return applyRule(value, rule.escaped.then, context);
+      }
       const chosen = container[rule.path];
       const key = chosen instanceof Date ? chosen.toISOString() : String(chosen);
       const branch = rule.cases[key];
@@ -398,7 +427,7 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
             `system will not choose the closest one — the list for it is read, or the student is asked.`,
         };
       }
-      return applyRule(value, branch);
+      return applyRule(value, branch, context);
     }
 
     case "join": {
@@ -469,6 +498,8 @@ export function renderConfirmedItem<T>(
   confirmed: ConfirmedValue<T>,
   index: number,
   rule: FormatRule,
+  /** P293: the fields whose escape the plan chose for this entry. */
+  context: RenderContext = NO_CONTEXT,
 ): RenderResult {
   const list = unwrapConfirmed(confirmed);
   if (!Array.isArray(list)) {
@@ -480,7 +511,7 @@ export function renderConfirmedItem<T>(
       refusal: { kind: "no_such_item", detail: `The list has ${String(list.length)} item(s); there is no item ${String(index)}.` },
     };
   }
-  const applied = applyRule(list[index], rule);
+  const applied = applyRule(list[index], rule, context);
   if (typeof applied !== "string") return { rendered: false, refusal: applied };
   return {
     rendered: true,
@@ -491,8 +522,10 @@ export function renderConfirmedItem<T>(
 export function renderConfirmed<T>(
   confirmed: ConfirmedValue<T>,
   rule: FormatRule,
+  /** P293: the fields whose escape the plan chose. */
+  context: RenderContext = NO_CONTEXT,
 ): RenderResult {
-  const applied = applyRule(unwrapConfirmed(confirmed), rule);
+  const applied = applyRule(unwrapConfirmed(confirmed), rule, context);
 
   if (typeof applied !== "string") {
     return { rendered: false, refusal: applied };

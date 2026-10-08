@@ -1,6 +1,44 @@
 # ADR-0156 — Ask the student only when it matters
 
-**Status:** Proposed · written 2026-10-08 (P292) for Vahid's approval, at the request of a message that speaks of him in the third person · not agreed by Vahid, so nothing here is built · would amend ADR-0155 (§2, and where a choice is stored) and asks him one question about ADR-0109 as amended
+**Status:** Accepted · approved by Vahid on 2026-10-08, 17:11 UTC, in his own words, with three conditions (below) · written in P292 at the request of a message that spoke of him in the third person · amends ADR-0155 (§2, and where a choice is stored) · answers the question about ADR-0109 as amended, in his words · partly built: P293 built §3's mechanism and its first row, for his signature; the rest is not built (see the end)
+
+## Decided, in his words (2026-10-08, 17:11 UTC)
+
+Saved whole as he sent it: [`docs/run-a/p293-his-decisions-as-sent.txt`](../run-a/p293-his-decisions-as-sent.txt).
+The time is the message's timestamp in the session record (17:11:44 UTC); the saved file holds no
+time.
+
+> *"ADR-0156: I approve it. A standing rule a student accepts at intake counts as the student having
+> chosen it under my ADR-0109 amendment, on three conditions: the rule's wording is explicit when
+> they accept it, every default applied under it appears in the final preview, and the student can
+> withdraw it at any time."*
+
+So the question §4 put to him is answered: **yes, on three conditions**, in his words:
+
+1. *"the rule's wording is explicit when they accept it"*;
+2. *"every default applied under it appears in the final preview"*;
+3. *"the student can withdraw it at any time"*.
+
+**How this ADR proposes to meet them (not his words; for the build to propose to him):**
+
+1. The student accepts the sentence that will be applied, word for word, not a summary of it.
+2. Every default applied under the rule is marked in the final preview as applied under it, beside
+   the student's words, before anything is filled.
+3. Withdrawn, the rule stops applying, and every field it settled becomes a question again. Before
+   the run, that question is asked in §5's one sitting. **Open, his to decide:** what *"at any
+   time"* means once the run has started or a page is saved. This ADR does not settle it.
+
+**What his approval does not settle.** He wrote *"ADR-0156: I approve it."* He did not address
+§4(a)'s choice between one escape rule and one rule per part, which this ADR leaves to him. It
+stays **undecided**, and §4's build waits on it.
+
+And of row 140, in his words: *"I confirm Option A, as the fallback for any portal where no signed
+grading row exists yet."* And of the two questions the measure left: *"The two remaining questions
+are both the Iranian 20-point scale, which almost every Iranian student will hit. I do not want
+students asked about this. Build a signed mapping row "grade scale 20 → GPA 20" for Sheffield from
+my existing read, for my signature. Then plan read R so a grade row can follow."* His target:
+*"zero questions during the application for my case on Sheffield. Measure it again once these rows
+are signed."*
 
 ## Why this exists
 
@@ -23,7 +61,7 @@ picked for the student, and the escape is pressed only on their choice. But hone
 seven times, mid-run, is a product a student abandons. Most of those questions have only one
 truthful answer, and the student would give it the same way every time.
 
-## Decision (proposed)
+## Decision (proposed in P292; approved in his words above, with his three conditions; §4(a)'s choice still his)
 
 The rules below are the message's, each with what this ADR proposes for it.
 
@@ -79,7 +117,8 @@ on the profile, reused across all portals."*
 - **Two standing rules, in the student's own words, with intake provenance:**
   - **(a) The escape.** Proposed wording: `Where my exact words are not on a form's list, use the
     form's 'Not in list' with my own words.` It is proposed as **one** rule covering institution, subject and award
-    title. Making it one rule per part is the alternative, and that is his choice.
+    title. Making it one rule per part is the alternative, and that is his choice: **undecided**
+    after his approval of 2026-10-08, which did not address it.
   - **(b) Short forms for small boxes.** For example an award title's short form, asked only when a
     signed entry has a box the full words will not fit.
 - **Changeable by asking.** They change the way any confirmed answer does (ADR-0154), and they are
@@ -152,6 +191,14 @@ What still asks, with the intake answers given:
 Both are closed by a signed row, not by a question, if he approves §3 and signs them. The measure
 does not count rows that do not exist.
 
+**Measured again in P293, on the entry as it will be if he signs the row** (the P293 patch
+applied for the run and removed after;
+[`p293-questions-measured.md`](../run-a/p293-questions-measured.md)): **6** today (**5** with
+*DBA*), **5** (**4**) without standing rules, **1** with the intake answers. In every column the
+row removes the doctorate's grading system and nothing else. What still asks is the grade. **Until
+he signs, §3's rule holds on `main`:** the row does not exist there, and the measure is P292's,
+7 (6), 6 (5) and 2.
+
 ## Consequences
 
 - **On his run.** From 7 questions mid-run, as measured, to 2 asked together before it. Two
@@ -166,8 +213,42 @@ does not count rows that do not exist.
   - a dead-end escape is never offered as a way through (row 140);
   - the student approves everything in the preview.
 
-## Not built
+## Built, and not built
 
-Nothing. This is a proposal for his approval. What implementing it would take is the standing
-rules on the profile and their intake questions, the one sitting before the run, the preview's
-marks, and the two signed rows of §3. Its estimate is given when he approves it.
+**Built in P293:**
+
+- **The branch a switch takes after a form's escape** (`escaped: { fieldRef, then }`). It is taken
+  only when the plan has put the form's escape into `fieldRef` for that entry, which only the
+  student's recorded choice does (ADR-0109 as amended), and then in place of the cases, because the
+  form shows the list that follows the escape. The row follows the escape; it never makes it.
+- **Its check, `escaped_branch_invalid`.** `checkUsable` refuses a branch the plan could not honour
+  or no read supports. That includes an `absent` arm inside it, and a row on a field whose list
+  follows another field (Sheffield's grade) when no list was read after that field set to what its
+  own row after the same escape renders.
+- **§3's first row, *grade scale 20 → GPA 20*,** for a qualification in Iran, the country his read
+  was made under, in a patch for his signature
+  ([`p293-for-signature.md`](../run-a/p293-for-signature.md)). **Not signed**, so not on `main` as
+  entry content.
+
+**Waiting on a read:** §3's second row, the grade after the institution's escape. Read R is
+planned ([`p293-reads.md`](../run-a/p293-reads.md)), and the check refuses the row until a grade
+list read after the grading system is recorded.
+
+**Not built:**
+
+- §4's standing rules on the profile, with their intake questions in the exact wording the student
+  accepts (condition 1);
+- the preview's marks for every default applied under them (condition 2);
+- withdrawal at any time (condition 3);
+- §5's one sitting before the run.
+
+Estimate, given now that he has approved it: **three phases of about four hours each.**
+
+1. The standing rules on the profile, their intake questions and withdrawal, with a test for every
+   sentence that promises an action. It waits on his two open choices above: one escape rule or
+   one per part, and what *"at any time"* means once the run has started.
+2. The defaults recorded per application under a standing rule, as `entry_choices` naming the rule
+   as their source, and the preview's marks.
+3. The one sitting before the run, in place of ADR-0155 §2's offers one at a time.
+
+Each phase states its own estimate when it starts.
