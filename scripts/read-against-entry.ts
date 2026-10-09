@@ -26,6 +26,11 @@
  * Exits 1 on any difference, on any row the read does not hold, and on any
  * line it cannot read, so silence is never the verdict.
  *
+ * P294: a read printed with what it was made under — `{ under: {…}, <list>: […] }`
+ * (docs/run-a/p294-reads.md) — is also checked against the entry's records of
+ * its reads for that field: one must be made under exactly what the file says,
+ * or it exits 1 (NO RECORD).
+ *
  * What it cannot see (P285): where the file came from. A list rebuilt with a
  * shell loop compares exactly as the form's own output does, and P285 ran one
  * and counted its matches as confirmed reads. So the summary says "lines of
@@ -44,8 +49,24 @@ function fail(message: string): never {
   process.exit(2);
 }
 
-function readLines(text: string): { readonly pairs: Option[]; readonly unread: string[] } {
+function readLines(text: string): { readonly pairs: Option[]; readonly unread: string[]; readonly under?: Readonly<Record<string, string>>; readonly typed?: string } {
   const trimmed = text.trim();
+  // P294: the printed form of a read that says what it was made under —
+  // { under: { <select name>: <value>, … }, <the list>: [[value, label, …], …] }
+  // with `typed` beside it for a search.
+  if (trimmed.startsWith("{")) {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    const lists = Object.entries(parsed).filter(([key, value]) => key !== "under" && Array.isArray(value));
+    if (lists.length !== 1) fail(`The read holds ${String(lists.length)} lists; expected one beside "under".`);
+    const under = parsed["under"];
+    if (under === null || typeof under !== "object" || Array.isArray(under)) fail('The read has no "under": what it was made under is not in it.');
+    return {
+      pairs: (lists[0]?.[1] as unknown[]).map((item) => (Array.isArray(item) ? { value: String(item[0]), label: String(item[1]) } : { value: String((item as Option).value), label: String((item as Option).label) })),
+      unread: [],
+      under: Object.fromEntries(Object.entries(under as Record<string, unknown>).map(([key, value]) => [key, String(value)])),
+      ...(typeof parsed["typed"] === "string" ? { typed: parsed["typed"] } : {}),
+    };
+  }
   if (trimmed.startsWith("[")) {
     const parsed = JSON.parse(trimmed) as unknown[];
     return {
@@ -101,7 +122,7 @@ const entry = JSON.parse(readFileSync(entryPath, "utf8")) as { mappingSet?: { ma
 const built = optionsOf(entry, fieldRef);
 const rows = new Set<string>();
 for (const mapping of entry.mappingSet?.mappings ?? []) if (mapping.fieldRef === fieldRef) targetsOf(mapping.source?.format, caseKey, rows);
-const { pairs, unread } = readLines(readFileSync(readPath, "utf8"));
+const { pairs, unread, under, typed } = readLines(readFileSync(readPath, "utf8"));
 const builtLabel = new Map(built.map((option) => [option.value, option.label]));
 
 let differs = 0;
@@ -120,6 +141,47 @@ const unreadRows = [...rows].filter((value) => !readValues.has(value));
 for (const value of unreadRows) process.stdout.write(`BUILT, NOT IN FILE   ${JSON.stringify(value)} — a row sends it; the file does not hold it\n`);
 for (const line of unread) process.stdout.write(`NOT A READ LINE   ${JSON.stringify(line)} — what it stands for is not vouched for\n`);
 
+// P294: what the file says it was read under, against the entry's records of
+// its reads for this field. The file names the form's own selects; the entry
+// names the box that sets each (`frontedBy`), so each is translated first.
+let madeUnderMissing = false;
+if (under !== undefined) {
+  type Field = { fieldRef: string; locators?: { strategy: string; value: string }[]; frontedBy?: string; optionsAfter?: { fieldRef: string }; searches?: { word: string; under?: { fieldRef: string; value: string }[] }[]; listsAfter?: { fieldRef: string; value: string; under?: { fieldRef: string; value: string }[] }[] };
+  const fields = ((entry as { blueprint?: { pages?: { sections: { fields: Field[] }[] }[] } }).blueprint?.pages ?? []).flatMap((page) => page.sections.flatMap((section) => section.fields));
+  const refOf = (name: string): string => {
+    const select = fields.find((candidate) => (candidate.locators ?? []).some((locator) => locator.strategy === "name" && locator.value === name));
+    return select?.frontedBy ?? select?.fieldRef ?? name;
+  };
+  const said = Object.entries(under).map(([name, value]) => [refOf(name), value] as const);
+  process.stdout.write(`MADE UNDER (the file)   ${said.map(([ref, value]) => `${ref} = ${JSON.stringify(value)}`).join(", ")}\n`);
+  const field = fields.find((candidate) => candidate.fieldRef === fieldRef);
+  const records = [
+    ...(field?.searches ?? []).filter((search) => typed === undefined || search.word === typed).map((search) => ({ name: `search "${search.word}"`, held: new Map((search.under ?? []).map((entry_) => [entry_.fieldRef, entry_.value])) })),
+    ...(typed !== undefined ? [] : (field?.listsAfter ?? []).map((list) => ({ name: `list after ${list.fieldRef} = ${JSON.stringify(list.value)}`, held: new Map([[list.fieldRef, list.value], ...(list.under ?? []).map((entry_) => [entry_.fieldRef, entry_.value] as const)]) }))),
+  ];
+  // The fields this field's list follows, as the entry records them. Every
+  // one of them the file printed must be in the record with the same value;
+  // a select the file printed that the list does not follow (the field's own
+  // value, say) is not a condition of the read. And everything the record
+  // holds must be what the file printed.
+  const chain: string[] = [];
+  for (let next = field?.optionsAfter?.fieldRef; next !== undefined && !chain.includes(next); next = fields.find((candidate) => candidate.fieldRef === next)?.optionsAfter?.fieldRef) {
+    chain.push(next);
+  }
+  const matching = records.filter(
+    (record) =>
+      said.every(([ref, value]) => !chain.includes(ref) || record.held.get(ref) === value) &&
+      [...record.held].every(([ref, value]) => said.some(([other, its]) => other === ref && its === value)),
+  );
+  for (const record of records) {
+    process.stdout.write(`${matching.includes(record) ? "RECORD MATCHES" : "RECORD DIFFERS"}   the entry's ${record.name}: ${[...record.held].map(([ref, value]) => `${ref} = ${JSON.stringify(value)}`).join(", ") || "made under nothing recorded"}\n`);
+  }
+  if (matching.length === 0) {
+    madeUnderMissing = true;
+    process.stdout.write(`NO RECORD   the entry holds no read for ${fieldRef} made under what the file says\n`);
+  }
+}
+
 const confirmed = pairs.length - differs;
 process.stdout.write(
   `\n${String(pairs.length)} line(s) in ${readPath}; ${String(confirmed)} match the entry's options for ${fieldRef}, ` +
@@ -129,4 +191,4 @@ process.stdout.write(
     `This compares a FILE with the entry. Whether the file is the form's own output — exported, not retyped,\n` +
     `not rebuilt by a loop — it cannot tell; only where the file came from can say that.\n`,
 );
-process.exit(differs > 0 || unread.length > 0 || unreadRows.length > 0 ? 1 : 0);
+process.exit(differs > 0 || unread.length > 0 || unreadRows.length > 0 || madeUnderMissing ? 1 : 0);

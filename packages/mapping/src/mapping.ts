@@ -27,7 +27,7 @@
  * the wrong boxes. So the pin is checked, and a mismatch refuses.
  */
 
-import type { ApplicationBlueprint, BlueprintField, FieldLocator } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, BlueprintField, FieldListAfter, FieldLocator } from "@askimate/aas-blueprint";
 import { allFields, allRequiredDocuments, escapeOf } from "@askimate/aas-blueprint";
 import type { Brand } from "@askimate/aas-domain";
 import type { FormatRule, OrdinaryFieldKey } from "@askimate/aas-profile";
@@ -325,6 +325,18 @@ export type MappingRefusal =
    * among the list the form showed after that escape.
    */
   | { readonly kind: "escaped_branch_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * A read's record of what it was made under (P294) that names a field its list does not follow,
+   * the field it is already read after, the same field twice, or a value that field does not offer —
+   * or that leaves out a field its list follows which offers a choice.
+   */
+  | { readonly kind: "read_under_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * A row on a list that follows another field directly (Sheffield's institution box after the
+   * country box) whose value a read made under one value of that field holds, keyed on another or
+   * on none (P294).
+   */
+  | { readonly kind: "read_country_mismatch"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A typeahead row keyed on the student's words names an entry whose recorded text is other words (ADR-0153, P282). */
   | { readonly kind: "row_not_identity"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A fronted control (P153) that is mapped, or whose `frontedBy` is not another field on the same page. */
@@ -946,6 +958,76 @@ export function checkUsable(
     };
   }
 
+  // ── P294: what a read was made under ───────────────────────────────────
+  //
+  // Vahid, 2026-10-09: *"Record the country a read was made under in the
+  // reads record itself, and make the check refuse a mapping row whose key
+  // does not match the country of the read it rests on."* A read records, in
+  // `under`, what the fields its list follows held when it was made. Each
+  // must be a field the list does follow, directly or through others, and a
+  // value that field offers: a record of a read cannot name a dependency the
+  // form does not have, or a country it does not list.
+  const fieldsByRefForReads = new Map(allFields(blueprint).map((candidate) => [candidate.fieldRef, candidate]));
+  const upstreamOf = (field: BlueprintField): readonly string[] => {
+    const chain: string[] = [];
+    for (let next = field.optionsAfter?.fieldRef; next !== undefined && !chain.includes(next); next = fieldsByRefForReads.get(next)?.optionsAfter?.fieldRef) {
+      chain.push(next);
+    }
+    return chain;
+  };
+  const underProblems: string[] = [];
+  const underRefs: string[] = [];
+  for (const field of allFields(blueprint)) {
+    const chain = upstreamOf(field);
+    const reads = [
+      ...(field.searches ?? []).map((search) => ({ name: `the search for "${search.word}"`, after: undefined as string | undefined, under: search.under })),
+      ...(field.listsAfter ?? []).map((list) => ({ name: `the list read after "${list.fieldRef}" is "${list.value}"`, after: list.fieldRef, under: list.under })),
+    ];
+    // The fields a read's list follows that offer a choice — the country box,
+    // the institution box — other than the one it is read after: the read
+    // must record what each held, so a country is never left for someone to
+    // set by hand later (P294, the review). A box the student types in, like
+    // the subject's search word, offers none and is not required.
+    const required = chain.filter((fieldRef) => (fieldsByRefForReads.get(fieldRef)?.options ?? []).length > 0);
+    for (const read of reads) {
+      const missing = required.filter((fieldRef) => fieldRef !== read.after && !(read.under ?? []).some((held) => held.fieldRef === fieldRef));
+      if (missing.length > 0) {
+        underProblems.push(`${field.fieldRef}: ${read.name} records no ${missing.map((fieldRef) => `"${fieldRef}"`).join(", ")}, which its list follows: a read is true only of what they held, so it records it`);
+        underRefs.push(field.fieldRef);
+      }
+      const seen = new Set<string>();
+      for (const held of read.under ?? []) {
+        const upstream = fieldsByRefForReads.get(held.fieldRef);
+        const problem =
+          seen.has(held.fieldRef)
+            ? `records "${held.fieldRef}" twice`
+            : held.fieldRef === read.after
+              ? `records "${held.fieldRef}", which it is already read after`
+              : !chain.includes(held.fieldRef)
+                ? `records "${held.fieldRef}", which its list does not follow`
+                : upstream === undefined || (!(upstream.options ?? []).some((option) => option.value === held.value) && escapeOf(upstream) !== held.value)
+                  ? `records "${held.fieldRef}" as "${held.value}", which that field does not offer`
+                  : null;
+        seen.add(held.fieldRef);
+        if (problem !== null) {
+          underProblems.push(`${field.fieldRef}: ${read.name} ${problem}`);
+          underRefs.push(field.fieldRef);
+        }
+      }
+    }
+  }
+  if (underProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "read_under_invalid",
+        fieldRefs: [...new Set(underRefs)],
+        detail: `A read records only what the fields its list follows held when it was made (P294): ${underProblems.join("; ")}.`,
+      },
+    };
+  }
+
+
   // ── P293, ADR-0156 §3: a branch taken only after a form's escape ────────
   //
   // Vahid, 2026-10-08: *"Build a signed mapping row "grade scale 20 → GPA 20"
@@ -958,6 +1040,12 @@ export function checkUsable(
   // was used). The branch renders only from the student's stated answer, so
   // it carries no `absent` arm. And the values it names are the list the
   // form showed after that escape: the row rests on a read, or it is refused.
+  //
+  // P294: and where the escaped field's own list follows another field
+  // (Sheffield's institution box follows the country box), a read is true only
+  // of what that field held when it was made. The branch is then keyed on the
+  // part that fills that field, and each key must render the value a read it
+  // rests on was made under (`countryProblem` below).
   const escapedProblems: string[] = [];
   const escapedRefs: string[] = [];
   for (const page of blueprint.pages) {
@@ -972,30 +1060,36 @@ export function checkUsable(
         const openerMapping = mappingSet.mappings.find((candidate) => candidate.fieldRef === branch.fieldRef);
         const escape = opener === undefined ? undefined : escapeOf(opener);
         const targets = optionTargetsOf(branch.then);
-        // Which list the values are checked against:
-        // - the one read after the escape, when the field's list follows the
+        // Which lists the values are checked against:
+        // - the ones read after the escape, when the field's list follows the
         //   escaped field (Sheffield's grading system);
         // - when it follows ANOTHER field (the grade follows the grading
         //   system), the lists read after that field set to what its own row
-        //   after the same escape renders — every one of them, since any may
-        //   be the one showing; never a list read for a listed institution;
+        //   after the same escape renders, and read with the escape in (P294,
+        //   `under`) — every one of them, since any may be the one showing;
+        //   never a list read for a listed institution;
         // - the field's own options, when its list is on the page whole.
         const follows = field.optionsAfter?.fieldRef;
-        const read = follows === branch.fieldRef ? field.listsAfter?.find((list) => list.fieldRef === branch.fieldRef && list.value === escape) : undefined;
+        const directReads = follows === branch.fieldRef ? (field.listsAfter ?? []).filter((list) => list.fieldRef === branch.fieldRef && list.value === escape) : [];
         const followedMapping = follows === undefined || follows === branch.fieldRef ? undefined : mappingSet.mappings.find((candidate) => candidate.fieldRef === follows);
-        const followedValues =
-          followedMapping?.source.kind === "profile_field"
-            ? [...new Set(escapedBranchesOf(followedMapping.source.format).filter((other) => other.fieldRef === branch.fieldRef).flatMap((other) => optionTargetsOf(other.then) ?? []))]
-            : [];
-        const unreadValues = followedValues.filter((value) => !(field.listsAfter ?? []).some((list) => list.fieldRef === follows && list.value === value));
-        const readAfter = (field.listsAfter ?? []).filter((list) => list.fieldRef === follows && followedValues.includes(list.value));
+        const followedBranches = followedMapping?.source.kind === "profile_field" ? escapedBranchesOf(followedMapping.source.format).filter((other) => other.fieldRef === branch.fieldRef) : [];
+        const followedValues = [...new Set(followedBranches.flatMap((other) => optionTargetsOf(other.then) ?? []))];
+        const readWithEscape = (list: FieldListAfter): boolean => (list.under ?? []).some((held) => held.fieldRef === branch.fieldRef && held.value === escape);
+        const chainedReads = follows === undefined || follows === branch.fieldRef ? [] : (field.listsAfter ?? []).filter((list) => list.fieldRef === follows && followedValues.includes(list.value) && readWithEscape(list));
+        const unreadValues = followedValues.filter((value) => !chainedReads.some((list) => list.value === value));
+        // P294: the field the escaped field's own list follows, if any. The
+        // country rule holds the branch only where this field's list depends
+        // on the escape: read right after it, or after a field whose own row
+        // after it says what it holds. A list on the page whole does not.
+        const upstream = opener?.optionsAfter?.fieldRef;
+        const countryApplies = upstream !== undefined && (follows === branch.fieldRef || (follows !== undefined && followedBranches.length > 0));
         const unread =
-          targets === null
+          targets === null || countryApplies
             ? []
             : follows === branch.fieldRef
-              ? targets.filter((target) => !(read?.entries ?? []).includes(target))
+              ? targets.filter((target) => !directReads.every((list) => list.entries.includes(target)))
               : follows !== undefined
-                ? targets.filter((target) => !readAfter.every((list) => list.entries.includes(target)))
+                ? targets.filter((target) => !chainedReads.every((list) => list.entries.includes(target)))
                 : targets.filter((target) => !(field.options ?? []).some((option) => option.value === target));
         const problem =
           opener === undefined
@@ -1014,21 +1108,34 @@ export function checkUsable(
                         ? `takes the escape of "${branch.fieldRef}" with a rule that names no values of the form's own`
                         : hasAbsentArm(branch.then)
                           ? `takes the escape of "${branch.fieldRef}" with an absent arm, which renders a value the student never stated`
-                          : follows === branch.fieldRef && read === undefined
+                          : follows === branch.fieldRef && directReads.length === 0
                             ? `takes the escape of "${branch.fieldRef}", and no list was read after that escape (listsAfter)`
                             : follows !== undefined && follows !== branch.fieldRef && followedValues.length === 0
                               ? `takes the escape of "${branch.fieldRef}", but its list follows "${follows}", which has no row after that escape, so what "${follows}" then holds is not known`
-                              : unreadValues.length > 0
-                                ? `takes the escape of "${branch.fieldRef}", but its list follows "${follows}", and no list was read after "${follows}" is ${unreadValues.map((value) => `"${value}"`).join(", ")} (listsAfter)`
-                                : unread.length > 0
-                                  ? `names ${unread.map((value) => `"${value}"`).join(", ")}, which ${
-                                      follows === branch.fieldRef
-                                        ? "the list read after that escape does not hold"
-                                        : follows !== undefined
-                                          ? `the list read after "${follows}" is ${followedValues.map((value) => `"${value}"`).join(", ")} does not hold`
-                                          : "the field's recorded options do not hold"
-                                    }`
-                                  : null;
+                              : !countryApplies && unreadValues.length > 0
+                                ? `takes the escape of "${branch.fieldRef}", but its list follows "${follows}", and no list was read after "${follows}" is ${unreadValues.map((value) => `"${value}"`).join(", ")} with "${branch.fieldRef}" escaped (listsAfter, under)`
+                                : countryApplies
+                                  ? countryProblem({
+                                      branch,
+                                      escape,
+                                      upstream,
+                                      chain: upstreamOf(opener),
+                                      fieldKey: mapping.source.fieldKey,
+                                      mappingSet,
+                                      follows,
+                                      directReads,
+                                      chainedReads: (field.listsAfter ?? []).filter((list) => list.fieldRef === follows && readWithEscape(list)),
+                                      followedBranches,
+                                    })
+                                  : unread.length > 0
+                                    ? `names ${unread.map((value) => `"${value}"`).join(", ")}, which ${
+                                        follows === branch.fieldRef
+                                          ? "the list read after that escape does not hold"
+                                          : follows !== undefined
+                                            ? `the list read after "${follows}" is ${followedValues.map((value) => `"${value}"`).join(", ")} does not hold`
+                                            : "the field's recorded options do not hold"
+                                      }`
+                                    : null;
         if (problem !== null) {
           escapedProblems.push(`${field.fieldRef} ${problem}`);
           escapedRefs.push(field.fieldRef);
@@ -1043,6 +1150,99 @@ export function checkUsable(
         kind: "escaped_branch_invalid",
         fieldRefs: [...new Set(escapedRefs)],
         detail: `A rule taken after a form's escape must be one the plan can honour and a read supports (P293, ADR-0156 §3): ${escapedProblems.join("; ")}.`,
+      },
+    };
+  }
+
+  // P294: a row on a list that follows another field — the institution box
+  // after the country box — rests on the searches and lists read with that
+  // field set. A list read after the field it directly follows is made under
+  // that field's value; any read may record more in `under`. Where a read
+  // holding a row's value records what fields of the chain held, the row must
+  // be keyed for exactly that, on the parts that fill them — or a read made
+  // under what it is keyed for must hold it. A list read after the followed
+  // field's ESCAPE is left to the escaped branch's own check (countryProblem),
+  // and a row resting on no read that records a value is not held here:
+  // nothing says which country it was.
+  const countryRowProblems: string[] = [];
+  const countryRowRefs: string[] = [];
+  for (const field of allFields(blueprint)) {
+    const upstream = field.optionsAfter?.fieldRef;
+    if (upstream === undefined) continue;
+    const chain = upstreamOf(field);
+    // A read made after an escape anywhere on the chain rests with the
+    // branch taken after that escape, which `countryProblem` holds.
+    const afterEscape = (held: ReadonlyMap<string, string>): boolean =>
+      [...held].some(([fieldRef, value]) => {
+        const chained = fieldsByRefForReads.get(fieldRef);
+        return chained !== undefined && escapeOf(chained) === value;
+      });
+    const recorded = [
+      ...(field.searches ?? []).map((search) => ({ entries: search.entries, held: heldUnder(search.under) })),
+      ...(field.listsAfter ?? []).filter((list) => list.fieldRef === upstream).map((list) => ({ entries: list.entries, held: heldUnder(list.under, list) })),
+    ]
+      .filter((read) => !afterEscape(read.held))
+      .map((read) => ({ entries: read.entries, held: new Map([...read.held].filter(([fieldRef]) => chain.includes(fieldRef))) }))
+      .filter((read) => read.held.size > 0);
+    if (recorded.length === 0) continue;
+    const mapping = mappingSet.mappings.find((candidate) => candidate.fieldRef === field.fieldRef);
+    if (mapping === undefined) continue;
+    const recordedFields = chain.filter((fieldRef) => recorded.some((read) => read.held.has(fieldRef)));
+    let leaves: readonly RowLeaf[];
+    let parts: ChainPart[] = [];
+    let unreadable: string | undefined;
+    if (mapping.source.kind === "constant") {
+      leaves = [{ targets: [mapping.source.value], keyedFor: new Map(), keys: new Map() }];
+    } else if (mapping.source.kind === "profile_field") {
+      const fieldKey = mapping.source.fieldKey;
+      unreadable = recordedFields.find((fieldRef) => chainPartOf(mappingSet, fieldRef, fieldKey) === undefined);
+      parts = recordedFields.flatMap((fieldRef) => {
+        const part = chainPartOf(mappingSet, fieldRef, fieldKey);
+        return part === undefined ? [] : [part];
+      });
+      leaves = leavesOf(mapping.source.format, parts, true);
+    } else {
+      continue;
+    }
+    for (const leaf of leaves) {
+      if (leaf.problem !== undefined) {
+        countryRowProblems.push(`${field.fieldRef} ${leaf.problem}`);
+        countryRowRefs.push(field.fieldRef);
+        continue;
+      }
+      for (const target of leaf.targets) {
+        const holding = recorded.filter((read) => read.entries.includes(target));
+        if (holding.length === 0) continue;
+        if (holding.some((read) => [...read.held].every(([fieldRef, value]) => leaf.keyedFor.get(fieldRef) === value))) continue;
+        const unkeyed = parts.find((part) => holding.some((read) => read.held.has(part.fieldRef)) && !leaf.keyedFor.has(part.fieldRef));
+        // A row resting on such a read, where the field it was read under is
+        // not filled by a part→option row, cannot be keyed for it at all.
+        if (unreadable !== undefined && mapping.source.kind === "profile_field") {
+          countryRowProblems.push(
+            `${field.fieldRef} sends "${target}", resting on reads made with "${unreadable}" set, and "${unreadable}" is not filled from the same ${mapping.source.fieldKey} entry by one part through an option rule, so which "${unreadable}" a row is keyed for cannot be told`,
+          );
+          countryRowRefs.push(field.fieldRef);
+          continue;
+        }
+        countryRowProblems.push(
+          `${field.fieldRef} sends "${target}", which a read made with ${holding.map((read) => describeUnder([...read.held.keys()], read.held)).join(" or ")} holds, ` +
+            (mapping.source.kind === "constant"
+              ? "from a constant, which is keyed for nothing"
+              : unkeyed !== undefined
+                ? `from a row not keyed on "${unkeyed.part}", the part that sets "${unkeyed.fieldRef}"`
+                : `from a row keyed for ${[...leaf.keyedFor.values()].map((value) => `"${value}"`).join(", ")}`),
+        );
+        countryRowRefs.push(field.fieldRef);
+      }
+    }
+  }
+  if (countryRowProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "read_country_mismatch",
+        fieldRefs: [...new Set(countryRowRefs)],
+        detail: `A row rests on the read made under the value it is keyed for, or it is refused (P294): ${countryRowProblems.join("; ")}.`,
       },
     };
   }
@@ -1221,6 +1421,165 @@ function optionRowsOf(rule: FormatRule, part?: string): readonly { readonly key:
   if (rule.kind === "part") return rule.then === undefined ? [] : optionRowsOf(rule.then, rule.path);
   if (rule.kind === "switch") return branchesOf(rule).flatMap((branch) => optionRowsOf(branch, part));
   return [];
+}
+
+/**
+ * A field a read may be made under, as a row can key on it (P294): the part of
+ * the same profile entry that fills it, and what each value of that part
+ * renders there. Sheffield's country box: `countryCode`, `IR` → `IRAN`.
+ */
+interface ChainPart {
+  readonly fieldRef: string;
+  readonly part: string;
+  readonly renders: Readonly<Record<string, string>>;
+}
+
+/** The field's own part→option row, if it is filled that way from the same profile entry (P294). */
+function chainPartOf(mappingSet: MappingSet, fieldRef: string, fieldKey: string): ChainPart | undefined {
+  const mapping = mappingSet.mappings.find((candidate) => candidate.fieldRef === fieldRef);
+  if (mapping?.source.kind !== "profile_field" || mapping.source.fieldKey !== fieldKey) return undefined;
+  const format = mapping.source.format;
+  if (format.kind !== "part" || format.then?.kind !== "option") return undefined;
+  return { fieldRef, part: format.path, renders: format.then.options };
+}
+
+/**
+ * A row's leaves (P294): each option rule in it, with the values of the chain
+ * fields its enclosing switches key it for — a switch on a chain field's part,
+ * at the entry itself (not under another `part`), keys its cases for what each
+ * key renders there. A key that renders nothing is a problem. With
+ * `skipEscaped`, a branch taken after an escape is left out: it rests on the
+ * list read after that escape, which `countryProblem` holds.
+ */
+interface RowLeaf {
+  readonly targets: readonly string[];
+  readonly keyedFor: ReadonlyMap<string, string>;
+  readonly keys: ReadonlyMap<string, string>;
+  readonly problem?: string;
+}
+function leavesOf(rule: FormatRule, chain: readonly ChainPart[], skipEscaped: boolean, keyedFor: ReadonlyMap<string, string> = new Map(), keys: ReadonlyMap<string, string> = new Map(), atEntry = true): readonly RowLeaf[] {
+  if (rule.kind === "option") return [{ targets: Object.values(rule.options), keyedFor, keys }];
+  if (rule.kind === "part") return rule.then === undefined ? [] : leavesOf(rule.then, chain, skipEscaped, keyedFor, keys, false);
+  if (rule.kind === "date") return rule.then === undefined ? [] : leavesOf(rule.then, chain, skipEscaped, keyedFor, keys, false);
+  if (rule.kind !== "switch") return [];
+  const link = atEntry ? chain.find((candidate) => candidate.part === rule.path) : undefined;
+  if (link === undefined) {
+    return (skipEscaped ? Object.values(rule.cases) : branchesOf(rule)).flatMap((branch) => leavesOf(branch, chain, skipEscaped, keyedFor, keys, atEntry));
+  }
+  return Object.entries(rule.cases).flatMap(([key, branch]) => {
+    const value = link.renders[key];
+    if (value === undefined) return [{ targets: [], keyedFor, keys, problem: `keys "${key}" on "${rule.path}", which "${link.fieldRef}"'s row does not render` }];
+    // A key for a value an enclosing switch already excludes is never taken.
+    if (keyedFor.has(link.fieldRef) && keyedFor.get(link.fieldRef) !== value) return [];
+    return leavesOf(branch, chain, skipEscaped, new Map([...keyedFor, [link.fieldRef, value]]), new Map([...keys, [link.fieldRef, key]]), atEntry);
+  });
+}
+
+/** What a read records it was made under, as a map, the field it is read after included when given. */
+function heldUnder(under: readonly { readonly fieldRef: string; readonly value: string }[] | undefined, after?: { readonly fieldRef: string; readonly value: string }): ReadonlyMap<string, string> {
+  return new Map([...(after === undefined ? [] : [[after.fieldRef, after.value] as const]), ...(under ?? []).map((held) => [held.fieldRef, held.value] as const)]);
+}
+
+/** "country" set to "IRAN", and the rest, for a message. */
+function describeUnder(fields: readonly string[], values: ReadonlyMap<string, string>): string {
+  return fields.map((fieldRef) => `"${fieldRef}" set to "${values.get(fieldRef) ?? ""}"`).join(" and ");
+}
+
+/**
+ * P294: an escaped branch on a field whose list depends on the escape, where
+ * the escaped field's own list follows others — Sheffield's grading system
+ * after the institution box, which follows the country box. Vahid,
+ * 2026-10-09: *"make the check refuse a mapping row whose key does not match
+ * the country of the read it rests on."*
+ *
+ * The reads the branch rests on must record what the field the escaped field
+ * follows held, and every one of them must record every field of that chain
+ * any of them records: a read with no country is not true of every country.
+ * Each such field must be filled from one part of the same entry through an
+ * option rule, so a key on that part names one value. Every leaf of the branch
+ * must be keyed for every recorded field, and its values held by every read
+ * made under what it is keyed for. Where the list follows another field (the
+ * grade after the grading system), that field's own row after the same escape
+ * says what it holds for the same keys, and a list must be read after each.
+ */
+function countryProblem(args: {
+  readonly branch: { readonly fieldRef: string; readonly then: FormatRule };
+  readonly escape: string;
+  readonly upstream: string;
+  readonly chain: readonly string[];
+  readonly fieldKey: string;
+  readonly mappingSet: MappingSet;
+  readonly follows: string | undefined;
+  readonly directReads: readonly FieldListAfter[];
+  readonly chainedReads: readonly FieldListAfter[];
+  readonly followedBranches: readonly { readonly fieldRef: string; readonly then: FormatRule }[];
+}): string | null {
+  const { branch, upstream, chain, fieldKey, mappingSet, follows, directReads, chainedReads, followedBranches } = args;
+  const opener = branch.fieldRef;
+  const direct = follows === opener;
+  const reads = direct ? directReads : chainedReads;
+  const recordedOf = (read: FieldListAfter): ReadonlyMap<string, string> => heldUnder(read.under);
+  const recordedFields = chain.filter((fieldRef) => reads.some((read) => recordedOf(read).has(fieldRef)));
+  if (!recordedFields.includes(upstream)) {
+    return `takes the escape of "${opener}", whose list follows "${upstream}", but rests on no read that records what "${upstream}" held (under), so the row cannot be held to the "${upstream}" it was read under`;
+  }
+  for (const read of reads) {
+    const missing = recordedFields.filter((fieldRef) => !recordedOf(read).has(fieldRef));
+    if (missing.length > 0) {
+      return `takes the escape of "${opener}" and rests on a list read after "${read.fieldRef}" is "${read.value}" that records no ${missing.map((fieldRef) => `"${fieldRef}"`).join(", ")} (under), though another it rests on does: a read with none is not true of every one`;
+    }
+  }
+  const parts: ChainPart[] = [];
+  for (const fieldRef of recordedFields) {
+    const part = chainPartOf(mappingSet, fieldRef, fieldKey);
+    if (part === undefined) {
+      return `takes the escape of "${opener}", whose list follows "${fieldRef}", and "${fieldRef}" is not filled from the same ${fieldKey} entry by one part through an option rule, so which "${fieldRef}" a key names cannot be told`;
+    }
+    parts.push(part);
+  }
+  // The followed field's own row after the same escape, leaf by leaf.
+  const followedLeaves = direct ? [] : followedBranches.flatMap((other) => leavesOf(other.then, parts, false));
+  for (const leaf of leavesOf(branch.then, parts, false)) {
+    if (leaf.problem !== undefined) return leaf.problem;
+    const unkeyed = parts.filter((part) => !leaf.keyedFor.has(part.fieldRef));
+    const first = unkeyed[0];
+    if (first !== undefined) {
+      return `takes the escape of "${opener}", whose list follows "${upstream}", but is not keyed on "${first.part}", the part that sets "${first.fieldRef}": a read is true only of the "${first.fieldRef}" it was made under`;
+    }
+    const key = leaf.keys.get(upstream) ?? "";
+    const value = leaf.keyedFor.get(upstream) ?? "";
+    const madeUnder = (read: FieldListAfter): boolean => recordedFields.every((fieldRef) => recordedOf(read).get(fieldRef) === leaf.keyedFor.get(fieldRef));
+    let underLeaf: readonly FieldListAfter[];
+    if (direct) {
+      underLeaf = directReads.filter(madeUnder);
+      if (underLeaf.length === 0) {
+        return recordedFields.length === 1
+          ? `keys "${key}" ("${upstream}" is "${value}"), but no list after that escape was read with "${upstream}" set to "${value}"`
+          : `keys "${key}", but no list after that escape was read with ${describeUnder(recordedFields, leaf.keyedFor)}`;
+      }
+    } else {
+      // What the followed field holds for this leaf: its own leaves keyed
+      // for the same values wherever both are keyed.
+      const held = [
+        ...new Set(
+          followedLeaves
+            .filter((other) => other.problem === undefined && [...other.keyedFor].every(([fieldRef, its]) => leaf.keyedFor.get(fieldRef) === its))
+            .flatMap((other) => other.targets),
+        ),
+      ];
+      if (held.length === 0) return `keys "${key}", but "${follows ?? ""}" has no row for "${key}" after that escape, so what it then holds is not known`;
+      underLeaf = chainedReads.filter((read) => held.includes(read.value) && madeUnder(read));
+      const missing = held.filter((followed) => !underLeaf.some((read) => read.value === followed));
+      if (missing.length > 0) {
+        return `keys "${key}", and no list was read after "${follows ?? ""}" is ${missing.map((followed) => `"${followed}"`).join(", ")} with "${opener}" escaped and ${describeUnder(recordedFields, leaf.keyedFor)}`;
+      }
+    }
+    const unread = leaf.targets.filter((target) => !underLeaf.every((read) => read.entries.includes(target)));
+    if (unread.length > 0) {
+      return `names ${unread.map((target) => `"${target}"`).join(", ")} under "${key}", which the list read with ${describeUnder(recordedFields, leaf.keyedFor)} does not hold`;
+    }
+  }
+  return null;
 }
 
 /** A switch's sub-rules: its cases, and its branch for a form's escape when it has one (P293). */

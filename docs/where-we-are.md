@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P294 — a read is true of where it was made
+
+*2026-10-09.* He settled the two points his approval left open: one escape rule, asked once, and a
+withdrawal that reaches everything not yet submitted. He also asked that the Iran key in the GPA 20
+row stop depending on someone setting it by hand. Now a read records the country it was made under,
+and the check refuses a row keyed for any other. The offer, too, shows a list read under one
+country only to a qualification there. The rule found one thing it cannot hold yet: the 43 rows on
+the institution box rest on reads that never recorded their country. A read with the country
+printed is planned.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P293 — one question fewer, by a row he asked for
 
 *2026-10-08.* He approved ADR-0156 in his own words, on three conditions, and asked that no

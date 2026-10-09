@@ -473,6 +473,38 @@ describe("parsing rebuilds rather than casts", () => {
     }
   });
 
+  it("keeps what a read was made under, so it is hashed and signed with the read; refuses an empty record (P294)", () => {
+    type Field = { fieldRef: string; searches?: unknown; listsAfter?: unknown };
+    const withCourse = (patch: Partial<Field>): unknown => {
+      const document = JSON.parse(documentOf()) as { blueprint: { pages: { sections: { fields: Field[] }[] }[] } };
+      for (const page of document.blueprint.pages)
+        for (const section of page.sections)
+          for (const field of section.fields) if (field.fieldRef === "course") Object.assign(field, patch);
+      return document;
+    };
+    const UNDER = [{ fieldRef: "study_level", value: "PG" }];
+    const course = (parsed: ReturnType<typeof parseReviewedEntry>) =>
+      parsed.ok ? parsed.value.blueprint.pages.flatMap((page) => page.sections).flatMap((section) => section.fields).find((field) => field.fieldRef === "course") : undefined;
+    const plain = parseReviewedEntry(withCourse({ searches: [{ word: "example", entries: ["PG-EX-2026"] }], listsAfter: [{ fieldRef: "study_level", value: "", entries: ["PG-OT-2026"] }] }));
+    const under = parseReviewedEntry(withCourse({ searches: [{ word: "example", entries: ["PG-EX-2026"], under: UNDER }], listsAfter: [{ fieldRef: "study_level", value: "", entries: ["PG-OT-2026"], under: [{ fieldRef: "start_date", value: "" }] }] }));
+    if (!plain.ok || !under.ok) expect.unreachable("both parse");
+    expect(course(under)?.searches?.[0]?.under).toEqual(UNDER);
+    // An empty value is a recorded value here too.
+    expect(course(under)?.listsAfter?.[0]?.under).toEqual([{ fieldRef: "start_date", value: "" }]);
+    // Without it, the read parses as it always did: no key, so a signed entry keeps its hash.
+    expect(course(plain)?.searches?.[0] !== undefined && "under" in (course(plain)?.searches?.[0] ?? {})).toBe(false);
+    expect(contentHash(toCanonical(under.value))).not.toBe(contentHash(toCanonical(plain.value)));
+    for (const [patch, says] of [
+      [{ searches: [{ word: "example", entries: ["PG-EX-2026"], under: [] }] }, "expected at least one field"],
+      [{ listsAfter: [{ fieldRef: "study_level", value: "", entries: ["PG-OT-2026"], under: [{ value: "PG" }] }] }, "fieldRef"],
+      [{ listsAfter: [{ fieldRef: "study_level", value: "", entries: ["PG-OT-2026"], under: [{ fieldRef: "study_level" }] }] }, "value"],
+    ] as const) {
+      const refused = parseReviewedEntry(withCourse(patch));
+      if (refused.ok) expect.unreachable(JSON.stringify(patch));
+      expect(refused.refusal.path + refused.refusal.detail).toContain(says);
+    }
+  });
+
   it("round-trips a page's repeats (P96), and refuses a list that is not one", () => {
     const parsed = parseReviewedEntry(JSON.parse(documentOf()));
     if (!parsed.ok) expect.unreachable(parsed.refusal.detail);

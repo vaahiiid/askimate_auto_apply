@@ -1,0 +1,11 @@
+My decisions on the two open points.
+
+§4(a): One escape rule covering institution, subject and award title together. One intake question, not three. A student who prefers a listed entry for a particular application changes it in that application's preview.
+
+Withdrawal: it applies to everything not yet submitted.
+- Before the run starts: it takes effect at once, and the affected fields become questions.
+- During the run, before the page is saved: the run stops applying the rule and asks those fields before continuing.
+- Page saved on the portal but application not submitted: the run goes back and corrects those fields with the student's choice before submission.
+- After submission: that application is not changed. Withdrawal applies to future applications only, and the student is told this plainly.
+
+Also: before any second portal, the Iran key must not depend on someone setting it by hand. Record the country a read was made under in the reads record itself, and make the check refuse a mapping row whose key does not match the country of the read it rests on.

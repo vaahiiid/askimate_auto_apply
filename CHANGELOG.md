@@ -19,6 +19,41 @@ not shipped artefacts.
 
 ---
 
+## [0.287.0] — 2026-10-09
+
+**P294 — his two ADR-0156 decisions recorded; a read records the country it was made under, and the
+check holds every row to it.**
+
+- **Changed** ADR-0156: §4(a) decided by him (one escape rule for institution, subject and award
+  title; one intake question; a listed entry chosen in that application's preview), and withdrawal
+  decided by where the application stands, both in his words.
+- **Added** `under` on a read's record (`searches`, `listsAfter`): what the fields its list follows
+  held when it was made. Parsed, so hashed and signed with the read.
+- **Added** `read_under_invalid`: `checkUsable` refuses a read that leaves out a field its list
+  follows which offers a choice (so a country cannot be left to be set later), or that names a field
+  the list does not follow, the field it is read after, a field twice, or a value that field does
+  not offer.
+- **Changed** `escaped_branch_invalid`: a row taken after an escape, on a field whose list depends
+  on it, is held to every field of the chain its reads record: keyed for each through the part of
+  the entry that fills it, its values held by the reads made under them, key by key. A list on the
+  page whole keeps P293's check.
+- **Added** `read_country_mismatch`: a row on a list that follows another field, whose value a read
+  recording that field's value holds, must be keyed for that value.
+- **Changed** the entry-choice offer: a read recording what it was made under is offered only to
+  an entry the plan sets the same way.
+- **Changed** `scripts/read-against-entry.ts`: reads the printed form of a read with its `under`,
+  and exits 1 when the entry holds no record made under what the file says.
+- **Added** `docs/run-a/p294-for-signature.patch` and its sheet, **not signed**: P293's batch with
+  the country on his two reads made under Iran, entered by hand from read 1's heading because the
+  reads did not print it; blueprint 0.2.34, mapping set 0.3.46, `sha256:4368de00…`. It supersedes
+  P293's patch, which no longer passes the check.
+- **Added** `scripts/rows-held-to-a-country.ts`: on `main`, 43 institution rows, 3 grading-system
+  values and 207 grade values rest on no read that records a country (row 143).
+- **Added** `docs/run-a/p294-reads.md`, superseding P293's: reads R, L and T, each printing what it
+  was made under, and none using `copy()`, which does not work in that browser.
+
+---
+
 ## [0.286.0] — 2026-10-08
 
 **P293 — ADR-0156 approved in his words; the GPA 20 row built for his signature.**

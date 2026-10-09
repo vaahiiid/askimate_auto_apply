@@ -269,10 +269,28 @@ export interface BlueprintField {
   readonly mapsTo?: string;
 }
 
+/**
+ * What a field upstream of a read held when the read was made (P294).
+ *
+ * Vahid, 2026-10-09: *"Record the country a read was made under in the reads
+ * record itself, and make the check refuse a mapping row whose key does not
+ * match the country of the read it rests on."* Sheffield's institution box
+ * lists one country's institutions, and what follows it follows that country
+ * too, so a read is true only of the country it was made under. Each entry
+ * names a field the read's list follows, directly or through others, and the
+ * value it held, as the form submits it.
+ */
+export interface FieldReadUnder {
+  readonly fieldRef: string;
+  readonly value: string;
+}
+
 /** One search of a searched list, and what it returned (P290). */
 export interface FieldSearch {
   readonly word: string;
   readonly entries: readonly string[];
+  /** P294: what the fields this list follows held when the search was made. */
+  readonly under?: readonly FieldReadUnder[];
 }
 
 /** A list read with an earlier field set (P290). */
@@ -280,6 +298,8 @@ export interface FieldListAfter {
   readonly fieldRef: string;
   readonly value: string;
   readonly entries: readonly string[];
+  /** P294: what the other fields this list follows held when it was read. */
+  readonly under?: readonly FieldReadUnder[];
 }
 
 export interface FieldLocator {

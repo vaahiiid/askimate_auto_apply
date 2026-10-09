@@ -21,6 +21,7 @@ export type {
   FieldDataCategory,
   FieldInputType,
   FieldListAfter,
+  FieldReadUnder,
   FieldSearch,
   FieldLocator,
   FieldOption,

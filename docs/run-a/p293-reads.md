@@ -1,5 +1,8 @@
 # P293: reads R and L, in one sitting, so a grade row can follow
 
+**Superseded by [`p294-reads.md`](./p294-reads.md)** (P294). Use that one: its R and T print what they
+were made under, and this plan's `copy(…)` does not work in that browser.
+
 **Supersedes** [`p292-reads.md`](./p292-reads.md). Same two reads; R is now planned for the row it
 has to carry.
 

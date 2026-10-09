@@ -1,5 +1,9 @@
 # His six reads and the GPA 20 row, as one entry patch for one signature (P293)
 
+**Superseded by [`p294-for-signature.md`](./p294-for-signature.md)** (2026-10-09). Never signed, and since P294
+it **no longer passes the check on `main`**: the row now rests on a read that must record the country
+it was made under. Sign P294's, not this. What follows is kept as P293 wrote it.
+
 **Status: built, not signed.** Nothing here is on `main` as entry content. The batch is the patch
 [`p293-for-signature.patch`](./p293-for-signature.patch), applied and signed in one commit, so
 `main` never holds an entry no approval covers. It **supersedes** P291's patch

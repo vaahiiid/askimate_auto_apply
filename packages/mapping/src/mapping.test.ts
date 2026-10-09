@@ -2167,6 +2167,7 @@ describe("a switch's branch taken after a form's escape (P293, ADR-0156 §3)", (
       };
     };
     const byScale = { kind: "part", path: "grade", then: { kind: "option", options: { "17.2": "17.2", "19.5": "19.5" } } } as const;
+    const ESCAPED_IN = [{ fieldRef: "qualification_institution", value: ESCAPE }];
     const set: MappingSet = {
       ...setWith(),
       mappings: [
@@ -2188,19 +2189,27 @@ describe("a switch's branch taken after a form's escape (P293, ADR-0156 §3)", (
       if (check.refusal.kind === "escaped_branch_invalid") expect(check.refusal.fieldRefs).toEqual(["qualification_grade"]);
       return check.refusal.detail;
     };
-    expect(refused(withGrade(undefined))).toContain(`but its list follows "qualification_system", and no list was read after "qualification_system" is "6" (listsAfter)`);
+    // P294: each list it rests on records that it was read with the escape in.
+    expect(refused(withGrade(undefined))).toContain(`but its list follows "qualification_system", and no list was read after "qualification_system" is "6" with "qualification_institution" escaped (listsAfter, under)`);
+    // A list read after system 6 that does not say which institution it was
+    // read with is refused as a record (P294, the review): it cannot be told
+    // from the escape's, so it holds no row after the escape.
+    const unsaid = checkUsable(set, withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"] }]));
+    expect(unsaid.usable ? "usable" : `${unsaid.refusal.kind}: ${unsaid.refusal.detail}`).toContain(`read_under_invalid: `);
+    // And one read with a LISTED institution is not the one the form shows after the escape.
+    expect(refused(withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"], under: [{ fieldRef: "qualification_institution", value: "SHARIF" }] }]))).toContain(`no list was read after "qualification_system" is "6" with "qualification_institution" escaped`);
     // A list read for ANOTHER system (a listed institution's) is not the one
     // the form shows after the escape, whatever it holds (the review of P293).
-    expect(refused(withGrade([{ fieldRef: "qualification_system", value: "7", entries: ["17.2", "19.5"] }]))).toContain(`no list was read after "qualification_system" is "6"`);
-    expect(refused(withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2"] }]))).toContain(`names "19.5", which the list read after "qualification_system" is "6" does not hold`);
+    expect(refused(withGrade([{ fieldRef: "qualification_system", value: "7", entries: ["17.2", "19.5"], under: ESCAPED_IN }]))).toContain(`no list was read after "qualification_system" is "6"`);
+    expect(refused(withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2"], under: ESCAPED_IN }]))).toContain(`names "19.5", which the list read after "qualification_system" is "6" does not hold`);
     // And with no row after that escape on the system, what it holds then is unknown.
     const unknown = checkUsable(
       { ...set, mappings: set.mappings.map((m) => (m.fieldRef === "qualification_system" && m.source.kind === "profile_field" ? { ...m, source: { ...m.source, format: { kind: "switch" as const, path: "institution", cases: { "Sharif University of Technology": GPA_20 } } } } : m)) },
-      withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"] }]),
+      withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"], under: ESCAPED_IN }]),
     );
     expect(unknown.usable).toBe(false);
     if (!unknown.usable) expect(unknown.refusal.detail).toContain(`its list follows "qualification_system", which has no row after that escape, so what "qualification_system" then holds is not known`);
-    const read = withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"] }]);
+    const read = withGrade([{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"], under: ESCAPED_IN }]);
     expect(refused(read)).toBe("usable");
     const check = checkUsable(set, read);
     if (!check.usable) expect.unreachable(check.refusal.detail);
@@ -2275,5 +2284,344 @@ describe("a switch's branch taken after a form's escape (P293, ADR-0156 §3)", (
     if (!check.usable) expect.unreachable(check.refusal.detail);
     const plan = planFill(blueprint, check.mappingSet, PROFILE, [escapedChoice]);
     expect(plan.blockers.filter((b) => b.fieldRef === "qualification_system").map((b) => ("item" in b ? b.item.index : undefined))).toEqual([1]);
+  });
+});
+
+describe("a read records what it was made under, and a row after an escape is held to it (P294)", () => {
+  // Vahid, 2026-10-09: *"before any second portal, the Iran key must not
+  // depend on someone setting it by hand. Record the country a read was made
+  // under in the reads record itself, and make the check refuse a mapping row
+  // whose key does not match the country of the read it rests on."* The
+  // institution box follows a country box, so what follows the institution
+  // box after its escape is true only of the country it was read under.
+  const ESCAPE = "Not in list";
+  const QUALIFICATIONS = [
+    { level: "Master's degree", subject: "International Business", institution: "HHE", countryCode: "IR", start: { year: 2021, month: 9 }, end: { kind: "completed", date: { year: 2023, month: 6 } }, grade: "19.5", gradeScale: "iran_20_point" },
+    { level: "Master's degree", subject: "International Business", institution: "HEC", countryCode: "FR", start: { year: 2019, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "16.0", gradeScale: "iran_20_point" },
+  ];
+  const PROFILE = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
+  const UNDER_IRAN = [{ fieldRef: "qualification_country", value: "IRAN" }];
+  const COUNTRY: BlueprintField = {
+    fieldRef: "qualification_country",
+    label: "Country",
+    inputType: "select",
+    dataCategory: "ordinary",
+    locators: [{ strategy: "id", value: "qualificationCountry" }],
+    validations: [],
+    options: [
+      { value: "IRAN", label: "Iran" },
+      { value: "FRANCE", label: "France" },
+    ],
+  };
+  const SYSTEM: BlueprintField = {
+    fieldRef: "qualification_system",
+    label: "Grading system",
+    inputType: "select",
+    dataCategory: "ordinary",
+    locators: [{ strategy: "id", value: "qualificationSystem" }],
+    validations: [],
+    options: [
+      { value: "6", label: "GPA 20 (e.g. 16.5/20)" },
+      { value: "7", label: "UK Bachelors Degree (BA, BSc)" },
+    ],
+    optionsAfter: { fieldRef: "qualification_institution" },
+    listsAfter: [{ fieldRef: "qualification_institution", value: ESCAPE, entries: ["6"], under: UNDER_IRAN }],
+  };
+  type Patch = { readonly [K in keyof BlueprintField]?: BlueprintField[K] | undefined };
+  const defined = (field: object): BlueprintField => Object.fromEntries(Object.entries(field).filter(([, value]) => value !== undefined)) as unknown as BlueprintField;
+  const blueprintWith = (system: Patch = {}, country: Patch = {}): ApplicationBlueprint => ({
+    ...GATED_PORTAL_BLUEPRINT,
+    pages: GATED_PORTAL_BLUEPRINT.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.flatMap((field): BlueprintField[] =>
+          field.fieldRef !== "qualification_institution"
+            ? [field]
+            : [
+                defined({ ...COUNTRY, ...country }),
+                {
+                  ...field,
+                  inputType: "select",
+                  options: [
+                    { value: "SHARIF", label: "Sharif University of Technology" },
+                    { value: ESCAPE, label: "Not in list" },
+                  ],
+                  escapeValue: ESCAPE,
+                  optionsAfter: { fieldRef: "qualification_country" },
+                },
+                defined({ ...SYSTEM, ...system }),
+              ],
+        ),
+      })),
+    })),
+  });
+  const GPA_20 = { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: "6" } } } as const;
+  const BY_COUNTRY = (cases: Record<string, unknown>) => ({ kind: "switch", path: "countryCode", cases });
+  const COUNTRY_ROW = { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: { kind: "part" as const, path: "countryCode", then: { kind: "option" as const, options: { IR: "IRAN", FR: "FRANCE" } } } };
+  const setWith = (escapedThen: unknown, country: MappingSet["mappings"][number]["source"] = COUNTRY_ROW): MappingSet => ({
+    ...GATED_PORTAL_MAPPING_SET,
+    mappings: [
+      ...GATED_PORTAL_MAPPING_SET.mappings.map((mapping) =>
+        mapping.fieldRef === "qualification_institution"
+          ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: { kind: "part" as const, path: "institution", then: { kind: "option" as const, options: { "Sharif University of Technology": "SHARIF" } } } } }
+          : mapping,
+      ),
+      { fieldRef: "qualification_country", source: country },
+      {
+        fieldRef: "qualification_system",
+        source: {
+          kind: "profile_field",
+          fieldKey: "education.prior_qualifications",
+          format: { kind: "switch", path: "institution", cases: { "Sharif University of Technology": GPA_20 }, escaped: { fieldRef: "qualification_institution", then: escapedThen } } as never,
+        },
+      },
+    ],
+  });
+  const verdict = (set: MappingSet, blueprint: ApplicationBlueprint): string => {
+    const check = checkUsable(set, blueprint);
+    return check.usable ? "usable" : `${check.refusal.kind}: ${check.refusal.detail}`;
+  };
+
+  it("accepts a row keyed on the country its read was made under, and plans it only for that country", () => {
+    const blueprint = blueprintWith();
+    const set = setWith(BY_COUNTRY({ IR: GPA_20 }));
+    expect(verdict(set, blueprint)).toBe("usable");
+    const check = checkUsable(set, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const choices: StudentChoice[] = [0, 1].map((item) => ({ fieldRef: "qualification_institution", item, studentValue: QUALIFICATIONS[item]?.institution ?? "", value: ESCAPE, label: "Not in list", escape: true }));
+    const plan = planFill(blueprint, check.mappingSet, PROFILE, choices);
+    // Iran: GPA 20. France: no read was made under it, so the plan refuses — loudly, before any fill.
+    expect(plan.instructions.filter((i) => i.fieldRef === "qualification_system").map((i) => [i.item?.index, textOf(i.value)])).toEqual([[0, "6"]]);
+    const france = plan.blockers.find((b) => b.fieldRef === "qualification_system" && "item" in b && b.item.index === 1);
+    if (france?.kind !== "render_refused") expect.unreachable("France refuses");
+    expect(france.refusal.kind).toBe("no_matching_case");
+  });
+
+  it("REFUSES a row whose key does not match the country of the read it rests on — or that has no country key at all", () => {
+    const blueprint = blueprintWith();
+    expect(verdict(setWith(BY_COUNTRY({ FR: GPA_20 })), blueprint)).toContain(`keys "FR" ("qualification_country" is "FRANCE"), but no list after that escape was read with "qualification_country" set to "FRANCE"`);
+    expect(verdict(setWith(BY_COUNTRY({ IR: GPA_20, FR: GPA_20 })), blueprint)).toContain(`keys "FR"`);
+    expect(verdict(setWith(GPA_20), blueprint)).toContain(`is not keyed on "countryCode", the part that sets "qualification_country"`);
+    expect(verdict(setWith(BY_COUNTRY({ XX: GPA_20 })), blueprint)).toContain(`keys "XX" on "countryCode", which "qualification_country"'s row does not render`);
+    expect(verdict(setWith(BY_COUNTRY({ IR: { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: "7" } } } })), blueprint)).toContain(
+      `names "7" under "IR", which the list read with "qualification_country" set to "IRAN" does not hold`,
+    );
+  });
+
+  it("REFUSES a row resting on a read that records no country, or a country box no row of the profile fills", () => {
+    // A read that records no country is refused as a record: the country is never left to be set later.
+    const unrecorded = blueprintWith({ listsAfter: [{ fieldRef: "qualification_institution", value: ESCAPE, entries: ["6"] }] });
+    expect(verdict(setWith(BY_COUNTRY({ IR: GPA_20 })), unrecorded)).toContain(`records no "qualification_country", which its list follows`);
+    const constant = setWith(BY_COUNTRY({ IR: GPA_20 }), { kind: "constant", value: "IRAN", classification: "application_metadata", rationale: "One country for all." });
+    expect(verdict(constant, blueprintWith())).toContain(`"qualification_country" is not filled from the same education.prior_qualifications entry by one part through an option rule`);
+  });
+
+  it("the grade after the grading system (read R's row): every list it rests on was read with the escape in and the country set, and the system's own row says what it holds", () => {
+    const GRADE: BlueprintField = {
+      fieldRef: "qualification_grade",
+      label: "Grade",
+      inputType: "select",
+      dataCategory: "ordinary",
+      locators: [{ strategy: "id", value: "qualificationGrade" }],
+      validations: [],
+      options: ["17.2", "19.5"].map((value) => ({ value, label: value })),
+      optionsAfter: { fieldRef: "qualification_system" },
+    };
+    const withGrade = (listsAfter: BlueprintField["listsAfter"]): ApplicationBlueprint => {
+      const base = blueprintWith();
+      return {
+        ...base,
+        pages: base.pages.map((page) => ({
+          ...page,
+          sections: page.sections.map((section) => ({
+            ...section,
+            fields: section.fields.flatMap((field) => (field.fieldRef === "qualification_system" ? [field, defined({ ...GRADE, listsAfter })] : [field])),
+          })),
+        })),
+      };
+    };
+    const grades = { kind: "part", path: "grade", then: { kind: "option", options: { "17.2": "17.2", "19.5": "19.5" } } } as const;
+    const withGradeRow = (systemThen: unknown, gradeThen: unknown): MappingSet => {
+      const base = setWith(systemThen);
+      return {
+        ...base,
+        mappings: [
+          ...base.mappings,
+          {
+            fieldRef: "qualification_grade",
+            source: {
+              kind: "profile_field",
+              fieldKey: "education.prior_qualifications",
+              format: { kind: "switch", path: "institution", cases: { "Sharif University of Technology": grades }, escaped: { fieldRef: "qualification_institution", then: gradeThen } } as never,
+            },
+          },
+        ],
+      };
+    };
+    const READ_R = { fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"], under: [{ fieldRef: "qualification_institution", value: ESCAPE }, ...UNDER_IRAN] };
+    const set = withGradeRow(BY_COUNTRY({ IR: GPA_20 }), BY_COUNTRY({ IR: grades }));
+    expect(verdict(set, withGrade([READ_R]))).toBe("usable");
+    // The same list without the country it was read under rests on nothing for Iran.
+    expect(verdict(set, withGrade([{ ...READ_R, under: [{ fieldRef: "qualification_institution", value: ESCAPE }] }]))).toContain(
+      `records no "qualification_country", which its list follows`,
+    );
+    // Read under France: the Iran key has no list to rest on.
+    expect(verdict(set, withGrade([{ ...READ_R, under: [{ fieldRef: "qualification_institution", value: ESCAPE }, { fieldRef: "qualification_country", value: "FRANCE" }] }]))).toContain(
+      `keys "IR", and no list was read after "qualification_system" is "6" with "qualification_institution" escaped and "qualification_country" set to "IRAN"`,
+    );
+    // The system has a row for France only: what it holds for Iran is not known.
+    expect(verdict(withGradeRow(BY_COUNTRY({ IR: GPA_20 }), BY_COUNTRY({ IR: grades, FR: grades })), withGrade([READ_R]))).toContain(`"qualification_system" has no row for "FR" after that escape`);
+    const check = checkUsable(set, withGrade([READ_R]));
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const plan = planFill(withGrade([READ_R]), check.mappingSet, PROFILE, [{ fieldRef: "qualification_institution", item: 0, studentValue: "HHE", value: ESCAPE, label: "Not in list", escape: true }]);
+    expect(plan.instructions.filter((i) => i.fieldRef === "qualification_grade" || i.fieldRef === "qualification_system").map((i) => [i.fieldRef, i.item?.index, textOf(i.value)])).toEqual([
+      ["qualification_system", 0, "6"],
+      ["qualification_grade", 0, "19.5"],
+    ]);
+  });
+
+  it("a row on a list that follows the country box directly rests on the read made under the country it is keyed for (the institution box)", () => {
+    // The institution box's list was read with the country set to Iran; a row
+    // sending one of its entries must be keyed on the country part, for Iran.
+    const readIran = blueprintWith({}, {});
+    const withInstitutionRead = (): ApplicationBlueprint => ({
+      ...readIran,
+      pages: readIran.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) =>
+            field.fieldRef === "qualification_institution" ? { ...field, searches: [{ word: "sharif", entries: ["SHARIF"], under: UNDER_IRAN }] } : field,
+          ),
+        })),
+      })),
+    });
+    const institutionRow = (format: unknown): MappingSet => {
+      const base = setWith(BY_COUNTRY({ IR: GPA_20 }));
+      return { ...base, mappings: base.mappings.map((m) => (m.fieldRef === "qualification_institution" ? { ...m, source: { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: format as never } } : m)) };
+    };
+    const SHARIF = { kind: "part", path: "institution", then: { kind: "option", options: { "Sharif University of Technology": "SHARIF" } } };
+    expect(verdict(institutionRow(SHARIF), withInstitutionRead())).toContain(
+      `read_country_mismatch: A row rests on the read made under the value it is keyed for, or it is refused (P294): qualification_institution sends "SHARIF", which a read made with "qualification_country" set to "IRAN" holds, from a row not keyed on "countryCode"`,
+    );
+    expect(verdict(institutionRow(BY_COUNTRY({ FR: SHARIF })), withInstitutionRead())).toContain(`from a row keyed for "FRANCE"`);
+    expect(verdict(institutionRow(BY_COUNTRY({ IR: SHARIF })), withInstitutionRead())).toBe("usable");
+    // A read that records no country holds no row to one: nothing is refused for it.
+    expect(verdict(institutionRow(SHARIF), blueprintWith())).toBe("usable");
+  });
+
+  it("the review of P294: each shape its findings named, refused or admitted as the owner's rule says", () => {
+    const SHARIF = { kind: "part", path: "institution", then: { kind: "option", options: { "Sharif University of Technology": "SHARIF" } } };
+    const withInstitution = (format: unknown, base: MappingSet = setWith(BY_COUNTRY({ IR: GPA_20 }))): MappingSet => ({
+      ...base,
+      mappings: base.mappings.map((m) => (m.fieldRef === "qualification_institution" ? { ...m, source: { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: format as never } } : m)),
+    });
+    const institutionPatched = (patch: Patch, blueprint: ApplicationBlueprint = blueprintWith()): ApplicationBlueprint => ({
+      ...blueprint,
+      pages: blueprint.pages.map((page) => ({ ...page, sections: page.sections.map((section) => ({ ...section, fields: section.fields.map((field) => (field.fieldRef === "qualification_institution" ? defined({ ...field, ...patch }) : field)) })) })),
+    });
+
+    // 1. A select loaded per country, its read recorded as a list after the country box.
+    const perCountry = institutionPatched({ listsAfter: [{ fieldRef: "qualification_country", value: "IRAN", entries: ["SHARIF"] }] });
+    expect(verdict(withInstitution(SHARIF), perCountry)).toContain(`from a row not keyed on "countryCode", the part that sets "qualification_country"`);
+    expect(verdict(withInstitution(BY_COUNTRY({ FR: SHARIF })), perCountry)).toContain(`from a row keyed for "FRANCE"`);
+    expect(verdict(withInstitution(BY_COUNTRY({ IR: SHARIF })), perCountry)).toBe("usable");
+
+    // 2. A field whose list is on the page whole does not follow the escape: P293's check against its own options.
+    const whole = blueprintWith({ optionsAfter: undefined, listsAfter: undefined });
+    expect(verdict(setWith(GPA_20), whole)).toBe("usable");
+
+    // 3. A read with no country beside one with it: the row cannot rest on both as if alike.
+    const mixed = blueprintWith({ listsAfter: [{ fieldRef: "qualification_institution", value: ESCAPE, entries: ["6"], under: UNDER_IRAN }, { fieldRef: "qualification_institution", value: ESCAPE, entries: ["7"] }] });
+    expect(verdict(setWith(BY_COUNTRY({ IR: GPA_20 })), mixed)).toContain(`records no "qualification_country", which its list follows`);
+
+    // 4. A country box no part→option row fills: which country a key names cannot be told, on either check.
+    const constantCountry = { kind: "constant" as const, value: "IRAN", classification: "application_metadata" as const, rationale: "One country for all." };
+    const searched = institutionPatched({ searches: [{ word: "sharif", entries: ["SHARIF"], under: UNDER_IRAN }] }, blueprintWith({ optionsAfter: undefined, listsAfter: undefined }));
+    expect(verdict(withInstitution(BY_COUNTRY({ IR: SHARIF }), setWith(GPA_20, constantCountry)), searched)).toContain(
+      `resting on reads made with "qualification_country" set, and "qualification_country" is not filled from the same education.prior_qualifications entry by one part through an option rule`,
+    );
+    // And a constant on the institution box itself is keyed for nothing.
+    // (No branch after an escape here: a constant's escape is never chosen, which that check refuses first.)
+    const constantInstitution: MappingSet = {
+      ...setWith(GPA_20),
+      mappings: setWith(GPA_20).mappings.map((m) =>
+        m.fieldRef === "qualification_institution"
+          ? { ...m, source: { kind: "constant" as const, value: "SHARIF", classification: "application_metadata" as const, rationale: "One institution." } }
+          : m.fieldRef === "qualification_system"
+            ? { ...m, source: { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: { kind: "switch", path: "institution", cases: { "Sharif University of Technology": GPA_20 } } as never } }
+            : m,
+      ),
+    };
+    expect(verdict(constantInstitution, searched)).toContain(`from a constant, which is keyed for nothing`);
+  });
+
+  it("the review of P294: a chain of two (region between country and institution) holds the row to every field its read records", () => {
+    const REGION: BlueprintField = {
+      fieldRef: "qualification_region",
+      label: "Region",
+      inputType: "select",
+      dataCategory: "ordinary",
+      locators: [{ strategy: "id", value: "qualificationRegion" }],
+      validations: [],
+      options: [{ value: "PUNJAB", label: "Punjab" }],
+      optionsAfter: { fieldRef: "qualification_country" },
+    };
+    const base = blueprintWith({ listsAfter: [{ fieldRef: "qualification_institution", value: ESCAPE, entries: ["6"], under: [{ fieldRef: "qualification_region", value: "PUNJAB" }, ...UNDER_IRAN] }] });
+    const chained: ApplicationBlueprint = {
+      ...base,
+      pages: base.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.flatMap((field) =>
+            field.fieldRef === "qualification_country" ? [field, REGION] : field.fieldRef === "qualification_institution" ? [{ ...field, optionsAfter: { fieldRef: "qualification_region" } }] : [field],
+          ),
+        })),
+      })),
+    };
+    const regionRow = { fieldRef: "qualification_region", source: { kind: "profile_field" as const, fieldKey: "education.prior_qualifications" as const, format: { kind: "part" as const, path: "region", then: { kind: "option" as const, options: { Punjab: "PUNJAB" } } } } };
+    const BY_REGION = (cases: Record<string, unknown>) => ({ kind: "switch", path: "region", cases });
+    const withRegion = (escapedThen: unknown): MappingSet => ({ ...setWith(escapedThen), mappings: [...setWith(escapedThen).mappings, regionRow] });
+    // Keyed on the region only: the country its read records is not one the key determines.
+    expect(verdict(withRegion(BY_REGION({ Punjab: GPA_20 })), chained)).toContain(`is not keyed on "countryCode", the part that sets "qualification_country"`);
+    expect(verdict(withRegion(BY_COUNTRY({ IR: BY_REGION({ Punjab: GPA_20 }) })), chained)).toBe("usable");
+  });
+
+  it("the review of P294: a France grading row beside it does not take down the Iran grade row — each key is held on its own", () => {
+    const GRADE: BlueprintField = {
+      fieldRef: "qualification_grade",
+      label: "Grade",
+      inputType: "select",
+      dataCategory: "ordinary",
+      locators: [{ strategy: "id", value: "qualificationGrade" }],
+      validations: [],
+      options: ["17.2", "19.5"].map((value) => ({ value, label: value })),
+      optionsAfter: { fieldRef: "qualification_system" },
+      listsAfter: [{ fieldRef: "qualification_system", value: "6", entries: ["17.2", "19.5"], under: [{ fieldRef: "qualification_institution", value: ESCAPE }, ...UNDER_IRAN] }],
+    };
+    const base = blueprintWith({ listsAfter: [{ fieldRef: "qualification_institution", value: ESCAPE, entries: ["6"], under: UNDER_IRAN }, { fieldRef: "qualification_institution", value: ESCAPE, entries: ["7"], under: [{ fieldRef: "qualification_country", value: "FRANCE" }] }] });
+    const blueprint: ApplicationBlueprint = { ...base, pages: base.pages.map((page) => ({ ...page, sections: page.sections.map((section) => ({ ...section, fields: section.fields.flatMap((field) => (field.fieldRef === "qualification_system" ? [field, GRADE] : [field])) })) })) };
+    const grades = { kind: "part", path: "grade", then: { kind: "option", options: { "17.2": "17.2", "19.5": "19.5" } } };
+    const set = setWith(BY_COUNTRY({ IR: GPA_20, FR: { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: "7" } } } }));
+    const withGrade: MappingSet = {
+      ...set,
+      mappings: [
+        ...set.mappings,
+        { fieldRef: "qualification_grade", source: { kind: "profile_field", fieldKey: "education.prior_qualifications", format: { kind: "switch", path: "institution", cases: { "Sharif University of Technology": grades }, escaped: { fieldRef: "qualification_institution", then: BY_COUNTRY({ IR: grades }) } } as never } },
+      ],
+    };
+    expect(verdict(withGrade, blueprint)).toBe("usable");
+  });
+
+  it("a read's record of what it was made under names only a field its list follows, once, with a value that field offers", () => {
+    const set = setWith(BY_COUNTRY({ IR: GPA_20 }));
+    const reading = (under: readonly { fieldRef: string; value: string }[]) => blueprintWith({ listsAfter: [{ fieldRef: "qualification_institution", value: ESCAPE, entries: ["6"], under }] });
+    expect(verdict(set, reading([{ fieldRef: "qualification_country", value: "SPAIN" }]))).toContain(`read_under_invalid: `);
+    expect(verdict(set, reading([{ fieldRef: "qualification_country", value: "SPAIN" }]))).toContain(`records "qualification_country" as "SPAIN", which that field does not offer`);
+    expect(verdict(set, reading([{ fieldRef: "qualification_level", value: "IRAN" }]))).toContain(`records "qualification_level", which its list does not follow`);
+    expect(verdict(set, reading([...UNDER_IRAN, ...UNDER_IRAN]))).toContain(`records "qualification_country" twice`);
+    expect(verdict(set, reading([{ fieldRef: "qualification_institution", value: ESCAPE }]))).toContain(`records "qualification_institution", which it is already read after`);
   });
 });

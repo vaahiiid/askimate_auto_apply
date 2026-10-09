@@ -1,6 +1,6 @@
 # ADR-0156 — Ask the student only when it matters
 
-**Status:** Accepted · approved by Vahid on 2026-10-08, 17:11 UTC, in his own words, with three conditions (below) · written in P292 at the request of a message that spoke of him in the third person · amends ADR-0155 (§2, and where a choice is stored) · answers the question about ADR-0109 as amended, in his words · partly built: P293 built §3's mechanism and its first row, for his signature; the rest is not built (see the end)
+**Status:** Accepted · approved by Vahid on 2026-10-08, 17:11 UTC, in his own words, with three conditions (below) · written in P292 at the request of a message that spoke of him in the third person · amends ADR-0155 (§2, and where a choice is stored) · answers the question about ADR-0109 as amended, in his words · §4(a) (one rule) and withdrawal decided by him on 2026-10-09, in his words · partly built: P293 built §3's mechanism and its first row, for his signature; P294 made the row's country checked against the read; the rest is not built (see the end)
 
 ## Decided, in his words (2026-10-08, 17:11 UTC)
 
@@ -25,12 +25,62 @@ So the question §4 put to him is answered: **yes, on three conditions**, in his
 2. Every default applied under the rule is marked in the final preview as applied under it, beside
    the student's words, before anything is filled.
 3. Withdrawn, the rule stops applying, and every field it settled becomes a question again. Before
-   the run, that question is asked in §5's one sitting. **Open, his to decide:** what *"at any
-   time"* means once the run has started or a page is saved. This ADR does not settle it.
+   the run, that question is asked in §5's one sitting. What *"at any time"* means once the run has
+   started or a page is saved was left open on 2026-10-08; he settled it on 2026-10-09 (below).
 
-**What his approval does not settle.** He wrote *"ADR-0156: I approve it."* He did not address
-§4(a)'s choice between one escape rule and one rule per part, which this ADR leaves to him. It
-stays **undecided**, and §4's build waits on it.
+**What his approval did not settle, and he settled the next day.** He wrote *"ADR-0156: I approve
+it."* He did not address §4(a)'s choice between one escape rule and one rule per part, nor what
+withdrawal *"at any time"* means mid-run. Both were recorded as **undecided** in P293, and he
+decided both on 2026-10-09.
+
+## Decided, in his words (2026-10-09, 09:21 UTC)
+
+Saved whole as he sent it: [`docs/run-a/p294-his-decisions-as-sent.txt`](../run-a/p294-his-decisions-as-sent.txt).
+The time is the message's timestamp in the session record (09:21:08 UTC); the saved file holds no
+time.
+
+**§4(a), one rule:**
+
+> *"§4(a): One escape rule covering institution, subject and award title together. One intake
+> question, not three. A student who prefers a listed entry for a particular application changes it
+> in that application's preview."*
+
+**Withdrawal, condition 3:**
+
+> *"Withdrawal: it applies to everything not yet submitted.*
+> *- Before the run starts: it takes effect at once, and the affected fields become questions.*
+> *- During the run, before the page is saved: the run stops applying the rule and asks those
+> fields before continuing.*
+> *- Page saved on the portal but application not submitted: the run goes back and corrects those
+> fields with the student's choice before submission.*
+> *- After submission: that application is not changed. Withdrawal applies to future applications
+> only, and the student is told this plainly."*
+
+**What the build must therefore do** (this ADR's reading of his words, not his words):
+
+- **One rule, one question.** The standing rule of §4(a) covers the institution, the subject and the
+  award title together, and intake asks it once.
+- **The preview offers the listed entries.** On one application, a student who prefers a listed
+  entry to a default under the rule changes it in that application's preview. The choice is the
+  student's, from the form's own list as ADR-0155 offers it, recorded for that application only.
+- **Withdrawal reaches everything not yet submitted, in his four cases as he put them:** before the
+  run starts, at once, the affected fields becoming questions; during the run, *"before the page is
+  saved"*, the rule stops and those fields are asked before the run continues; *"Page saved on the
+  portal but application not submitted"*, the run goes back and corrects those fields with the
+  student's choice before submission; after submission, that application is not changed, the
+  withdrawal applies to future applications only, and the student is told this plainly. Each
+  sentence the student reads about it ships with a test that the thing it promises is done
+  (CLAUDE.md).
+- **The saved-page case needs what ADR-0154 lists as not built:** a measured way back to an earlier
+  portal page. ADR-0154 sends a *correction* after a saved page to a person; this decision sends a
+  *withdrawal* back through the run. They differ, and this one is his decision for withdrawal only.
+  **This ADR's proposal for the meantime, his to decide:** until the way back exists, a withdrawal
+  that reaches a saved page holds the run before any further page and before handover, and tells the
+  student which saved page still carries the rule's value. Nothing is sent anywhere quietly.
+- **A question his decision raises, not settled here:** the system does not observe a submission;
+  the student submits, and no state records it (ADR-0050 §7). His case 4 turns on whether the
+  application was submitted, so the build has to learn that, presumably from the student. How is
+  his to decide when the build reaches it.
 
 And of row 140, in his words: *"I confirm Option A, as the fallback for any portal where no signed
 grading row exists yet."* And of the two questions the measure left: *"The two remaining questions
@@ -61,7 +111,7 @@ picked for the student, and the escape is pressed only on their choice. But hone
 seven times, mid-run, is a product a student abandons. Most of those questions have only one
 truthful answer, and the student would give it the same way every time.
 
-## Decision (proposed in P292; approved in his words above, with his three conditions; §4(a)'s choice still his)
+## Decision (proposed in P292; approved in his words above, with his three conditions; §4(a) and withdrawal decided by him on 2026-10-09)
 
 The rules below are the message's, each with what this ADR proposes for it.
 
@@ -117,8 +167,9 @@ on the profile, reused across all portals."*
 - **Two standing rules, in the student's own words, with intake provenance:**
   - **(a) The escape.** Proposed wording: `Where my exact words are not on a form's list, use the
     form's 'Not in list' with my own words.` It is proposed as **one** rule covering institution, subject and award
-    title. Making it one rule per part is the alternative, and that is his choice: **undecided**
-    after his approval of 2026-10-08, which did not address it.
+    title. Making it one rule per part is the alternative, and that was his choice. **Decided on
+    2026-10-09, in his words:** *"One escape rule covering institution, subject and award title
+    together. One intake question, not three."* (above).
   - **(b) Short forms for small boxes.** For example an award title's short form, asked only when a
     signed entry has a box the full words will not fit.
 - **Changeable by asking.** They change the way any confirmed answer does (ADR-0154), and they are
@@ -226,13 +277,29 @@ he signs, §3's rule holds on `main`:** the row does not exist there, and the me
   follows another field (Sheffield's grade) when no list was read after that field set to what its
   own row after the same escape renders.
 - **§3's first row, *grade scale 20 → GPA 20*,** for a qualification in Iran, the country his read
-  was made under, in a patch for his signature
-  ([`p293-for-signature.md`](../run-a/p293-for-signature.md)). **Not signed**, so not on `main` as
-  entry content.
+  was made under, in a patch for his signature. P293's patch was never signed and is superseded by
+  P294's ([`p294-for-signature.md`](../run-a/p294-for-signature.md)). **Not signed**, so not on `main`
+  as entry content.
+
+**Built in P294**, at his word: *"Record the country a read was made under in the reads record
+itself, and make the check refuse a mapping row whose key does not match the country of the read it
+rests on."*
+
+- **A read records what it was made under** (`under`), and must, for every field its list follows
+  that offers a choice (`read_under_invalid`).
+- **A row taken after an escape** is held to every field of the chain its reads record: keyed for
+  each, through the part of the entry that fills it, with its values held by the reads made under
+  them (`escaped_branch_invalid`).
+- **A row on a list that follows another field** is held to the reads that record that field's
+  value (`read_country_mismatch`).
+- **The offer** shows such a read only to an entry the plan sets the same way.
+- **The GPA 20 row's two reads carry `IRAN`**, entered by hand from read 1's heading and the plan's
+  instruction, because the reads did not print it. Reads R and T print it.
 
 **Waiting on a read:** §3's second row, the grade after the institution's escape. Read R is
-planned ([`p293-reads.md`](../run-a/p293-reads.md)), and the check refuses the row until a grade
-list read after the grading system is recorded.
+planned ([`p294-reads.md`](../run-a/p294-reads.md), which supersedes P293's). The check refuses that
+row until a grade list read after the grading system is recorded with the institution's escape and
+the country in `under`.
 
 **Not built:**
 
@@ -240,15 +307,21 @@ list read after the grading system is recorded.
   accepts (condition 1);
 - the preview's marks for every default applied under them (condition 2);
 - withdrawal at any time (condition 3);
-- §5's one sitting before the run.
+- §5's one sitting before the run;
+- the preview's change of a default to a listed entry, for one application, as he decided for §4(a):
+  *"A student who prefers a listed entry for a particular application changes it in that
+  application's preview."* It needs what ADR-0155 lists as not built: a recorded choice that can be
+  changed once made.
 
 Estimate, given now that he has approved it: **three phases of about four hours each.**
 
 1. The standing rules on the profile, their intake questions and withdrawal, with a test for every
-   sentence that promises an action. It waits on his two open choices above: one escape rule or
-   one per part, and what *"at any time"* means once the run has started.
+   sentence that promises an action. His two open choices were settled on 2026-10-09 (above). The
+   saved-page case of withdrawal also needs a measured way back to an earlier portal page, which
+   ADR-0154 lists as not built; that is a fourth piece, estimated when it starts.
 2. The defaults recorded per application under a standing rule, as `entry_choices` naming the rule
-   as their source, and the preview's marks.
+   as their source, the preview's marks, and the preview's change of a default to a listed entry
+   (with ADR-0155's change of a recorded choice, which it needs).
 3. The one sitting before the run, in place of ADR-0155 §2's offers one at a time.
 
 Each phase states its own estimate when it starts.

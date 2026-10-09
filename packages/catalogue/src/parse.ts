@@ -355,12 +355,27 @@ function readField(value: unknown, path: string): BlueprintField {
       return entry;
     });
   };
+  // P294: what the fields a read's list follows held when it was made.
+  // Parsed, so it is hashed and signed with the read; which fields a list
+  // follows is checked by `checkUsable`, which sees the whole page.
+  const readUnder = (held: Record<string, unknown>, at: string): { under?: readonly { readonly fieldRef: string; readonly value: string }[] } => {
+    if (held["under"] === undefined) return {};
+    const under = list(held, "under", at, (entry, where) => {
+      const block = record(entry, where);
+      return {
+        fieldRef: text(block, "fieldRef", where),
+        value: optionalTextAllowingEmpty(block, "value", where) ?? fail(`${where}.value`, "expected a string"),
+      };
+    });
+    if (under.length === 0) fail(`${at}.under`, "expected at least one field, or no `under` at all");
+    return { under };
+  };
   const searches =
     source["searches"] === undefined
       ? undefined
       : list(source, "searches", path, (held, at) => {
           const block = record(held, at);
-          return { word: text(block, "word", at), entries: readEntries(block, at) };
+          return { word: text(block, "word", at), entries: readEntries(block, at), ...readUnder(block, at) };
         });
   const listsAfter =
     source["listsAfter"] === undefined
@@ -371,6 +386,7 @@ function readField(value: unknown, path: string): BlueprintField {
             fieldRef: text(block, "fieldRef", at),
             value: optionalTextAllowingEmpty(block, "value", at) ?? fail(`${at}.value`, "expected a string"),
             entries: readEntries(block, at),
+            ...readUnder(block, at),
           };
         });
   const escapeLeadsNowhere = optionalText(source, "escapeLeadsNowhere", path);

@@ -217,6 +217,77 @@ describe("what the student is offered when the form's list does not hold their v
     expect(offerOn(blueprint, [OWN_WORDS, detail], [elsewhere])).toBeNull();
   });
 
+  it("a read that records what it was made under is offered only to an entry the plan sets the same way (P294)", () => {
+    // Vahid, 2026-10-09: *"Record the country a read was made under in the
+    // reads record itself"*. A search read with the country set to Iran is
+    // not what the form shows a student whose country it sets to France.
+    const COUNTRY: BlueprintField = {
+      fieldRef: "residence_country",
+      label: "Country",
+      inputType: "select",
+      dataCategory: "ordinary",
+      locators: [{ strategy: "id", value: "residenceCountry" }],
+      validations: [],
+      options: [{ value: "IRAN", label: "Iran" }, { value: "FRANCE", label: "France" }],
+    };
+    const blueprint = (under: readonly { fieldRef: string; value: string }[]): ApplicationBlueprint => ({
+      ...FIXTURE_BLUEPRINT,
+      pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.flatMap((field): BlueprintField[] =>
+            field.fieldRef === "nationality"
+              ? [
+                  COUNTRY,
+                  patched(
+                    // Entries no row of the fixture names: a row that sent one would have to be keyed on the country (P294).
+                    { ...field, options: [...(field.options ?? []), { value: "TEH", label: "Tehrani" }, { value: "PER", label: "Persian (other)" }, { value: ESCAPE, label: "Not in list" }] },
+                    {
+                      inputType: "typeahead",
+                      typeahead: { optionLocator: { strategy: "css", value: "li" }, escapeValue: ESCAPE },
+                      optionsAfter: { fieldRef: "residence_country" },
+                      searches: [{ word: "tehran", entries: ["TEH", "PER"], under }],
+                    },
+                  ),
+                  UNLISTED,
+                ]
+              : [field],
+          ),
+        })),
+      })),
+    });
+    const country = (value: string) => ({ fieldRef: "residence_country", source: { kind: "constant" as const, value, classification: "application_metadata" as const, rationale: "The country this test sets." } });
+    const UNDER_IRAN = [{ fieldRef: "residence_country", value: "IRAN" }];
+    const iran = offerOn(blueprint(UNDER_IRAN), [OWN_WORDS, country("IRAN")]);
+    if (iran === null) expect.unreachable("offered where the plan sets Iran");
+    expect(iran.source).toEqual({ kind: "search", word: "tehran" });
+    // Set to France: the search read under Iran is not offered; a person looks.
+    expect(offerOn(blueprint(UNDER_IRAN), [OWN_WORDS, country("FRANCE")])).toBeNull();
+    // The same of a list read after an earlier box: after the escape there,
+    // the detail's list read under Iran is offered only where the plan sets Iran.
+    const DETAIL: BlueprintField = {
+      fieldRef: "nationality_detail",
+      label: "Nationality detail",
+      inputType: "select",
+      dataCategory: "ordinary",
+      locators: [{ strategy: "id", value: "nationalityDetail" }],
+      validations: [],
+      options: [{ value: "N1", label: "Other (Asia)" }, { value: "N2", label: "Other (Europe)" }, { value: "NONE", label: "None of these" }],
+      escapeValue: "NONE",
+      optionsAfter: { fieldRef: "nationality" },
+      listsAfter: [{ fieldRef: "nationality", value: ESCAPE, entries: ["N1", "N2"], under: UNDER_IRAN }],
+    };
+    const withDetail = (): ApplicationBlueprint => {
+      const base = blueprint(UNDER_IRAN);
+      return { ...base, pages: base.pages.map((page) => ({ ...page, sections: page.sections.map((section) => ({ ...section, fields: section.fields.flatMap((field) => (field.fieldRef === "nationality_unlisted" ? [field, DETAIL] : [field])) })) })) };
+    };
+    const detail = { fieldRef: "nationality_detail", source: { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "option" as const, options: { Iranian: "N1" } } } };
+    const escaped: StudentChoice = { fieldRef: "nationality", studentValue: "Persian (Tehran)", value: ESCAPE, label: "Not in list", escape: true, searchedWith: "tehran" };
+    expect(offerOn(withDetail(), [OWN_WORDS, detail, country("IRAN")], [escaped])?.fieldRef).toBe("nationality_detail");
+    expect(offerOn(withDetail(), [OWN_WORDS, detail, country("FRANCE")], [escaped])).toBeNull();
+  });
+
   it("the hash moves with what is shown: another entry, another order, another escape", () => {
     const base = offerOn(blueprintWith({}))?.offerHash;
     const [ir, iq, gb] = THREE;

@@ -23,7 +23,7 @@
 
 import { createHash } from "node:crypto";
 
-import type { ApplicationBlueprint, BlueprintField } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, BlueprintField, FieldReadUnder } from "@askimate/aas-blueprint";
 import { allFields, escapeOf } from "@askimate/aas-blueprint";
 import type { FillBlocker, FillPlan, StudentChoice } from "@askimate/aas-mapping";
 import { textOf } from "@askimate/aas-mapping";
@@ -199,6 +199,15 @@ function listOnFile(
   // Not the escape, not the empty entry, and not the list's own prompt
   // ("Select qualification...", P291): none of them is an answer.
   const answers = (values: readonly string[]): readonly string[] => values.filter((entry) => entry !== escape && entry !== "" && entry !== field.prompt);
+  // P294: a read that records what it was made under (Sheffield's country
+  // box) is true only of that. It is offered only to an entry the plan sets
+  // the same way, so a list read under Iran is never shown to a qualification
+  // elsewhere; there the value goes to a person, as for any list nobody read.
+  const madeUnderThis = (under: readonly FieldReadUnder[] | undefined): boolean =>
+    (under ?? []).every((held) => {
+      const set = plan.instructions.find((instruction) => instruction.fieldRef === held.fieldRef && (instruction.item?.index ?? -1) === (item ?? -1));
+      return set !== undefined && textOf(set.value) === held.value;
+    });
   // A searched list — a typeahead, or a select a press fills — offers what
   // a search RETURNED: the ONE recorded search whose word is in the
   // student's own words. Their words decide which search, not a likeness;
@@ -207,7 +216,7 @@ function listOnFile(
   // is offered and a person looks, as before.
   if (field.typeahead !== undefined || field.optionsAfter?.press !== undefined) {
     const theirs = value.toLowerCase();
-    const matching = (field.searches ?? []).filter((candidate) => theirs.includes(candidate.word.toLowerCase()));
+    const matching = (field.searches ?? []).filter((candidate) => theirs.includes(candidate.word.toLowerCase()) && madeUnderThis(candidate.under));
     const search = matching.length === 1 ? matching[0] : undefined;
     return search === undefined ? null : { source: { kind: "search", word: search.word }, values: answers(search.entries) };
   }
@@ -219,7 +228,7 @@ function listOnFile(
     const set = plan.instructions.find((instruction) => instruction.fieldRef === opener && (instruction.item?.index ?? -1) === (item ?? -1));
     if (set === undefined) return null;
     const openerValue = textOf(set.value);
-    const read = field.listsAfter?.find((candidate) => candidate.fieldRef === opener && candidate.value === openerValue);
+    const read = field.listsAfter?.find((candidate) => candidate.fieldRef === opener && candidate.value === openerValue && madeUnderThis(candidate.under));
     if (read === undefined) return null;
     const openerField = fieldOf.get(opener);
     const valueLabel =
