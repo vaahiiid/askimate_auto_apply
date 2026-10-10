@@ -1,5 +1,10 @@
 # Sheffield PGT — the five pages re-read with row-text labels, 2026-09-14
 
+**Written before the rule of 2026-10-10.** The console snippets in this file do not print the
+country selected when they run, and his rule of that date says every read must (CLAUDE.md, *A read
+prints the country it was made under*). Do not run them as they stand. A read made again needs a
+snippet that prints the country, as those in [`p294-reads.md`](../../run-a/p294-reads.md) do.
+
 **Read by:** Vahid, on his own signed-in account, with the attached inspection tool after P123
 (commit 9a3a1db) · **Pages:** nationality, language, education (`?new=true`), marketing,
 documents · **Summary printed:** `Labels from row text 76 of 149`, `Marked mandatory 42` ·

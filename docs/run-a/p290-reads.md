@@ -1,5 +1,12 @@
 # P290: the reads for the choice and the escape, in one sitting
 
+**Written before the rule of 2026-10-10.** The console snippets in this file do not print the
+country selected when they run, and his rule of that date says every read must (CLAUDE.md, *A read
+prints the country it was made under*). Do not run them as they stand. A read made again needs a
+snippet that prints the country, as those in [`p294-reads.md`](./p294-reads.md) do.
+
+These reads were made on 2026-10-06 (P291).
+
 **What these are for.** The build lets a student choose from what Sheffield's list holds, and
 choose the form's escape ("Not in list"), with the run carrying on. Choosing the escape opens a box
 for the student's own words. Nobody has read when three of those boxes appear, or what the

@@ -1,0 +1,5 @@
+I confirm that my reads of 6 October were made with the country set to Iran.
+
+Sign P294's patch instead of P293's. Apply it and sign it exactly as docs/run-a/p294-for-signature.md says, with approvedAt at the time of signing, and this note: "Approved by Vahid: GPA 20 row for Iran and the P291 escape patch, with the country recorded on both reads (Iran, confirmed by me)." Check the printed hash matches the sheet's before committing, then push and report CI.
+
+For reads R and L and every read from now on: each snippet must also print the country selected at the time of the read, so the country is never typed in by hand again.

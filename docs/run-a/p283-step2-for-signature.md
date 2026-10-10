@@ -1,5 +1,10 @@
 # Step 2 of Vahid's own run — the batch for his signature (P283)
 
+**Written before the rule of 2026-10-10.** The console snippets in this file do not print the
+country selected when they run, and his rule of that date says every read must (CLAUDE.md, *A read
+prints the country it was made under*). Do not run them as they stand. A read made again needs a
+snippet that prints the country, as those in [`p294-reads.md`](./p294-reads.md) do.
+
 **Status: stopped before the signature (P284), and re-cut.** The first cut (`sha256:9726453b…`) was never signed: its grade note said the list was "read" when it rested on a summary, and its notes carried the wrong date. The re-cut has the same rows and true notes. Nothing here is on `main` as entry content. The batch is the
 patch [`p283-step2-batch.patch`](./p283-step2-batch.patch), applied and signed in one commit, so
 `main` never holds an entry no approval covers. An unsigned entry would stop his stack and turn CI

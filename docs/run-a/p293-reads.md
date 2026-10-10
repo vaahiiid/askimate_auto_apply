@@ -3,6 +3,11 @@
 **Superseded by [`p294-reads.md`](./p294-reads.md)** (P294). Use that one: its R and T print what they
 were made under, and this plan's `copy(…)` does not work in that browser.
 
+**Written before the rule of 2026-10-10.** The console snippets in this file do not print the
+country selected when they run, and his rule of that date says every read must (CLAUDE.md, *A read
+prints the country it was made under*). Do not run them as they stand. A read made again needs a
+snippet that prints the country, as those in [`p294-reads.md`](./p294-reads.md) do.
+
 **Supersedes** [`p292-reads.md`](./p292-reads.md). Same two reads; R is now planned for the row it
 has to carry.
 

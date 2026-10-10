@@ -1,5 +1,10 @@
 # Sheffield PGT application — the first real read, 2026-09-10
 
+**Written before the rule of 2026-10-10.** The console snippets in this file do not print the
+country selected when they run, and his rule of that date says every read must (CLAUDE.md, *A read
+prints the country it was made under*). Do not run them as they stand. A read made again needs a
+snippet that prints the country, as those in [`p294-reads.md`](../../run-a/p294-reads.md) do.
+
 **What this is.** The record of the first attached inspection of a real university form
 (P79–P80), made by Vahid on his own machine, signed in to the University of Sheffield's
 Postgraduate Online Application Form, eleven pages, zero failed. `run.json` and

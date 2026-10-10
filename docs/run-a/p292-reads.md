@@ -3,6 +3,11 @@
 **Superseded by [`p293-reads.md`](./p293-reads.md)** (P293): the same two reads, with R planned for the
 grade row it has to carry. Use that one.
 
+**Written before the rule of 2026-10-10.** The console snippets in this file do not print the
+country selected when they run, and his rule of that date says every read must (CLAUDE.md, *A read
+prints the country it was made under*). Do not run them as they stand. A read made again needs a
+snippet that prints the country, as those in [`p294-reads.md`](./p294-reads.md) do.
+
 **What these are for.** The message of 2026-10-08 (saved as
 [`p292-message-as-sent.txt`](./p292-message-as-sent.txt)) asks for both to be planned:
 

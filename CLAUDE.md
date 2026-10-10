@@ -278,3 +278,28 @@ So the test is what the step can do to a value, not whether a tool touched it:
 - **The record still says which it was.** The comparison cannot tell (P285), so the record carries
   where the file came from and what was done to it. This one: the form's string, split on its
   separator, nothing else, in the words of the person who did it.
+
+## A read prints the country it was made under
+
+Decided by Vahid on 2026-10-10. Two of his reads of 6 October reached the entry with their country
+entered by hand (P294) and then rested on his confirmation (P295). Neither read printed it.
+
+In his words: **"For reads R and L and every read from now on: each snippet must also print the
+country selected at the time of the read, so the country is never typed in by hand again."**
+
+How it is held today (P295), which is the agent's build and not his words:
+
+- On Sheffield's form, the snippets print `under: { institutionCountry: … }`, the country select's
+  value when they run, beside what they read.
+- `scripts/reads-print-their-country.test.ts` runs every snippet `scripts/read-snippets.ts` finds in
+  the Markdown of `docs/run-a/` and `docs/captures/`. A snippet is text that reads the page:
+  `document.` and a property, `$(`, `$$(` or `$0`. Each runs on a fresh page, under four
+  selections: Iran, the United Kingdom, none, and a value made up for the run. Each must print the
+  value selected.
+- The snippets written before the rule are pinned by content. Each file holding them says not to
+  run them as they stand. A new snippet in such a file is held to the rule.
+- It cannot see a read written another way or planned elsewhere. A plan for another portal adds
+  that portal's country field to the test's page.
+
+Open, and his to say: what a read should print on a page that has no country box. Until he says,
+the test refuses such a snippet, because his words cover every read.

@@ -1,6 +1,19 @@
 # His reads, the GPA 20 row, and the country each read was made under: one patch, one signature (P294)
 
-**Status: built, not signed.** Nothing here is on `main` as entry content. The batch is the patch
+**Status: signed by him on 2026-10-10 (P295).** At his instruction, saved whole as sent
+([`p295-his-message-as-sent.txt`](./p295-his-message-as-sent.txt)), the patch was applied and the
+approval written in one commit, `34760af4`, as "How to sign" below says. Before the commit,
+`pnpm run catalogue hash` printed the hash below, and the census passed 3,349 of 3,349 tests. The
+approval's `approvedAt` is `2026-10-10T09:07:52Z`, and its note, his words, is in
+`approvals.json`:
+
+> Approved by Vahid: GPA 20 row for Iran and the P291 escape patch, with the country recorded on both reads (Iran, confirmed by me).
+
+Followed exactly, "How to sign" left the census table (`docs/state-of-the-system.md`) out of the commit. The patch adds two tests, so CI's check that the committed census is current failed on `34760af4`. The table is committed in the next commit (P295).
+
+What follows is the sheet as it was put to him.
+
+**Status when put to him: built, not signed.** Nothing here is on `main` as entry content. The batch is the patch
 [`p294-for-signature.patch`](./p294-for-signature.patch), applied and signed in one commit, so
 `main` never holds an entry no approval covers. It **supersedes** P293's patch
 ([`p293-for-signature.md`](./p293-for-signature.md)), which was never signed and **no longer passes

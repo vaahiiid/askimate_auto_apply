@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P295 — signed, and the country printed from now on
+
+*2026-10-10.* He signed the GPA 20 row in P294's patch and confirmed in his own words that his reads
+of 6 October were made with Iran selected. The country in those two records was still put there by
+hand. His word now stands behind it, but no read printed it. So he made a rule: every read prints
+the country selected when it runs. L now does, as R and T already did. A test runs every new
+snippet in the plans under four selections of the country, so a snippet that says *Iran* whatever
+is chosen fails. His next reads, R, L and T, are the first planned so that each prints its own
+country.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P294 — a read is true of where it was made
 
 *2026-10-09.* He settled the two points his approval left open: one escape rule, asked once, and a

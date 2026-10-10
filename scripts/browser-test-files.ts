@@ -60,4 +60,5 @@ export const BROWSER_TEST_FILES: readonly string[] = [
   "scripts/journey.test.ts",
   "scripts/local-stack-journey.test.ts",
   "scripts/local-stack-existing-account.test.ts",
+  "scripts/reads-print-their-country.test.ts",
 ];

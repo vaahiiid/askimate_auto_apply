@@ -1,6 +1,6 @@
 # ADR-0156 — Ask the student only when it matters
 
-**Status:** Accepted · approved by Vahid on 2026-10-08, 17:11 UTC, in his own words, with three conditions (below) · written in P292 at the request of a message that spoke of him in the third person · amends ADR-0155 (§2, and where a choice is stored) · answers the question about ADR-0109 as amended, in his words · §4(a) (one rule) and withdrawal decided by him on 2026-10-09, in his words · partly built: P293 built §3's mechanism and its first row, for his signature; P294 made the row's country checked against the read; the rest is not built (see the end)
+**Status:** Accepted · approved by Vahid on 2026-10-08, 17:11 UTC, in his own words, with three conditions (below) · written in P292 at the request of a message that spoke of him in the third person · amends ADR-0155 (§2, and where a choice is stored) · answers the question about ADR-0109 as amended, in his words · §4(a) (one rule) and withdrawal decided by him on 2026-10-09, in his words · partly built: P293 built §3's mechanism and its first row, for his signature; P294 made the row's country checked against the read; he signed the row on 2026-10-10 (P295), with every read snippet printing its country from then on; the rest is not built (see the end)
 
 ## Decided, in his words (2026-10-08, 17:11 UTC)
 
@@ -278,8 +278,8 @@ he signs, §3's rule holds on `main`:** the row does not exist there, and the me
   own row after the same escape renders.
 - **§3's first row, *grade scale 20 → GPA 20*,** for a qualification in Iran, the country his read
   was made under, in a patch for his signature. P293's patch was never signed and is superseded by
-  P294's ([`p294-for-signature.md`](../run-a/p294-for-signature.md)). **Not signed**, so not on `main`
-  as entry content.
+  P294's ([`p294-for-signature.md`](../run-a/p294-for-signature.md)). **Signed by him on 2026-10-10**
+  (P295), in P294's patch, `sha256:4368de00…`. It is on `main`.
 
 **Built in P294**, at his word: *"Record the country a read was made under in the reads record
 itself, and make the check refuse a mapping row whose key does not match the country of the read it
@@ -294,7 +294,25 @@ rests on."*
   value (`read_country_mismatch`).
 - **The offer** shows such a read only to an entry the plan sets the same way.
 - **The GPA 20 row's two reads carry `IRAN`**, entered by hand from read 1's heading and the plan's
-  instruction, because the reads did not print it. Reads R and T print it.
+  instruction, because the reads did not print it. Reads R and T print it. **P295:** he confirmed
+  the country in his words on 2026-10-10: *"I confirm that my reads of 6 October were made with the
+  country set to Iran."* His approval note says it again: *"(Iran, confirmed by me)"*. The record in
+  the entry is still the one entered by hand. It now rests on his word, not on anything a read
+  printed.
+
+**Built in P295**, at his word (2026-10-10): *"For reads R and L and every read from now on: each
+snippet must also print the country selected at the time of the read, so the country is never
+typed in by hand again."*
+
+- **L prints the country** selected when it runs, beside the boxes it reads. R and T already did.
+- **A test runs every snippet written since his rule.** `scripts/reads-print-their-country.test.ts` takes the
+  snippets that `scripts/read-snippets.ts` finds in the Markdown of `docs/run-a/` and
+  `docs/captures/`: text that reads the page through `document.`, `$(`, `$$(` or `$0`. It runs
+  each one not pinned (below) in Chromium, on a fresh page, under four selections of the country, and fails if a
+  snippet does not print the value selected. The snippets written before his rule are pinned by
+  content and not run. Each file holding them says not to run them as they stand. Any new snippet is held to
+  the rule. It is tied to Sheffield's country select, and it cannot see a read written another way
+  or planned elsewhere.
 
 **Waiting on a read:** §3's second row, the grade after the institution's escape. Read R is
 planned ([`p294-reads.md`](../run-a/p294-reads.md), which supersedes P293's). The check refuses that

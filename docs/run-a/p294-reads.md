@@ -1,9 +1,10 @@
 # P294: reads R, L and T, in one sitting; R and T record what they were made under
 
-**Supersedes** [`p293-reads.md`](./p293-reads.md). Two things changed, and one read is added:
+**Supersedes** [`p293-reads.md`](./p293-reads.md). Three things changed (the third in P295), and one
+read is added:
 
-1. **R and T now print the values their list follows, with the list.** L reads labels, not a list,
-   and is unchanged. His words, 2026-10-09
+1. **R and T now print the values their list follows, with the list.** L reads labels, not a list.
+   Since P295 it prints the country too. His words, 2026-10-09
    ([`p294-his-decisions-as-sent.txt`](./p294-his-decisions-as-sent.txt)): *"Record the country a
    read was made under in the reads record itself, and make the check refuse a mapping row whose key
    does not match the country of the read it rests on."* So the country (and, for R, the institution
@@ -16,6 +17,14 @@
    the console's string at its own separators is not a retyping. Nothing in these snippets trims a
    value.
 3. **T is added.** It re-reads the institution box under each country its rows came from (below).
+4. **P295: every snippet prints the country selected when it runs, L included.** His words,
+   2026-10-10 ([`p295-his-message-as-sent.txt`](./p295-his-message-as-sent.txt)): *"For reads R
+   and L and every read from now on: each snippet must also print the country selected at the
+   time of the read, so the country is never typed in by hand again."* R and T already did. L now
+   does. `scripts/reads-print-their-country.test.ts` runs each snippet here in Chromium, on a fresh
+   page, under four selections: Iran, the United Kingdom, none, and a value made up for the run.
+   It fails if a snippet does not print the value selected. It holds any snippet written in these
+   folders from now on to the same rule.
 
 ## Ground rules (as before)
 
@@ -39,14 +48,20 @@ while its dropdown is open.
 JSON.stringify({ under: { institutionCountry: document.querySelector('[name="institutionCountry"]').value }, typed: document.querySelector('#institution-ts-control').value, entries: [...document.querySelectorAll('#institution-ts-dropdown [role="option"]')].map(o => [o.getAttribute("data-value"), o.textContent, o.hasAttribute("data-selectable")]) })
 ```
 
-**L: what stands beside each escape box** (unchanged):
+**L: what stands beside each escape box, with the country selected when it was read.** P295: the
+same per-box line as before, under `boxes`, beside the country.
 ```js
-JSON.stringify(["unlistedInstitution","unlistedSubject","unlistedDegree"].map(n => { const e = document.querySelector('[name="' + n + '"]'); if (e === null) return [n, "absent"]; const before = e.previousElementSibling; const row = e.closest("tr, li, .form-group, .row, fieldset, p, div"); return [n, e.offsetParent !== null ? "visible" : "hidden", e.labels && e.labels[0] ? e.labels[0].textContent : null, e.getAttribute("aria-label"), e.getAttribute("placeholder"), e.getAttribute("title"), before ? before.textContent : null, row ? row.innerText : null]; }))
+JSON.stringify({ under: { institutionCountry: document.querySelector('[name="institutionCountry"]').value }, boxes: ["unlistedInstitution","unlistedSubject","unlistedDegree"].map(n => { const e = document.querySelector('[name="' + n + '"]'); if (e === null) return [n, "absent"]; const before = e.previousElementSibling; const row = e.closest("tr, li, .form-group, .row, fieldset, p, div"); return [n, e.offsetParent !== null ? "visible" : "hidden", e.labels && e.labels[0] ? e.labels[0].textContent : null, e.getAttribute("aria-label"), e.getAttribute("placeholder"), e.getAttribute("title"), before ? before.textContent : null, row ? row.innerText : null]; }) })
 ```
 
 The country prints as the hidden select's value (`IRAN`). The country box the runner fills
 (`institutionCountry-ts-control`) sets that select, value for value (P149). So the record in the
 entry names the box, with the value the select printed.
+
+If a snippet is run where the page has no country select, it stops with an error and prints no
+list. That is deliberate: a read with no country printed is the case his rule removes. A read
+planned for a page with no country box at all has no country to print. Whether, and how, the rule
+covers it is his to say when such a read is planned.
 
 ## The reads, in this order
 

@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.288.0] — 2026-10-10
+
+**P295 — P294's patch signed at his instruction; every read prints the country selected when it
+runs.**
+
+- **Changed** `docs/run-a/catalogue/approvals.json`: his approval of `sha256:4368de00…`, the entry
+  with P294's patch (the GPA 20 row for Iran and the P291 escape patch, with the country recorded
+  on both reads), with his note. It replaces his approval of `effa83b5…`. Committed as
+  `34760af4`, after the printed hash matched the sheet's.
+- **Fixed** the census table in `docs/state-of-the-system.md`, which the signing commit left out
+  because the sheet's `git add` list did not name it. The patch adds two tests, so CI's
+  committed-census check was red on `34760af4`.
+- **Changed** read L in `docs/run-a/p294-reads.md`: it prints `under: { institutionCountry }`
+  beside the boxes it reads, as R and T already did. This is his rule of 2026-10-10.
+- **Added** `scripts/read-snippets.ts`: finds every console snippet in the Markdown of
+  `docs/run-a/` and `docs/captures/` (text that reads the page through `document.`, `$(`, `$$(` or
+  `$0`), and says whether it can be run as written (a closed `js` block of one line).
+- **Added** `scripts/reads-print-their-country.test.ts` (browser lane). It runs every snippet not
+  pinned as written before the rule in Chromium, on a fresh page, under four selections of the
+  country (Iran, the United Kingdom, none, and a value made up for the run). It fails if one does
+  not print the value selected, or cannot be run as written. The 18 snippets written before the
+  rule are pinned by content. The six files holding them now say not to run them as they stand.
+- **Added** his two messages, saved as sent: `p295-his-message-as-sent.txt` and
+  `p294-his-p293-signature-request-as-sent.txt`.
+- **Changed** ADR-0156 (P295 built), CLAUDE.md (his rule, in his words), row 143 (measured again on
+  the signed entry), and the P294 signature sheet (signed).
+
+---
+
 ## [0.287.0] — 2026-10-09
 
 **P294 — his two ADR-0156 decisions recorded; a read records the country it was made under, and the
