@@ -136,7 +136,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.32");
+    expect(blueprint.version).toBe("0.2.34");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -214,7 +214,15 @@ describe("the Sheffield drafts, under the real checks", () => {
     for (const ref of ["institutionCountry-ts-control", "institution-ts-control", "subjectSearch", "subject", "gradingSystemId", "grade"]) {
       expect(mappingSet.mappings.find((m) => m.fieldRef === ref)?.source.kind, ref).toBe("profile_field");
     }
-    expect(mappingSet.mappings.some((m) => ["institutionCountry", "institutionCode", "unlistedInstitution", "unlistedSubject", "unlistedDegree", "unlistedGrade", "unlistedGradeDescription", "highestEducationLevel"].includes(m.fieldRef))).toBe(false);
+    // P291 (ADR-0109 amended): the three boxes an escape opens hold the
+    // student's own words, as they gave them — shown only when that escape is
+    // chosen, and chosen only by the student. The rest stay nobody's.
+    expect(mappingSet.mappings.some((m) => ["institutionCountry", "institutionCode", "unlistedGrade", "unlistedGradeDescription", "highestEducationLevel"].includes(m.fieldRef))).toBe(false);
+    for (const [ref, opener, escape] of [["unlistedInstitution", "institution-ts-control", "Not in list"], ["unlistedSubject", "subject", "Not in list"], ["unlistedDegree", "degree", ""]] as const) {
+      const own = mappingSet.mappings.find((m) => m.fieldRef === ref)?.source;
+      expect(own?.kind === "profile_field" ? own.format : null, ref).toEqual({ kind: "part", path: ref === "unlistedInstitution" ? "institution" : ref === "unlistedSubject" ? "subject" : "awardTitle", then: { kind: "text" } });
+      expect(field(ref)?.visibleWhen, ref).toEqual({ whenFieldRef: opener, operator: "equals", value: escape });
+    }
   });
 
   it("plan the synthetic profile's Sheffield qualification onto the six chain boxes, and refuse loudly what the maps do not name (P149)", () => {
@@ -433,6 +441,9 @@ describe("the Sheffield drafts, under the real checks", () => {
       "fundingDetails", "fundingNationality", "fundingSource", "fundingSourceKnown", "fundingStage",
       "livedOutsideCountry", "permanentResidence",
       "position", "startDateMonth", "startDateYear", "startMonth",
+      // P291: mapped now, and marked required on the page like `degree` — with
+      // no qualification at all, unavailable for the same field.
+      "unlistedDegree",
     ]);
     // P149's six chain boxes are mapped per qualification but carry no
     // observed marker, so with no list at all they are neither typed nor
@@ -440,8 +451,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.32");
-    expect(mappingSet.version).toBe("0.3.43");
+    expect(blueprint.version).toBe("0.2.34");
+    expect(mappingSet.version).toBe("0.3.46");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -613,6 +624,9 @@ describe("the Sheffield drafts, under the real checks", () => {
       "fundingDetails", "fundingNationality", "fundingSource", "fundingSourceKnown", "fundingStage",
       "livedOutsideCountry", "permanentResidence",
       "position", "startDateMonth", "startDateYear", "startMonth",
+      // P291: mapped now, and marked required on the page like `degree` — with
+      // no qualification at all, unavailable for the same field.
+      "unlistedDegree",
     ]);
     // The preview says it, inside the yes.
     const page = { ...blueprint, pages: blueprint.pages.filter((p) => p.pageRef === "page8") };
@@ -883,10 +897,18 @@ describe("the Sheffield drafts, under the real checks", () => {
       fieldRef,
       source: { kind: "constant" as const, value, classification: "application_metadata" as const, rationale: "test" },
     });
+    // P293: with the institution box a constant, its escape is never chosen,
+    // so the grading system's row for that escape could never be taken, and
+    // `checkUsable` refuses a row that rests on nothing. The hypothetical
+    // drops that row with the box's own mapping.
+    const withoutEscapedRow = (m: (typeof asIfReviewed.mappings)[number]) =>
+      m.fieldRef === "gradingSystemId" && m.source.kind === "profile_field"
+        ? { ...m, source: { ...m.source, format: Object.fromEntries(Object.entries(m.source.format).filter(([key]) => key !== "escaped")) as typeof m.source.format } }
+        : m;
     const naming = (value: string) => ({
       ...asIfReviewed,
       mappings: [
-        ...asIfReviewed.mappings.filter((m) => m.fieldRef !== "institutionCountry-ts-control" && m.fieldRef !== "institution-ts-control"),
+        ...asIfReviewed.mappings.filter((m) => m.fieldRef !== "institutionCountry-ts-control" && m.fieldRef !== "institution-ts-control").map(withoutEscapedRow),
         constant("institutionCountry-ts-control", "UNITED KINGDOM"),
         constant("institution-ts-control", value),
       ],

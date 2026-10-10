@@ -19,8 +19,9 @@ import pg from "pg";
 
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 import { labelledHash, loadCatalogueDirectory, parseBlueprint, parseMappingSet, parseReviewedEntryText, toCanonical } from "@askimate/aas-catalogue";
-import { MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
+import { entryChoiceMessage, entryChoiceOffer, ESCAPE_ID, MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
+import type { StudentChoice } from "@askimate/aas-mapping";
 import { migrate } from "@askimate/aas-migrate";
 import type { ModelClient } from "@askimate/aas-llm";
 import { beginRun, nextStep, requiredFieldsFor, specialistHandoverOf } from "@askimate/aas-orchestrator";
@@ -421,10 +422,27 @@ describe("the catalogue entry for Run A (P152)", () => {
     //                     rows (ADR-0153), the three escapes recorded, and
     //                     P261's measured registration (0.2.32 / 0.3.43),
     //                     P283 (never signed: stopped before the signature)
-    //   sha256:effa83b5…  4 October, THIS one — the same rows, the notes made
+    //   sha256:effa83b5…  4 October — the same rows, the notes made
     //                     true: dated the day they were written, the grade
     //                     rows said to rest on a description of the list, and
-    //                     IRAN's absence explained, P284
+    //                     IRAN's absence explained, P284 (signed, 424ce25)
+    //   sha256:99799bf9…  6 October — from his six reads: what the
+    //                     institution box offers for "HHE", the boxes three
+    //                     escapes open (filled with the student's own words),
+    //                     the grading list after the institution's escape,
+    //                     the grading escape recorded as leading nowhere, the
+    //                     award title's prompt, the subject's searches (0.2.33
+    //                     / 0.3.44), P291 (never signed: superseded by P293)
+    //   sha256:a7312c27…  8 October — P291's batch with one row he
+    //                     asked for in his words, "grade scale 20 → GPA 20":
+    //                     gradingSystemId renders 6 for twenty_point in Iran
+    //                     once the student's own choice of the institution's
+    //                     escape is in (0.2.33 / 0.3.45), P293 (never signed:
+    //                     superseded by P294)
+    //   sha256:4368de00…  9 October, THIS one — the same, with the country
+    //                     his reads were made under recorded on them, as he
+    //                     asked: "Record the country a read was made under in
+    //                     the reads record itself" (0.2.34 / 0.3.46), P294
     //
     // The `degree` mapping reads `awardTitle` — the part the registry now
     // holds, stated by the student and distinct from `level` — onto the
@@ -440,7 +458,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     // P283 and P284 moved it again, for step 2 of his own run, delivered as a patch he
     // applies and signs in ONE commit with approvals.json — so main never
     // holds an entry that is not signed, and this test is never red there.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:4368de005c63497779c08886da479964c940dec97b68c49e04598ac397983464");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
     expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
     if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
@@ -460,7 +478,7 @@ describe("the catalogue entry for Run A (P152)", () => {
       ownAccountOnly?: { studentId: string };
     }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
-    expect(approvals[0]?.contentHash).toBe("sha256:effa83b50811afce46d70fd3aba1af56f9e7af7fb94a979985b791463b11b727");
+    expect(approvals[0]?.contentHash).toBe("sha256:4368de005c63497779c08886da479964c940dec97b68c49e04598ac397983464");
     expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
     // The four spellings of Iran, from the entry itself: unchanged by this
     // edit, and the reason the countries' signature was spent.
@@ -502,6 +520,84 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(labelledHash(toCanonical(edited))).not.toBe(labelledHash(toCanonical(value)));
   });
 
+  it("P291, P293: his two qualifications through the offer — four choices, each with the form's escape beside its entries; GPA 20 by the signed row after the institution's escape; the grade for a person", () => {
+    // The shape P286 measured from the intervention (dates synthetic): the
+    // doctorate at HHE, the Master's at Islamic Azad University, both in
+    // International Business. Each offer is answered with its escape, the
+    // cases he named as his: the doctorate's institution, its award title,
+    // and the subject. What stops after that is what no offer can settle.
+    const value = entry();
+    const check = checkUsable(value.mappingSet, value.blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const qualification = { countryCode: "IR", subject: "International Business", start: { year: 2013, month: 9 }, end: { kind: "completed", date: { year: 2015, month: 9 } }, award: { year: 2015, month: 9 }, grade: "19.5", gradeScale: "twenty_point" };
+    const doctorate = { ...qualification, level: "Doctorate", awardTitle: "Doctorate of Business Administration", institution: "HHE" };
+    const masters = { ...qualification, level: "Master's degree", awardTitle: "MSc", institution: "Islamic Azad University" };
+    const NOW = new Date("2026-10-06T12:00:00Z");
+    const profile = rehydrateProfile({
+      studentId: "his-run",
+      updatedAt: NOW,
+      entries: fixture().entries.map((held) => ({ ...held, ...(held.key === "education.prior_qualifications" ? { value: [doctorate, masters] } : {}), provenance: { source: "seeded", confirmedAt: NOW }, revision: 1 })) as unknown as readonly StoredProfileEntry[],
+    });
+    const choices: StudentChoice[] = [];
+    const plan = () => planFill(value.blueprint, check.mappingSet, profile, choices);
+    const offered: string[] = [];
+    for (let offer = entryChoiceOffer(value.blueprint, plan(), (c) => planFill(value.blueprint, check.mappingSet, profile, [...choices, c])); offer !== null; offer = entryChoiceOffer(value.blueprint, plan(), (c) => planFill(value.blueprint, check.mappingSet, profile, [...choices, c]))) {
+      expect(offer.escape.id).toBe(ESCAPE_ID);
+      offered.push(`${offer.fieldRef}#${String(offer.item?.index)} ${offer.studentValue} ${String(offer.entries.length)}`);
+      if (offered.length === 1) {
+        expect(entryChoiceMessage(value.blueprint.institutionName, offer)).toBe(
+          'This is about entry 1 of the 2 in your previous qualifications. Their form asks you to choose your institution from its own list, and it does not hold "HHE", which is what you told me. ' +
+            'Searched for "HHE", it offers no entry apart from its own option for one that is not on it. If none is, choose "Not in list": that is the form\'s own option for exactly this, ' +
+            'and I will type your own words, "HHE", into the box it opens. Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.',
+        );
+      }
+      if (offer.fieldRef === "degree") {
+        // The box takes 28 characters; his title is 36. Nothing is promised.
+        expect(entryChoiceMessage(value.blueprint.institutionName, offer)).toContain(
+          'The box it opens takes at most 28 characters, and your words, "Doctorate of Business Administration", are 36, so they will not go in as they are; I will not shorten them for you.',
+        );
+      }
+      choices.push({ fieldRef: offer.fieldRef, ...(offer.item === undefined ? {} : { item: offer.item.index }), studentValue: offer.studentValue, value: offer.escape.value, label: offer.escape.label, escape: true, ...(offer.source.kind === "search" ? { searchedWith: offer.source.word } : {}) });
+      expect(offered.length, "no offer is made twice").toBeLessThan(6);
+    }
+    expect(offered).toEqual([
+      "institution-ts-control#0 HHE 0",
+      // The award title's whole list less its escape and its prompt (read 6).
+      "degree#0 Doctorate of Business Administration 41",
+      "subject#0 International Business 10",
+      "subject#1 International Business 10",
+    ]);
+    const after = plan();
+    // P293: the grading system is no question. With his own choice of the
+    // institution's escape recorded, the row he asked for renders his
+    // twenty-point scale as 6, GPA 20, the system his read showed after that
+    // escape. The grade still stops: the form records no escape for it, and
+    // no row maps a grade for an institution not on the list until read R.
+    expect(after.blockers.map((blocker) => `${blocker.fieldRef}#${String((blocker as { item?: { index: number } }).item?.index)}`)).toEqual(["grade#0"]);
+    const typed = (fieldRef: string, item: number): string | undefined => {
+      const found = after.instructions.find((instruction) => instruction.fieldRef === fieldRef && instruction.item?.index === item);
+      return found === undefined ? undefined : textOf(found.value);
+    };
+    // The escapes, and the student's own words in the boxes they open — the
+    // award title's "" among them (read 6: the empty string IS its escape).
+    expect([typed("institution-ts-control", 0), typed("unlistedInstitution", 0), typed("degree", 0), typed("unlistedDegree", 0), typed("subjectSearch", 0), typed("subject", 0), typed("unlistedSubject", 0)]).toEqual([
+      "Not in list", "HHE", "", "Doctorate of Business Administration", "international", "Not in list", "International Business",
+    ]);
+    expect(after.instructions.find((instruction) => instruction.fieldRef === "institution-ts-control" && instruction.item?.index === 0)?.typeahead).toMatchObject({ search: "HHE", chosenByStudent: true });
+    expect(typed("gradingSystemId", 0)).toBe("6");
+    // Without his choice of the escape, the row is not taken: the grading
+    // system refuses for HHE as before, and nothing is chosen for him.
+    const unchosen = planFill(value.blueprint, check.mappingSet, profile, choices.filter((choice) => choice.fieldRef !== "institution-ts-control"));
+    expect(unchosen.instructions.some((instruction) => instruction.fieldRef === "gradingSystemId" && instruction.item?.index === 0)).toBe(false);
+    expect(unchosen.blockers.map((blocker) => blocker.fieldRef)).toContain("gradingSystemId");
+    // The Master's: as signed in P286, its subject his escape.
+    expect([typed("institution-ts-control", 1), typed("degree", 1), typed("gradingSystemId", 1), typed("grade", 1), typed("subject", 1), typed("unlistedSubject", 1)]).toEqual(["UNI30764", "MSc", "6", "19.5", "Not in list", "International Business"]);
+    expect(typed("unlistedInstitution", 1), "hidden for the Master's: its institution is on the list").toBeUndefined();
+    // And the validator refuses the 36 characters, as the offer said: the run
+    // will stop to have them shortened, by him, not by the run.
+    expect(validatePlan(value.blueprint, after).violations.map((violation) => `${violation.fieldRef} ${violation.rule.kind} ${String((violation.rule as { value?: string }).value)}`)).toEqual(["unlistedDegree maxlength 28"]);
+  });
+
   it("the committed page-by-page read IS the command's output for the synthetic profile, and lists no registration page", async () => {
     const child = spawn(TSX, ["scripts/catalogue.ts", "preview", "docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json", "docs/run-a/synthetic-profile.json"], {
       cwd: ROOT,
@@ -519,7 +615,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     // it. Nothing typed here came from a map's guess.
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.32, mapping set 0.3.43, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.34, mapping set 0.3.46, reviewed by Vahid Mohammadi.");
     expect(output).toContain("How do you want to study?*: Full Time");
     expect(output).toContain('(sent as "MGT:Management and International Business")');
     expect(output).toContain("MSC, Master of Science");

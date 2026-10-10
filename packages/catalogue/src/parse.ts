@@ -308,7 +308,11 @@ function readOption(value: unknown, path: string): FieldOption {
 
 function readCondition(value: unknown, path: string): FieldCondition {
   const source = record(value, path);
-  const single = optionalText(source, "value", path);
+  // P291: the empty string is a value. Sheffield's award title submits "" for
+  // its "Not in list", so `unlistedDegree`'s rule is "shown when the award
+  // title equals the empty string" — read as absent until P291, the condition
+  // never held and the box could never show.
+  const single = optionalTextAllowingEmpty(source, "value", path);
   const many = source["values"] === undefined ? undefined : textList(source, "values", path);
   return {
     whenFieldRef: text(source, "whenFieldRef", path),

@@ -61,13 +61,16 @@
     "P148 (2026-09-16, ADR-0119): degree is required to save — Sheffield refused Vahid's full throwaway entry with the select unchosen, by name. His route, confirmed: map the degree for the levels the synthetic profile holds from the captured options, do not hand it, do not build a page-wider mechanism; a value the map does not name stays a loud blocker; unlistedDegree stays hidden and unmapped. The set now hands nothing to the student on any page.",
     "Education (page7), P149 (2026-09-16): the chain is mapped for the synthetic profile's one Sheffield qualification, six boxes — the country BOX and the institution BOX (the Tom Select controls the runner fills; the hidden selects behind them are set by the boxes and mapped by nothing), the search word and the subject, the grading system and the grade — each through a PARTIAL option map onto the captured lists, naming what the synthetic profile holds and nothing more, so that anything else is a loud blocker at plan time rather than an approximation at the fill. The country box's entries are on the draft (0.2.24) from P101's confirmed reading; the grading systems now follow the institution box, inferred from the dependencies read and P102's shape, not observed as a fill. The search word is 'business', the one the 87 results came from, never the subject typed whole. Only grading system 7 is named, because only its grades were read. The set now covers every box the education page requires to save, for that one qualification.",
     "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page.",
-    "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature."
+    "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature.",
+    "P291 (2026-10-06), from Vahid's six reads on his own account, nothing saved (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, his message as sent): the institution box's 'HHE' search (only the escape), the boxes the institution, subject and award-title escapes open (shown only then, and filled with the student's own words, ADR-0109 amended), the grading list after the institution's escape (GPA 20), the award title's prompt, the grading system's escape recorded as leading nowhere (no grade can be given after it), the subject's 'international' search (his P283 read) and its 'HHE' search (only the escape). One signature.",
+    "P293 (2026-10-08, ADR-0156 §3), at Vahid's request in his own words (docs/run-a/p293-his-decisions-as-sent.txt): one row on gradingSystemId, taken only when the institution box holds the form's escape for that entry, by the student's recorded choice — for a qualification in Iran, the grade scale they state, twenty_point, renders 6 (GPA 20), the system his read of 2026-10-06 (made with Iran as the country) shows after that escape. The P291 batch (0.3.44, never signed) with this row; one signature.",
+    "P294 (2026-10-09): reviewed against blueprint 0.2.34, whose only change is the country two of his reads were made under (Iran), recorded on them at his word: \"Record the country a read was made under in the reads record itself\". No row changed: gradingSystemId's row after the institution's escape was already keyed on IR, and checkUsable now refuses that key unless it matches the country the read records. That record was entered by hand in P294, from read 1's heading and the plan's instruction, because the reads did not print a country; read R, which prints it, replaces it."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.43",
+  "version": "0.3.46",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.32",
+  "blueprintVersion": "0.2.34",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -3683,7 +3686,22 @@
           }
         }
       },
-      "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map. SYNTHETIC-PROFILE VALUE (P214): the forty-one rows are the portal's whole list, not a choice; the value the read shows, BSc, is what the synthetic profile STATES as its title (P213), chosen to match what Run A typed on his account, not read from a student."
+      "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name. THE STUDENT'S OWN STATED TITLE (ADR-0142, P213, closing blocker 71): keyed on `awardTitle` — the title as printed on the certificate, stated by the student in the interview and distinct from `level` — onto the select's own forty-one titles, keyed by the LABEL the form prints and mapped to the VALUE it submits (they differ for nine — Certificate of Higher Ed → CERT HE, Diploma of Higher Ed → DIP, MComp → MCOMP, MPharm (UG) → MPHARM(UG), MSci (UG) → MSCI (UG), NCUK Grad Dip → NCUKPGD, NCUK PMP → NCUKPMP, NCUK EAP → NCUKEAP, PG Diploma → PG DIP — so a student who states the title as printed is sent the code the form expects). A level never determines a title (a BA and a BSc are both bachelor's degrees), which is why this map read `level` and wrote `BSc` for every bachelor until 2026-09-25 and then refused (P209). A title the list does not carry — 'Bachelor of Science', 'BSc (Hons)' — refuses with no_matching_option and is asked about, never matched to the nearest. A qualification with NO title stated refuses with no_such_part: the escape ('Not in list', unlistedDegree) is the student's own act and is never chosen by this map. SYNTHETIC-PROFILE VALUE (P214): the forty-one rows are the portal's whole list, not a choice; the value the read shows, BSc, is what the synthetic profile STATES as its title (P213), chosen to match what Run A typed on his account, not read from a student. P291 (2026-10-06): the empty string IS this select's escape — read 6 printed [\"\",\"Not in list\"] and, chosen, a value of \"\" with unlistedDegree visible — so an empty value here is the student's choice of 'Not in list', never a missing one."
+    },
+    {
+      "fieldRef": "unlistedDegree",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "awardTitle",
+          "then": {
+            "kind": "text"
+          }
+        }
+      },
+      "note": "The box the award title's 'Not in list' opens. On this form that escape SUBMITS THE EMPTY STRING — read 6 (P291): the entry is [\"\",\"Not in list\"], and after choosing it the select's value is \"\" and this box is visible. So an empty award title here is the escape, chosen, not a missing value. The student's own title as they gave it; typed only on their own recorded choice."
     },
     {
       "fieldRef": "institutionCountry-ts-control",
@@ -3994,6 +4012,21 @@
       "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). The WHOLE list one search returned ('Sheff', United Kingdom, 2026-09-10): ten institutions keyed on the label the form prints and mapped to the value it submits, the escape ('Not in list') excluded because it is the student's own act. A typeahead has no list to be complete against (blocker 25): an institution this search did not return refuses and is asked about, and another search's entries are added whole when that search is read (P218). P283 (2026-10-04): Vahid's search for 'Azad' with Iran chosen, read whole from his own account — thirty-four institutions added, keyed on the text the form prints and mapped to the value it submits (ADR-0153: every row an identity, none a resemblance); the read's first line, 'IRAN Iran', is the country box's own chosen entry (it is the only other line in the empty 'HHE' read) and is not an institution: the read's selector, '.ts-dropdown [data-value]', was not scoped to this box's dropdown and matched the country box's as well. Left out on purpose, not missed. 'Azad University' (UNI6950), 'Islamic Azad University' (UNI30764) and 'University of Azad' (UNI5111) are three entries, each mapped from its own text alone."
     },
     {
+      "fieldRef": "unlistedInstitution",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "institution",
+          "then": {
+            "kind": "text"
+          }
+        }
+      },
+      "note": "The box the institution's 'Not in list' opens (shown only then: read 1 hidden, read 2 visible, P291). The student's OWN words for their institution, as they gave them, through no option rule (ADR-0109 amended, ADR-0155): typed only when the student chose the escape themselves, a choice recorded in entry_choices. The form printed no label for it (read 1: null)."
+    },
+    {
       "fieldRef": "subjectSearch",
       "source": {
         "kind": "profile_field",
@@ -4216,6 +4249,21 @@
       "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). The WHOLE list the search for 'business' returned on 2026-09-10 and again on 2026-09-25: eighty-five subjects, keyed on the label the form prints and mapped to the value it submits — two carry a trailing space the label hides, one is listed twice and the second copy is what the map names (P132). A subject the search did not return refuses and is asked about; another search word's results are added the same way, whole (P218). P283 (2026-10-04): the search for 'international', read whole — ten subjects, value equal to label, added by their own text; the select's 'Not in list' recorded as its escape (ADR-0109 extended)."
     },
     {
+      "fieldRef": "unlistedSubject",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "subject",
+          "then": {
+            "kind": "text"
+          }
+        }
+      },
+      "note": "The box the subject's 'Not in list' opens (read 1 hidden; read 4 visible with 'Not in list' chosen after the 'international' search, P291). The student's own words for their subject, as they gave them; typed only on their own recorded choice of the escape. Read 5: the escape is offered even when a search returns nothing."
+    },
+    {
       "fieldRef": "gradingSystemId",
       "source": {
         "kind": "profile_field",
@@ -4245,10 +4293,29 @@
                 }
               }
             }
+          },
+          "escaped": {
+            "fieldRef": "institution-ts-control",
+            "then": {
+              "kind": "switch",
+              "path": "countryCode",
+              "cases": {
+                "IR": {
+                  "kind": "part",
+                  "path": "gradeScale",
+                  "then": {
+                    "kind": "option",
+                    "options": {
+                      "twenty_point": "6"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
-      "note": "Grading System: — Sheffield's own list, loaded PER INSTITUTION (P132; twice read, 2026-09-10 and 2026-09-25), following the institution box. Keyed on the institution first (P218): for the University of Sheffield the systems are a level vocabulary and the two the labels name are mapped — 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8; 'UK Research Degree' (9) and 'UK Medical Degree (MBBS, MBChB)' (81) are not derivable from a level and refuse. Any other institution refuses with no_matching_case: its list has never been read (blocker 77), and a row for it would move a loud refusal at the plan to a lost attempt at the fill. P283 (2026-10-04): Islamic Azad University's list, read with UNI30764 chosen — one real system, '6' GPA 20 (e.g. 16.5/20), beside the escape — keyed on the grade scale the student states: twenty_point → 6. Every other institution still refuses (blocker 77)."
+      "note": "Grading System: — Sheffield's own list, loaded PER INSTITUTION (P132; twice read, 2026-09-10 and 2026-09-25), following the institution box. Keyed on the institution first (P218): for the University of Sheffield the systems are a level vocabulary and the two the labels name are mapped — 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8; 'UK Research Degree' (9) and 'UK Medical Degree (MBBS, MBChB)' (81) are not derivable from a level and refuse. Any other institution refuses with no_matching_case: its list has never been read (blocker 77), and a row for it would move a loud refusal at the plan to a lost attempt at the fill. P283 (2026-10-04): Islamic Azad University's list, read with UNI30764 chosen — one real system, '6' GPA 20 (e.g. 16.5/20), beside the escape — keyed on the grade scale the student states: twenty_point → 6. Every other institution still refuses (blocker 77). P293 (2026-10-08, ADR-0156 §3): an institution no case names, once the institution box holds the form's escape for that entry — the student's own choice, recorded (ADR-0109 amended) — renders, for a qualification in Iran (IR), from the grade scale the student states: twenty_point → 6. It rests on Vahid's read of 2026-10-06, made with Iran as the country, the grading list with 'Not in list' chosen as the institution, as the console printed it, on two lines (lines 20 and 21 of docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, read 2, as they are): [[\"\",\"Select a grading system...\"],[\"Not in list\",\"Not in list\"],\n [\"6\",\"GPA 20 (e.g. 16.5/20)\"]] (recorded as gradingSystemId's listsAfter). Asked for in his words on 2026-10-08 (docs/run-a/p293-his-decisions-as-sent.txt): \"Build a signed mapping row \"grade scale 20 → GPA 20\" for Sheffield from my existing read, for my signature.\" With that escape chosen, the branch is taken in place of the cases: the form then shows the list that follows the escape. Any other country refuses, because no list after the escape was read for it; without the escape chosen, every institution no case names still refuses (blocker 77)."
     },
     {
       "fieldRef": "grade",

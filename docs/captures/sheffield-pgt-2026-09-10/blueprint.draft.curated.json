@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.32",
+  "version": "0.2.34",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -24679,7 +24679,19 @@
                   "value": "#institution-ts-dropdown [role=\"option\"][data-selectable]"
                 },
                 "escapeValue": "Not in list"
-              }
+              },
+              "searches": [
+                {
+                  "word": "HHE",
+                  "entries": [],
+                  "under": [
+                    {
+                      "fieldRef": "institutionCountry-ts-control",
+                      "value": "IRAN"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "fieldRef": "unlistedInstitution",
@@ -24702,7 +24714,12 @@
                   "value": "95",
                   "source": "dom_attribute"
                 }
-              ]
+              ],
+              "visibleWhen": {
+                "whenFieldRef": "institution-ts-control",
+                "operator": "equals",
+                "value": "Not in list"
+              }
             },
             {
               "fieldRef": "degree",
@@ -24900,7 +24917,8 @@
                   "label": "PHD"
                 }
               ],
-              "escapeValue": ""
+              "escapeValue": "",
+              "prompt": "Select qualification..."
             },
             {
               "fieldRef": "unlistedDegree",
@@ -25362,7 +25380,28 @@
                   "value": "subjectSearchButton"
                 }
               },
-              "escapeValue": "Not in list"
+              "escapeValue": "Not in list",
+              "searches": [
+                {
+                  "word": "international",
+                  "entries": [
+                    "ESOL International All Modes",
+                    "International Cuisine",
+                    "International Independent Project",
+                    "International Affairs",
+                    "International Studies",
+                    "International Trade",
+                    "International Project",
+                    "International Relations",
+                    "Labour & International Studies",
+                    "Modern Languages & International Studies"
+                  ]
+                },
+                {
+                  "word": "HHE",
+                  "entries": []
+                }
+              ]
             },
             {
               "fieldRef": "unlistedSubject",
@@ -25382,7 +25421,12 @@
                   "value": "58",
                   "source": "dom_attribute"
                 }
-              ]
+              ],
+              "visibleWhen": {
+                "whenFieldRef": "subject",
+                "operator": "equals",
+                "value": "Not in list"
+              }
             },
             {
               "fieldRef": "startDateMonth",
@@ -26622,7 +26666,23 @@
               "optionsAfter": {
                 "fieldRef": "institution-ts-control"
               },
-              "escapeValue": "Not in list"
+              "escapeValue": "Not in list",
+              "listsAfter": [
+                {
+                  "fieldRef": "institution-ts-control",
+                  "value": "Not in list",
+                  "entries": [
+                    "6"
+                  ],
+                  "under": [
+                    {
+                      "fieldRef": "institutionCountry-ts-control",
+                      "value": "IRAN"
+                    }
+                  ]
+                }
+              ],
+              "escapeLeadsNowhere": "Read by Vahid on his own account, 2026-10-06 (P291, read 3 in docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt): with 'Not in list' chosen as the grading system, the grade list printed [[\"\",\"\"]] — one empty option — and the page's visible text boxes printed as the site search, the two Tom Select controls, unlistedInstitution and subjectSearch, so no box opens for a grade (that unlistedGrade stays hidden is his description; the two lists are as printed). In his words: \"A student whose grading system is not on Sheffield's list has no way to state a grade at all.\""
             },
             {
               "fieldRef": "grade",
@@ -30447,6 +30507,7 @@
     ]
   },
   "$comment": [
+    "0.2.34 (2026-10-09, P294): two of Vahid's reads carry the country they were made under, under: institutionCountry-ts-control = IRAN — institution-ts-control's 'HHE' search and gradingSystemId's list after 'Not in list' as the institution — at his word: \"Record the country a read was made under in the reads record itself, and make the check refuse a mapping row whose key does not match the country of the read it rests on.\" These two reads did not print the country. IRAN was entered by hand in P294 from what states it beside them: the reads file (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt) heads read 1 '1 — UNTOUCHED (country Iran only)', and the plan the reads followed (docs/run-a/p290-reads.md) asks for Iran as the country; 'Iran' is the label of the country box's entry IRAN. The reads planned next print the country with each list (docs/run-a/p294-reads.md) and replace this record. The subject's searches carry none: its list follows the search box only.",
     "0.2.26 (2026-09-16, P153): four label fixes before Vahid signs, at his word ('If the labels in the blueprint are wrong, then the thing I read and the thing I signed are not the same thing'). (1) The nationality page's radios carry the option labels the third read found (2026-09-14) — Yes / No, and the document-status sentences — where the third read's values equal this draft's; P110's rewrite of the values from the markup had set every option label to the field's own name. Restored: livedOutsideCountry, alwaysUKResident, alwaysEUResident, refugeeStatus, migrantWorker, spouseOfUKCitizen, euPassport, spouseOfEUCitizen, previousStudentVisa, passportScanStatus, visaScanStatus, utilityBillScanStatus, proofOfUKSpouseStatus, refugeeProofStatus. Not restored, because the third read's 'no' label ran on into the row's help text: britishPassport, indefinateVisa, livingInUK — they keep the field's name and are off a resident abroad's path. (2) dobMonth and dobYear carry 'Date of Birth:*', startYear 'Start Date:*' and endYear 'End Date:' — the row's question, which the read attached to the row's first control (dobDay, startMonth, endMonth); the same one-row-several-controls shape P131 recorded for the markers, now in the labels. No labelSource is claimed for the carried ones: the row was read, the sibling was not. (3) institutionCountry and institutionCode carry frontedBy — the Tom Select boxes that set them — so the plan lists them nowhere; they were read as 'left empty' when the boxes fill them. The thirteen unread labels of the five-pages read (fundingNationality, countryOfBirth, permanentResidence, yearsOnStudentVisa, monthsOnStudentVisa, applicationLocation, …) and 'grade' still carry the field's name: no capture holds their question, and a label the file did not carry is not invented.",
     "0.2.25 (2026-09-16, P150): the country box (institutionCountry-ts-control) carries the row's question as its label — 'Select the country the institution is based in:' — the text the third read found on the row and attached to the hidden <select id=\"institutionCountry\"> the box fronts (0.2.18, P126). The box and the select share one row; the preview shows the box, and a student reading 'institutionCountry-ts-control: United Kingdom' at the yes would be reading a DOM id. No labelSource is claimed: the read labelled the select, not the box.",
     "0.2.24 (2026-09-16, P149): the country box (institutionCountry-ts-control) records its 255 entries — the captured <select id=\"institutionCountry\">'s options without its blank, value for value and label for label, which is what P101 confirmed the dropdown holds from Vahid's copied markup (the count agreed) — so that a mapping to it can name a value under ADR-0109. gradingSystemId's options now follow the institution BOX (institution-ts-control), the control the runner fills, which sets the hidden select the lookup reads (getGradingSystemsForCountry.do?institutionCode=…, the dependencies read of P85): the same shape P102 gave the institution box after the country box. The hidden institutionCode still follows the hidden institutionCountry; neither is mapped. This is inferred from two reads, not observed as a fill — flagged for Run A.",

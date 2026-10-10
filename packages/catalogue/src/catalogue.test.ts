@@ -505,6 +505,20 @@ describe("parsing rebuilds rather than casts", () => {
     }
   });
 
+  it("reads a condition on the EMPTY string as that value, not as no value (P291)", () => {
+    // Sheffield's award title: "Not in list" submits "", and the box it opens
+    // is shown when the title equals "". Read as absent, the condition never
+    // held and the box could never show.
+    const document = JSON.parse(documentOf()) as { blueprint: { pages: { sections: { fields: { fieldRef: string; visibleWhen?: unknown }[] }[] }[] } };
+    for (const page of document.blueprint.pages)
+      for (const section of page.sections)
+        for (const field of section.fields) if (field.fieldRef === "personal_statement") field.visibleWhen = { whenFieldRef: "course", operator: "equals", value: "" };
+    const parsed = parseReviewedEntry(document);
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const field = parsed.value.blueprint.pages.flatMap((page) => page.sections).flatMap((section) => section.fields).find((candidate) => candidate.fieldRef === "personal_statement");
+    expect(field?.visibleWhen).toEqual({ whenFieldRef: "course", operator: "equals", value: "" });
+  });
+
   it("round-trips a page's repeats (P96), and refuses a list that is not one", () => {
     const parsed = parseReviewedEntry(JSON.parse(documentOf()));
     if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
