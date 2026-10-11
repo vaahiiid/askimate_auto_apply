@@ -1,5 +1,11 @@
 # P294: reads R, L and T, in one sitting; R and T record what they were made under
 
+**Read on 2026-10-11 (P296)**, by Vahid on his own account, with R2 and three extra outputs, and
+sent in one message, saved whole as sent
+([`p296-reads-as-sent.txt`](../captures/sheffield-pgt-2026-09-10/reads/p296-reads-as-sent.txt)) and
+split into a file per read beside it. What was built from them is in
+[`p296-for-signature.md`](./p296-for-signature.md).
+
 **Supersedes** [`p293-reads.md`](./p293-reads.md). Three things changed (the third in P295), and one
 read is added:
 

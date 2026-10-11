@@ -22,7 +22,7 @@
  */
 
 import type { ApplicationBlueprint, BlueprintField, FieldValidation } from "@askimate/aas-blueprint";
-import { allFields } from "@askimate/aas-blueprint";
+import { allFields, escapeOf } from "@askimate/aas-blueprint";
 import type { FillPlan } from "@askimate/aas-mapping";
 import { optionalSectionWords, textOf } from "@askimate/aas-mapping";
 
@@ -41,6 +41,11 @@ export interface Violation {
    * being able to tell apart when a violation looks wrong.
    */
   readonly source: FieldValidation["source"];
+  /**
+   * The entry of a repeating page the violation is in, from 0 (P296); absent
+   * off a repeating page. Two qualifications are two boxes on the portal.
+   */
+  readonly item?: number;
 }
 
 export interface ValidationResult {
@@ -69,9 +74,18 @@ export function validatePlan(
   const unknownFields: string[] = [];
 
   const fields = new Map(allFields(blueprint).map((field) => [field.fieldRef, field]));
-  const filled = new Map(plan.instructions.map((i) => [i.fieldRef, textOf(i.value)]));
+  // P296: one value per field AND PER ENTRY of a repeating page. Keyed by the
+  // field alone, the last entry's value stood for every entry's: an earlier
+  // entry's 36 characters went unchecked behind a later entry's, and an
+  // entry's empty box was "filled" by another's. Found reviewing his walk:
+  // his two qualifications validated clean in one order and not the other.
+  // A record that names no entry stands for every entry, as before.
+  const at = (fieldRef: string, item: { readonly index: number } | undefined): string =>
+    item === undefined ? fieldRef : `${fieldRef}\u0000${String(item.index)}`;
+  const filled = new Map(plan.instructions.map((i) => [at(i.fieldRef, i.item), textOf(i.value)]));
+  // An upload names no entry (`UploadInstruction` has none): it stands for every entry.
   const uploaded = new Set(plan.uploads.map((upload) => upload.fieldRef));
-  const handedOff = new Set(plan.handoffs.map((handoff) => handoff.fieldRef));
+  const handedOff = new Set(plan.handoffs.map((handoff) => at(handoff.fieldRef, handoff.item)));
   // ADR-0043. A credential field is filled by the Secure Plane, from a value
   // this process never sees, so `plan.instructions` has nothing for it BY
   // DESIGN — a `FillInstruction` carries a `FillValue` and there is no
@@ -84,7 +98,7 @@ export function validatePlan(
   // end to end.
   const filledSecurely = new Set(plan.credentials.map((credential) => credential.fieldRef));
   // P90: a field the form hides for these answers is not a missing one.
-  const hidden = new Set(plan.hidden.map((field) => field.fieldRef));
+  const hidden = new Set(plan.hidden.map((field) => at(field.fieldRef, field.item)));
   // ADR-0119, read here from ADR-0123 on: a marker inside a section the
   // portal says may be skipped is not a box the page will not save without.
   // THE SAME FUNCTION the plan reads (`optionalSectionWords`), so the two
@@ -100,24 +114,40 @@ export function validatePlan(
   const companions = new Set(
     plan.uploads.flatMap((upload) => (upload.companion === undefined ? [] : [upload.companion.fieldRef])),
   );
+  // How many entries each repeating page holds: the most any record the plan
+  // put on that page says it has.
+  const pageOf = new Map(
+    blueprint.pages.flatMap((page) => page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.pageRef] as const))),
+  );
+  const entries = new Map<string, number>();
+  for (const record of [...plan.instructions, ...plan.handoffs, ...plan.hidden]) {
+    const page = pageOf.get(record.fieldRef);
+    if (record.item !== undefined && page !== undefined) entries.set(page, Math.max(entries.get(page) ?? 0, record.item.count));
+  }
 
-  for (const fieldRef of filled.keys()) {
+  for (const fieldRef of new Set(plan.instructions.map((instruction) => instruction.fieldRef))) {
     if (!fields.has(fieldRef)) unknownFields.push(fieldRef);
   }
 
   for (const field of fields.values()) {
-    const value = filled.get(fieldRef(field));
+    const count = entries.get(pageOf.get(fieldRef(field)) ?? "");
+    const items = count === undefined ? [undefined] : Array.from({ length: count }, (_, index) => ({ index }));
+    for (const item of items) {
+      const key = at(field.fieldRef, item);
+      const either = (held: ReadonlySet<string>): boolean => held.has(key) || held.has(field.fieldRef);
+      const value = filled.get(key) ?? filled.get(field.fieldRef);
 
-    for (const rule of field.validations) {
-      const violation = checkRule(field, rule, value, {
-        uploaded: uploaded.has(field.fieldRef),
-        handedOff: handedOff.has(field.fieldRef),
-        filledSecurely: filledSecurely.has(field.fieldRef),
-        hidden: hidden.has(field.fieldRef),
-        companion: companions.has(field.fieldRef),
-        skippable: skippable.has(field.fieldRef),
-      });
-      if (violation !== null) violations.push(violation);
+      for (const rule of field.validations) {
+        const violation = checkRule(field, rule, value, {
+          uploaded: either(uploaded),
+          handedOff: either(handedOff),
+          filledSecurely: filledSecurely.has(field.fieldRef),
+          hidden: either(hidden),
+          companion: either(companions),
+          skippable: skippable.has(field.fieldRef),
+        });
+        if (violation !== null) violations.push(item === undefined ? violation : { ...violation, item: item.index });
+      }
     }
   }
 
@@ -172,14 +202,23 @@ function checkRule(
         return null;
       }
       if (value !== undefined && value.trim().length > 0) return null;
+      // P296: the form's own escape, chosen, is an answer, submitted as the
+      // form defines it — Sheffield's award title submits "" for "Not in
+      // list" (his read 6, P291), and the box it opens carries the words,
+      // under its own rules. Read as missing, every unlisted title stopped
+      // the run for a person.
+      if (value !== undefined && value === escapeOf(field)) return null;
       return violation(`"${field.label}" is required and the plan has nothing for it.`);
     }
 
     case "maxlength": {
       const limit = numeric(rule.value);
       if (value === undefined || limit === null || value.length <= limit) return null;
+      // P296: "what is planned for" the box, not the box: once a box carries
+      // the page's own words as its label (row 141), "<label> is 36
+      // characters" says the label is, and it is the student's words.
       return violation(
-        `"${field.label}" is ${String(value.length)} characters; the portal allows ` +
+        `What is planned for "${field.label}" is ${String(value.length)} characters; the portal allows ` +
           `${String(limit)}. The student should be asked to shorten it — it must not be truncated ` +
           `on their behalf.`,
       );
@@ -189,7 +228,7 @@ function checkRule(
       const limit = numeric(rule.value);
       if (value === undefined || limit === null || value.length >= limit) return null;
       return violation(
-        `"${field.label}" is ${String(value.length)} characters; the portal requires at least ` +
+        `What is planned for "${field.label}" is ${String(value.length)} characters; the portal requires at least ` +
           `${String(limit)}.`,
       );
     }
@@ -223,10 +262,10 @@ function checkRule(
         return violation(`"${field.label}" is "${value}", which the portal expects to be a number.`);
       }
       if (rule.kind === "min" && asNumber < bound) {
-        return violation(`"${field.label}" is below the portal's minimum of ${String(bound)}.`);
+        return violation(`What is planned for "${field.label}" is below the portal's minimum of ${String(bound)}.`);
       }
       if (rule.kind === "max" && asNumber > bound) {
-        return violation(`"${field.label}" is above the portal's maximum of ${String(bound)}.`);
+        return violation(`What is planned for "${field.label}" is above the portal's maximum of ${String(bound)}.`);
       }
       return null;
     }

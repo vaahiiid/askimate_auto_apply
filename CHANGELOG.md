@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.289.0] — 2026-10-11
+
+**P296 — his reads R, L and T saved as sent; the grade row from R and the escape boxes' words from L
+built for his signature; the validator checks each entry on its own; a synthetic Indian student
+walked through Sheffield.**
+
+- **Added** his reads of 2026-10-11: his message saved whole as sent
+  (`docs/captures/sheffield-pgt-2026-09-10/reads/p296-reads-as-sent.txt`), and a file per output split
+  from it at its own separators.
+- **Added** `docs/run-a/p296-for-signature.patch` and its sheet, **not signed**. It records R as the
+  grade's list after GPA 20 (under the institution's escape and IRAN) and the grade's prompt. It adds
+  the grade row he asked for (IR, twenty-point, R's 203 lines, label to value) and labels two escape
+  boxes with the page's words from L. Blueprint 0.2.35, mapping set 0.3.47, `sha256:546b2948…`.
+- **Changed** `scripts/read-against-entry.ts`: it reads a read as the console printed it. It takes
+  the delimiters off, reads back the console's own escapes, refuses anything else, and says so.
+- **Fixed** `validatePlan` checked a repeating page as if it held one entry. The last entry's value
+  stood for every entry's. It also read the award title's escape, `""`, as missing. Each entry is now
+  validated on its own, a chosen escape is an answer, a violation names its entry, and the measure
+  counts it once.
+- **Changed** the validator's length messages now say what is *planned for* a box is too long, since
+  boxes now carry sentences as labels.
+- **Added** rows 144–152 for what P296's review and the India walk found.
+
+---
+
 ## [0.288.0] — 2026-10-10
 
 **P295 — P294's patch signed at his instruction; every read prints the country selected when it

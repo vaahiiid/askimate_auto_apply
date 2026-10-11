@@ -31,6 +31,20 @@
  * its reads for that field: one must be made under exactly what the file says,
  * or it exits 1 (NO RECORD).
  *
+ * P296: a read saved as the console printed it — the string wrapped in the
+ * console's own quotes (' or " or `) — is read as that printed string: the
+ * delimiters taken off and the console's own escapes read back: a backslash
+ * doubled, a newline, tab or carriage return written \n, \t, \r, and the
+ * delimiter itself escaped, but only inside its own delimiter (\' inside '…',
+ * \" inside "…", the JSON-literal copy). Anything else refuses — another
+ * escape, a delimiter left unescaped inside, a closing delimiter escaped —
+ * because the file is then not what this script knows the console prints.
+ * That cannot invent or alter a value: it undoes exactly what the console did
+ * to show the string (CLAUDE.md: a transformation that cannot invent a value
+ * is not a retyping). The output says when it was done, and how many escapes
+ * it read back, because the same bytes would mean something else as bare
+ * text a person had put quotes around.
+ *
  * What it cannot see (P285): where the file came from. A list rebuilt with a
  * shell loop compares exactly as the form's own output does, and P285 ran one
  * and counted its matches as confirmed reads. So the summary says "lines of
@@ -49,7 +63,38 @@ function fail(message: string): never {
   process.exit(2);
 }
 
-function readLines(text: string): { readonly pairs: Option[]; readonly unread: string[]; readonly under?: Readonly<Record<string, string>>; readonly typed?: string } {
+/** The console's printed string, read back (P296): its delimiters off and its own escapes undone; anything else refuses. */
+function consoleString(printed: string): { readonly text: string; readonly quote: string; readonly escapes: number } | null {
+  const quote = printed.charAt(0);
+  if (!["'", "`", '"'].includes(quote) || printed.length < 2 || printed.charAt(printed.length - 1) !== quote) return null;
+  // The delimiter is escaped only inside itself: Chrome writes \' only in '…', the JSON-literal copy \" only in "…".
+  const escapes: Readonly<Record<string, string>> = { "\\": "\\", n: "\n", t: "\t", r: "\r", ...(quote === "`" ? {} : { [quote]: quote }) };
+  let out = "";
+  let undone = 0;
+  for (let index = 1; index < printed.length - 1; index += 1) {
+    const char = printed.charAt(index);
+    if (char === quote) fail(`The printed string holds its own delimiter (${quote}) unescaped at ${String(index)}: it is not one string as the console prints it.`);
+    if (char !== "\\") {
+      out += char;
+      continue;
+    }
+    if (index + 1 === printed.length - 1) fail(`The printed string's closing delimiter is escaped (at ${String(index)}): it has no end as the console prints one.`);
+    const next = printed.charAt(index + 1);
+    const read = escapes[next];
+    if (read === undefined) fail(`The printed string holds an escape this script does not know the console to print inside ${quote}…${quote} (\\${next}) at ${String(index)}; it is not read.`);
+    out += read;
+    undone += 1;
+    index += 1;
+  }
+  return { text: out, quote, escapes: undone };
+}
+
+function readLines(raw: string): { readonly pairs: Option[]; readonly unread: string[]; readonly under?: Readonly<Record<string, string>>; readonly typed?: string } {
+  const printed = consoleString(raw.trim());
+  if (printed !== null) {
+    process.stdout.write(`READ AS   the console's printed string: delimiter ${printed.quote}, taken off; ${String(printed.escapes)} escape(s) read back\n`);
+  }
+  const text = printed?.text ?? raw;
   const trimmed = text.trim();
   // P294: the printed form of a read that says what it was made under —
   // { under: { <select name>: <value>, … }, <the list>: [[value, label, …], …] }

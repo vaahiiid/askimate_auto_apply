@@ -130,11 +130,10 @@ export function questionsToday(entry: CatalogueEntry, profile: ConfirmedProfile)
     out.set(key(q), q);
   }
   for (const violation of validatePlan(entry.blueprint, after).violations) {
-    const items = after.instructions.filter((instruction) => instruction.fieldRef === violation.fieldRef).map((instruction) => instruction.item?.index);
-    for (const item of items.length === 0 ? [undefined] : items) {
-      const q: Question = { field: violation.fieldRef, ...(item === undefined ? {} : { item }), kind: "fix", reason: `the form refuses it: ${violation.detail}` };
-      if (!out.has(key(q))) out.set(key(q), q);
-    }
+    // P296: the validator names the entry; a violation is that entry's, not every entry's.
+    const item = violation.item;
+    const q: Question = { field: violation.fieldRef, ...(item === undefined ? {} : { item }), kind: "fix", reason: `the form refuses it: ${violation.detail}` };
+    if (!out.has(key(q))) out.set(key(q), q);
   }
   return [...out.values()];
 }
@@ -215,11 +214,10 @@ export function questionsProposed(entry: CatalogueEntry, profile: ConfirmedProfi
     perApplication.set(key(q), q);
   }
   for (const violation of validatePlan(entry.blueprint, after).violations) {
-    const items = after.instructions.filter((instruction) => instruction.fieldRef === violation.fieldRef).map((instruction) => instruction.item?.index);
-    for (const item of items.length === 0 ? [undefined] : items) {
-      const q: Question = { field: violation.fieldRef, ...(item === undefined ? {} : { item }), kind: "fix", reason: `the form refuses it: ${violation.detail}` };
-      if (!boxesShortened.has(key(q)) && !perApplication.has(key(q))) perApplication.set(key(q), q);
-    }
+    // P296: the validator names the entry; a violation is that entry's, not every entry's.
+    const item = violation.item;
+    const q: Question = { field: violation.fieldRef, ...(item === undefined ? {} : { item }), kind: "fix", reason: `the form refuses it: ${violation.detail}` };
+    if (!boxesShortened.has(key(q)) && !perApplication.has(key(q))) perApplication.set(key(q), q);
   }
   return { perApplication: [...perApplication.values()], atIntake: [...intake], settled };
 }

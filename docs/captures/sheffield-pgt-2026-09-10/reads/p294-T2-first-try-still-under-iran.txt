@@ -1,0 +1,4 @@
+JSON.stringify({ under: { institutionCountry: document.querySelector('[name="institutionCountry"]').value }, typed: document.querySelector('#institution-ts-control').value, entries: [...document.querySelectorAll('#institution-ts-dropdown [role="option"]')].map(o => [o.getAttribute("data-value"), o.textContent, o.hasAttribute("data-selectable")]) })
+'{"under":{"institutionCountry":"IRAN"},"typed":"sheff","entries":[["Not in list","Not in list",true]]}'
+js?id=AW-16651574440&cx=c&gtm=4e6a72:590 Processing commands (1)
+js?id=AW-16651574440&cx=c&gtm=4e6a72:590 Processing data layer push: {event: "nonIdle", nonIdleTimeElapsed: 15002, gtm.uniqueEventId: 102}

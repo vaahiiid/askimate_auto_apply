@@ -1908,7 +1908,7 @@ export function contentHandoverOf(
   if (step.kind !== "fix_content") return null;
   const named = step.violations.map(
     (violation) =>
-      `"${violation.label}" (${violation.fieldRef}): ${violation.rule.kind}` +
+      `"${violation.label}" (${violation.fieldRef}${violation.item === undefined ? "" : `, entry ${String(violation.item + 1)}`}): ${violation.rule.kind}` +
       (violation.rule.value === undefined ? "" : ` ${violation.rule.value}`) +
       ` [${violation.source}]`,
   );

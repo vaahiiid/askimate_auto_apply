@@ -237,7 +237,10 @@ export interface BlueprintField {
    * A list this field holds only once an earlier field is set to a value, read
    * with it set (P290): Sheffield's grading systems after "Not in list" is
    * chosen as the institution. Entries by value, among `options`, in the order
-   * the form shows them; the escape is not listed here either.
+   * the form shows them; the escape is not listed here either, nor the list's
+   * own prompt, which is no answer: the grading system's "" ("Select a
+   * grading system...", P291) and the grade's "Select your grade...", recorded
+   * as the field's `prompt` (P296).
    */
   readonly listsAfter?: readonly FieldListAfter[];
   /**

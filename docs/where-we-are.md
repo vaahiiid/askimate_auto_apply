@@ -4906,6 +4906,32 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P296 — the grade from his own read, and a student from India
+
+*2026-10-11.* He made the reads: the grade list after *Not in list* and GPA 20, the words beside the
+escape boxes, and the two institution searches. Each printed its own country, so none of them had to
+be typed in by hand.
+- **The grade row:** built from his grade list, line by line, for his signature. With it, his run
+  asks one question fewer, and none at all under the rule he approved.
+- **The labels:** two escape boxes now carry the page's own words.
+- **The Master's grade rows:** his second grade read confirms every one of them.
+- **A real fault, found on the way:** the validator read a repeating page as one entry. His
+  qualifications were clean in one order and not the other, and a single unlisted award title
+  stopped the run. It now checks each entry.
+
+He also asked how a student from India would fare.
+- **Measured:** that student cannot start today, because his signature serves only his account.
+- **Intake:** it cannot record a CGPA out of 10.
+- **The institution:** it is neither picked nor escaped, because nobody has read a list under India.
+- **The checker:** the check that holds rows to their country would, once the institution rows are
+  keyed on it, refuse the very lists that come next.
+
+Those are rows now, not surprises.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P295 — signed, and the country printed from now on
 
 *2026-10-10.* He signed the GPA 20 row in P294's patch and confirmed in his own words that his reads

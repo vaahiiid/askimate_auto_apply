@@ -1,0 +1,1267 @@
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+index bf25ada9..42423c47 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+@@ -1,6 +1,6 @@
+ {
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "version": "0.2.34",
++  "version": "0.2.35",
+   "status": "draft",
+   "institutionName": "University of Sheffield",
+   "courseName": "MSc Management and International Business",
+@@ -24695,7 +24695,7 @@
+             },
+             {
+               "fieldRef": "unlistedInstitution",
+-              "label": "unlistedInstitution",
++              "label": "If you cannot find your institution listed, please enter its name below.",
+               "inputType": "text",
+               "dataCategory": "ordinary",
+               "locators": [
+@@ -24922,7 +24922,7 @@
+             },
+             {
+               "fieldRef": "unlistedDegree",
+-              "label": "unlistedDegree",
++              "label": "If your qualification is not in the list please enter it here:",
+               "inputType": "text",
+               "dataCategory": "ordinary",
+               "locators": [
+@@ -27536,7 +27536,229 @@
+               ],
+               "optionsAfter": {
+                 "fieldRef": "gradingSystemId"
+-              }
++              },
++              "listsAfter": [
++                {
++                  "fieldRef": "gradingSystemId",
++                  "value": "6",
++                  "entries": [
++                    "Still waiting for grade",
++                    "Failed to complete course",
++                    "0.0",
++                    "0.1",
++                    "0.2",
++                    "0.3",
++                    "0.4",
++                    "0.5",
++                    "0.6",
++                    "0.7",
++                    "0.8",
++                    "0.9",
++                    "1.0",
++                    "1.1",
++                    "1.2",
++                    "1.3",
++                    "1.4",
++                    "1.5",
++                    "1.6",
++                    "1.7",
++                    "1.8",
++                    "1.9",
++                    "2.0",
++                    "2.1",
++                    "2.2",
++                    "2.3",
++                    "2.4",
++                    "2.5",
++                    "2.6",
++                    "2.7",
++                    "2.8",
++                    "2.9",
++                    "3.0",
++                    "3.1",
++                    "3.2",
++                    "3.3",
++                    "3.4",
++                    "3.5",
++                    "3.6",
++                    "3.7",
++                    "3.8",
++                    "3.9",
++                    "4.0",
++                    "4.1",
++                    "4.2",
++                    "4.3",
++                    "4.4",
++                    "4.5",
++                    "4.6",
++                    "4.7",
++                    "4.8",
++                    "4.9",
++                    "5.0",
++                    "5.1",
++                    "5.2",
++                    "5.3",
++                    "5.4",
++                    "5.5",
++                    "5.6",
++                    "5.7",
++                    "5.8",
++                    "5.9",
++                    "6.0",
++                    "6.1",
++                    "6.2",
++                    "6.3",
++                    "6.4",
++                    "6.5",
++                    "6.6",
++                    "6.7",
++                    "6.8",
++                    "6.9",
++                    "7.0",
++                    "7.1",
++                    "7.2",
++                    "7.3",
++                    "7.4",
++                    "7.5",
++                    "7.6",
++                    "7.7",
++                    "7.8",
++                    "7.9",
++                    "8.0",
++                    "8.1",
++                    "8.2",
++                    "8.3",
++                    "8.4",
++                    "8.5",
++                    "8.6",
++                    "8.7",
++                    "8.8",
++                    "8.9",
++                    "9.0",
++                    "9.1",
++                    "9.2",
++                    "9.3",
++                    "9.4",
++                    "9.5",
++                    "9.6",
++                    "9.7",
++                    "9.8",
++                    "9.9",
++                    "10.0",
++                    "10.1",
++                    "10.2",
++                    "10.3",
++                    "10.4",
++                    "10.5",
++                    "10.6",
++                    "10.7",
++                    "10.8",
++                    "10.9",
++                    "11.0",
++                    "11.1",
++                    "11.2",
++                    "11.3",
++                    "11.4",
++                    "11.5",
++                    "11.6",
++                    "11.7",
++                    "11.8",
++                    "11.9",
++                    "12.0",
++                    "12.1",
++                    "12.2",
++                    "12.3",
++                    "12.4",
++                    "12.5",
++                    "12.6",
++                    "12.7",
++                    "12.8",
++                    "12.9",
++                    "13.0",
++                    "13.1",
++                    "13.2",
++                    "13.3",
++                    "13.4",
++                    "13.5",
++                    "13.6",
++                    "13.7",
++                    "13.8",
++                    "13.9",
++                    "14.0",
++                    "14.1",
++                    "14.2",
++                    "14.3",
++                    "14.4",
++                    "14.5",
++                    "14.6",
++                    "14.7",
++                    "14.8",
++                    "14.9",
++                    "15.0",
++                    "15.1",
++                    "15.2",
++                    "15.3",
++                    "15.4",
++                    "15.5",
++                    "15.6",
++                    "15.7",
++                    "15.8",
++                    "15.9",
++                    "16.0",
++                    "16.1",
++                    "16.2",
++                    "16.3",
++                    "16.4",
++                    "16.5",
++                    "16.6",
++                    "16.7",
++                    "16.8",
++                    "16.9",
++                    "17.0",
++                    "17.1",
++                    "17.2",
++                    "17.3",
++                    "17.4",
++                    "17.5",
++                    "17.6",
++                    "17.7",
++                    "17.8",
++                    "17.9",
++                    "18.0",
++                    "18.1",
++                    "18.2",
++                    "18.3",
++                    "18.4",
++                    "18.5",
++                    "18.6",
++                    "18.7",
++                    "18.8",
++                    "18.9",
++                    "19.0",
++                    "19.1",
++                    "19.2",
++                    "19.3",
++                    "19.4",
++                    "19.5",
++                    "19.6",
++                    "19.7",
++                    "19.8",
++                    "19.9",
++                    "20.0"
++                  ],
++                  "under": [
++                    {
++                      "fieldRef": "institution-ts-control",
++                      "value": "Not in list"
++                    },
++                    {
++                      "fieldRef": "institutionCountry-ts-control",
++                      "value": "IRAN"
++                    }
++                  ]
++                }
++              ],
++              "prompt": "Select your grade..."
+             },
+             {
+               "fieldRef": "unlistedGrade",
+@@ -30507,6 +30729,7 @@
+     ]
+   },
+   "$comment": [
++    "0.2.35 (2026-10-11, P296): from Vahid's reads R and L of 2026-10-11, each printed with the country selected when it ran (docs/run-a/p294-reads.md). grade: its list after gradingSystemId = 6, read with 'Not in list' as the institution and Iran as the country, recorded as listsAfter with under: institution-ts-control = 'Not in list', institutionCountry-ts-control = IRAN — R's own under: the values as R printed them, the names those of the boxes that set the selects R printed (frontedBy), as docs/run-a/p294-reads.md says (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R-grade-after-institution-escape-gpa20.json); the 203 entries are R's values in R's order, less its first line, 'Select your grade...', which is the list's prompt and is now recorded as such so it is never offered as an answer. Every line R printed was already among the field's options. These reads replace neither record of the country entered by hand in P294 (0.2.34 said the reads planned next would): R prints the grading system's value, 6, not its list after the escape, and T searched 'azad' and 'sheff', not 'HHE'. Both records still rest on his words of 2026-10-10 (docs/run-a/p295-his-message-as-sent.txt): \"I confirm that my reads of 6 October were made with the country set to Iran.\" unlistedInstitution and unlistedDegree: labelled from L (docs/captures/sheffield-pgt-2026-09-10/reads/p294-L-escape-box-labels.json), which printed no label, aria-label, placeholder or title for any of the three boxes, and each row's text. No labelSource is claimed: the observer did not read these labels; L, a console read, printed the row's text. unlistedDegree's row text is one sentence and is the label, normalised as the observer normalises row text (whitespace collapsed, ends trimmed). unlistedInstitution's row text is three sentences, two of help and one addressed to the box; the label is the third, cut at the row's last sentence boundary and otherwise unchanged. That is a judgement made in P296. The observer would not have made it: it gives a control no label from its own words when they run to more than one sentence or end as a statement (apps/browser-runner/src/observe-script.ts), and this sentence ends with a full stop. unlistedSubject's existing label is L's row text under the same normalisation, unchanged.",
+     "0.2.34 (2026-10-09, P294): two of Vahid's reads carry the country they were made under, under: institutionCountry-ts-control = IRAN — institution-ts-control's 'HHE' search and gradingSystemId's list after 'Not in list' as the institution — at his word: \"Record the country a read was made under in the reads record itself, and make the check refuse a mapping row whose key does not match the country of the read it rests on.\" These two reads did not print the country. IRAN was entered by hand in P294 from what states it beside them: the reads file (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt) heads read 1 '1 — UNTOUCHED (country Iran only)', and the plan the reads followed (docs/run-a/p290-reads.md) asks for Iran as the country; 'Iran' is the label of the country box's entry IRAN. The reads planned next print the country with each list (docs/run-a/p294-reads.md) and replace this record. The subject's searches carry none: its list follows the search box only.",
+     "0.2.26 (2026-09-16, P153): four label fixes before Vahid signs, at his word ('If the labels in the blueprint are wrong, then the thing I read and the thing I signed are not the same thing'). (1) The nationality page's radios carry the option labels the third read found (2026-09-14) — Yes / No, and the document-status sentences — where the third read's values equal this draft's; P110's rewrite of the values from the markup had set every option label to the field's own name. Restored: livedOutsideCountry, alwaysUKResident, alwaysEUResident, refugeeStatus, migrantWorker, spouseOfUKCitizen, euPassport, spouseOfEUCitizen, previousStudentVisa, passportScanStatus, visaScanStatus, utilityBillScanStatus, proofOfUKSpouseStatus, refugeeProofStatus. Not restored, because the third read's 'no' label ran on into the row's help text: britishPassport, indefinateVisa, livingInUK — they keep the field's name and are off a resident abroad's path. (2) dobMonth and dobYear carry 'Date of Birth:*', startYear 'Start Date:*' and endYear 'End Date:' — the row's question, which the read attached to the row's first control (dobDay, startMonth, endMonth); the same one-row-several-controls shape P131 recorded for the markers, now in the labels. No labelSource is claimed for the carried ones: the row was read, the sibling was not. (3) institutionCountry and institutionCode carry frontedBy — the Tom Select boxes that set them — so the plan lists them nowhere; they were read as 'left empty' when the boxes fill them. The thirteen unread labels of the five-pages read (fundingNationality, countryOfBirth, permanentResidence, yearsOnStudentVisa, monthsOnStudentVisa, applicationLocation, …) and 'grade' still carry the field's name: no capture holds their question, and a label the file did not carry is not invented.",
+     "0.2.25 (2026-09-16, P150): the country box (institutionCountry-ts-control) carries the row's question as its label — 'Select the country the institution is based in:' — the text the third read found on the row and attached to the hidden <select id=\"institutionCountry\"> the box fronts (0.2.18, P126). The box and the select share one row; the preview shows the box, and a student reading 'institutionCountry-ts-control: United Kingdom' at the yes would be reading a DOM id. No labelSource is claimed: the read labelled the select, not the box.",
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+index 7966ed6e..a760171c 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+@@ -64,13 +64,14 @@
+     "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature.",
+     "P291 (2026-10-06), from Vahid's six reads on his own account, nothing saved (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, his message as sent): the institution box's 'HHE' search (only the escape), the boxes the institution, subject and award-title escapes open (shown only then, and filled with the student's own words, ADR-0109 amended), the grading list after the institution's escape (GPA 20), the award title's prompt, the grading system's escape recorded as leading nowhere (no grade can be given after it), the subject's 'international' search (his P283 read) and its 'HHE' search (only the escape). One signature.",
+     "P293 (2026-10-08, ADR-0156 §3), at Vahid's request in his own words (docs/run-a/p293-his-decisions-as-sent.txt): one row on gradingSystemId, taken only when the institution box holds the form's escape for that entry, by the student's recorded choice — for a qualification in Iran, the grade scale they state, twenty_point, renders 6 (GPA 20), the system his read of 2026-10-06 (made with Iran as the country) shows after that escape. The P291 batch (0.3.44, never signed) with this row; one signature.",
+-    "P294 (2026-10-09): reviewed against blueprint 0.2.34, whose only change is the country two of his reads were made under (Iran), recorded on them at his word: \"Record the country a read was made under in the reads record itself\". No row changed: gradingSystemId's row after the institution's escape was already keyed on IR, and checkUsable now refuses that key unless it matches the country the read records. That record was entered by hand in P294, from read 1's heading and the plan's instruction, because the reads did not print a country; read R, which prints it, replaces it."
++    "P294 (2026-10-09): reviewed against blueprint 0.2.34, whose only change is the country two of his reads were made under (Iran), recorded on them at his word: \"Record the country a read was made under in the reads record itself\". No row changed: gradingSystemId's row after the institution's escape was already keyed on IR, and checkUsable now refuses that key unless it matches the country the read records. That record was entered by hand in P294, from read 1's heading and the plan's instruction, because the reads did not print a country; read R, which prints it, replaces it.",
++    "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
+   ],
+   "mappingSetId": "map-sheffield-pgt-2027-09",
+-  "version": "0.3.46",
++  "version": "0.3.47",
+   "status": "draft",
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "blueprintVersion": "0.2.34",
++  "blueprintVersion": "0.2.35",
+   "authoredBy": "Vahid Mohammadi",
+   "authoredAt": "2026-09-11T12:00:00Z",
+   "mappings": [
+@@ -4575,10 +4576,237 @@
+                 }
+               }
+             }
++          },
++          "escaped": {
++            "fieldRef": "institution-ts-control",
++            "then": {
++              "kind": "switch",
++              "path": "countryCode",
++              "cases": {
++                "IR": {
++                  "kind": "switch",
++                  "path": "gradeScale",
++                  "cases": {
++                    "twenty_point": {
++                      "kind": "part",
++                      "path": "grade",
++                      "then": {
++                        "kind": "option",
++                        "options": {
++                          "Still waiting for grade": "Still waiting for grade",
++                          "Failed to complete course": "Failed to complete course",
++                          "0.0": "0.0",
++                          "0.1": "0.1",
++                          "0.2": "0.2",
++                          "0.3": "0.3",
++                          "0.4": "0.4",
++                          "0.5": "0.5",
++                          "0.6": "0.6",
++                          "0.7": "0.7",
++                          "0.8": "0.8",
++                          "0.9": "0.9",
++                          "1.0": "1.0",
++                          "1.1": "1.1",
++                          "1.2": "1.2",
++                          "1.3": "1.3",
++                          "1.4": "1.4",
++                          "1.5": "1.5",
++                          "1.6": "1.6",
++                          "1.7": "1.7",
++                          "1.8": "1.8",
++                          "1.9": "1.9",
++                          "2.0": "2.0",
++                          "2.1": "2.1",
++                          "2.2": "2.2",
++                          "2.3": "2.3",
++                          "2.4": "2.4",
++                          "2.5": "2.5",
++                          "2.6": "2.6",
++                          "2.7": "2.7",
++                          "2.8": "2.8",
++                          "2.9": "2.9",
++                          "3.0": "3.0",
++                          "3.1": "3.1",
++                          "3.2": "3.2",
++                          "3.3": "3.3",
++                          "3.4": "3.4",
++                          "3.5": "3.5",
++                          "3.6": "3.6",
++                          "3.7": "3.7",
++                          "3.8": "3.8",
++                          "3.9": "3.9",
++                          "4.0": "4.0",
++                          "4.1": "4.1",
++                          "4.2": "4.2",
++                          "4.3": "4.3",
++                          "4.4": "4.4",
++                          "4.5": "4.5",
++                          "4.6": "4.6",
++                          "4.7": "4.7",
++                          "4.8": "4.8",
++                          "4.9": "4.9",
++                          "5.0": "5.0",
++                          "5.1": "5.1",
++                          "5.2": "5.2",
++                          "5.3": "5.3",
++                          "5.4": "5.4",
++                          "5.5": "5.5",
++                          "5.6": "5.6",
++                          "5.7": "5.7",
++                          "5.8": "5.8",
++                          "5.9": "5.9",
++                          "6.0": "6.0",
++                          "6.1": "6.1",
++                          "6.2": "6.2",
++                          "6.3": "6.3",
++                          "6.4": "6.4",
++                          "6.5": "6.5",
++                          "6.6": "6.6",
++                          "6.7": "6.7",
++                          "6.8": "6.8",
++                          "6.9": "6.9",
++                          "7.0": "7.0",
++                          "7.1": "7.1",
++                          "7.2": "7.2",
++                          "7.3": "7.3",
++                          "7.4": "7.4",
++                          "7.5": "7.5",
++                          "7.6": "7.6",
++                          "7.7": "7.7",
++                          "7.8": "7.8",
++                          "7.9": "7.9",
++                          "8.0": "8.0",
++                          "8.1": "8.1",
++                          "8.2": "8.2",
++                          "8.3": "8.3",
++                          "8.4": "8.4",
++                          "8.5": "8.5",
++                          "8.6": "8.6",
++                          "8.7": "8.7",
++                          "8.8": "8.8",
++                          "8.9": "8.9",
++                          "9.0": "9.0",
++                          "9.1": "9.1",
++                          "9.2": "9.2",
++                          "9.3": "9.3",
++                          "9.4": "9.4",
++                          "9.5": "9.5",
++                          "9.6": "9.6",
++                          "9.7": "9.7",
++                          "9.8": "9.8",
++                          "9.9": "9.9",
++                          "10.0": "10.0",
++                          "10.1": "10.1",
++                          "10.2": "10.2",
++                          "10.3": "10.3",
++                          "10.4": "10.4",
++                          "10.5": "10.5",
++                          "10.6": "10.6",
++                          "10.7": "10.7",
++                          "10.8": "10.8",
++                          "10.9": "10.9",
++                          "11.0": "11.0",
++                          "11.1": "11.1",
++                          "11.2": "11.2",
++                          "11.3": "11.3",
++                          "11.4": "11.4",
++                          "11.5": "11.5",
++                          "11.6": "11.6",
++                          "11.7": "11.7",
++                          "11.8": "11.8",
++                          "11.9": "11.9",
++                          "12.0": "12.0",
++                          "12.1": "12.1",
++                          "12.2": "12.2",
++                          "12.3": "12.3",
++                          "12.4": "12.4",
++                          "12.5": "12.5",
++                          "12.6": "12.6",
++                          "12.7": "12.7",
++                          "12.8": "12.8",
++                          "12.9": "12.9",
++                          "13.0": "13.0",
++                          "13.1": "13.1",
++                          "13.2": "13.2",
++                          "13.3": "13.3",
++                          "13.4": "13.4",
++                          "13.5": "13.5",
++                          "13.6": "13.6",
++                          "13.7": "13.7",
++                          "13.8": "13.8",
++                          "13.9": "13.9",
++                          "14.0": "14.0",
++                          "14.1": "14.1",
++                          "14.2": "14.2",
++                          "14.3": "14.3",
++                          "14.4": "14.4",
++                          "14.5": "14.5",
++                          "14.6": "14.6",
++                          "14.7": "14.7",
++                          "14.8": "14.8",
++                          "14.9": "14.9",
++                          "15.0": "15.0",
++                          "15.1": "15.1",
++                          "15.2": "15.2",
++                          "15.3": "15.3",
++                          "15.4": "15.4",
++                          "15.5": "15.5",
++                          "15.6": "15.6",
++                          "15.7": "15.7",
++                          "15.8": "15.8",
++                          "15.9": "15.9",
++                          "16.0": "16.0",
++                          "16.1": "16.1",
++                          "16.2": "16.2",
++                          "16.3": "16.3",
++                          "16.4": "16.4",
++                          "16.5": "16.5",
++                          "16.6": "16.6",
++                          "16.7": "16.7",
++                          "16.8": "16.8",
++                          "16.9": "16.9",
++                          "17.0": "17.0",
++                          "17.1": "17.1",
++                          "17.2": "17.2",
++                          "17.3": "17.3",
++                          "17.4": "17.4",
++                          "17.5": "17.5",
++                          "17.6": "17.6",
++                          "17.7": "17.7",
++                          "17.8": "17.8",
++                          "17.9": "17.9",
++                          "18.0": "18.0",
++                          "18.1": "18.1",
++                          "18.2": "18.2",
++                          "18.3": "18.3",
++                          "18.4": "18.4",
++                          "18.5": "18.5",
++                          "18.6": "18.6",
++                          "18.7": "18.7",
++                          "18.8": "18.8",
++                          "18.9": "18.9",
++                          "19.0": "19.0",
++                          "19.1": "19.1",
++                          "19.2": "19.2",
++                          "19.3": "19.3",
++                          "19.4": "19.4",
++                          "19.5": "19.5",
++                          "19.6": "19.6",
++                          "19.7": "19.7",
++                          "19.8": "19.8",
++                          "19.9": "19.9",
++                          "20.0": "20.0"
++                        }
++                      }
++                    }
++                  }
++                }
++              }
++            }
+           }
+         }
+       },
+-      "note": "grade — the WHOLE grade list Sheffield loads for grading system 7, 'UK Bachelors Degree (BA, BSc)' (P132; nine captured values, the honours classes keyed also on their colon spellings 2:1 / 2:2 as the registry's own example writes them), keyed on THREE parts because that is what decides it (P218, blocker 78 closed): the institution (the grading systems are loaded per institution), the level (system 7 is the bachelor's system) and the grade scale (the list carries UK honours classes). Any other institution, level or scale REFUSES with no_matching_case — a list nobody has read is a refusal, never the nearest one. A Sheffield master's therefore stops here, loudly: system 8's list is unread. The 'Still waiting for grade' and 'Failed to complete course' entries are the portal's own words for a student who states them as their grade. P283 (2026-10-04): system 6's list, with UNI30764 and system 6 chosen. These rows rest on a DESCRIPTION of the list as relayed — every tenth from 0.0 to 20.0, value equal to label, and the two non-grades — not on the list passed through whole: every line that was passed through (the two non-grades, 0.0, 0.1 and 20.0) matches, and the rest is the description's. Keyed on Islamic Azad University and the twenty_point scale; the 86–90 band list he read first was the list before a system was chosen and is not live."
++      "note": "grade — the WHOLE grade list Sheffield loads for grading system 7, 'UK Bachelors Degree (BA, BSc)' (P132; nine captured values, the honours classes keyed also on their colon spellings 2:1 / 2:2 as the registry's own example writes them), keyed on THREE parts because that is what decides it (P218, blocker 78 closed): the institution (the grading systems are loaded per institution), the level (system 7 is the bachelor's system) and the grade scale (the list carries UK honours classes). Any other institution, level or scale REFUSES with no_matching_case — a list nobody has read is a refusal, never the nearest one. A Sheffield master's therefore stops here, loudly: system 8's list is unread. The 'Still waiting for grade' and 'Failed to complete course' entries are the portal's own words for a student who states them as their grade. P283 (2026-10-04): system 6's list, with UNI30764 and system 6 chosen. These rows rest on a DESCRIPTION of the list as relayed — every tenth from 0.0 to 20.0, value equal to label, and the two non-grades — not on the list passed through whole: every line that was passed through (the two non-grades, 0.0, 0.1 and 20.0) matches, and the rest is the description's. Keyed on Islamic Azad University and the twenty_point scale; the 86–90 band list he read first was the list before a system was chosen and is not live. P296 (2026-10-11, ADR-0156 §3): once the institution box holds the form's escape for that entry — the student's own choice, recorded (ADR-0109 amended), and then in place of the cases — the grade the student states, for a qualification in Iran (IR) on the twenty-point scale, renders line by line from Vahid's read R of 2026-10-11 (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R-grade-after-institution-escape-gpa20.json): the grade list after GPA 20 (gradingSystemId = 6), read with 'Not in list' as the institution and Iran as the country, which R printed with the list (under). Each of R's 203 lines after its prompt maps its label, what the student states, to its value, what the form submits; every key and value is text R printed, cut at R's separators, nothing formatted and nothing trimmed. A grade R does not hold refuses, as before. It was asked for in his message of 2026-10-11 (docs/captures/sheffield-pgt-2026-09-10/reads/p296-reads-as-sent.txt): \"build the grade row from R for my signature\". Of how the message was made, it says: \"I ran each snippet in the Chrome console and pasted each output into a chat with Claude, which assembled this message from my pastes without editing them.\" The same sitting's read R2 (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R2-grade-azad-gpa20.json), with Islamic Azad University (UNI30764) and GPA 20 chosen under Iran, printed the same 204 lines as R, pair for pair and in order, and each of the 203 rows the Islamic Azad University case sends is held by one of R2's lines, value and label: both checked by the script that wrote this note, and the second also by scripts/read-against-entry.ts. So those rows, said above to rest on a description of the list with 5 of 203 confirmed by a line passed through, are now each confirmed by a line of a read passed through whole."
+     },
+     {
+       "fieldRef": "courseStartYear",
+diff --git a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+index 5d179ddb..58c9752a 100644
+--- a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
++++ b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+@@ -38,7 +38,7 @@
+   },
+   "blueprint": {
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "version": "0.2.34",
++    "version": "0.2.35",
+     "status": "reviewed",
+     "institutionName": "University of Sheffield",
+     "courseName": "MSc Management and International Business",
+@@ -24733,7 +24733,7 @@
+               },
+               {
+                 "fieldRef": "unlistedInstitution",
+-                "label": "unlistedInstitution",
++                "label": "If you cannot find your institution listed, please enter its name below.",
+                 "inputType": "text",
+                 "dataCategory": "ordinary",
+                 "locators": [
+@@ -24960,7 +24960,7 @@
+               },
+               {
+                 "fieldRef": "unlistedDegree",
+-                "label": "unlistedDegree",
++                "label": "If your qualification is not in the list please enter it here:",
+                 "inputType": "text",
+                 "dataCategory": "ordinary",
+                 "locators": [
+@@ -27574,7 +27574,229 @@
+                 ],
+                 "optionsAfter": {
+                   "fieldRef": "gradingSystemId"
+-                }
++                },
++                "listsAfter": [
++                  {
++                    "fieldRef": "gradingSystemId",
++                    "value": "6",
++                    "entries": [
++                      "Still waiting for grade",
++                      "Failed to complete course",
++                      "0.0",
++                      "0.1",
++                      "0.2",
++                      "0.3",
++                      "0.4",
++                      "0.5",
++                      "0.6",
++                      "0.7",
++                      "0.8",
++                      "0.9",
++                      "1.0",
++                      "1.1",
++                      "1.2",
++                      "1.3",
++                      "1.4",
++                      "1.5",
++                      "1.6",
++                      "1.7",
++                      "1.8",
++                      "1.9",
++                      "2.0",
++                      "2.1",
++                      "2.2",
++                      "2.3",
++                      "2.4",
++                      "2.5",
++                      "2.6",
++                      "2.7",
++                      "2.8",
++                      "2.9",
++                      "3.0",
++                      "3.1",
++                      "3.2",
++                      "3.3",
++                      "3.4",
++                      "3.5",
++                      "3.6",
++                      "3.7",
++                      "3.8",
++                      "3.9",
++                      "4.0",
++                      "4.1",
++                      "4.2",
++                      "4.3",
++                      "4.4",
++                      "4.5",
++                      "4.6",
++                      "4.7",
++                      "4.8",
++                      "4.9",
++                      "5.0",
++                      "5.1",
++                      "5.2",
++                      "5.3",
++                      "5.4",
++                      "5.5",
++                      "5.6",
++                      "5.7",
++                      "5.8",
++                      "5.9",
++                      "6.0",
++                      "6.1",
++                      "6.2",
++                      "6.3",
++                      "6.4",
++                      "6.5",
++                      "6.6",
++                      "6.7",
++                      "6.8",
++                      "6.9",
++                      "7.0",
++                      "7.1",
++                      "7.2",
++                      "7.3",
++                      "7.4",
++                      "7.5",
++                      "7.6",
++                      "7.7",
++                      "7.8",
++                      "7.9",
++                      "8.0",
++                      "8.1",
++                      "8.2",
++                      "8.3",
++                      "8.4",
++                      "8.5",
++                      "8.6",
++                      "8.7",
++                      "8.8",
++                      "8.9",
++                      "9.0",
++                      "9.1",
++                      "9.2",
++                      "9.3",
++                      "9.4",
++                      "9.5",
++                      "9.6",
++                      "9.7",
++                      "9.8",
++                      "9.9",
++                      "10.0",
++                      "10.1",
++                      "10.2",
++                      "10.3",
++                      "10.4",
++                      "10.5",
++                      "10.6",
++                      "10.7",
++                      "10.8",
++                      "10.9",
++                      "11.0",
++                      "11.1",
++                      "11.2",
++                      "11.3",
++                      "11.4",
++                      "11.5",
++                      "11.6",
++                      "11.7",
++                      "11.8",
++                      "11.9",
++                      "12.0",
++                      "12.1",
++                      "12.2",
++                      "12.3",
++                      "12.4",
++                      "12.5",
++                      "12.6",
++                      "12.7",
++                      "12.8",
++                      "12.9",
++                      "13.0",
++                      "13.1",
++                      "13.2",
++                      "13.3",
++                      "13.4",
++                      "13.5",
++                      "13.6",
++                      "13.7",
++                      "13.8",
++                      "13.9",
++                      "14.0",
++                      "14.1",
++                      "14.2",
++                      "14.3",
++                      "14.4",
++                      "14.5",
++                      "14.6",
++                      "14.7",
++                      "14.8",
++                      "14.9",
++                      "15.0",
++                      "15.1",
++                      "15.2",
++                      "15.3",
++                      "15.4",
++                      "15.5",
++                      "15.6",
++                      "15.7",
++                      "15.8",
++                      "15.9",
++                      "16.0",
++                      "16.1",
++                      "16.2",
++                      "16.3",
++                      "16.4",
++                      "16.5",
++                      "16.6",
++                      "16.7",
++                      "16.8",
++                      "16.9",
++                      "17.0",
++                      "17.1",
++                      "17.2",
++                      "17.3",
++                      "17.4",
++                      "17.5",
++                      "17.6",
++                      "17.7",
++                      "17.8",
++                      "17.9",
++                      "18.0",
++                      "18.1",
++                      "18.2",
++                      "18.3",
++                      "18.4",
++                      "18.5",
++                      "18.6",
++                      "18.7",
++                      "18.8",
++                      "18.9",
++                      "19.0",
++                      "19.1",
++                      "19.2",
++                      "19.3",
++                      "19.4",
++                      "19.5",
++                      "19.6",
++                      "19.7",
++                      "19.8",
++                      "19.9",
++                      "20.0"
++                    ],
++                    "under": [
++                      {
++                        "fieldRef": "institution-ts-control",
++                        "value": "Not in list"
++                      },
++                      {
++                        "fieldRef": "institutionCountry-ts-control",
++                        "value": "IRAN"
++                      }
++                    ]
++                  }
++                ],
++                "prompt": "Select your grade..."
+               },
+               {
+                 "fieldRef": "unlistedGrade",
+@@ -30545,6 +30767,7 @@
+       ]
+     },
+     "$comment": [
++      "0.2.35 (2026-10-11, P296): from Vahid's reads R and L of 2026-10-11, each printed with the country selected when it ran (docs/run-a/p294-reads.md). grade: its list after gradingSystemId = 6, read with 'Not in list' as the institution and Iran as the country, recorded as listsAfter with under: institution-ts-control = 'Not in list', institutionCountry-ts-control = IRAN — R's own under: the values as R printed them, the names those of the boxes that set the selects R printed (frontedBy), as docs/run-a/p294-reads.md says (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R-grade-after-institution-escape-gpa20.json); the 203 entries are R's values in R's order, less its first line, 'Select your grade...', which is the list's prompt and is now recorded as such so it is never offered as an answer. Every line R printed was already among the field's options. These reads replace neither record of the country entered by hand in P294 (0.2.34 said the reads planned next would): R prints the grading system's value, 6, not its list after the escape, and T searched 'azad' and 'sheff', not 'HHE'. Both records still rest on his words of 2026-10-10 (docs/run-a/p295-his-message-as-sent.txt): \"I confirm that my reads of 6 October were made with the country set to Iran.\" unlistedInstitution and unlistedDegree: labelled from L (docs/captures/sheffield-pgt-2026-09-10/reads/p294-L-escape-box-labels.json), which printed no label, aria-label, placeholder or title for any of the three boxes, and each row's text. No labelSource is claimed: the observer did not read these labels; L, a console read, printed the row's text. unlistedDegree's row text is one sentence and is the label, normalised as the observer normalises row text (whitespace collapsed, ends trimmed). unlistedInstitution's row text is three sentences, two of help and one addressed to the box; the label is the third, cut at the row's last sentence boundary and otherwise unchanged. That is a judgement made in P296. The observer would not have made it: it gives a control no label from its own words when they run to more than one sentence or end as a statement (apps/browser-runner/src/observe-script.ts), and this sentence ends with a full stop. unlistedSubject's existing label is L's row text under the same normalisation, unchanged.",
+       "0.2.34 (2026-10-09, P294): two of Vahid's reads carry the country they were made under, under: institutionCountry-ts-control = IRAN — institution-ts-control's 'HHE' search and gradingSystemId's list after 'Not in list' as the institution — at his word: \"Record the country a read was made under in the reads record itself, and make the check refuse a mapping row whose key does not match the country of the read it rests on.\" These two reads did not print the country. IRAN was entered by hand in P294 from what states it beside them: the reads file (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt) heads read 1 '1 — UNTOUCHED (country Iran only)', and the plan the reads followed (docs/run-a/p290-reads.md) asks for Iran as the country; 'Iran' is the label of the country box's entry IRAN. The reads planned next print the country with each list (docs/run-a/p294-reads.md) and replace this record. The subject's searches carry none: its list follows the search box only.",
+       "0.2.26 (2026-09-16, P153): four label fixes before Vahid signs, at his word ('If the labels in the blueprint are wrong, then the thing I read and the thing I signed are not the same thing'). (1) The nationality page's radios carry the option labels the third read found (2026-09-14) — Yes / No, and the document-status sentences — where the third read's values equal this draft's; P110's rewrite of the values from the markup had set every option label to the field's own name. Restored: livedOutsideCountry, alwaysUKResident, alwaysEUResident, refugeeStatus, migrantWorker, spouseOfUKCitizen, euPassport, spouseOfEUCitizen, previousStudentVisa, passportScanStatus, visaScanStatus, utilityBillScanStatus, proofOfUKSpouseStatus, refugeeProofStatus. Not restored, because the third read's 'no' label ran on into the row's help text: britishPassport, indefinateVisa, livingInUK — they keep the field's name and are off a resident abroad's path. (2) dobMonth and dobYear carry 'Date of Birth:*', startYear 'Start Date:*' and endYear 'End Date:' — the row's question, which the read attached to the row's first control (dobDay, startMonth, endMonth); the same one-row-several-controls shape P131 recorded for the markers, now in the labels. No labelSource is claimed for the carried ones: the row was read, the sibling was not. (3) institutionCountry and institutionCode carry frontedBy — the Tom Select boxes that set them — so the plan lists them nowhere; they were read as 'left empty' when the boxes fill them. The thirteen unread labels of the five-pages read (fundingNationality, countryOfBirth, permanentResidence, yearsOnStudentVisa, monthsOnStudentVisa, applicationLocation, …) and 'grade' still carry the field's name: no capture holds their question, and a label the file did not carry is not invented.",
+       "0.2.25 (2026-09-16, P150): the country box (institutionCountry-ts-control) carries the row's question as its label — 'Select the country the institution is based in:' — the text the third read found on the row and attached to the hidden <select id=\"institutionCountry\"> the box fronts (0.2.18, P126). The box and the select share one row; the preview shows the box, and a student reading 'institutionCountry-ts-control: United Kingdom' at the yes would be reading a DOM id. No labelSource is claimed: the read labelled the select, not the box.",
+@@ -30618,13 +30841,14 @@
+       "P283 (2026-10-04), step 2 of Vahid's real run, from his own reads on his own account, nothing saved: the 'Azad' institution search (thirty-four entries), Islamic Azad University's grading system (6), its grade list as DESCRIBED rather than passed through whole (see the grade note), the 'international' subject search (ten), and the escapes of the award title (\"\"), the subject and the grading system recorded (ADR-0109 extended, P281). Batched with the P261 entry edit; one signature.",
+       "P291 (2026-10-06), from Vahid's six reads on his own account, nothing saved (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, his message as sent): the institution box's 'HHE' search (only the escape), the boxes the institution, subject and award-title escapes open (shown only then, and filled with the student's own words, ADR-0109 amended), the grading list after the institution's escape (GPA 20), the award title's prompt, the grading system's escape recorded as leading nowhere (no grade can be given after it), the subject's 'international' search (his P283 read) and its 'HHE' search (only the escape). One signature.",
+       "P293 (2026-10-08, ADR-0156 §3), at Vahid's request in his own words (docs/run-a/p293-his-decisions-as-sent.txt): one row on gradingSystemId, taken only when the institution box holds the form's escape for that entry, by the student's recorded choice — for a qualification in Iran, the grade scale they state, twenty_point, renders 6 (GPA 20), the system his read of 2026-10-06 (made with Iran as the country) shows after that escape. The P291 batch (0.3.44, never signed) with this row; one signature.",
+-      "P294 (2026-10-09): reviewed against blueprint 0.2.34, whose only change is the country two of his reads were made under (Iran), recorded on them at his word: \"Record the country a read was made under in the reads record itself\". No row changed: gradingSystemId's row after the institution's escape was already keyed on IR, and checkUsable now refuses that key unless it matches the country the read records. That record was entered by hand in P294, from read 1's heading and the plan's instruction, because the reads did not print a country; read R, which prints it, replaces it."
++      "P294 (2026-10-09): reviewed against blueprint 0.2.34, whose only change is the country two of his reads were made under (Iran), recorded on them at his word: \"Record the country a read was made under in the reads record itself\". No row changed: gradingSystemId's row after the institution's escape was already keyed on IR, and checkUsable now refuses that key unless it matches the country the read records. That record was entered by hand in P294, from read 1's heading and the plan's instruction, because the reads did not print a country; read R, which prints it, replaces it.",
++      "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
+     ],
+     "mappingSetId": "map-sheffield-pgt-2027-09",
+-    "version": "0.3.46",
++    "version": "0.3.47",
+     "status": "reviewed",
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "blueprintVersion": "0.2.34",
++    "blueprintVersion": "0.2.35",
+     "authoredBy": "Vahid Mohammadi",
+     "authoredAt": "2026-09-11T12:00:00Z",
+     "mappings": [
+@@ -35129,10 +35353,237 @@
+                   }
+                 }
+               }
++            },
++            "escaped": {
++              "fieldRef": "institution-ts-control",
++              "then": {
++                "kind": "switch",
++                "path": "countryCode",
++                "cases": {
++                  "IR": {
++                    "kind": "switch",
++                    "path": "gradeScale",
++                    "cases": {
++                      "twenty_point": {
++                        "kind": "part",
++                        "path": "grade",
++                        "then": {
++                          "kind": "option",
++                          "options": {
++                            "Still waiting for grade": "Still waiting for grade",
++                            "Failed to complete course": "Failed to complete course",
++                            "0.0": "0.0",
++                            "0.1": "0.1",
++                            "0.2": "0.2",
++                            "0.3": "0.3",
++                            "0.4": "0.4",
++                            "0.5": "0.5",
++                            "0.6": "0.6",
++                            "0.7": "0.7",
++                            "0.8": "0.8",
++                            "0.9": "0.9",
++                            "1.0": "1.0",
++                            "1.1": "1.1",
++                            "1.2": "1.2",
++                            "1.3": "1.3",
++                            "1.4": "1.4",
++                            "1.5": "1.5",
++                            "1.6": "1.6",
++                            "1.7": "1.7",
++                            "1.8": "1.8",
++                            "1.9": "1.9",
++                            "2.0": "2.0",
++                            "2.1": "2.1",
++                            "2.2": "2.2",
++                            "2.3": "2.3",
++                            "2.4": "2.4",
++                            "2.5": "2.5",
++                            "2.6": "2.6",
++                            "2.7": "2.7",
++                            "2.8": "2.8",
++                            "2.9": "2.9",
++                            "3.0": "3.0",
++                            "3.1": "3.1",
++                            "3.2": "3.2",
++                            "3.3": "3.3",
++                            "3.4": "3.4",
++                            "3.5": "3.5",
++                            "3.6": "3.6",
++                            "3.7": "3.7",
++                            "3.8": "3.8",
++                            "3.9": "3.9",
++                            "4.0": "4.0",
++                            "4.1": "4.1",
++                            "4.2": "4.2",
++                            "4.3": "4.3",
++                            "4.4": "4.4",
++                            "4.5": "4.5",
++                            "4.6": "4.6",
++                            "4.7": "4.7",
++                            "4.8": "4.8",
++                            "4.9": "4.9",
++                            "5.0": "5.0",
++                            "5.1": "5.1",
++                            "5.2": "5.2",
++                            "5.3": "5.3",
++                            "5.4": "5.4",
++                            "5.5": "5.5",
++                            "5.6": "5.6",
++                            "5.7": "5.7",
++                            "5.8": "5.8",
++                            "5.9": "5.9",
++                            "6.0": "6.0",
++                            "6.1": "6.1",
++                            "6.2": "6.2",
++                            "6.3": "6.3",
++                            "6.4": "6.4",
++                            "6.5": "6.5",
++                            "6.6": "6.6",
++                            "6.7": "6.7",
++                            "6.8": "6.8",
++                            "6.9": "6.9",
++                            "7.0": "7.0",
++                            "7.1": "7.1",
++                            "7.2": "7.2",
++                            "7.3": "7.3",
++                            "7.4": "7.4",
++                            "7.5": "7.5",
++                            "7.6": "7.6",
++                            "7.7": "7.7",
++                            "7.8": "7.8",
++                            "7.9": "7.9",
++                            "8.0": "8.0",
++                            "8.1": "8.1",
++                            "8.2": "8.2",
++                            "8.3": "8.3",
++                            "8.4": "8.4",
++                            "8.5": "8.5",
++                            "8.6": "8.6",
++                            "8.7": "8.7",
++                            "8.8": "8.8",
++                            "8.9": "8.9",
++                            "9.0": "9.0",
++                            "9.1": "9.1",
++                            "9.2": "9.2",
++                            "9.3": "9.3",
++                            "9.4": "9.4",
++                            "9.5": "9.5",
++                            "9.6": "9.6",
++                            "9.7": "9.7",
++                            "9.8": "9.8",
++                            "9.9": "9.9",
++                            "10.0": "10.0",
++                            "10.1": "10.1",
++                            "10.2": "10.2",
++                            "10.3": "10.3",
++                            "10.4": "10.4",
++                            "10.5": "10.5",
++                            "10.6": "10.6",
++                            "10.7": "10.7",
++                            "10.8": "10.8",
++                            "10.9": "10.9",
++                            "11.0": "11.0",
++                            "11.1": "11.1",
++                            "11.2": "11.2",
++                            "11.3": "11.3",
++                            "11.4": "11.4",
++                            "11.5": "11.5",
++                            "11.6": "11.6",
++                            "11.7": "11.7",
++                            "11.8": "11.8",
++                            "11.9": "11.9",
++                            "12.0": "12.0",
++                            "12.1": "12.1",
++                            "12.2": "12.2",
++                            "12.3": "12.3",
++                            "12.4": "12.4",
++                            "12.5": "12.5",
++                            "12.6": "12.6",
++                            "12.7": "12.7",
++                            "12.8": "12.8",
++                            "12.9": "12.9",
++                            "13.0": "13.0",
++                            "13.1": "13.1",
++                            "13.2": "13.2",
++                            "13.3": "13.3",
++                            "13.4": "13.4",
++                            "13.5": "13.5",
++                            "13.6": "13.6",
++                            "13.7": "13.7",
++                            "13.8": "13.8",
++                            "13.9": "13.9",
++                            "14.0": "14.0",
++                            "14.1": "14.1",
++                            "14.2": "14.2",
++                            "14.3": "14.3",
++                            "14.4": "14.4",
++                            "14.5": "14.5",
++                            "14.6": "14.6",
++                            "14.7": "14.7",
++                            "14.8": "14.8",
++                            "14.9": "14.9",
++                            "15.0": "15.0",
++                            "15.1": "15.1",
++                            "15.2": "15.2",
++                            "15.3": "15.3",
++                            "15.4": "15.4",
++                            "15.5": "15.5",
++                            "15.6": "15.6",
++                            "15.7": "15.7",
++                            "15.8": "15.8",
++                            "15.9": "15.9",
++                            "16.0": "16.0",
++                            "16.1": "16.1",
++                            "16.2": "16.2",
++                            "16.3": "16.3",
++                            "16.4": "16.4",
++                            "16.5": "16.5",
++                            "16.6": "16.6",
++                            "16.7": "16.7",
++                            "16.8": "16.8",
++                            "16.9": "16.9",
++                            "17.0": "17.0",
++                            "17.1": "17.1",
++                            "17.2": "17.2",
++                            "17.3": "17.3",
++                            "17.4": "17.4",
++                            "17.5": "17.5",
++                            "17.6": "17.6",
++                            "17.7": "17.7",
++                            "17.8": "17.8",
++                            "17.9": "17.9",
++                            "18.0": "18.0",
++                            "18.1": "18.1",
++                            "18.2": "18.2",
++                            "18.3": "18.3",
++                            "18.4": "18.4",
++                            "18.5": "18.5",
++                            "18.6": "18.6",
++                            "18.7": "18.7",
++                            "18.8": "18.8",
++                            "18.9": "18.9",
++                            "19.0": "19.0",
++                            "19.1": "19.1",
++                            "19.2": "19.2",
++                            "19.3": "19.3",
++                            "19.4": "19.4",
++                            "19.5": "19.5",
++                            "19.6": "19.6",
++                            "19.7": "19.7",
++                            "19.8": "19.8",
++                            "19.9": "19.9",
++                            "20.0": "20.0"
++                          }
++                        }
++                      }
++                    }
++                  }
++                }
++              }
+             }
+           }
+         },
+-        "note": "grade — the WHOLE grade list Sheffield loads for grading system 7, 'UK Bachelors Degree (BA, BSc)' (P132; nine captured values, the honours classes keyed also on their colon spellings 2:1 / 2:2 as the registry's own example writes them), keyed on THREE parts because that is what decides it (P218, blocker 78 closed): the institution (the grading systems are loaded per institution), the level (system 7 is the bachelor's system) and the grade scale (the list carries UK honours classes). Any other institution, level or scale REFUSES with no_matching_case — a list nobody has read is a refusal, never the nearest one. A Sheffield master's therefore stops here, loudly: system 8's list is unread. The 'Still waiting for grade' and 'Failed to complete course' entries are the portal's own words for a student who states them as their grade. P283 (2026-10-04): system 6's list, with UNI30764 and system 6 chosen. These rows rest on a DESCRIPTION of the list as relayed — every tenth from 0.0 to 20.0, value equal to label, and the two non-grades — not on the list passed through whole: every line that was passed through (the two non-grades, 0.0, 0.1 and 20.0) matches, and the rest is the description's. Keyed on Islamic Azad University and the twenty_point scale; the 86–90 band list he read first was the list before a system was chosen and is not live."
++        "note": "grade — the WHOLE grade list Sheffield loads for grading system 7, 'UK Bachelors Degree (BA, BSc)' (P132; nine captured values, the honours classes keyed also on their colon spellings 2:1 / 2:2 as the registry's own example writes them), keyed on THREE parts because that is what decides it (P218, blocker 78 closed): the institution (the grading systems are loaded per institution), the level (system 7 is the bachelor's system) and the grade scale (the list carries UK honours classes). Any other institution, level or scale REFUSES with no_matching_case — a list nobody has read is a refusal, never the nearest one. A Sheffield master's therefore stops here, loudly: system 8's list is unread. The 'Still waiting for grade' and 'Failed to complete course' entries are the portal's own words for a student who states them as their grade. P283 (2026-10-04): system 6's list, with UNI30764 and system 6 chosen. These rows rest on a DESCRIPTION of the list as relayed — every tenth from 0.0 to 20.0, value equal to label, and the two non-grades — not on the list passed through whole: every line that was passed through (the two non-grades, 0.0, 0.1 and 20.0) matches, and the rest is the description's. Keyed on Islamic Azad University and the twenty_point scale; the 86–90 band list he read first was the list before a system was chosen and is not live. P296 (2026-10-11, ADR-0156 §3): once the institution box holds the form's escape for that entry — the student's own choice, recorded (ADR-0109 amended), and then in place of the cases — the grade the student states, for a qualification in Iran (IR) on the twenty-point scale, renders line by line from Vahid's read R of 2026-10-11 (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R-grade-after-institution-escape-gpa20.json): the grade list after GPA 20 (gradingSystemId = 6), read with 'Not in list' as the institution and Iran as the country, which R printed with the list (under). Each of R's 203 lines after its prompt maps its label, what the student states, to its value, what the form submits; every key and value is text R printed, cut at R's separators, nothing formatted and nothing trimmed. A grade R does not hold refuses, as before. It was asked for in his message of 2026-10-11 (docs/captures/sheffield-pgt-2026-09-10/reads/p296-reads-as-sent.txt): \"build the grade row from R for my signature\". Of how the message was made, it says: \"I ran each snippet in the Chrome console and pasted each output into a chat with Claude, which assembled this message from my pastes without editing them.\" The same sitting's read R2 (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R2-grade-azad-gpa20.json), with Islamic Azad University (UNI30764) and GPA 20 chosen under Iran, printed the same 204 lines as R, pair for pair and in order, and each of the 203 rows the Islamic Azad University case sends is held by one of R2's lines, value and label: both checked by the script that wrote this note, and the second also by scripts/read-against-entry.ts. So those rows, said above to rest on a description of the list with 5 of 203 confirmed by a line passed through, are now each confirmed by a line of a read passed through whole."
+       },
+       {
+         "fieldRef": "courseStartYear",
+diff --git a/docs/run-a/what-will-be-typed.md b/docs/run-a/what-will-be-typed.md
+index a9c53e71..0415f1a2 100644
+--- a/docs/run-a/what-will-be-typed.md
++++ b/docs/run-a/what-will-be-typed.md
+@@ -1,4 +1,4 @@
+-REVIEWED — blueprint 0.2.34, mapping set 0.3.46, reviewed by Vahid Mohammadi.
++REVIEWED — blueprint 0.2.35, mapping set 0.3.47, reviewed by Vahid Mohammadi.
+ Profile: 19 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
+ 
+ University of Sheffield — MSc Management and International Business, 2027-09
+@@ -130,4 +130,4 @@ We did not answer these for you:
+     Not answered on your behalf. Instead we entered "Prefer not to say".
+     Why: Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer.
+ 
+-Reference: sha256:75adc7eba292b84faf3e7d439f4d61e47f447ac3cb1b07c41b0387cadec29d43
++Reference: sha256:29c0efb2d835d89a5bdea06504596e81026946a92350df8f48e31990e453c7e7
+diff --git a/scripts/run-a-profile.test.ts b/scripts/run-a-profile.test.ts
+index be1f41d4..15b7a5a2 100644
+--- a/scripts/run-a-profile.test.ts
++++ b/scripts/run-a-profile.test.ts
+@@ -439,10 +439,17 @@ describe("the catalogue entry for Run A (P152)", () => {
+     //                     once the student's own choice of the institution's
+     //                     escape is in (0.2.33 / 0.3.45), P293 (never signed:
+     //                     superseded by P294)
+-    //   sha256:4368de00…  9 October, THIS one — the same, with the country
+-    //                     his reads were made under recorded on them, as he
++    //   sha256:4368de00…  9 October — the same, with the country his
++    //                     reads were made under recorded on them, as he
+     //                     asked: "Record the country a read was made under in
+     //                     the reads record itself" (0.2.34 / 0.3.46), P294
++    //                     (signed, 34760af4)
++    //   sha256:546b2948…  11 October, THIS one — from his reads R and L:
++    //                     the grade's list after GPA 20 with the institution's
++    //                     escape and Iran, its prompt, and the row he asked
++    //                     for, "build the grade row from R for my signature";
++    //                     two escape boxes labelled with the page's own words
++    //                     (0.2.35 / 0.3.47), P296
+     //
+     // The `degree` mapping reads `awardTitle` — the part the registry now
+     // holds, stated by the student and distinct from `level` — onto the
+@@ -458,7 +465,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // P283 and P284 moved it again, for step 2 of his own run, delivered as a patch he
+     // applies and signs in ONE commit with approvals.json — so main never
+     // holds an entry that is not signed, and this test is never red there.
+-    expect(labelledHash(toCanonical(value))).toBe("sha256:4368de005c63497779c08886da479964c940dec97b68c49e04598ac397983464");
++    expect(labelledHash(toCanonical(value))).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
+     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
+     expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
+     if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
+@@ -478,7 +485,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+       ownAccountOnly?: { studentId: string };
+     }[];
+     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
+-    expect(approvals[0]?.contentHash).toBe("sha256:4368de005c63497779c08886da479964c940dec97b68c49e04598ac397983464");
++    expect(approvals[0]?.contentHash).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
+     expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
+     // The four spellings of Iran, from the entry itself: unchanged by this
+     // edit, and the reason the countries' signature was spent.
+@@ -520,7 +527,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     expect(labelledHash(toCanonical(edited))).not.toBe(labelledHash(toCanonical(value)));
+   });
+ 
+-  it("P291, P293: his two qualifications through the offer — four choices, each with the form's escape beside its entries; GPA 20 by the signed row after the institution's escape; the grade for a person", () => {
++  it("P291, P293, P296: his two qualifications through the offer — four choices, each with the form's escape beside its entries; GPA 20 and the grade by the signed rows after the institution's escape; the boxes the escapes open named in the page's words", () => {
+     // The shape P286 measured from the intervention (dates synthetic): the
+     // doctorate at HHE, the Master's at Islamic Azad University, both in
+     // International Business. Each offer is answered with its escape, the
+@@ -571,9 +578,11 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // P293: the grading system is no question. With his own choice of the
+     // institution's escape recorded, the row he asked for renders his
+     // twenty-point scale as 6, GPA 20, the system his read showed after that
+-    // escape. The grade still stops: the form records no escape for it, and
+-    // no row maps a grade for an institution not on the list until read R.
+-    expect(after.blockers.map((blocker) => `${blocker.fieldRef}#${String((blocker as { item?: { index: number } }).item?.index)}`)).toEqual(["grade#0"]);
++    // escape. P296: and the grade is no question either. The row he asked
++    // for renders the 19.5 this profile states as the form's 19.5, from his
++    // read R of the grade list after that escape and GPA 20, made with Iran
++    // selected.
++    expect(after.blockers.map((blocker) => `${blocker.fieldRef}#${String((blocker as { item?: { index: number } }).item?.index)}`)).toEqual([]);
+     const typed = (fieldRef: string, item: number): string | undefined => {
+       const found = after.instructions.find((instruction) => instruction.fieldRef === fieldRef && instruction.item?.index === item);
+       return found === undefined ? undefined : textOf(found.value);
+@@ -585,17 +594,45 @@ describe("the catalogue entry for Run A (P152)", () => {
+     ]);
+     expect(after.instructions.find((instruction) => instruction.fieldRef === "institution-ts-control" && instruction.item?.index === 0)?.typeahead).toMatchObject({ search: "HHE", chosenByStudent: true });
+     expect(typed("gradingSystemId", 0)).toBe("6");
++    expect(typed("grade", 0)).toBe("19.5");
++    // The row is his read R, line for line: every key a label R printed and
++    // every value its value, R's first line, the list's prompt, left out. Read
++    // from his file as the console printed it: in single quotes, and holding
++    // no backslash, so nothing in it is an escape to undo.
++    const printedR = readFileSync(join(ROOT, "docs", "captures", "sheffield-pgt-2026-09-10", "reads", "p294-R-grade-after-institution-escape-gpa20.json"), "utf8").trim();
++    expect(printedR.startsWith("'") && printedR.endsWith("'") && !printedR.includes(String.fromCharCode(92))).toBe(true);
++    const linesR = (JSON.parse(printedR.slice(1, -1)) as { grade: [string, string][] }).grade;
++    expect(linesR[0]).toEqual(["Select your grade...", "Select your grade..."]);
++    const rawEntry = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json"), "utf8")) as { mappingSet: { mappings: { fieldRef: string; source: { format: unknown } }[] } };
++    const dig = (fieldRef: string, ...path: string[]): unknown =>
++      path.reduce<unknown>((at, key) => (at !== null && typeof at === "object" ? (at as Record<string, unknown>)[key] : undefined), rawEntry.mappingSet.mappings.find((mapping) => mapping.fieldRef === fieldRef)?.source.format);
++    expect(dig("grade", "escaped", "then", "cases", "IR", "cases", "twenty_point", "then", "options")).toEqual(Object.fromEntries(linesR.slice(1).map(([formValue, label]) => [label, formValue])));
++    // And keyed on the scale the grading-system row renders 6 for: the check
++    // compares the two rows' countries but not their scales (P296), so this does.
++    expect(Object.keys(dig("grade", "escaped", "then", "cases", "IR", "cases") as object)).toEqual(Object.keys(dig("gradingSystemId", "escaped", "then", "cases", "IR", "then", "options") as object));
+     // Without his choice of the escape, the row is not taken: the grading
+     // system refuses for HHE as before, and nothing is chosen for him.
+     const unchosen = planFill(value.blueprint, check.mappingSet, profile, choices.filter((choice) => choice.fieldRef !== "institution-ts-control"));
+     expect(unchosen.instructions.some((instruction) => instruction.fieldRef === "gradingSystemId" && instruction.item?.index === 0)).toBe(false);
+     expect(unchosen.blockers.map((blocker) => blocker.fieldRef)).toContain("gradingSystemId");
++    expect(unchosen.instructions.some((instruction) => instruction.fieldRef === "grade" && instruction.item?.index === 0), "nor the grade").toBe(false);
+     // The Master's: as signed in P286, its subject his escape.
+     expect([typed("institution-ts-control", 1), typed("degree", 1), typed("gradingSystemId", 1), typed("grade", 1), typed("subject", 1), typed("unlistedSubject", 1)]).toEqual(["UNI30764", "MSc", "6", "19.5", "Not in list", "International Business"]);
+     expect(typed("unlistedInstitution", 1), "hidden for the Master's: its institution is on the list").toBeUndefined();
+     // And the validator refuses the 36 characters, as the offer said: the run
+     // will stop to have them shortened, by him, not by the run.
+     expect(validatePlan(value.blueprint, after).violations.map((violation) => `${violation.fieldRef} ${violation.rule.kind} ${String((violation.rule as { value?: string }).value)}`)).toEqual(["unlistedDegree maxlength 28"]);
++    // Row 141 (P296): the preview built from this plan names the boxes the
++    // escapes open in the page's own words, read L, not by their handles —
++    // the words he approves once the 36 characters are shortened (the
++    // validator stops the run before approval until they are).
++    const built = buildPreview(value.blueprint, after, new Map());
++    if (!built.built) expect.unreachable(built.refusal.detail);
++    const shown = renderPreview(built.preview);
++    expect(shown).toContain("    If you cannot find your institution listed, please enter its name below.: HHE\n");
++    expect(shown).toContain("    If your qualification is not in the list please enter it here:: Doctorate of Business Administration\n");
++    expect(shown).toContain("    If your subject is not in the list please enter it here:: International Business\n");
++    expect(shown).not.toMatch(/unlisted(Institution|Subject|Degree)/);
+   });
+ 
+   it("the committed page-by-page read IS the command's output for the synthetic profile, and lists no registration page", async () => {
+@@ -615,7 +652,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // it. Nothing typed here came from a map's guess.
+     expect(code).toBe(0);
+     expect(output).toBe(readFileSync(READ, "utf8"));
+-    expect(output).toContain("REVIEWED — blueprint 0.2.34, mapping set 0.3.46, reviewed by Vahid Mohammadi.");
++    expect(output).toContain("REVIEWED — blueprint 0.2.35, mapping set 0.3.47, reviewed by Vahid Mohammadi.");
+     expect(output).toContain("How do you want to study?*: Full Time");
+     expect(output).toContain('(sent as "MGT:Management and International Business")');
+     expect(output).toContain("MSC, Master of Science");
+diff --git a/scripts/sheffield-draft.test.ts b/scripts/sheffield-draft.test.ts
+index e74b1b44..cb4e69d6 100644
+--- a/scripts/sheffield-draft.test.ts
++++ b/scripts/sheffield-draft.test.ts
+@@ -97,7 +97,7 @@ describe("the Sheffield drafts, under the real checks", () => {
+     if (!check.usable) expect(check.refusal.kind).toBe("not_reviewed");
+   });
+ 
+-  it("carry the third read's row-text labels and observed markers on the five pages — 79 labels, 50 markers, the fourteen wrong labels excluded, the thirteen unread left as their names (P126)", () => {
++  it("carry the third read's row-text labels and observed markers on the five pages — 79 labels, 50 markers, the fourteen wrong labels excluded, the thirteen unread left as their names (P126); two of the fourteen since labelled from his read L, claimed as no observer's (P296)", () => {
+     // Vahid, 2026-09-14: "the ceiling is 106 of 149 because 43 fields have no
+     // question of their own, and the 13 between 93 and 106 are not a tool
+     // failure. They are markup a positional rule cannot reach." And: "79
+@@ -111,16 +111,24 @@ describe("the Sheffield drafts, under the real checks", () => {
+     const marked = fields.filter((f) => f.validations.some((v) => v.kind === "required" && v.source === "observed_marker"));
+     expect(marked).toHaveLength(50);
+     // The fourteen the third rule got wrong are not carried: no label from
+-    // the row, and the field's name stands.
++    // the row (P126). Twelve keep the field's name; two carry the words his
++    // read L printed, since P296 (below).
+     const WRONG = [
+       "institutionCode", "unlistedInstitution", "unlistedDegree", "grade", "unlistedGrade",
+       "previousCountry1", "dateFromDay1", "dateFromMonth1", "dateFromYear1", "dateToDay1", "dateToMonth1", "dateToYear1",
+       "otherInst1", "otherInstCourse1",
+     ];
++    // P296: two of them now carry the words his read L printed beside them,
++    // not the third read's positional guess, and no labelSource: the
++    // observer did not read them. The rest keep their names.
++    const FROM_L: Readonly<Record<string, string>> = {
++      unlistedInstitution: "If you cannot find your institution listed, please enter its name below.",
++      unlistedDegree: "If your qualification is not in the list please enter it here:",
++    };
+     for (const ref of WRONG) {
+       const f = fields.find((x) => x.fieldRef === ref);
+       expect(f?.labelSource, ref).toBeUndefined();
+-      expect(f?.label, ref).toBe(ref);
++      expect(f?.label, ref).toBe(FROM_L[ref] ?? ref);
+     }
+     // The thirteen read from the screenshots at review: unlabelled here, by
+     // name, and never a label the file did not carry.
+@@ -136,7 +144,7 @@ describe("the Sheffield drafts, under the real checks", () => {
+     // The two marks flagged for Iman are carried as observed, not dropped.
+     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
+     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
+-    expect(blueprint.version).toBe("0.2.34");
++    expect(blueprint.version).toBe("0.2.35");
+   });
+ 
+   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
+@@ -451,8 +459,8 @@ describe("the Sheffield drafts, under the real checks", () => {
+   });
+ 
+   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
+-    expect(blueprint.version).toBe("0.2.34");
+-    expect(mappingSet.version).toBe("0.3.46");
++    expect(blueprint.version).toBe("0.2.35");
++    expect(mappingSet.version).toBe("0.3.47");
+     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
+     expect(employment?.repeats?.fieldKey).toBe("employment.history");
+     expect(employment?.title).toBe("Employment history");
+@@ -900,9 +908,10 @@ describe("the Sheffield drafts, under the real checks", () => {
+     // P293: with the institution box a constant, its escape is never chosen,
+     // so the grading system's row for that escape could never be taken, and
+     // `checkUsable` refuses a row that rests on nothing. The hypothetical
+-    // drops that row with the box's own mapping.
++    // drops that row with the box's own mapping. P296: and the grade's row
++    // after the same escape, for the same reason.
+     const withoutEscapedRow = (m: (typeof asIfReviewed.mappings)[number]) =>
+-      m.fieldRef === "gradingSystemId" && m.source.kind === "profile_field"
++      (m.fieldRef === "gradingSystemId" || m.fieldRef === "grade") && m.source.kind === "profile_field"
+         ? { ...m, source: { ...m.source, format: Object.fromEntries(Object.entries(m.source.format).filter(([key]) => key !== "escaped")) as typeof m.source.format } }
+         : m;
+     const naming = (value: string) => ({

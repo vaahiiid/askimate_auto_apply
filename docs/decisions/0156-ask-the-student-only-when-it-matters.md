@@ -1,6 +1,6 @@
 # ADR-0156 — Ask the student only when it matters
 
-**Status:** Accepted · approved by Vahid on 2026-10-08, 17:11 UTC, in his own words, with three conditions (below) · written in P292 at the request of a message that spoke of him in the third person · amends ADR-0155 (§2, and where a choice is stored) · answers the question about ADR-0109 as amended, in his words · §4(a) (one rule) and withdrawal decided by him on 2026-10-09, in his words · partly built: P293 built §3's mechanism and its first row, for his signature; P294 made the row's country checked against the read; he signed the row on 2026-10-10 (P295), with every read snippet printing its country from then on; the rest is not built (see the end)
+**Status:** Accepted · approved by Vahid on 2026-10-08, 17:11 UTC, in his own words, with three conditions (below) · written in P292 at the request of a message that spoke of him in the third person · amends ADR-0155 (§2, and where a choice is stored) · answers the question about ADR-0109 as amended, in his words · §4(a) (one rule) and withdrawal decided by him on 2026-10-09, in his words · partly built: P293 built §3's mechanism and its first row, for his signature; P294 made the row's country checked against the read; he signed the row on 2026-10-10 (P295), with every read snippet printing its country from then on; P296 built §3's second row, the grade, from read R, for his signature; the rest is not built (see the end)
 
 ## Decided, in his words (2026-10-08, 17:11 UTC)
 
@@ -314,10 +314,25 @@ typed in by hand again."*
   the rule. It is tied to Sheffield's country select, and it cannot see a read written another way
   or planned elsewhere.
 
-**Waiting on a read:** §3's second row, the grade after the institution's escape. Read R is
-planned ([`p294-reads.md`](../run-a/p294-reads.md), which supersedes P293's). The check refuses that
-row until a grade list read after the grading system is recorded with the institution's escape and
-the country in `under`.
+**Built in P296**, at his word (2026-10-11, saved as sent in
+[`p296-reads-as-sent.txt`](../captures/sheffield-pgt-2026-09-10/reads/p296-reads-as-sent.txt)):
+*"build the grade row from R for my signature"*.
+
+- **§3's second row, the grade after the institution's escape**, for a qualification in Iran on the
+  twenty-point scale: read R's 203 lines after its prompt, each label to its value, with R recorded
+  as the grade's list after GPA 20 under the escape and IRAN, in a patch for his signature
+  ([`p296-for-signature.md`](../run-a/p296-for-signature.md), `sha256:546b2948…`). **Not signed**,
+  so not on `main` as entry content. With it, his run asks 5 today (4 with "DBA") and **none**
+  under this ADR with the intake answers.
+- **On `main`:** the validator checks each entry of a repeating page on its own and takes a chosen
+  escape as an answer. Before, a single qualification with its award title escaped was stopped for a
+  person, which would have defeated §4(a)'s rule for the award title.
+
+**Found while measuring, and open:** the check does not compare a row's scale with the rows it rests
+on (row 144); intake cannot state a grade on any scale but four (row 146), so no row of this kind can
+serve a student whose grade is, say, a CGPA out of 10; and the measure's proposed column settles the
+escape even when the student's exact words are offered (row 151), which §4(a)'s wording does not
+allow.
 
 **Not built:**
 
