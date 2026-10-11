@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.289.1] — 2026-10-11
+
+**P296 records: a green census keeps no report, and the records said it did.**
+
+- **Fixed** the census lines of P293 to P296 in `docs/state-of-the-system.md`, and the P296 sheet:
+  each said a green census's report was kept at a `/tmp/census-…/results.json` path. A green census
+  removes its report (P209); the paths were gone when looked for after P296's push. They were taken
+  from vitest's own "JSON report written to" line, printed just before the removal. Each line now
+  says so; P296's names CI's census on the pushed commit, which matched the committed table.
+- **Changed** `scripts/census.ts` to say, after a green run, that it removed the report vitest has
+  just named, so that line is not the last word on the path.
+- **Fixed** `scripts/read-against-entry.ts` ending with `process.exit`, which drops what stdout
+  still has queued once its pipe is full. The census run that checked this correction went red on
+  it: its test received the list cut at "16.5" and no line count. Reproduced on purpose on a
+  one-page pipe read after the script ends (3,964 bytes, the list stopped at "4.8"); with the exit
+  code set instead, the same pipe receives all 15,265 bytes and the line count. Of the nine scripts
+  that call `process.exit`, no other is run by a test after a long output.
+
+---
+
 ## [0.289.0] — 2026-10-11
 
 **P296 — his reads R, L and T saved as sent; the grade row from R and the escape boxes' words from L

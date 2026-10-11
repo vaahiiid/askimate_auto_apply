@@ -236,4 +236,8 @@ process.stdout.write(
     `This compares a FILE with the entry. Whether the file is the form's own output — exported, not retyped,\n` +
     `not rebuilt by a loop — it cannot tell; only where the file came from can say that.\n`,
 );
-process.exit(differs > 0 || unread.length > 0 || unreadRows.length > 0 || madeUnderMissing ? 1 : 0);
+// The exit code is set, not exited with: `process.exit` drops whatever stdout
+// still has queued, and stdout queues once its pipe is full. A census run
+// (P296) received the list cut at "16.5" and no line count; on a one-page pipe
+// read after the script ends, the list stopped at "4.8".
+process.exitCode = differs > 0 || unread.length > 0 || unreadRows.length > 0 || madeUnderMissing ? 1 : 0;

@@ -205,6 +205,11 @@ function runSuite(): { readonly report: string; readonly passed: boolean } {
     // evidence.
     if (passed) {
       rmSync(directory, { recursive: true, force: true });
+      // Said, because vitest has just printed "JSON report written to" this
+      // path, and that is the last line about it otherwise. P293 to P296 each
+      // recorded a green census's report as "kept" at a path this line had
+      // already removed (found in P296).
+      console.log(`\nThe report at ${out} was removed: the run was green, and only a red run keeps its report (P209).`);
     } else {
       console.error(`\n  The failing run's report is KEPT, unread by anything: ${out}`);
       console.error("  Read it before re-running — a second run overwrites nothing, but a");

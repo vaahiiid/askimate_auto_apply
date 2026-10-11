@@ -134,7 +134,7 @@ page-by-page read on `main`, and are a row of their own (row 150). L did not rea
   the labels reverted (the preview lines go).
 - On the patched tree, with a stand-in approval over this hash that was never committed and says it
   is not yours: the patch's tests and the P296 tests, 261 of 261; typecheck; lint; the census,
-  **3,367 of 3,367, 169 files** (its report kept at `/tmp/census-SU2Ila/results.json`). After it, two
+  **3,367 of 3,367, 169 files** (a green census removes its report (P209), so the `/tmp/census-SU2Ila/results.json` this line first named was not kept; the run's console output survives only in the session's scratch directory). After it, two
   test files changed: a comment in the patch's `run-a-profile.test.ts`, and the reader's test on
   `main` (one refusal test split by reason, one case added). Those files were run again, 46 of 46.
   The patch adds no test: the census on `main` counts the same tests as the patched tree.
