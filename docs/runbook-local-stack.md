@@ -358,8 +358,11 @@ subcommand, on purpose):
   `SELECT id FROM students WHERE subject = '<your sub>'` on the conversation database, after your
   first sign-in.
 
-A self-signed approval with no `ownAccountOnly` is refused at load (`self_approval_unbounded`).
-An approval by a second person needs no `ownAccountOnly` and admits any applicant.
+An approval with no `ownAccountOnly` is refused at load (`self_approval_unbounded`), whatever
+names it carries: since P297 a second name in the file is not a second person, because he is the
+only reviewer. A second reviewer's approval admits any applicant only where code names that
+reviewer, and the service and the CLI name nobody. A second record for content already signed is
+refused too.
 `pnpm run catalogue check /path/to/catalogue` prints, per entry, whom its approval admits — read
 it before starting the processes.
 

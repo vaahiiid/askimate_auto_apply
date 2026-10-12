@@ -1,6 +1,6 @@
 # ADR-0118 — The mapping review is one signature, Vahid's, until a developer takes the system over; a single signature admits the signer's own account and nothing else
 
-**Status:** Accepted · 2026-09-16 · amends [ADR-0017](./0017-mapping-is-reviewed-data.md) §1 (the two-person rule on a mapping set) and [ADR-0057](./0057-approval-binds-to-content-not-claims.md) property 4 (the registry enforces it) · changes blocker 2 without closing it
+**Status:** Accepted · 2026-09-16 · amends [ADR-0017](./0017-mapping-is-reviewed-data.md) §1 (the two-person rule on a mapping set) and [ADR-0057](./0057-approval-binds-to-content-not-to-claims.md) property 4 (the registry enforces it) · changes blocker 2 without closing it
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-16. **Built in P144**, the same day.
 
 ## What changed, and why
@@ -79,6 +79,22 @@ He attached two conditions and asked for both to be enforced rather than noted.
    refused. The Requirements Service's own two-person rule on knowledge-base entries
    (`packages/requirements`, blocker 10's path) is untouched: it was not asked for, it is not on
    the path to standing, and it is named in the skipped list as the same shape for him to decide.
+
+## What P297 built under his words of 2026-10-12
+
+> *"I am the only reviewer from now on. I am alone. Do not record my second signature as a second
+> review."*
+
+§2's last sentence, *"A second person's approval admits any applicant, as it always did"*, rested on
+the only test of a second person the code had: that two name strings differed. Measured in P297,
+"vahid mohammadi" beside "Vahid Mohammadi", "Vahid", his email, or an agent named as the author
+each admitted any applicant. So, built in P297 under his words: an approval loaded by the service or
+the CLI must name the one account it admits, whatever names it carries. §2's text stands as it was
+decided until ADR-0157 is. A defect fixed in the same phase, not his words: a second record in
+`approvals.json` for content already signed replaced the first in silence, and is refused now. Who may sign for any applicant is named by code, never by the file, and production
+names nobody. Whether his single signature may serve other students is
+[ADR-0157](./0157-while-he-is-the-sole-founder-his-signature-serves-other-students.md), proposed and
+not decided.
 
 ## What this deliberately gives up
 

@@ -20,7 +20,7 @@ import type { DocumentType } from "@askimate/aas-domain";
 import type { ProposedValue } from "@askimate/aas-domain";
 import { proposeValue, unwrapProposed } from "@askimate/aas-domain";
 import type { ModelClient } from "@askimate/aas-llm";
-import { isNotUnderstood } from "@askimate/aas-llm";
+import { isNotUnderstood, isQuotedIn } from "@askimate/aas-llm";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 import { checkGrounding, normaliseForComparison } from "./grounding.js";
@@ -240,6 +240,13 @@ export async function readListEntries(
         continue;
       }
       returned.push({ partKey: part.partKey, span: grounded.verbatim });
+      // A part read AS STATED (P297, the grade scale) keeps the CV's own
+      // words: the model's reading must be in the span it grounded, or it is
+      // the model's words — "GPA" printed, "GPA out of 4" read.
+      if ((part.parse as { readonly asStated?: boolean }).asStated === true && !isQuotedIn(grounded.verbatim, grounded.value)) {
+        parts.push({ partKey: part.partKey, source: "document", status: "unparsed", spanLength: grounded.verbatim.length, reason: `The text read is not in the span it came from, and this part is kept as printed.` });
+        continue;
+      }
       const value = part.parse(grounded.value);
       if (value === null || value === undefined) {
         // Real text, not this value — but perhaps some of it: "2019" is not a
@@ -440,6 +447,15 @@ async function runComposite(
       };
     }
 
+    if (part.asStated === true && !isQuotedIn(fields.verbatim, fields.value)) {
+      return {
+        kind: "not_found",
+        targetKey,
+        required: target.required,
+        reason: `Read "${fields.value}" for "${part.partKey}", which is not in the span it came from; this part is kept as printed.`,
+      };
+    }
+
     values.set(part.partKey, fields.value);
     spans.push(fields.verbatim);
     lowestConfidence = Math.min(lowestConfidence, fields.confidence);
@@ -521,3 +537,4 @@ export function proposedFields(
       proposed: outcome.proposed,
     }));
 }
+

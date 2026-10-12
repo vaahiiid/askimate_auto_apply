@@ -146,7 +146,9 @@ describe("extracting a transcript", () => {
       start: { year: 2018, month: 9 },
       end: { kind: "completed", date: { year: 2022, month: 6 } },
       grade: "17.42",
-      gradeScale: "20-point scale",
+      // P297: read by the interview's own rule, which keeps the token for a
+      // phrase naming its maximum ("20-point scale" names twenty).
+      gradeScale: "twenty_point",
     });
 
     // Every part traces to a line of the document.
@@ -175,6 +177,13 @@ describe("extracting a transcript", () => {
     expect(value2.end).toEqual({ kind: "completed", date: { year: 2022, month: 6 } });
   });
 
+  it("does not assemble a qualification whose transcript prints 'GPA' with no maximum — never out of 4 (P297)", async () => {
+    const gpa = await textOf("doc-transcript-gpa", "academic_transcript", TRANSCRIPT_TEXT.replace("Grading scale: 20-point scale", "Grading scale: GPA"));
+    const report = await extractDocument(gpa, model);
+    if (report === null) expect.unreachable("there is a plan for transcripts");
+    expect(extracted(report), "no qualification is proposed with a scale nobody printed").toEqual([]);
+  });
+
   it("keeps the grade exactly as printed and does not convert it", async () => {
     const text = await textOf("doc-transcript", "academic_transcript", TRANSCRIPT_TEXT);
     const report = await extractDocument(text, model);
@@ -188,7 +197,9 @@ describe("extracting a transcript", () => {
     // conversion is a mapping decision with its own provenance, not a silent
     // rewrite of what the university awarded.
     expect(value.grade).toBe("17.42");
-    expect(value.gradeScale).toBe("20-point scale");
+    // The scale is read by the interview's rule (P297): "20-point scale"
+    // names the twenty-point maximum, so it is that token; nothing converts it.
+    expect(value.gradeScale).toBe("twenty_point");
   });
 
   it("fails the whole qualification when a required part is missing", async () => {

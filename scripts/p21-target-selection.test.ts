@@ -197,7 +197,9 @@ async function catalogueOf(entries: readonly ReviewedCatalogueEntry[]): Promise<
   directory: string;
 }> {
   const directory = await writeCatalogue(entries);
-  const load = await loadCatalogueDirectory({ directory });
+  // REVIEWER is named as a second reviewer here, so the catalogue serves both
+  // synthetic students; production names none (P297).
+  const load = await loadCatalogueDirectory({ directory, secondReviewers: [REVIEWER] });
   if (!load.ok) {
     expect.unreachable(load.problems.map((p) => `${p.source}: ${p.detail}`).join("\n"));
   }

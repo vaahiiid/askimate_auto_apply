@@ -20,6 +20,9 @@
  * confirmed answer as it was.
  */
 
+import { isClosedVocabulary, vocabularyWords } from "@askimate/aas-profile";
+import type { ProfileFieldKey } from "@askimate/aas-profile";
+
 export type CorrectionReading =
   /** Both halves: the answer as it stands (`from`), what it should be (`to`), and the words before them (`context`). */
   | { readonly kind: "request"; readonly from: string; readonly to: string; readonly context: string }
@@ -130,6 +133,26 @@ export function placesHolding(confirmed: ReadonlyMap<string, unknown>, from: str
     }
   }
   return found;
+}
+
+/**
+ * Whether a place holds a choice from a fixed set, which a student's words
+ * cannot replace (ADR-0154 §4): a country, or a token of a closed vocabulary.
+ *
+ * Until P297 every grade scale was a token, so a closed-vocabulary part was
+ * always a fixed choice. Since P297 a scale that is not exactly one of the
+ * table's phrases is kept in the student's own words ("CGPA out of 10"), and
+ * those are words a correction may change: refusing them as "a fixed list"
+ * would be untrue.
+ */
+export function holdsAFixedChoice(confirmed: ReadonlyMap<string, unknown>, place: CorrectionTarget): boolean {
+  const fieldKey = place.fieldKey as ProfileFieldKey;
+  if (!isClosedVocabulary(fieldKey, place.part)) return false;
+  if (place.part === undefined || place.part === "countryCode") return true;
+  const value = confirmed.get(place.fieldKey);
+  const holder = place.item === undefined ? value : Array.isArray(value) ? (value as readonly unknown[])[place.item] : undefined;
+  const held = holder !== null && typeof holder === "object" ? (holder as Record<string, unknown>)[place.part] : undefined;
+  return typeof held !== "string" || vocabularyWords(fieldKey, place.part, held) !== null;
 }
 
 /** The words of a sentence worth matching: three letters or more, a possessive's "'s" set aside. */

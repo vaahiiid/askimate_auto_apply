@@ -70,7 +70,12 @@ const AUTHOR = "test-specialist-a";
 const REVIEWER = "test-specialist-b";
 const APPROVED_AT = new Date("2026-09-01T10:00:00Z");
 
-/** A registry that approves exactly the content given, and nothing else. */
+/**
+ * A registry that approves exactly the content given, and nothing else.
+ *
+ * Signed by REVIEWER, whom the test names as a second reviewer: production
+ * names none (P297), so no approval it loads admits any applicant.
+ */
 function registryApproving(text: string): InMemoryApprovalRegistry {
   const parsed = parseReviewedEntryText(text);
   if (!parsed.ok) expect.unreachable(`fixture does not parse: ${parsed.refusal.path}`);
@@ -80,6 +85,7 @@ function registryApproving(text: string): InMemoryApprovalRegistry {
     authoredBy: AUTHOR,
     approvedBy: REVIEWER,
     approvedAt: APPROVED_AT,
+    secondReviewers: [REVIEWER],
   });
   if (!recorded.ok) expect.unreachable(`could not record: ${recorded.refusal.kind}`);
   return registry;
@@ -987,7 +993,7 @@ describe("an approval binds to content", () => {
   });
 
   // ── ADR-0118: the served entry carries whom its approval admits ─────────
-  it("serves a second person's approval as admitting any applicant", async () => {
+  it("serves a second reviewer's approval as admitting any applicant, when the CALLER names that reviewer", async () => {
     const text = documentOf();
     const result = await loadReviewedEntry({ text, registry: registryApproving(text) });
     if (!result.ok) expect.unreachable(`refused: ${result.refusal.kind}`);
@@ -1082,16 +1088,51 @@ describe("the registry records people, not claims", () => {
     expect(admits(admissionOf(result.approval), "stu-anyone-else")).toBe(false);
   });
 
-  it("a second person's signature admits any applicant", () => {
-    const result = approveContent({
+  // P297, Vahid, 2026-10-12: "I am the only reviewer from now on. I am alone.
+  // Do not record my second signature as a second review." Until P297 the
+  // only test of a second person was that two name strings differed, so each
+  // of these admitted any applicant.
+  it("a different name is not a second review: every one that names no account is refused (P297)", () => {
+    for (const [authoredBy, approvedBy] of [
+      ["Vahid Mohammadi", "vahid mohammadi"],
+      ["Vahid Mohammadi", "Vahid"],
+      ["Vahid Mohammadi", "vahidmoir@gmail.com"],
+      ["Claude (P296)", "Vahid Mohammadi"],
+      [AUTHOR, REVIEWER],
+    ] as const) {
+      const result = approveContent({
+        contentHash: labelledHash(toCanonical(ENTRY)),
+        authoredBy,
+        approvedBy,
+        approvedAt: APPROVED_AT,
+      });
+      if (result.ok) expect.unreachable(`${authoredBy} / ${approvedBy} admitted ${JSON.stringify(admissionOf(result.approval))}`);
+      expect(result.refusal.kind).toBe("self_approval_unbounded");
+      expect(result.refusal.detail).toContain("A different name is not a second review");
+    }
+  });
+
+  it("only a second reviewer the CALLER names admits any applicant, and never the author", () => {
+    const named = approveContent({
       contentHash: labelledHash(toCanonical(ENTRY)),
       authoredBy: AUTHOR,
       approvedBy: REVIEWER,
       approvedAt: APPROVED_AT,
+      secondReviewers: [REVIEWER],
     });
-    if (!result.ok) expect.unreachable(`refused: ${result.refusal.kind}`);
-    expect(admissionOf(result.approval)).toEqual({ kind: "any_applicant" });
-    expect(admits(admissionOf(result.approval), "stu-anyone-at-all")).toBe(true);
+    if (!named.ok) expect.unreachable(`refused: ${named.refusal.kind}`);
+    expect(admissionOf(named.approval)).toEqual({ kind: "any_applicant" });
+    expect(admits(admissionOf(named.approval), "stu-anyone-at-all")).toBe(true);
+    // Naming the author as a second reviewer does not make one person two.
+    const self = approveContent({
+      contentHash: labelledHash(toCanonical(ENTRY)),
+      authoredBy: AUTHOR,
+      approvedBy: AUTHOR,
+      approvedAt: APPROVED_AT,
+      secondReviewers: [AUTHOR],
+    });
+    if (self.ok) expect.unreachable("the author is not their own second reviewer");
+    expect(self.refusal.kind).toBe("self_approval_unbounded");
   });
 
   it("refuses a bound approval whose account is blank", () => {
@@ -1135,10 +1176,12 @@ describe("the registry records people, not claims", () => {
     const hash = labelledHash(toCanonical(ENTRY));
     const first = registry.record({
       contentHash: hash, authoredBy: AUTHOR, approvedBy: REVIEWER, approvedAt: APPROVED_AT,
+      ownAccountOnly: { studentId: "stu-the-signer" },
     });
     expect(first.ok).toBe(true);
     const second = registry.record({
       contentHash: hash, authoredBy: AUTHOR, approvedBy: "someone-else", approvedAt: APPROVED_AT,
+      ownAccountOnly: { studentId: "stu-someone-else" },
     });
     if (second.ok) expect.unreachable("an approval is not overwritten");
     expect(second.refusal.kind).toBe("already_approved");

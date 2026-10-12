@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { namedPlace, placesHolding, readCorrectionRequest } from "./correction-requests.js";
+import { holdsAFixedChoice, namedPlace, placesHolding, readCorrectionRequest } from "./correction-requests.js";
 
 // P288, ADR-0154. Vahid: *"a confirmed value should be correctable by asking,
 // the same way a deletion is asked for."* The reader finds both halves; the
@@ -69,6 +69,26 @@ describe("the confirmed answer a correction names, found by its own words (P288)
     expect(placesHolding(confirmed, "Sam")).toEqual([{ fieldKey: "identity.legalName", part: "given" }]);
     expect(placesHolding(confirmed, "sam@example.test")).toEqual([{ fieldKey: "contact.email" }]);
     expect(placesHolding(confirmed, "Islamic Azad University"), "words no answer holds are found nowhere").toEqual([]);
+  });
+
+  // P297: a grade scale that is not exactly one of the table's phrases is
+  // kept in the student's own words, which a correction may change; a token,
+  // or a country, is still a fixed choice.
+  it("lets a grade scale held in the student's words be corrected, and still refuses a token or a country (P297)", () => {
+    const held = new Map<string, unknown>([
+      ["education.prior_qualifications", [
+        { institution: "University of Delhi", countryCode: "IN", grade: "8.2", gradeScale: "CGPA out of 10" },
+        { institution: "Islamic Azad University", countryCode: "IR", grade: "19.5", gradeScale: "twenty_point" },
+      ]],
+      ["identity.nationality", "IN"],
+    ]);
+    const words = placesHolding(held, "cgpa out of 10");
+    expect(words).toEqual([{ fieldKey: "education.prior_qualifications", item: 0, part: "gradeScale" }]);
+    expect(words.map((place) => holdsAFixedChoice(held, place))).toEqual([false]);
+    expect(holdsAFixedChoice(held, { fieldKey: "education.prior_qualifications", item: 1, part: "gradeScale" })).toBe(true);
+    expect(holdsAFixedChoice(held, { fieldKey: "education.prior_qualifications", item: 0, part: "countryCode" })).toBe(true);
+    expect(holdsAFixedChoice(held, { fieldKey: "identity.nationality" })).toBe(true);
+    expect(holdsAFixedChoice(held, { fieldKey: "education.prior_qualifications", item: 0, part: "institution" })).toBe(false);
   });
 
   it("chooses between entries holding the same words only by what the sentence names, and never by a guess", () => {

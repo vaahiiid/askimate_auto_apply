@@ -1648,6 +1648,22 @@ describe("a typeahead mapping names the value the form submits (P118, ADR-0109)"
     expect(byCode.usable, byCode.usable ? "" : byCode.refusal.detail).toBe(true);
   });
 
+  // P297: since a grade scale may hold the student's words ("CGPA out of 10"),
+  // a row keyed on words is the student's words, and checked like any; only a
+  // vocabulary's TOKEN (or a country) is left to review.
+  it("checks a row keyed on a scale in the student's words, and leaves the scale's token to review (P297)", () => {
+    const scale = (key: string): MappingSet["mappings"][number]["source"] => ({
+      kind: "profile_field",
+      fieldKey: "finance.funding",
+      format: { kind: "part", path: "source", then: { kind: "option", options: { [key]: "PG-EX-2026" } } },
+    });
+    const words = checkUsable(courseAs(scale("my parents")), BLUEPRINT);
+    expect(words.usable, "words that are not a token are the student's words").toBe(false);
+    if (!words.usable) expect(words.refusal.kind).toBe("row_not_identity");
+    const token = checkUsable(courseAs(scale("self_or_family")), BLUEPRINT);
+    if (!token.usable) expect(token.refusal.kind, token.refusal.detail).not.toBe("row_not_identity");
+  });
+
   it("REFUSES a mapped typeahead that records no entries at all", () => {
     const withoutOptions: ApplicationBlueprint = {
       ...BLUEPRINT,

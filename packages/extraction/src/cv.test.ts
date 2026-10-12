@@ -189,6 +189,34 @@ describe("reading a CV: the jobs and the qualifications, each entry grounded (AD
     expect(rejected?.claimedSpan).toBe("Employer: Acme Global plc");
     expect(found.entries[0]?.parts.filter((part) => part.status === "skipped").length, "nothing after it is read").toBeGreaterThan(0);
   });
+
+  // P297: "GPA" must never be silently read as out of 4 — from a CV either.
+  it("leaves a CV's 'Scale: GPA' for the interview to ask, and keeps a scale with its maximum as printed (P297)", async () => {
+    const head = "Education\nQualification: BCom (Hons)\nSubject: Commerce\nInstitution: University of Delhi\nStart: July 2016\nEnd: June 2019\nGrade: 8.2\n";
+    const bare = (await read(await plain(`${head}Scale: GPA\n`), "education.prior_qualifications")).entries[0];
+    expect(bare?.parts.find((part) => part.partKey === "gradeScale")?.status).toBe("unparsed");
+    expect(bare?.fields).not.toHaveProperty("gradeScale");
+    const stated = (await read(await plain(`${head}Grade scale: CGPA out of 10\n`), "education.prior_qualifications")).entries[0];
+    expect(stated?.fields["gradeScale"]).toBe("CGPA out of 10");
+  });
+
+  it("refuses a model's scale that is not in the line it says it read (P297)", async () => {
+    const rewording: ModelClient = {
+      ...model,
+      composeQuestion: (request) => model.composeQuestion(request),
+      composeDocumentRequest: (request) => model.composeDocumentRequest(request),
+      interpretAnswer: (request) => model.interpretAnswer(request),
+      segmentDocument: (request) => model.segmentDocument(request),
+      extractFromDocument: <T>(request: ExtractionRequest<T>): Promise<ProposedValue<T> | NotUnderstood> =>
+        request.fieldKey.endsWith(".gradeScale")
+          ? Promise.resolve(proposeValue({ value: "GPA out of 4" as T, origin: "document", verbatim: "Scale: GPA", confidence: 0.95, documentId: request.documentId }))
+          : model.extractFromDocument(request),
+    };
+    const text = await plain("Education\nQualification: BCom (Hons)\nSubject: Commerce\nInstitution: University of Delhi\nStart: July 2016\nEnd: June 2019\nGrade: 8.2\nScale: GPA\n");
+    const entry = (await read(text, "education.prior_qualifications", rewording)).entries[0];
+    expect(entry?.parts.find((part) => part.partKey === "gradeScale")?.status).toBe("unparsed");
+    expect(entry?.fields).not.toHaveProperty("gradeScale");
+  });
 });
 
 describe("the sections and entries of a CV, found by code (stage two)", () => {

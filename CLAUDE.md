@@ -303,3 +303,31 @@ How it is held today (P295), which is the agent's build and not his words:
 
 Open, and his to say: what a read should print on a page that has no country box. Until he says,
 the test refuses such a snippet, because his words cover every read.
+
+## He is the only reviewer; a second signature of his is not a second review
+
+Decided by Vahid on 2026-10-12, in his words ([the message](docs/run-a/p297-his-decisions-as-sent.txt)):
+
+> **"I am the only reviewer from now on. I am alone. Do not record my second signature as a second
+> review."**
+
+So:
+
+- No record calls anything a second review, a second person's signature or a two-person check
+  while he is the only reviewer. His signature twice is his signature.
+- The code holds it (P297): an approval in `approvals.json` must name the one account it admits,
+  whatever names it carries, because two name strings were all that made "a second person" before;
+  and a second record for content already signed is refused. Whether his signature may serve other
+  students is ADR-0157's question, proposed and not decided.
+
+## A report says how long a portal has taken to onboard
+
+Decided by Vahid on 2026-10-12, in his words:
+
+> **"Measure one more thing from now on: the time it takes to onboard a new portal. That is the
+> number that decides whether we are global."**
+
+So every phase report carries what `scripts/portal-onboarding-time.ts` prints for each portal's
+record under `docs/onboarding/`, run at the report's commit: the stages reached, each from its
+marker, and the time to onboard (T5 − T1), or how long it has been since T1 while it is not
+reached. The stages are defined in `docs/onboarding/README.md`.

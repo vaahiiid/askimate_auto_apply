@@ -78,7 +78,11 @@ export interface Qualification {
   /** As awarded, e.g. `2:1`, `17/20`, `3.6`. Never normalised on the way in. */
   readonly grade: string;
   /**
-   * The scale the grade is on, e.g. `uk_honours`, `twenty_point`, `gpa_4`.
+   * The scale the grade is on: a token (`uk_honours`, `twenty_point`, `gpa_4`,
+   * `percentage`) where the student's words were exactly one of its phrases,
+   * otherwise the student's words as stated, with their maximum — "out of 10",
+   * "CGPA out of 10" (P297, `readGradeScale`). Never a maximum the student did
+   * not state: "GPA" alone is asked again, not stored as out of 4.
    *
    * Kept alongside the raw grade because converting between scales is a
    * judgement, and a converted grade stored as if it were the original is

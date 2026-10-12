@@ -69,6 +69,21 @@ export function toProposal<T>(input: {
     };
   }
 
+  // A part read AS STATED (P297, the grade scale) keeps the student's words,
+  // so a model's words are not theirs: "GPA" answered, "GPA out of 4" read,
+  // would put a maximum in their mouth. In a conversation the student's words
+  // are the utterance; a document's span is held to its text by grounding,
+  // after this, by the extractor.
+  const asStated = origin === "conversation" && (parse as { readonly asStated?: boolean }).asStated === true;
+  if (asStated && !isQuotedIn(fallbackVerbatim, reading.value)) {
+    return {
+      kind: "not_understood",
+      reason:
+        `Read "${reading.value}", which is not in what was said. This part is kept in the ` +
+        `student's own words, so it was refused rather than reworded.`,
+    };
+  }
+
   const parsed = parse(reading.value);
   if (parsed === null) {
     return {
@@ -84,11 +99,35 @@ export function toProposal<T>(input: {
     origin,
     // The span the model claims to have read. For documents this is what the
     // grounding check tests, so a fabricated one is caught upstream (ADR-0016).
-    verbatim:
-      reading.verbatim !== undefined && reading.verbatim !== null && reading.verbatim.length > 0
+    // An as-stated part is credited with what the student said, not with the
+    // span the model chose: the playback's "you said" is their whole answer.
+    verbatim: asStated
+      ? fallbackVerbatim
+      : reading.verbatim !== undefined && reading.verbatim !== null && reading.verbatim.length > 0
         ? reading.verbatim
         : fallbackVerbatim,
     confidence: clampConfidence(reading.confidence),
     ...(documentId !== undefined ? { documentId } : {}),
   });
+}
+
+/**
+ * Whether `value` is quoted whole in `source` (P297): compared without case
+ * or runs of space, and only where it starts and ends at a boundary, so a
+ * quote that stops inside a word or a number is not one — "out of 4" is not
+ * in "out of 4.5", and "GPA" is not in "CGPA".
+ */
+export function isQuotedIn(source: string, value: string): boolean {
+  const flat = (text: string): string => text.toLowerCase().replace(/\s+/g, " ").trim();
+  const haystack = flat(source);
+  const needle = flat(value);
+  if (needle.length === 0) return false;
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1)) {
+    const before = haystack.slice(0, at);
+    const after = haystack.slice(at + needle.length);
+    const startsClean = !/[\p{L}\p{N}]$/u.test(before) || !/^[\p{L}\p{N}]/u.test(needle);
+    const endsClean = !/[\p{L}\p{N}]$/u.test(needle) || !/^(?:[\p{L}\p{N}]|[.,]\p{N})/u.test(after);
+    if (startsClean && endsClean) return true;
+  }
+  return false;
 }

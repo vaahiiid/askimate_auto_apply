@@ -7254,6 +7254,45 @@ describeIfDatabase("a confirmed answer is corrected by asking, and the stop that
     expect(await town()).toEqual({ city: "Tehran North", revision: 2 });
   }, 300_000);
 
+  it("P297: a grade scale in the student's words can be corrected, read by the interview's own rule — one with no maximum is refused and nothing changes", async () => {
+    // Vahid, 2026-10-12: *"'GPA' must never be silently read as out of 4."*
+    // Since P297 a scale may be the student's words, so a correction may
+    // reach one; it must not store a scale the interview would refuse.
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      await confirmInto(
+        new PostgresConfirmedProfileStore(instance.pool),
+        "education.prior_qualifications",
+        [{
+          level: "Bachelor's degree", awardTitle: "BCom (Hons)", subject: "Commerce", institution: "University of Delhi", countryCode: "IN",
+          start: { year: 2016, month: 7 }, end: { kind: "completed", date: { year: 2019, month: 6 } }, grade: "8.2", gradeScale: "CGPA out of 10",
+        }],
+        "my BCom",
+        owner,
+      );
+    } finally {
+      await instance.pool.end();
+    }
+    const revision = async (): Promise<number> =>
+      (await pool.query<{ revision: number }>("SELECT revision FROM profile_entries WHERE student_id = $1 AND field_key = 'education.prior_qualifications'", [owner])).rows[0]?.revision ?? 0;
+    const confirmedAt = await revision();
+
+    const before = (await assistantSaid()).length;
+    await say("my grade scale is GPA, not CGPA out of 10");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      '"GPA" does not say the most the grade can be, so the grade scale of your qualification 1 is unchanged. Say the scale with its maximum — for example "out of 10" or "GPA out of 4". Nothing has been changed.',
+    ]);
+    expect(await revision(), "nothing changed").toBe(confirmedAt);
+
+    const then = (await assistantSaid()).length;
+    await say("my grade scale is CGPA out of 5, not CGPA out of 10");
+    const shown = (await assistantSaid()).slice(then);
+    expect(shown[0]).toBe('You asked me to change the grade scale of your qualification 1 from "CGPA out of 10" to "CGPA out of 5". Here it is as I would record it — nothing changes until you say it is right.');
+    expect(shown.find((line) => line.startsWith("Qualification 1 of 1")) ?? "").toContain('Grade scale: CGPA out of 5 (you said: "CGPA out of 5")');
+    await say("leave it");
+    expect(await revision(), "withdrawn: as confirmed").toBe(confirmedAt);
+  }, 300_000);
+
   it("after a page is saved, goes to a person, says what the university already holds, and holds the run — the confirmed answer unchanged", async () => {
     const page = EXACT_ENTRY_TRAP.blueprint.pages.find((candidate) => candidate.sections.some((section) => section.fields.some((field) => field.fieldRef === "nationality")));
     if (page === undefined) expect.unreachable("the fixture's page");

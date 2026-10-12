@@ -1,0 +1,78 @@
+{
+  "$comment": "How long Sheffield PGT has taken to onboard, stage by stage (P297). It names its target file, from which the script proves T0 and T1 are the first. Each reached stage names its marker — a commit, or a capture's own run.json — and scripts/portal-onboarding-time.ts reads the time from the marker, never from this file. A stage not reached says what is missing, read from the record named beside it. The stages are defined in docs/onboarding/README.md.",
+  "portal": "University of Sheffield, postgraduate taught (its own application form)",
+  "target": "targets/sheffield-pgt-2026-09.json",
+  "stages": [
+    {
+      "stage": "T0",
+      "name": "target opened",
+      "marker": {
+        "commit": "98ae8ef7",
+        "what": "P78: the Sheffield target file, targets/sheffield-pgt-2026-09.json"
+      }
+    },
+    {
+      "stage": "T1",
+      "name": "first capture",
+      "marker": {
+        "capture": "docs/captures/sheffield-pgt-2026-09-10/run.json",
+        "what": "the first read of Sheffield's pages, on his signed-in browser"
+      }
+    },
+    {
+      "stage": "T2",
+      "name": "structure complete",
+      "missing": [
+        "where the final submission happens, and the overview after a course choice is saved (docs/state-of-the-system.md, row 80)",
+        "studyprogrammetaught.js, the Part 2 taught page's own script (row 82)",
+        "what the Part 2 funding radios submit (the blueprint's unobserved claim 22)",
+        "whether up to three course choices, each submitted separately, are three cases or one (unobserved claim 9)",
+        "AUTH 3, 5, 6, 7 and 8 among the blueprint's unobserved claims (row 152 for AUTH 7)"
+      ]
+    },
+    {
+      "stage": "T3",
+      "name": "structure signed",
+      "partly": [
+        {
+          "commit": "3575eb1e",
+          "what": "the first signature, over Part 1 only"
+        },
+        {
+          "commit": "4e05911b",
+          "what": "the first signature over Part 1 and the Part 2 taught page"
+        }
+      ],
+      "missing": [
+        "a signature over a structure that is complete (T2)"
+      ]
+    },
+    {
+      "stage": "T4",
+      "name": "rehearsed on a replay",
+      "missing": [
+        "a replay of Sheffield's own pages: Part 1's page HTML stays on the machine that captured it (docs/captures/sheffield-pgt-2026-09-10/README.md)"
+      ]
+    },
+    {
+      "stage": "T5",
+      "name": "live to the line",
+      "partly": [
+        {
+          "commit": "44a44b3d",
+          "what": "Run A's attempt 10, in the record that commit wrote: signed in through the consent path and filled, saved and read back six pages of Part 1, of the nine form pages its blueprint then held"
+        }
+      ],
+      "missing": [
+        "the English language, marketing, other documents and Part 2 taught pages, run and saved"
+      ]
+    },
+    {
+      "stage": "T6",
+      "name": "a second student",
+      "missing": [
+        "ADR-0118: one signature admits one account; ADR-0157 proposes otherwise and is not decided"
+      ]
+    }
+  ]
+}

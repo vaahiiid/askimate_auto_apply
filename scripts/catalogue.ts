@@ -33,10 +33,11 @@
  * There is deliberately no `approve` subcommand. An approval is a record that a
  * person read something, and a CLI that writes one on request is a CLI that
  * manufactures the evidence it is supposed to record. Approvals are added to
- * `approvals.json` by the person approving — since ADR-0118 that may be the
- * author, naming under `ownAccountOnly.studentId` the one account their single
- * signature admits, and `check` prints that admission per entry so nobody
- * starts a process on a one-account entry without seeing it.
+ * `approvals.json` by the person approving, naming under
+ * `ownAccountOnly.studentId` the one account the signature admits — since P297
+ * every approval does, whatever names it carries, because he is the only
+ * reviewer — and `check` prints that admission per entry so nobody starts a
+ * process on a one-account entry without seeing it.
  */
 
 import { readFile } from "node:fs/promises";
@@ -188,8 +189,12 @@ async function main(): Promise<void> {
         entry === null
           ? ""
           : entry.admits.kind === "any_applicant"
-            ? `${GREEN}admits any applicant${RESET} (a second person's signature)`
-            : `${RED}admits ONE account only${RESET} — studentId ${entry.admits.studentId}, ` +
+            ? // Unreachable from approvals.json since P297: every approval names
+              // its one account. Said in red, because nothing from a file should
+              // print it.
+              `${RED}admits any applicant${RESET} — no approval read from a file can say this ` +
+              `since P297; Vahid is the only reviewer`
+            :`${RED}admits ONE account only${RESET} — studentId ${entry.admits.studentId}, ` +
               `signed by ${entry.admits.signedBy} alone (ADR-0118): usable for that account and ` +
               `for nothing else`;
       console.log(

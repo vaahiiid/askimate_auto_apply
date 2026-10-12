@@ -27,7 +27,15 @@
  * account it admits (`ownAccountOnly`), and the loader carries that admission
  * onto the served entry, where the Conversation Service refuses every other
  * student — at the offer, at the start, and at every later lookup of the
- * entry for a bound case. An approval by a second person admits any applicant.
+ * entry for a bound case.
+ *
+ * Since 2026-10-12 he is the only reviewer, in his words: *"I am the only
+ * reviewer from now on. I am alone. Do not record my second signature as a
+ * second review."* So EVERY approval loaded by the service or the CLI names
+ * the one account it admits, whatever names it carries (P297): two different
+ * name strings were the only test of a second person, and they are not one.
+ * An approval with no account named is accepted only where the code's caller
+ * names its signer in `secondReviewers`; tests do, production names nobody.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * ── A port, on purpose ────────────────────────────────────────────────────
@@ -48,8 +56,8 @@ import type { Canonical } from "./canonical.js";
 import { isLabelledHash, labelledHash } from "./canonical.js";
 
 /**
- * One approval: this exact content, approved by this person, who is not its
- * author.
+ * One approval: this exact content, approved by this person, for the one
+ * account it names.
  *
  * Note what is NOT here: the artefact's id, its version, its institution. An
  * approval that recorded those would invite a lookup by them, and a lookup by
@@ -63,9 +71,10 @@ export interface Approval {
   /** Who authored the artefact. Recorded by the registry, not read from it. */
   readonly authoredBy: string;
   /**
-   * Who signed it. A second person, or — since ADR-0118 — the author, in
-   * which case `ownAccountOnly` is required and the approval admits that one
-   * account and nobody else.
+   * Who signed it. Since 2026-10-12 that is Vahid, whoever authored the
+   * content: *"I am the only reviewer from now on. I am alone. Do not record
+   * my second signature as a second review."* So a name here that differs from
+   * `authoredBy` is not a second person (P297), and admits no more than his.
    */
   readonly approvedBy: string;
   readonly approvedAt: Date;
@@ -74,9 +83,14 @@ export interface Approval {
    * them (`studentId`: the session's subject under `AAS_DEV_SESSION`, the
    * `students.id` row for the signed-in subject under OIDC).
    *
-   * Required when the signer is the author. Permitted on a second person's
-   * approval too — a reviewer may bound what they signed — and absent, a
-   * second person's approval admits any applicant.
+   * Required on every approval since P297, unless its signer is one of the
+   * second reviewers the CALLER names (`secondReviewers`), and production names
+   * none. ADR-0118 let a second person's approval, with no account named,
+   * admit any applicant, and the only test of a second person was that two
+   * name strings differed: "Vahid Mohammadi" beside "vahid mohammadi",
+   * "Vahid", his email or an agent's name all passed. Whether his single
+   * signature may admit other students is ADR-0157's question, proposed and
+   * not decided.
    */
   readonly ownAccountOnly?: { readonly studentId: string };
   /** Free text: what was checked, or which review this came from. */
@@ -128,7 +142,12 @@ export interface ApprovalRegistry {
 
 export type ApprovalRefusal =
   | { readonly kind: "malformed_hash"; readonly detail: string }
-  /** The author signed, and named no account: a signature on a draft, for everyone (ADR-0118). */
+  /**
+   * No account named: a signature on a draft, for everyone (ADR-0118). Since
+   * P297 every signature is his own, so this refuses every approval that
+   * names no account, whatever names it carries, unless the caller named its
+   * signer as a second reviewer (tests do; production names none).
+   */
   | { readonly kind: "self_approval_unbounded"; readonly detail: string }
   | { readonly kind: "missing_reviewer"; readonly detail: string }
   | { readonly kind: "already_approved"; readonly detail: string };
@@ -154,6 +173,13 @@ export function approveContent(input: {
   readonly note?: string;
   /** Approvals already held, so a second one for the same content refuses. */
   readonly existing?: Approval | null;
+  /**
+   * The people whose signature with no account named admits any applicant.
+   * Named by code, never read from the approval or the file it sits in, and
+   * none in production: *"I am the only reviewer from now on"* (2026-10-12).
+   * Tests name a stand-in so a catalogue serves two synthetic students.
+   */
+  readonly secondReviewers?: readonly string[];
 }): ApprovalResult {
   const { contentHash, authoredBy, approvedBy, approvedAt } = input;
 
@@ -191,15 +217,18 @@ export function approveContent(input: {
     };
   }
 
-  if (authoredBy.trim() === approvedBy.trim() && ownAccountOnly === undefined) {
+  const secondReviewer =
+    approvedBy.trim() !== authoredBy.trim() && (input.secondReviewers ?? []).includes(approvedBy.trim());
+  if (ownAccountOnly === undefined && !secondReviewer) {
     return {
       ok: false,
       refusal: {
         kind: "self_approval_unbounded",
         detail:
-          `This content was authored by "${authoredBy}" and is signed by the same person, and ` +
-          `names no account. A single signature admits the signer's own account and nothing ` +
-          `else (ADR-0118): add ownAccountOnly.studentId, or a second person's signature.`,
+          `This approval, signed by "${approvedBy}" for content authored by "${authoredBy}", ` +
+          `names no account. Vahid is the only reviewer (his words, 2026-10-12), so every ` +
+          `signature is his, and a single signature admits one account and nothing else ` +
+          `(ADR-0118): add ownAccountOnly.studentId. A different name is not a second review.`,
       },
     };
   }
@@ -258,6 +287,7 @@ export class InMemoryApprovalRegistry implements ApprovalRegistry {
     readonly approvedAt: Date;
     readonly ownAccountOnly?: { readonly studentId: string };
     readonly note?: string;
+    readonly secondReviewers?: readonly string[];
   }): ApprovalResult {
     const result = approveContent({
       ...input,

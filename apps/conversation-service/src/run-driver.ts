@@ -134,7 +134,7 @@ import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mappi
 import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import { readDeletionRequest, readStudentMessage, readUseRequest, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
-import { namedPlace, placesHolding, readCorrectionRequest, type CorrectionTarget } from "./correction-requests.js";
+import { holdsAFixedChoice, namedPlace, placesHolding, readCorrectionRequest, type CorrectionTarget } from "./correction-requests.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
@@ -189,7 +189,7 @@ import type {
   RunStep,
   PageAttachment,
 } from "@askimate/aas-orchestrator";
-import { FIELD_LABELS, isClosedVocabulary, isFinancialField, partLabel, resolveField } from "@askimate/aas-profile";
+import { FIELD_LABELS, isFinancialField, partLabel, readGradeScale, resolveField } from "@askimate/aas-profile";
 import type {
   ConfirmedProfile,
   ConfirmedProfileStore,
@@ -2615,6 +2615,11 @@ function correctionNotFound(from: string): string {
 
 function correctionAmbiguous(from: string, places: readonly string[]): string {
   return `"${from}" is in more than one of your answers: ${andList(places)}. Nothing has been changed. Say it again naming which one, and I will change that one.`;
+}
+
+/** A grade scale corrected to words that state no maximum (P297): read by the interview's own rule, and refused by it. */
+function correctionNeedsAMaximum(where: string, to: string): string {
+  return `"${to}" does not say the most the grade can be, so ${where} is unchanged. Say the scale with its maximum — for example "out of 10" or "GPA out of 4". Nothing has been changed.`;
 }
 
 function correctionFixedList(where: string): string {
@@ -6154,7 +6159,7 @@ export class RunDriver {
     if (everywhere.length === 0) return answering ? false : await say(correctionNotFound(reading.from));
     // A part chosen from a fixed set holds a token, not the student's words:
     // words put in its place would be a value the set does not have.
-    const places = everywhere.filter((place) => !isClosedVocabulary(place.fieldKey as ProfileFieldKey, place.part));
+    const places = everywhere.filter((place) => !holdsAFixedChoice(confirmed, place));
     const first = everywhere[0];
     if (places.length === 0) return first === undefined ? false : await say(correctionFixedList(correctionWhere(first)));
     const wordsFor = (target: CorrectionTarget): readonly string[] => [
@@ -6171,13 +6176,19 @@ export class RunDriver {
       return true;
     }
 
+    // P297: a grade scale corrected by typing is read by the rule the
+    // interview reads it by, so a correction can neither store a scale with no
+    // maximum ("GPA") nor keep in words a phrase whose token a signed row keys
+    // on ("20-point").
+    const to = target.part === "gradeScale" ? readGradeScale(reading.to) : reading.to;
+    if (to === null) return await say(correctionNeedsAMaximum(where, reading.to));
     const current = confirmed.get(target.fieldKey);
     const value =
       target.item !== undefined && target.part !== undefined && Array.isArray(current)
-        ? (current as readonly unknown[]).map((held, index): unknown => (index === target.item ? { ...(held as Record<string, unknown>), [target.part ?? ""]: reading.to } : held))
+        ? (current as readonly unknown[]).map((held, index): unknown => (index === target.item ? { ...(held as Record<string, unknown>), [target.part ?? ""]: to } : held))
         : target.part !== undefined
-          ? { ...(current as Record<string, unknown>), [target.part]: reading.to }
-          : reading.to;
+          ? { ...(current as Record<string, unknown>), [target.part]: to }
+          : to;
     const pending = {
       fieldKey: target.fieldKey as ProfileFieldKey,
       proposed: proposeValue<unknown>({ value, origin: "conversation", verbatim: text, confidence: 1 }),

@@ -1300,6 +1300,93 @@ describe("a list is collected entry by entry (ADR-0113, P211)", () => {
     ]);
   });
 
+  // P297, Vahid, 2026-10-12: "Our own intake must record a grade and its
+  // scale exactly as the student states them ("8.2 out of 10"). "GPA" must
+  // never be silently read as out of 4." Until P297 "GPA" was stored as gpa_4
+  // and played back "GPA out of 4", and "CGPA out of 10" was refused three
+  // times and stopped for a person (row 146).
+  it("asks again when the scale is only GPA, and keeps the scale the student then states, as stated — never out of 4 (P297)", async () => {
+    let state = start(["education.prior_qualifications"]);
+    state = (await receiveAnswer(state, "education.prior_qualifications", "yes", model)).state;
+    state = await walk(state, "education.prior_qualifications", [
+      ["item0.awardTitle", "BCom (Hons)"],
+      ["item0.subject", "Commerce"],
+      ["item0.institution", "University of Delhi"],
+      ["item0.countryCode", "India"],
+      ["item0.level", "Bachelor's degree"],
+      ["item0.start", "July 2016"],
+      ["item0.endKind", "completed"],
+      ["item0.endDate", "June 2019"],
+      ["item0.award", "none"],
+      ["item0.grade", "8.2"],
+    ]);
+    for (const noMaximum of ["GPA", "CGPA"]) {
+      const asked = await nextAction(state, model);
+      if (asked.kind !== "ask") return expect.unreachable(`expected the scale to be asked, got ${asked.kind}`);
+      expect(asked.partKey).toBe("item0.gradeScale");
+      const refused = await receiveAnswer(state, "education.prior_qualifications", noMaximum, model);
+      expect(refused.kind, `${noMaximum} states no maximum`).toBe("not_understood");
+      state = refused.state;
+    }
+    state = await walk(state, "education.prior_qualifications", [
+      ["item0.gradeScale", "CGPA out of 10"],
+      ["item0.another", "no"],
+    ]);
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable(`expected the playback, got ${playback.kind}`);
+    const shown = playback.messages.join("\n");
+    expect(shown).toContain('Grade: 8.2 (you said: "8.2")');
+    expect(shown).toContain('Grade scale: CGPA out of 10 (you said: "CGPA out of 10")');
+    expect(shown).not.toContain("out of 4");
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "education.prior_qualifications");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    // "Nothing here converts a grade between scales": the grade and its scale
+    // are stored as the student said them, and nothing derived from either.
+    expect(unwrapConfirmed(held)).toEqual([
+      {
+        level: "Bachelor's degree",
+        awardTitle: "BCom (Hons)",
+        subject: "Commerce",
+        institution: "University of Delhi",
+        countryCode: "IN",
+        start: { year: 2016, month: 7 },
+        end: { kind: "completed", date: { year: 2019, month: 6 } },
+        grade: "8.2",
+        gradeScale: "CGPA out of 10",
+      },
+    ]);
+  });
+
+  it("asks the scale with its maximum, and offers no list that leaves the student's scale out (P297)", async () => {
+    let state = start(["education.prior_qualifications"]);
+    state = (await receiveAnswer(state, "education.prior_qualifications", "yes", model)).state;
+    state = await walk(state, "education.prior_qualifications", [
+      ["item0.awardTitle", "BSc"],
+      ["item0.subject", "Economics"],
+      ["item0.institution", "University of Lagos"],
+      ["item0.countryCode", "Nigeria"],
+      ["item0.level", "Bachelor's degree"],
+      ["item0.start", "October 2014"],
+      ["item0.endKind", "completed"],
+      ["item0.endDate", "July 2018"],
+      ["item0.award", "none"],
+      ["item0.grade", "4.1"],
+    ]);
+    const asked = await nextAction(state, model);
+    if (asked.kind !== "ask") return expect.unreachable(`expected the scale to be asked, got ${asked.kind}`);
+    expect(String(asked.say)).toContain("what is the most it can be");
+    expect(String(asked.say)).not.toContain("GPA out of 4, or percentage?");
+    state = await walk(state, "education.prior_qualifications", [
+      ["item0.gradeScale", "5-point"],
+      ["item0.another", "no"],
+    ]);
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "education.prior_qualifications");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual([expect.objectContaining({ grade: "4.1", gradeScale: "5-point" })]);
+  });
+
   it("keeps the award date the student gives, and never derives it from the end (ADR-0112)", async () => {
     let state = start(["education.prior_qualifications"]);
     state = await walk(state, "education.prior_qualifications", [

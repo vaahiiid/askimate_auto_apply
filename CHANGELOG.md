@@ -19,6 +19,43 @@ not shipped artefacts.
 
 ---
 
+## [0.290.0] — 2026-10-12
+
+**P297 — his six decisions of 2026-10-12: he is the only reviewer, and the code stops counting a
+second name as a second person; the intake keeps a grade's scale as the student states it; two
+ADRs proposed for his approval; the profile's portal-neutrality measured; the time to onboard a
+portal measured from now on.**
+
+- **Added** his message of 2026-10-12, saved whole as sent (`docs/run-a/p297-his-decisions-as-sent.txt`).
+- **Fixed** the approval registry counting two different name strings as two people: an approval
+  loaded by the service or the CLI must name the one account it admits, whatever names it carries,
+  and a second record for content already signed is refused (`packages/catalogue`). Who besides
+  him may sign for any applicant is named by code (`secondReviewers`), and production names nobody.
+  `catalogue check` no longer calls any admission "a second person's signature".
+- **Fixed** the intake reading "GPA" as out of 4 and refusing "CGPA out of 10" (row 146): one rule
+  for the interview and the CV reader (`packages/profile/src/grade-scale.ts`) keeps a stated scale
+  as stated, keeps a token only for a phrase naming its maximum, and asks again when no maximum is
+  stated; "20-point scale" and "on a 20 point scale" keep the twenty-point token. A model's reading
+  of the scale must quote the student, or the CV line it grounded, whole: a quote that stops inside
+  a number ("out of 4" in "out of 4.5") is refused. The transcript reader follows the same rule.
+- **Fixed** the correction path, which would have refused a scale held in the student's words as a
+  choice from a fixed list, and now reads a corrected scale by the interview's rule; and ADR-0153's
+  identity check, which skipped every closed-vocabulary row and now skips only a token or a country
+  (row 166: both reachable from this phase's fix).
+- **Added** `scripts/portal-onboarding-time.ts` and `docs/onboarding/`: the time to onboard a
+  portal, stage by stage, each time read from its marker. It refuses a marker that is not a hash in
+  HEAD's history, a T0 that did not add the target file, a T1 that is not its first capture, and a
+  stage reached before the one it rests on. CI now checks out whole history, which it reads.
+- **Added** `scripts/portal-neutral-walk.ts` and `docs/portal-neutral-profile.md`: the profile is
+  partly portal-neutral, with seven exceptions recorded as rows.
+- **Proposed** ADR-0157 (his signature serves other students while he is the sole founder, with
+  compensating controls) and ADR-0158 (a portal learned once; a student's values resolved per
+  application against the live list). Neither is decided; nothing in either Decision is built.
+- **Changed** CLAUDE.md: two rules in his words — he is the only reviewer, and every report carries
+  the time to onboard a portal.
+
+---
+
 ## [0.289.1] — 2026-10-11
 
 **P296 records: a green census keeps no report, and the records said it did.**

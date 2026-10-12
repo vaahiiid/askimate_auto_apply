@@ -42,6 +42,9 @@ export {
   FUNDING_STAGES,
 } from "./fields.js";
 
+// ── The scale a grade is on, as the student states it (P297) ───────────────
+export { GRADE_SCALE_PHRASES, GRADE_SCALE_SHAPE, readGradeScale } from "./grade-scale.js";
+
 // ── B1 row 2, made structural (ADR-0077) ───────────────────────────────────
 export type { DataCategory, OrdinaryFieldKey } from "./categories.js";
 export {

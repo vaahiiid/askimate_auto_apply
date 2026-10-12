@@ -4932,6 +4932,30 @@ Those are rows now, not surprises.
 
 **Three** — unchanged.
 
+# P297 — he is the only reviewer; a portal learned once, proposed; a scale as the student says it
+
+*2026-10-12.* Six decisions, in his words, and what each became.
+- **The only reviewer:** the code took two different name strings for two people, so "vahid
+  mohammadi" signing beside "Vahid Mohammadi" would have served any student. Now every approval names
+  the one account it admits, whatever names it carries.
+- **His signature for other students:** proposed as ADR-0157, with the controls that would stand
+  in for a second reviewer and, said plainly, what they still miss. Not decided.
+- **A portal learned once:** proposed as ADR-0158. Structure is signed once, and a student's
+  values are resolved against the live list for each application. It removes the per-country rows
+  and reads. It costs the signer's eyes on each pair, and five things in it are his to say first.
+- **The scale as stated:** "GPA" was stored as out of 4. Now a scale is kept as the student says
+  it, with its maximum, and "GPA" alone is asked again.
+- **Portal-neutral:** partly. The storage is; several value sets are Sheffield's own lists.
+- **Time to onboard:** Sheffield is 31 days past its first capture and has reached no later stage.
+
+The review found more than the first pass did: a correction that could have stored "GPA", a quote
+check fooled by "out of 4.5", two wrong sources built on parts that do not exist, and a proposal
+whose pass would have touched the portal before a minor's review. Each was fixed before the commit.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P295 — signed, and the country printed from now on
 
 *2026-10-10.* He signed the GPA 20 row in P294's patch and confirmed in his own words that his reads

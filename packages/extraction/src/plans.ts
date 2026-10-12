@@ -28,7 +28,7 @@ import type {
   ProfileFieldType,
   Qualification,
 } from "@askimate/aas-profile";
-import { readCountryCode } from "@askimate/aas-profile";
+import { GRADE_SCALE_SHAPE, readCountryCode, readGradeScale } from "@askimate/aas-profile";
 import type { EmploymentEntry } from "@askimate/aas-profile";
 import type { DocumentType } from "@askimate/aas-domain";
 
@@ -69,6 +69,11 @@ export interface ScalarTarget extends TargetCommon {
 
 export interface CompositePart extends TargetCommon {
   readonly partKey: string;
+  /**
+   * The value must be quoted whole from the span it was grounded in (P297, the
+   * grade scale): a model's words for the document's are not the document's.
+   */
+  readonly asStated?: true;
 }
 
 export interface CompositeTarget {
@@ -524,11 +529,15 @@ const ACADEMIC_TRANSCRIPT: ExtractionPlan = {
           required: true,
         },
         {
+          // P297: the scale as printed, held to its span, and read by the
+          // interview's own rule in `assemble` — "Grading system: GPA" states
+          // no maximum, and is never read as out of 4.
           partKey: "gradeScale",
           labels: ["Grading scale", "Scale", "Grading system"],
-          hint: "the scale that grade is on, e.g. a 20-point scale or UK honours",
-          expectedShape: "a grading scale",
+          hint: "the scale that grade is on, with its maximum, exactly as printed",
+          expectedShape: GRADE_SCALE_SHAPE,
           required: true,
+          asStated: true,
         },
       ],
       assemble: (parts): Qualification | null => {
@@ -537,7 +546,7 @@ const ACADEMIC_TRANSCRIPT: ExtractionPlan = {
         const institution = parts.get("institution");
         const countryCode = parts.get("countryCode");
         const grade = parts.get("grade");
-        const gradeScale = parts.get("gradeScale");
+        const gradeScale = readGradeScale(parts.get("gradeScale") ?? "") ?? undefined;
         const start = yearMonth(parts.get("start") ?? "");
         const end = yearMonth(parts.get("end") ?? "");
         // Month and year, or nothing — never a year with a month we chose
@@ -607,18 +616,6 @@ const QUALIFICATION_LEVELS: Readonly<Record<string, string>> = {
   diploma: "Diploma",
   certificate: "Certificate",
   "high school diploma": "High school diploma",
-};
-
-const GRADE_SCALES: Readonly<Record<string, string>> = {
-  "uk honours": "uk_honours",
-  "20-point": "twenty_point",
-  "20 point": "twenty_point",
-  "out of 20": "twenty_point",
-  "gpa out of 4": "gpa_4",
-  "gpa 4": "gpa_4",
-  gpa: "gpa_4",
-  percentage: "percentage",
-  "out of 100": "percentage",
 };
 
 const EMPLOYMENT_BASIS: Readonly<Record<string, string>> = {
@@ -736,7 +733,10 @@ const CV: ExtractionPlan = {
         { partKey: "start", labels: ["Start", "Start date", "From"], hint: "when it began, as a month and a year", expectedShape: "a month and a year", source: "document", parse: yearMonth, components: yearOnly },
         { partKey: "end", labels: ["End", "End date", "To", "Until", "Completed"], hint: "when it ended, or is expected to", expectedShape: "a month and a year, with 'expected' or 'discontinued' where so", source: "document", parse: qualificationEnd, components: qualificationEndComponents },
         { partKey: "grade", labels: ["Grade", "Result", "Classification"], hint: "the grade as printed", expectedShape: "a grade", source: "document", parse: trimmed },
-        { partKey: "gradeScale", labels: ["Grade scale", "Scale"], hint: "the scale the grade is on", expectedShape: "UK honours, 20-point, GPA out of 4, or percentage", source: "document", parse: oneOf(GRADE_SCALES) },
+        // P297: the scale as the CV prints it, with its maximum, read through
+        // the interview's own rule (`readGradeScale`). "Scale: GPA" states no
+        // maximum and is left for the interview to ask, never read as out of 4.
+        { partKey: "gradeScale", labels: ["Grade scale", "Scale"], hint: "the scale the grade is on, with its maximum, exactly as printed", expectedShape: GRADE_SCALE_SHAPE, source: "document", parse: readGradeScale },
       ],
     },
   ],

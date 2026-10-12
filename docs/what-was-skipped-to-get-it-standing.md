@@ -50,6 +50,14 @@ account but his runs against a reviewed set, a second person reads the set again
 signs it — then, and only then, the approval admits any applicant. Blocker 2 in
 [`state-of-the-system.md`](./state-of-the-system.md) stays open with this sentence in it.
 
+Since 2026-10-12 he is the only reviewer, in his words: *"I am the only reviewer from now on. I am
+alone. Do not record my second signature as a second review."* So a second name in
+`approvals.json` is not a second person (P297): an approval with no account named is refused
+whatever names it carries, and whoever may sign for any applicant is named in code, where
+production names nobody. Whether his own signature may serve other students instead, with
+compensating controls, is [ADR-0157](./decisions/0157-while-he-is-the-sole-founder-his-signature-serves-other-students.md):
+proposed, not decided.
+
 ## The cut of 2026-09-16 — accepted by Vahid, all of it
 
 Vahid asked what else on the list is the same shape: work that only matters for serving a real

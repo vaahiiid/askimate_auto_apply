@@ -31,7 +31,7 @@ import type { ApplicationBlueprint, BlueprintField, FieldListAfter, FieldLocator
 import { allFields, allRequiredDocuments, escapeOf } from "@askimate/aas-blueprint";
 import type { Brand } from "@askimate/aas-domain";
 import type { FormatRule, OrdinaryFieldKey } from "@askimate/aas-profile";
-import { isClosedVocabulary, LIST_VALUED_FIELD_KEYS } from "@askimate/aas-profile";
+import { isClosedVocabulary, LIST_VALUED_FIELD_KEYS, vocabularyWords } from "@askimate/aas-profile";
 
 /** Where a portal field's value comes from. */
 export type ValueSource =
@@ -925,7 +925,10 @@ export function checkUsable(
     if (mapping?.source.kind !== "profile_field") continue;
     const fieldKey = mapping.source.fieldKey;
     for (const row of optionRowsOf(mapping.source.format)) {
-      if (isClosedVocabulary(fieldKey, row.part)) continue;
+      // A closed vocabulary's TOKEN is an identity across vocabularies, left to
+      // review; since P297 a grade scale may hold the student's words instead,
+      // and a row keyed on words is the student's words, checked like any.
+      if (isClosedVocabulary(fieldKey, row.part) && (row.part === undefined || row.part === "countryCode" || vocabularyWords(fieldKey, row.part, row.key) !== null)) continue;
       const text = field.options?.find((option) => option.value === row.target)?.label;
       if (text === undefined || text === row.key) continue;
       identityFields.push(field.fieldRef);

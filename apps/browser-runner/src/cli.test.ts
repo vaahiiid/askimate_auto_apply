@@ -274,11 +274,15 @@ describe("resolving what someone typed to a target file", () => {
     });
   }
 
+  // Each of these spawns the CLI as a process, so each has the budget its
+  // siblings have: on the default five seconds this one timed out once in the
+  // P297 census, taking over 5 s where it takes 1.1–1.5 s alone, while a
+  // 45-agent review ran tests on the same machine.
   it("lists the targets when given nothing, instead of an unhelpful usage line", async () => {
     const { code, out } = await usage();
     expect(code).toBe(2);
     expect(out).toContain("ulster-birmingham-msc-ib-2026.json");
-  });
+  }, 20_000);
 
   it("accepts the path as written in the runbook, relative to the repo root", async () => {
     const { out } = await usage("targets/ulster-birmingham-msc-ib-2026.json");
@@ -304,7 +308,7 @@ describe("resolving what someone typed to a target file", () => {
     expect(code).toBe(2);
     expect(out).toContain('No target found for "oxford"');
     expect(out).toContain("ulster-birmingham-msc-ib-2026.json");
-  });
+  }, 20_000);
 
   it("writes its output under the repo root, where the runbook says to look", () => {
     expect(runRoot).toBe(join(repoRoot, "discovery-runs"));

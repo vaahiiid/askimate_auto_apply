@@ -66,6 +66,14 @@ canonical hash from `pnpm run catalogue hash`, the date, and a note of what was 
 approver's identity is asserted in that file, not authenticated — the same scope ADR-0048 §3
 records for the one-operator model.
 
+**Replaced twice since, each in his words.** 2026-09-16 (ADR-0118): *"Drop it to one: I approve, and
+I am the only signature"* — his single signature admits his own account and nothing else, and the
+loader stopped refusing an approval whose two names are one person. 2026-10-12 (P297): *"I am the
+only reviewer from now on. I am alone. Do not record my second signature as a second review."* So
+every approval now names, under `ownAccountOnly`, the one account it admits, whatever names it
+carries, and the record above, signed "Iman Behravan" with no account, would be refused at load.
+Whether his signature may serve other students is ADR-0157, proposed and not decided.
+
 ## The first read — 2026-09-10, eleven pages, zero failed
 
 Made by Vahid on his machine through attached inspection (P79, fixed in P80). The record is

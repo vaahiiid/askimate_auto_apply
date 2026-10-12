@@ -8,8 +8,9 @@
  *
  * Two files rather than one, because they are two different kinds of thing. An
  * entry is produced by discovery and specialist authoring; an approval is
- * produced by a person looking at it — a second person, or since ADR-0118 the
- * author, naming the one account their signature admits. Putting the approval
+ * produced by a person looking at it, naming the one account their signature
+ * admits (ADR-0118; every approval since P297, whatever names it carries,
+ * because he is the only reviewer). Putting the approval
  * inside the entry would put the signature inside the document it signs, which
  * is the arrangement ADR-0057 exists to replace.
  *
@@ -65,7 +66,12 @@ function describe(refusal: LoadRefusal): string {
  * file is bytes too, and a registry that accepted a malformed record would
  * hold an approval whose hash matched nothing or whose reviewer was blank.
  */
-export function parseApprovals(value: unknown, source: string): {
+export function parseApprovals(
+  value: unknown,
+  source: string,
+  /** Named by code, never by the file: see `approveContent`. None in production. */
+  secondReviewers: readonly string[] = [],
+): {
   readonly approvals: readonly Approval[];
   readonly problems: readonly CatalogueProblem[];
 } {
@@ -127,8 +133,11 @@ export function parseApprovals(value: unknown, source: string): {
     }
 
     // The same rule the registry applies in memory, so a file cannot hold an
-    // approval `approveContent` would refuse — the author's signature with no
-    // account named among them (ADR-0118).
+    // approval `approveContent` would refuse — a signature that names no
+    // account (ADR-0118; every one since P297) — nor a second record for
+    // content already signed. Before P297 the later record replaced the
+    // earlier one in silence, so an unbounded copy of a bounded approval
+    // loaded and admitted any applicant.
     const built = approveContent({
       contentHash,
       authoredBy,
@@ -136,6 +145,8 @@ export function parseApprovals(value: unknown, source: string): {
       approvedAt: new Date(approvedAt),
       ...(bounded === undefined ? {} : { ownAccountOnly: bounded }),
       ...(note === undefined ? {} : { note }),
+      existing: approvals.find((held) => held.contentHash === contentHash) ?? null,
+      secondReviewers,
     });
     if (!built.ok) {
       problems.push({ source: at, detail: built.refusal.detail });
@@ -148,7 +159,10 @@ export function parseApprovals(value: unknown, source: string): {
 }
 
 /** Reads the approvals file, or says why it could not. */
-export async function readRegistry(directory: string): Promise<{
+export async function readRegistry(
+  directory: string,
+  secondReviewers: readonly string[] = [],
+): Promise<{
   readonly registry: ApprovalRegistry;
   readonly problems: readonly CatalogueProblem[];
 }> {
@@ -179,7 +193,7 @@ export async function readRegistry(directory: string): Promise<{
     };
   }
 
-  const { approvals, problems } = parseApprovals(decoded, APPROVALS_FILE);
+  const { approvals, problems } = parseApprovals(decoded, APPROVALS_FILE, secondReviewers);
   return { registry: new InMemoryApprovalRegistry(approvals), problems };
 }
 
@@ -195,9 +209,15 @@ export async function loadCatalogueDirectory(input: {
   readonly directory: string;
   /** Per-blueprint deployment origins, e.g. a university's UAT host. */
   readonly portalOrigins?: Readonly<Record<string, string>>;
+  /**
+   * Who may sign for any applicant. Tests name a stand-in; the service and the
+   * CLI name nobody, so every approval they load must name the one account it
+   * admits (P297).
+   */
+  readonly secondReviewers?: readonly string[];
 }): Promise<CatalogueLoad> {
   const problems: CatalogueProblem[] = [];
-  const { registry, problems: registryProblems } = await readRegistry(input.directory);
+  const { registry, problems: registryProblems } = await readRegistry(input.directory, input.secondReviewers);
   problems.push(...registryProblems);
 
   const entriesDir = join(input.directory, ENTRIES_DIR);

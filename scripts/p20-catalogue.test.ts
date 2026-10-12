@@ -93,6 +93,9 @@ async function writeCatalogue(input: {
       authoredBy: AUTHOR,
       approvedBy: REVIEWER,
       approvedAt: "2026-09-01T10:00:00Z",
+      // The service started below names no second reviewer, as production
+      // does not (P297): an approval it loads names its one account.
+      ownAccountOnly: { studentId: "stu-p20" },
       note: "Gated TEST portal. Not a university artefact.",
     });
   }
@@ -297,6 +300,40 @@ describe("a catalogue directory", () => {
       signedBy: AUTHOR,
     });
     expect(load.catalogue.targets()[0]?.admits).toEqual(entry?.admits);
+  }, 60_000);
+
+  it("REFUSES an approval whose names differ and that names no account: a different name is not a second review (P297)", async () => {
+    // Before P297 this loaded and admitted any applicant: the only test of a
+    // second person was that the two strings differed.
+    const dir = await writeCatalogue({ document: DOCUMENT, approve: "the-written-entry" });
+    const parsed = parseReviewedEntryText(DOCUMENT);
+    if (!parsed.ok) expect.unreachable("fixture parses");
+    await writeFile(
+      join(dir, "approvals.json"),
+      JSON.stringify([
+        { contentHash: hashOf(toCanonical(parsed.value)), authoredBy: "Vahid Mohammadi", approvedBy: "vahid mohammadi", approvedAt: "2026-10-12T10:00:00Z" },
+      ]),
+    );
+    const load = await loadCatalogueDirectory({ directory: dir });
+    if (load.ok) expect.unreachable(`loaded, admitting ${JSON.stringify((await load.catalogue.find("bp-gated-portal"))?.admits)}`);
+    expect(load.problems[0]?.detail).toContain("A different name is not a second review");
+  }, 60_000);
+
+  it("REFUSES a second record for content already signed, where the later one used to win in silence (P297)", async () => {
+    const dir = await writeCatalogue({ document: DOCUMENT, approve: "the-written-entry" });
+    const parsed = parseReviewedEntryText(DOCUMENT);
+    if (!parsed.ok) expect.unreachable("fixture parses");
+    const contentHash = hashOf(toCanonical(parsed.value));
+    await writeFile(
+      join(dir, "approvals.json"),
+      JSON.stringify([
+        { contentHash, authoredBy: AUTHOR, approvedBy: AUTHOR, approvedAt: "2026-10-12T10:00:00Z", ownAccountOnly: { studentId: "stu-the-signer" } },
+        { contentHash, authoredBy: AUTHOR, approvedBy: AUTHOR, approvedAt: "2026-10-12T10:05:00Z", ownAccountOnly: { studentId: "stu-someone-else" } },
+      ]),
+    );
+    const load = await loadCatalogueDirectory({ directory: dir });
+    if (load.ok) expect.unreachable("two records for one content loaded");
+    expect(load.problems.map((problem) => problem.detail).join("\n")).toContain("already approved");
   }, 60_000);
 
   it("REFUSES a bound approval whose account is not a name", async () => {

@@ -29,7 +29,12 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Whole history: scripts/portal-onboarding-time.ts reads its stages'
+      # times from the commits that mark them (P297), and a shallow clone holds
+      # none of them.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Enable corepack
         run: corepack enable
@@ -119,7 +124,12 @@ jobs:
         ports: ["5432:5432"]
 
     steps:
+      # Whole history: scripts/portal-onboarding-time.ts reads its stages'
+      # times from the commits that mark them (P297), and a shallow clone holds
+      # none of them.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - run: corepack enable
       - uses: actions/setup-node@v4
         with:

@@ -10,7 +10,7 @@ import {
   isBedrockConfigured,
   listedAs,
 } from "./bedrock-config.js";
-import { clampConfidence, toProposal } from "./bedrock-reading.js";
+import { clampConfidence, isQuotedIn, toProposal } from "./bedrock-reading.js";
 import { BedrockModelClient, bedrockRuntimeBaseURL } from "./bedrock.js";
 import { isNotUnderstood } from "./client.js";
 
@@ -97,6 +97,54 @@ describe("turning a model's answer into a proposal", () => {
     if (isNotUnderstood(result)) expect.unreachable("this parses");
     expect(unwrapProposed(result).value).toEqual(new Date("1999-04-02T00:00:00Z"));
     expect(unwrapProposed(result).verbatim).toBe("2 April 1999");
+  });
+
+  // P297: a part read AS STATED keeps the student's words. A model that
+  // answers "GPA out of 4" for a student who said "GPA" has supplied the
+  // maximum itself, which is exactly what decision 3 of 2026-10-12 forbids.
+  const asStated = Object.assign((raw: string): string | null => (raw.trim().length > 0 ? raw.trim() : null), { asStated: true as const });
+
+  it("REFUSES a reading of an as-stated part that is not in what the student said (P297)", () => {
+    const result = toProposal({
+      reading: { understood: true, value: "GPA out of 4", verbatim: "GPA", confidence: 1 },
+      parse: asStated,
+      origin: "conversation",
+      fallbackVerbatim: "GPA",
+    });
+    if (!isNotUnderstood(result)) expect.unreachable("the model supplied a maximum the student did not say");
+    expect(result.reason).toContain("not in what was said");
+  });
+
+  it("REFUSES a quote that stops inside the student's number or word, and credits the student's whole answer (P297)", () => {
+    // "GPA out of 4.5" said, "GPA out of 4" read: a maximum the student did not give.
+    const cut = toProposal({
+      reading: { understood: true, value: "GPA out of 4", verbatim: "GPA out of 4", confidence: 1 },
+      parse: asStated,
+      origin: "conversation",
+      fallbackVerbatim: "GPA out of 4.5",
+    });
+    if (!isNotUnderstood(cut)) expect.unreachable("a quote that stops inside 4.5 is not the student's words");
+    expect(isQuotedIn("my CGPA was 8.2", "GPA"), "GPA is not in CGPA").toBe(false);
+    expect(isQuotedIn("it is out of 10, on paper", "out of 10")).toBe(true);
+    const whole = toProposal({
+      reading: { understood: true, value: "out of 10", verbatim: "out of 10", confidence: 0.9 },
+      parse: asStated,
+      origin: "conversation",
+      fallbackVerbatim: "it is out of 10, on paper",
+    });
+    if (isNotUnderstood(whole)) expect.unreachable(whole.reason);
+    expect(unwrapProposed(whole).verbatim, "the playback's 'you said' is what they said").toBe("it is out of 10, on paper");
+  });
+
+  it("accepts a reading of an as-stated part that is the student's own words, whatever their case (P297)", () => {
+    const result = toProposal({
+      reading: { understood: true, value: "CGPA out of 10", verbatim: "cgpa out of 10", confidence: 0.9 },
+      parse: asStated,
+      origin: "conversation",
+      fallbackVerbatim: "It was a cgpa  out of 10, I think",
+    });
+    if (isNotUnderstood(result)) expect.unreachable(result.reason);
+    expect(unwrapProposed(result).value).toBe("CGPA out of 10");
   });
 
   it("REFUSES a reading the parser rejects, at confidence 1.0", () => {

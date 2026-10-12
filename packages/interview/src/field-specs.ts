@@ -26,7 +26,7 @@ import type {
   FundingSource,
   FundingStage,
 } from "@askimate/aas-profile";
-import { PART_LABELS, readCountryCode } from "@askimate/aas-profile";
+import { GRADE_SCALE_SHAPE, PART_LABELS, readCountryCode, readGradeScale } from "@askimate/aas-profile";
 
 /**
  * A field the student answers in one utterance.
@@ -763,22 +763,6 @@ const QUALIFICATION_LEVELS: Readonly<Record<string, string>> = {
   "high school diploma": "High school diploma",
 };
 
-/**
- * The scale a grade is on (`Qualification.gradeScale`). A closed set, because
- * a mapping keys on it; a scale nobody listed is asked again, never named
- * after the student's country.
- */
-const GRADE_SCALES: Readonly<Record<string, string>> = {
-  "uk honours": "uk_honours",
-  "20-point": "twenty_point",
-  "20 point": "twenty_point",
-  "out of 20": "twenty_point",
-  "gpa out of 4": "gpa_4",
-  "gpa 4": "gpa_4",
-  "gpa": "gpa_4",
-  percentage: "percentage",
-  "out of 100": "percentage",
-};
 
 /** ADR-0112: the student says which, and nothing reads it off a date. */
 const END_KINDS: Readonly<Record<string, string>> = {
@@ -1845,14 +1829,21 @@ export const FIELD_SPECS: Partial<{
           parse: trimmed,
         },
         {
+          // P297: the scale as the student states it, with its maximum. Words
+          // that are exactly a phrase of `readGradeScale`'s table keep its
+          // token, which a signed mapping keys on; any other words that state a
+          // maximum are stored as said; "GPA" alone states none and is asked
+          // again, never read as out of 4.
           partKey: "gradeScale",
-          question: "Which scale is that grade on — UK honours, 20-point, GPA out of 4, or percentage?",
+          question:
+            "Which scale is that grade on, and what is the most it can be — for example out of 10, out of 4, 20-point, UK honours, or percentage?",
           label: PART_LABELS["education.prior_qualifications"].gradeScale,
           rationale:
-            "The scale that grade is on. Please choose one of: UK honours, 20-point, GPA out of " +
-            "4, percentage. Nothing here converts a grade between scales.",
-          expectedShape: "one of: UK honours, 20-point, GPA out of 4, percentage",
-          parse: oneOf(GRADE_SCALES),
+            "The scale that grade is on, with its maximum, in your own words. A GPA or CGPA " +
+            "needs its maximum too: GPA out of 4, CGPA out of 10. Nothing here converts a grade " +
+            "between scales.",
+          expectedShape: GRADE_SCALE_SHAPE,
+          parse: readGradeScale,
         },
       ],
       assemble: (answered) => {

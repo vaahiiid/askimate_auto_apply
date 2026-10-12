@@ -33,7 +33,7 @@ export {
 } from "./bedrock-config.js";
 
 export type { ReadingToolInput } from "./bedrock-reading.js";
-export { clampConfidence, toProposal } from "./bedrock-reading.js";
+export { clampConfidence, isQuotedIn, toProposal } from "./bedrock-reading.js";
 
 export type { BedrockClientOptions, BedrockDestination } from "./bedrock.js";
 export { BedrockEmptyResponseError, BedrockModelClient, bedrockRuntimeBaseURL } from "./bedrock.js";
