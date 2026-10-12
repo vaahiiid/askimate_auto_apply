@@ -1,0 +1,11 @@
+AUTH 7, observed by me today (12 October, about 20:45 UK time) on the Sheffield account used for our reads:
+
+"Forgot password" works, but it does not send a reset link. Sheffield immediately generates a new password, replacing the old one, and e-mails it in plain text to the account's e-mail address, with a recommendation to sign in and change it. I am changing it now.
+
+Record AUTH 7 as observed, with exactly this. Consequences to record:
+- The run must never press "Forgot password" itself: it silently replaces the student's password and puts a new one in their inbox in plain text.
+- If a student loses their password, the handover message must tell them that resetting replaces their password at once and the new one arrives by e-mail.
+
+Fold this into P300's sheet as I asked, and give me the signing message when it is ready.
+
+I am not sending the password or the account's e-mail address. A separate message about which account this is will follow.
