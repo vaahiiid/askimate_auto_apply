@@ -1,0 +1,5 @@
+I approve P296's patch. Apply it and sign it exactly as docs/run-a/p296-for-signature.md says, with approvedAt at the time of signing, and this note: "Approved by Vahid: grade row from read R (Iran, twenty-point scale, institution Not in list) and the preview labels from read L." Check the printed hash matches the sheet's before committing, include docs/state-of-the-system.md if the test counts change, then push and report CI.
+
+The institution box label: the last sentence is right. Keep it.
+
+Row 152 (AUTH 7): it was never observed, so it must not be recorded as true. Record it as not observed until someone tries it.

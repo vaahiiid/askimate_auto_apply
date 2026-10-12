@@ -107,7 +107,9 @@ settle, are settled by Vahid's direct statement of 2026-09-11 and marked observe
 a run: *"no verification step … nothing stood between the button and the first page"*; *"no
 second factor … No code arrived and none was asked for."* With all eight observed the approach
 chooser picks `student_chosen` for this entry, and the test proves it still refuses when either
-fact is set back to unobserved. In his words, carried with the two answers: *"this is Sheffield's
+fact is set back to unobserved. **P299, 2026-10-12:** not all eight were observed. AUTH 7 never was,
+and is now `unobserved` in the draft at Vahid's word, so the chooser refuses the draft (row 152 of
+`state-of-the-system.md`); AUTH 8 was reasoned, not observed (row 169). In his words, carried with the two answers: *"this is Sheffield's
 behaviour, not a property of direct portals … per-target work, not something these two answers
 settle for anything but this entry."*
 

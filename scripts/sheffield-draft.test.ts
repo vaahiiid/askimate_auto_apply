@@ -662,7 +662,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.instructions.find((i) => i.fieldRef === "newemail")?.value.kind).toBe("confirmed");
   });
 
-  it("record eight authentication facts, all observed, and the chooser picks student_chosen (P92)", () => {
+  it("record AUTH 7 as not observed, so the chooser refuses and names that one question; observed, it would pick student_chosen (P92, P299)", () => {
     // AUTH 4 and 5 could not be settled by a page that was read. They are
     // settled by Vahid's direct statement of 2026-09-11 — observed by him,
     // not by a run — and the file says so in its comment, because the type
@@ -672,17 +672,28 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(observed.applicantChoosesPassword).toBe(true);
     expect(observed.emailVerificationRequired).toBe(false);
     expect(observed.mfaOrOtpRequired).toBe(false);
-    const choice = chooseApproach({ observed, studentPresentAtCreation: true });
-    expect(choice.chosen).toBe(true);
-    if (choice.chosen) expect(choice.plan.approach).toBe("student_chosen");
+    // AUTH 7 was recorded as true and never observed (row 152). Vahid,
+    // 2026-10-12: "it was never observed, so it must not be recorded as true.
+    // Record it as not observed until someone tries it."
+    expect(observed.passwordResetAvailable).toBe("unobserved");
+    const refused = chooseApproach({ observed, studentPresentAtCreation: true });
+    if (refused.chosen) expect.unreachable("an unobserved fact must refuse");
+    expect(refused.refusal.kind).toBe("unobserved");
+    if (refused.refusal.kind === "unobserved") {
+      expect(refused.refusal.questions).toEqual(["Does 'Forgot password' work, and does the reset go to the account's own address?"]);
+    }
+    const ifTried = chooseApproach({ observed: { ...observed, passwordResetAvailable: true }, studentPresentAtCreation: true });
+    expect(ifTried.chosen).toBe(true);
+    if (ifTried.chosen) expect(ifTried.plan.approach).toBe("student_chosen");
   });
 
   it.each([["emailVerificationRequired"], ["mfaOrOtpRequired"]] as const)(
     "still REFUSES when %s alone is set back to unobserved — the refusal bites, it has not merely stopped firing",
     (fact) => {
       // "An unobserved answer is not a no." Proved on each of the two facts
-      // his statement settled, one at a time, against the committed file.
-      const observed = { ...facts(), [fact]: "unobserved" as const };
+      // his statement settled, one at a time, against the committed file —
+      // with AUTH 7 as if tried, so that this fact is the one refusing.
+      const observed = { ...facts(), passwordResetAvailable: true, [fact]: "unobserved" as const };
       const choice = chooseApproach({ observed, studentPresentAtCreation: true });
       expect(choice.chosen).toBe(false);
       if (choice.chosen) expect.unreachable("an unobserved fact must refuse");

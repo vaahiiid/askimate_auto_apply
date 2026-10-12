@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.292.0] — 2026-10-12
+
+**P299 — P296's patch signed at his word; AUTH 7 recorded as not observed where his signature does
+not reach; a way an account could be stranded traced in the code (not run) before the change that
+would reach it.**
+
+- **Signed** P296's patch exactly as its sheet says (`8f51a599`): the grade row from read R and the
+  escape boxes' words from read L. The printed hash, `sha256:546b2948…`, was compared with the
+  sheet's before the commit; approvedAt `2026-10-12T16:30:36Z`; his note as written.
+- **Added** his message, saved as sent (`docs/run-a/p299-his-message-as-sent.txt`).
+- **Changed** the capture draft's AUTH 7 to `"unobserved"`, at his word, with its test: the chooser
+  refuses it and names that one question.
+- **Changed** the entry's comment (outside the content hash): it says the entry is signed (row 165)
+  and that AUTH 7 is not observed.
+- **Recorded** rows 169 (AUTH 3, 5, 6 and 8 rest on less than their values say) and 170 (when the
+  chooser refuses, a run stops seeing an account it holds, and the case can conclude owing
+  nothing), and rows 141 and 165 closed.
+
+---
+
 ## [0.291.0] — 2026-10-12
 
 **P298 — decision 5: the stop before final submission sees Sheffield's submit controls; the test

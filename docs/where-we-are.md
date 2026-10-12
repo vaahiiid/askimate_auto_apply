@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P299 — signed, and a fact taken back
+
+*2026-10-12.* He approved P296's patch, and it is signed as its sheet said: the grade row from his
+read of the grade list, and the words the page shows beside the boxes its escapes open. The hash
+printed was the sheet's before anything was committed. His run now asks five questions today,
+four with "DBA", as the patch predicted. He kept the institution box's label as it was.
+
+He also said that "Forgot password works" was never seen, and must not be recorded as if it were.
+It is now recorded as not observed in the records his signature does not cover. In the one place it
+does, the signed entry, it has not changed. The review traced in the code, without running it, that
+recording a fact as unobserved would make a run lose sight of an account it already holds, and a
+case stopped then would close as owing the student nothing. Fixing that first is a proposal, and
+whether the entry waits for it is his. Four more facts about Sheffield's sign-in rest on less than
+their values say, and how to record them is his too.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P298 — the stop that could not see Sheffield's button, and six students
 
 *2026-10-12.* He asked for his run finished through every remaining page, stopping before final

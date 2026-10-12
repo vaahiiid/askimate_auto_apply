@@ -1,6 +1,15 @@
 # The grade row from read R, and the escape boxes' words from read L: one patch, one signature (P296)
 
-**Status: built, not signed.** Nothing here is on `main` as entry content. The batch is the patch
+**Status: signed, at his word of 2026-10-12** (the message's timestamp in the session record, 16:28:33 UTC; saved as sent:
+[`p299-his-message-as-sent.txt`](./p299-his-message-as-sent.txt)): *"I approve P296's patch. Apply it
+and sign it exactly as docs/run-a/p296-for-signature.md says"*. Applied and signed in one commit,
+`8f51a599` (P299): the printed hash was the one below; approvedAt `2026-10-12T16:30:36Z`; his note,
+*"Approved by Vahid: grade row from read R (Iran, twenty-point scale, institution Not in list) and the
+preview labels from read L."* On the institution box's label (item 5 below), in his words: *"The
+institution box label: the last sentence is right. Keep it."* So the label stays the row's last
+sentence, and the choice is now his.
+
+Until then: the batch was the patch
 [`p296-for-signature.patch`](./p296-for-signature.patch), applied and signed in one commit, so
 `main` never holds an entry no approval covers. It applies on top of the P296 commit on `main`
 (the commit that adds this sheet), which carries the reads the entry's notes cite; "How to sign"

@@ -60,7 +60,14 @@ chooser refused on exactly those two — *"an unobserved answer is not a 'no' �
 is how the password path wins by default"* (ADR-0020) — which is the design holding. With both
 now observed by Vahid, `chooseApproach` picks `student_chosen` for this entry, and
 `scripts/sheffield-draft.test.ts` holds three things: that it does; that the chooser still refuses
-when AUTH 4 alone is set back to `unobserved`; and the same for AUTH 5 alone. The refusal is
+when AUTH 4 alone is set back to `unobserved`; and the same for AUTH 5 alone. **P299, 2026-10-12:**
+AUTH 7 is now `unobserved` in `portal-authentication.draft.json`, at Vahid's word (*"it was never
+observed, so it must not be recorded as true. Record it as not observed until someone tries it."*),
+as the AUTH 7 row above already said of it. So the chooser refuses the draft, naming that one
+question; the test holds that, and `student_chosen` only as if AUTH 7 were tried. The signed entry
+still reads `true` until his signature changes it (row 152 of `docs/state-of-the-system.md`). The
+summary line above, *"1, 3, 6 and 8 settled by the capture"*, says more of AUTH 8 than its own row
+does (row 169). The refusal is
 proved to still bite, not merely to have stopped firing. The type carries no per-fact provenance,
 so the file's comment and this README are where "observed by Vahid, not by a run" lives.
 

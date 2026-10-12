@@ -10,7 +10,9 @@ import { questionsToday, readEntry } from "./questions-per-application.js";
 // P298, decision 5: the synthetic students of several nationalities, on the
 // test portal and on Sheffield's signed entry. The numbers below are what the
 // measure printed on 2026-10-12 against the entry as committed (mapping set
-// 0.3.46); if the entry moves, these move with it, and the record's do too.
+// 0.3.46), and printed again unchanged on the entry he signed in P299 (0.3.47:
+// its grade row is keyed on Iran); if the entry moves, these move with it, and
+// the record's do too.
 
 const ENTRY = readEntry(join(import.meta.dirname, "..", "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json"));
 const students = studentsAsProfiles();

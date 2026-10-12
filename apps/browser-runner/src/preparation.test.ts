@@ -381,9 +381,14 @@ describe("filling a fixture portal", () => {
     });
   });
 
+  // The tests in this block have 30 seconds or more; closing their sessions
+  // had vitest's default ten. In P299's census, run while the review's agents
+  // worked on the same four cores, one close took longer than that, and the
+  // late close then shut the next test's page (the report is kept at
+  // /tmp/census-nHkZiK/results.json). The same file passed 54 of 54 alone.
   afterEach(async () => {
     while (sessions.length > 0) await sessions.pop()?.close();
-  });
+  }, 30_000);
 
   afterAll(() => {
     server.close();

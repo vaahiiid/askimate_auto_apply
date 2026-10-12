@@ -35,7 +35,7 @@ live form does is what your runs and reads will show.
 
 ### Which account
 
-The signed entry (`sha256:4368de00…`) admits one student: `5774ff16-…`, item 6, your own details,
+The signed entry (`sha256:546b2948…` since P299; it was `4368de00…` when this was written) admits one student: `5774ff16-…`, item 6, your own details,
 the account the run creates (ADR-0144). Run A's `af398e01-…` is no longer admitted. This plan
 finishes the item-6 run. If by "my account" you mean Run A's, that needs a signature naming it;
 nothing here changes which account is admitted.
@@ -43,10 +43,16 @@ nothing here changes which account is admitted.
 ### Where your run stops today
 
 At education. Measured on `main` in P297: **6 questions** at education today, **1** under ADR-0156
-with the intake answers. With P296's patch signed (it is not), P296 measured **5** today and **0**.
+with the intake answers. With P296's patch signed, P296 measured **5** today and **0**.
 Your profile lives on your machine, so these were measured in those phases with your run's values
 and are not measured again here. Signing P296's patch, or not, is yours
 ([`p296-for-signature.md`](./p296-for-signature.md)).
+
+**P299:** you signed it (`8f51a599`). Measured again on the signed entry with
+`scripts/questions-his-run.ts`: **5** today with your title, **4** with "DBA", **0** under
+ADR-0156 with the intake answers, as P296 predicted. Before the run creates your account, read
+rows 152 and 170 of `docs/state-of-the-system.md`: AUTH 7 is now recorded as not observed
+everywhere except inside the signed entry, and why the entry waits is there.
 
 ### What the run will meet after education, page by page
 
@@ -91,7 +97,7 @@ Three layers, none of them a promise about the live form:
 1. Pull `main` and restart the local stack as the runbook says
    ([`item-6-runbook.md`](./item-6-runbook.md), from step 5). Migrations apply on start.
 2. Continue your conversation. At education, answer what it asks, or resolve its stops as before.
-   If you sign P296's patch first, the run asks one question fewer.
+   With P296's patch signed (P299), the run asks one question fewer than before.
 3. Let it run through pages 8, 9 and 12. Part 2 has never been filled by the run: watch it.
 4. At `ready_to_submit`, stop. Open the portal yourself and read its overview before pressing
    anything. The overview is where the final submission is expected, and that has never been read.
