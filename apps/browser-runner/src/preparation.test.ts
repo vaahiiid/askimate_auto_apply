@@ -82,6 +82,18 @@ describe("the click allow-list", () => {
     expect(decision.reason).toContain("not one of the controls");
   });
 
+  // P298, row 155: Sheffield's buttons are `<input type="submit">`: no text,
+  // the label in `value`, the purpose often only in `name`. `\bsubmit\b` never
+  // matched `submitBtn` or `submitApplicationBtn`.
+  it("refuses a submission control named only by its name or id, or by an identifier written as one word (P298)", () => {
+    const listed = (value: string) => new ClickAllowList([{ strategy: "name", value }]);
+    expect(listed("submitBtn").decide({ strategy: "name", value: "submitBtn" }, "").allowed).toBe(false);
+    expect(listed("go").decide({ strategy: "name", value: "go" }, "", ["submitApplicationBtn"]).allowed).toBe(false);
+    expect(listed("go").decide({ strategy: "name", value: "go" }, "Submit Application", ["go"]).allowed).toBe(false);
+    // Sheffield's own save control, as captured: value="", name and id "saveBtn".
+    expect(listed("saveBtn").decide({ strategy: "name", value: "saveBtn" }, "", ["saveBtn", "saveBtn"]).allowed).toBe(true);
+  });
+
   it("refuses a submission control EVEN IF it is on the allow-list", () => {
     // An allow-list assembled from a blueprint is only as right as the
     // blueprint. This is the second layer, and it is the one that matters.
@@ -923,6 +935,16 @@ describe("filling a fixture portal", () => {
       ClickRefusedError,
     );
     expect(submitted).toHaveLength(before);
+  }, 30_000);
+
+  it("refuses an <input type=submit> that says what it does only in its value, or only in its name, or an image button only in its alt, even on the allow-list — Sheffield's shape (P298)", async () => {
+    for (const id of ["finalStep", "go", "imgGo"]) {
+      const session = await openSession([{ strategy: "id", value: id }]);
+      await session.goto(`${baseUrl}/apply`);
+      const before = submitted.length;
+      await expect(session.click({ strategy: "id", value: id }), id).rejects.toThrow(ClickRefusedError);
+      expect(submitted, `${id}: nothing was sent`).toHaveLength(before);
+    }
   }, 30_000);
 
   it("clicks the advance control, and records the draft the portal saved", async () => {

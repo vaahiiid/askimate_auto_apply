@@ -62,7 +62,7 @@ function patched(field: BlueprintField, patch: FieldPatch): BlueprintField {
   return merged as unknown as BlueprintField;
 }
 
-/** The fixture's nationality select, reshaped, with the box its escape opens after it. */
+/** The fixture's nationality select, holding THREE, reshaped, with the box its escape opens after it. */
 function blueprintWith(patch: FieldPatch, extra: readonly BlueprintField[] = [UNLISTED]): ApplicationBlueprint {
   return {
     ...FIXTURE_BLUEPRINT,
@@ -72,7 +72,7 @@ function blueprintWith(patch: FieldPatch, extra: readonly BlueprintField[] = [UN
         ...section,
         fields: section.fields.flatMap((field): BlueprintField[] =>
           field.fieldRef === "nationality"
-            ? [patched({ ...field, options: [...(field.options ?? []), { value: ESCAPE, label: "Not in list" }], escapeValue: ESCAPE }, patch), ...extra]
+            ? [patched({ ...field, options: [...THREE, { value: ESCAPE, label: "Not in list" }], escapeValue: ESCAPE }, patch), ...extra]
             : [field],
         ),
       })),
@@ -80,17 +80,27 @@ function blueprintWith(patch: FieldPatch, extra: readonly BlueprintField[] = [UN
   };
 }
 
-/** The fixture's three nationalities, which its mapping names — so every reshaped list keeps them. */
+/**
+ * The three nationalities these lists hold. Since P298 the test portal's
+ * mapping names thirteen (row 157), so here it is narrowed to these three,
+ * and every reshaped list keeps what the mapping names (ADR-0136).
+ */
 const THREE = [
   { value: "IR", label: "Iran (Islamic Republic of)" },
   { value: "IQ", label: "Iraq" },
   { value: "GB", label: "United Kingdom" },
 ] as const;
 
+const NARROWED: MappingSet["mappings"] = FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+  mapping.fieldRef === "nationality" && mapping.source.kind === "profile_field"
+    ? { ...mapping, source: { ...mapping.source, format: { kind: "option" as const, options: Object.fromEntries(THREE.map((country) => [country.value, country.value])) } } }
+    : mapping,
+);
+
 const OWN_WORDS = { fieldRef: "nationality_unlisted", source: { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "text" as const } } };
 
 function offerOn(blueprint: ApplicationBlueprint, extra: MappingSet["mappings"] = [OWN_WORDS], choices: readonly StudentChoice[] = []) {
-  const check = checkUsable({ ...FIXTURE_MAPPING_SET, mappings: [...FIXTURE_MAPPING_SET.mappings, ...extra] }, blueprint);
+  const check = checkUsable({ ...FIXTURE_MAPPING_SET, mappings: [...NARROWED, ...extra] }, blueprint);
   if (!check.usable) expect.unreachable(check.refusal.detail);
   const set = check.mappingSet;
   return entryChoiceOffer(blueprint, planFill(blueprint, set, PROFILE, choices), (choice) => planFill(blueprint, set, PROFILE, [...choices, choice]));

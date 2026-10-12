@@ -26,6 +26,7 @@
 import type { ApplicationBlueprint, BlueprintId } from "@askimate/aas-blueprint";
 
 import type { MappingSet } from "../mapping.js";
+import { FIXTURE_COUNTRIES, FIXTURE_COUNTRY_OPTIONS } from "./countries.js";
 
 const DISCOVERED_AT = new Date("2026-08-30T09:00:00Z");
 const REVIEWED_AT = new Date("2026-08-30T15:00:00Z");
@@ -171,11 +172,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Nationality" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
-              options: [
-                { value: "IR", label: "Iran (Islamic Republic of)" },
-                { value: "IQ", label: "Iraq" },
-                { value: "GB", label: "United Kingdom" },
-              ],
+              options: [...FIXTURE_COUNTRIES],
             },
             {
               // P94 (ADR-0103, gap 1): the portal fills this list by script
@@ -189,12 +186,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Country that issued your passport" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
-              options: [
-                { value: "IR", label: "Iran (Islamic Republic of)" },
-                { value: "IQ", label: "Iraq" },
-                { value: "GB", label: "United Kingdom" },
-                { value: "XX", label: "Another country" },
-              ],
+              options: [...FIXTURE_COUNTRIES, { value: "XX", label: "Another country" }],
               optionsAfter: { fieldRef: "nationality" },
             },
           ],
@@ -514,7 +506,7 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
         fieldKey: "identity.nationality",
         format: {
           kind: "option",
-          options: { Iranian: "IR", Iraqi: "IQ", British: "GB" },
+          options: FIXTURE_COUNTRY_OPTIONS,
         },
       },
     },
@@ -525,7 +517,7 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
         fieldKey: "identity.nationality",
         format: {
           kind: "option",
-          options: { Iranian: "IR", Iraqi: "IQ", British: "GB" },
+          options: FIXTURE_COUNTRY_OPTIONS,
         },
       },
       note: "The fixture portal asks the passport's country beside the nationality; the same fact, asked twice.",

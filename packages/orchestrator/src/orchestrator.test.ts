@@ -101,7 +101,7 @@ const COMPLETE = withConfirmed([
   ["identity.given_name", "Niloofar"],
   ["identity.family_name", "Hosseini"],
   ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-  ["identity.nationality", "Iranian"],
+  ["identity.nationality", "IR"],
   ["contact.email", "niloofar.hosseini@example.com"],
   ["study.personal_statement", STATEMENT],
 ]);
@@ -304,7 +304,7 @@ describe("content the portal would reject", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hosseini"],
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["contact.email", "niloofar.hosseini@example.com"],
       ["study.personal_statement", "A".repeat(4_500)],
     ]);
@@ -328,7 +328,7 @@ describe("content the portal would reject", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hosseini"],
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["contact.email", "niloofar.hosseini@example.com"],
       ["study.personal_statement", "A".repeat(4_500)],
     ]);
@@ -404,7 +404,7 @@ describe("authorisation", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hoseini"],
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["contact.email", "niloofar.hosseini@example.com"],
       ["study.personal_statement", STATEMENT],
     ]);
@@ -1248,7 +1248,7 @@ describe("a portal that needs an account", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hosseini"],
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["study.personal_statement", STATEMENT],
     ]);
 

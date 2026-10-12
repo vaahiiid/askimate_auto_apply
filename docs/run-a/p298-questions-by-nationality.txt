@@ -1,0 +1,96 @@
+Sheffield's entry: blueprint 0.2.34, mapping set 0.3.46.
+
+IN — Synthetic student, India
+  test portal: nationality taken; 1 question(s) per application
+  personal_statement#-             ask     the profile holds no value for it (not_collected): the run asks the student
+  Sheffield today: 6 question(s) per application
+  degree#0                         choice  offered mid-run: 41 entries and "Not in list" for "BCom (Hons)"
+  institution-ts-control#0         person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  subjectSearch#0                  person  stops for a person (no_matching_option): the form records no escape for it, so it is not offered
+  subject#0                        person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  gradingSystemId#0                person  stops for a person (no_matching_case): its escape leads nowhere (read), so it is not offered
+  grade#0                          person  stops for a person (no_matching_case): the form records no escape for it, so it is not offered
+  Sheffield under ADR-0156, no standing rule: 6; with the intake's escape rule: 5
+  institution-ts-control#0         choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  subjectSearch#0                  choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  subject#0                        choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  gradingSystemId#0                choice  its escape leads nowhere (read), so it is not offered, and no deterministic row maps it — asked before the run starts
+  grade#0                          choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  Sheffield under ADR-0158 (proposed): not measured — no list under IN has been read
+
+NG — Synthetic student, Nigeria
+  test portal: nationality taken; 1 question(s) per application
+  personal_statement#-             ask     the profile holds no value for it (not_collected): the run asks the student
+  Sheffield today: 5 question(s) per application
+  institution-ts-control#0         person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  subjectSearch#0                  person  stops for a person (no_matching_option): the form records no escape for it, so it is not offered
+  subject#0                        person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  gradingSystemId#0                person  stops for a person (no_matching_case): its escape leads nowhere (read), so it is not offered
+  grade#0                          person  stops for a person (no_matching_case): the form records no escape for it, so it is not offered
+  Sheffield under ADR-0156, no standing rule: 5; with the intake's escape rule: 5
+  institution-ts-control#0         choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  subjectSearch#0                  choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  subject#0                        choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  gradingSystemId#0                choice  its escape leads nowhere (read), so it is not offered, and no deterministic row maps it — asked before the run starts
+  grade#0                          choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  Sheffield under ADR-0158 (proposed): not measured — no list under NG has been read
+
+PK — Synthetic student, Pakistan
+  test portal: nationality taken; 1 question(s) per application
+  personal_statement#-             ask     the profile holds no value for it (not_collected): the run asks the student
+  Sheffield today: 4 question(s) per application
+  degree#0                         choice  offered mid-run: 41 entries and "Not in list" for "BBA"
+  institution-ts-control#0         person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  gradingSystemId#0                person  stops for a person (no_matching_case): its escape leads nowhere (read), so it is not offered
+  grade#0                          person  stops for a person (no_matching_case): the form records no escape for it, so it is not offered
+  Sheffield under ADR-0156, no standing rule: 4; with the intake's escape rule: 3
+  institution-ts-control#0         choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  gradingSystemId#0                choice  its escape leads nowhere (read), so it is not offered, and no deterministic row maps it — asked before the run starts
+  grade#0                          choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  Sheffield under ADR-0158 (proposed): not measured — no list under PK has been read
+
+BD — Synthetic student, Bangladesh
+  test portal: nationality taken; 1 question(s) per application
+  personal_statement#-             ask     the profile holds no value for it (not_collected): the run asks the student
+  Sheffield today: 6 question(s) per application
+  degree#0                         choice  offered mid-run: 41 entries and "Not in list" for "BBA"
+  institution-ts-control#0         person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  subjectSearch#0                  person  stops for a person (no_matching_option): the form records no escape for it, so it is not offered
+  subject#0                        person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  gradingSystemId#0                person  stops for a person (no_matching_case): its escape leads nowhere (read), so it is not offered
+  grade#0                          person  stops for a person (no_matching_case): the form records no escape for it, so it is not offered
+  Sheffield under ADR-0156, no standing rule: 6; with the intake's escape rule: 5
+  institution-ts-control#0         choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  subjectSearch#0                  choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  subject#0                        choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  gradingSystemId#0                choice  its escape leads nowhere (read), so it is not offered, and no deterministic row maps it — asked before the run starts
+  grade#0                          choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  Sheffield under ADR-0158 (proposed): not measured — no list under BD has been read
+
+AE — Synthetic student, United Arab Emirates
+  test portal: nationality taken; 1 question(s) per application
+  personal_statement#-             ask     the profile holds no value for it (not_collected): the run asks the student
+  Sheffield today: 4 question(s) per application
+  degree#0                         choice  offered mid-run: 41 entries and "Not in list" for "BBA"
+  institution-ts-control#0         person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  gradingSystemId#0                person  stops for a person (no_matching_case): its escape leads nowhere (read), so it is not offered
+  grade#0                          person  stops for a person (no_matching_case): the form records no escape for it, so it is not offered
+  Sheffield under ADR-0156, no standing rule: 4; with the intake's escape rule: 3
+  institution-ts-control#0         choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  gradingSystemId#0                choice  its escape leads nowhere (read), so it is not offered, and no deterministic row maps it — asked before the run starts
+  grade#0                          choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  Sheffield under ADR-0158 (proposed): not measured — no list under AE has been read
+
+SA — Synthetic student, Saudi Arabia
+  test portal: nationality taken; 1 question(s) per application
+  personal_statement#-             ask     the profile holds no value for it (not_collected): the run asks the student
+  Sheffield today: 3 question(s) per application
+  institution-ts-control#0         person  stops for a person (no_matching_option): no list on file for these words, so it is not offered
+  gradingSystemId#0                person  stops for a person (no_matching_case): its escape leads nowhere (read), so it is not offered
+  grade#0                          person  stops for a person (no_matching_case): the form records no escape for it, so it is not offered
+  Sheffield under ADR-0156, no standing rule: 3; with the intake's escape rule: 3
+  institution-ts-control#0         choice  no list on file for these words, so it is not offered, and no deterministic row maps it — asked before the run starts
+  gradingSystemId#0                choice  its escape leads nowhere (read), so it is not offered, and no deterministic row maps it — asked before the run starts
+  grade#0                          choice  the form records no escape for it, so it is not offered, and no deterministic row maps it — asked before the run starts
+  Sheffield under ADR-0158 (proposed): not measured — no list under SA has been read
+

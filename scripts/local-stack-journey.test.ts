@@ -283,7 +283,7 @@ beforeAll(async () => {
   await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar");
   await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini");
   await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
-  await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian");
+  await confirmInto(profiles, "identity.nationality", "IR", "Iran");
   await confirmInto(profiles, "contact.email", EMAIL, EMAIL);
   await confirmInto(
     profiles,

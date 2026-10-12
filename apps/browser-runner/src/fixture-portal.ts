@@ -39,6 +39,7 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { FIXTURE_COUNTRIES } from "@askimate/aas-mapping/fixtures/countries";
 
 /**
  * What the portal stored for one applicant. Never rendered back.
@@ -340,9 +341,7 @@ const APPLY_PAGE = (error: string | null, held?: PortalApplication): string =>
   <label for="nationality">Nationality</label>
   <select id="nationality" name="nationality" required>
     <option value="">Please select</option>
-    <option value="IR"${selectedIf(held?.nationality, "IR")}>Iran (Islamic Republic of)</option>
-    <option value="IQ"${selectedIf(held?.nationality, "IQ")}>Iraq</option>
-    <option value="GB"${selectedIf(held?.nationality, "GB")}>United Kingdom</option>
+${FIXTURE_COUNTRIES.map((country) => `    <option value="${country.value}"${selectedIf(held?.nationality, country.value)}>${country.label}</option>`).join("\n")}
   </select>
 
   <label for="passportCountry">Country that issued your passport</label>
@@ -381,20 +380,9 @@ ${
   );
 
 /** What the portal offers as a passport's country for a nationality — answered late, on purpose. */
-const PASSPORT_COUNTRIES: Record<string, readonly { readonly value: string; readonly label: string }[]> = {
-  IR: [
-    { value: "IR", label: "Iran (Islamic Republic of)" },
-    { value: "XX", label: "Another country" },
-  ],
-  IQ: [
-    { value: "IQ", label: "Iraq" },
-    { value: "XX", label: "Another country" },
-  ],
-  GB: [
-    { value: "GB", label: "United Kingdom" },
-    { value: "XX", label: "Another country" },
-  ],
-};
+const PASSPORT_COUNTRIES: Record<string, readonly { readonly value: string; readonly label: string }[]> = Object.fromEntries(
+  FIXTURE_COUNTRIES.map((country) => [country.value, [country, { value: "XX", label: "Another country" }]]),
+);
 
 /**
  * The SECOND application page.

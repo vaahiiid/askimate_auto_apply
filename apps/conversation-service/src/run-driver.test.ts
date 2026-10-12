@@ -798,8 +798,8 @@ async function confirmTheInterview(
   await confirmInto(
     store,
     "identity.nationality",
-    "Iranian",
-    "Iranian",
+    "IR",
+    "Iran",
     forStudent,
   );
   await confirmInto(
@@ -2321,10 +2321,14 @@ describeIfDatabase("leasing browser work to a runner", () => {
       // to be, and this says what actually crossed. The student's confirmed
       // answers are in this plane's database and none of them is here.
       const wire = JSON.stringify(work);
+      // The nationality is held as its ISO code since P298 (row 157): "IR" is
+      // too short to search for bare, so it is sought as a JSON string, beside
+      // the words the student said for it.
       for (const secret of [
         "Niloofar",
         "Hosseini",
-        "Iranian",
+        '"IR"',
+        "Iran",
         "Because it is the course",
       ]) {
         expect(wire, `${secret} must not reach the runner`).not.toContain(
@@ -6568,7 +6572,7 @@ describeIfDatabase("the count is what the asking wrote, the answer is read again
       await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
       await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
       await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
-      await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian", student);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iran", student);
       await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
       const started = await pastTheYes(instance, conversation);
       if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
@@ -6695,7 +6699,7 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
       await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
       await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
       await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
-      await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian", student);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iran", student);
       await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
       const started = await pastTheYes(instance, conversation);
       if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
@@ -6934,9 +6938,12 @@ describeIfDatabase("a run stopped on values the form will not take tells the stu
         WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal DESC LIMIT 1`,
       [conversation],
     );
+    // The nationality is quoted as the code the profile holds, "IR", since the
+    // test portal took ISO codes (P298) — as the address's country already
+    // was. A code is not the student's word for it; row 167 holds that open.
     expect(said.rows[0]?.content).toBe(
       "I have had to pass your Example University application to a member of the team, because their form will not take some of your details as they are. " +
-        'Their form asks you to choose your nationality from its own list, which is searched rather than shown whole, and "Iranian" is not among the entries of it I have read. ' +
+        'Their form asks you to choose your nationality from its own list, which is searched rather than shown whole, and "IR" is not among the entries of it I have read. ' +
         'If your nationality is not on their list at all, the form has an option for exactly that, "Not in list". ' +
         "Choosing it is yours, not mine: it is a statement about yourself, and the university will assess it. " +
         'Their form asks you to choose your country from its own list, and "IR" is not on it. ' +
@@ -7371,7 +7378,7 @@ describeIfDatabase("an application a person abandons before any account exists i
       await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
       await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
       await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
-      await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian", student);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iran", student);
       await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
       const started = await pastTheYes(instance, conversation);
       if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
@@ -7522,8 +7529,8 @@ describeIfDatabase("the interview stops rather than stranding", () => {
       await confirmInto(
         profiles,
         "identity.nationality",
-        "Iranian",
-        "Iranian",
+        "IR",
+        "Iran",
         student,
       );
       await confirmInto(
@@ -7709,8 +7716,8 @@ describeIfDatabase("the interview stops rather than stranding", () => {
       await confirmInto(
         profiles,
         "identity.nationality",
-        "Iranian",
-        "Iranian",
+        "IR",
+        "Iran",
         who,
       );
       await confirmInto(
@@ -17683,6 +17690,18 @@ describeIfDatabase("a CV read by the reader seeds the interview, which asks only
  * the box it opens mapped from the student's own words — and a student whose
  * nationality, "Persian", is not on the list.
  */
+/**
+ * The three nationalities this list holds, as it did when P290 was written.
+ * Since P298 the test portal offers thirteen (row 157); this list is narrowed
+ * to three, and the mapping with it, so the offer and the ids it holds stay
+ * what these tests read (ADR-0136: the mapping names only what the list holds).
+ */
+const CHOICE_THREE = [
+  { value: "IR", label: "Iran (Islamic Republic of)" },
+  { value: "IQ", label: "Iraq" },
+  { value: "GB", label: "United Kingdom" },
+] as const;
+
 const CHOICE_ENTRY: CatalogueEntry = {
   ...ENTRY,
   blueprint: {
@@ -17694,7 +17713,7 @@ const CHOICE_ENTRY: CatalogueEntry = {
         fields: section.fields.flatMap((field) =>
           field.fieldRef === "nationality"
             ? [
-                { ...field, escapeValue: "Not in list", options: [...(field.options ?? []), { value: "Not in list", label: "Not in list" }] },
+                { ...field, escapeValue: "Not in list", options: [...CHOICE_THREE, { value: "Not in list", label: "Not in list" }] },
                 {
                   fieldRef: "nationality_unlisted",
                   label: "If not listed, your nationality:",
@@ -17713,7 +17732,11 @@ const CHOICE_ENTRY: CatalogueEntry = {
   mappingSet: {
     ...FIXTURE_MAPPING_SET,
     mappings: [
-      ...FIXTURE_MAPPING_SET.mappings,
+      ...FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+        mapping.fieldRef === "nationality" && mapping.source.kind === "profile_field"
+          ? { ...mapping, source: { ...mapping.source, format: { kind: "option" as const, options: Object.fromEntries(CHOICE_THREE.map((country) => [country.value, country.value])) } } }
+          : mapping,
+      ),
       { fieldRef: "nationality_unlisted", source: { kind: "profile_field" as const, fieldKey: "identity.nationality" as const, format: { kind: "text" as const } } },
     ],
   },

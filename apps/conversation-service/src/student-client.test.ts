@@ -1408,8 +1408,8 @@ describeIfDatabase("the student's page", () => {
     await confirmFieldFor(
       subject,
       "identity.nationality",
-      "Iranian",
-      "Iranian",
+      "IR",
+      "Iran",
     );
     await confirmFieldFor(
       subject,

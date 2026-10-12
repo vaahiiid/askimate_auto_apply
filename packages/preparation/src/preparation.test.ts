@@ -62,7 +62,7 @@ const COMPLETE = withConfirmed([
   ["identity.given_name", "Niloofar"],
   ["identity.family_name", "Hosseini"],
   ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-  ["identity.nationality", "Iranian"],
+  ["identity.nationality", "IR"],
   ["contact.email", "niloofar.hosseini@example.com"],
   ["study.personal_statement", STATEMENT],
 ]);
@@ -115,7 +115,7 @@ describe("validating against the portal's own rules", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hosseini"],
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["contact.email", "niloofar.hosseini@example.com"],
       ["study.personal_statement", "A".repeat(4_500)],
     ]);
@@ -467,7 +467,7 @@ describe("the content hash", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hoseini"], // one letter
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["contact.email", "niloofar.hosseini@example.com"],
       ["study.personal_statement", STATEMENT],
     ]);
@@ -680,7 +680,7 @@ describe("the ledger", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hoseini"],
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["contact.email", "niloofar.hosseini@example.com"],
       ["study.personal_statement", STATEMENT],
     ]);
@@ -1132,7 +1132,7 @@ describe("a page filled once per item, in the preview (P96)", () => {
       ["identity.given_name", "Niloofar"],
       ["identity.family_name", "Hosseini"],
       ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-      ["identity.nationality", "Iranian"],
+      ["identity.nationality", "IR"],
       ["contact.email", "niloofar.hosseini@example.com"],
       ["study.personal_statement", STATEMENT],
       ...(qualifications === null ? [] : [["education.prior_qualifications", qualifications] as [ProfileFieldKey, unknown]]),

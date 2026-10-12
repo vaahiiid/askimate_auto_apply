@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.291.0] — 2026-10-12
+
+**P298 — decision 5: the stop before final submission sees Sheffield's submit controls; the test
+portals take ISO nationalities; six synthetic students measured; his remaining pages and the live
+read-only searches written for him to run.**
+
+- **Fixed** the click guard reading only a control's text content, so an `<input type="submit">`
+  reached it with no name, and `\bsubmit\b` never matched `submitBtn` or `submitApplicationBtn`
+  (row 155). It now reads the control's text, `value`, `aria-label`, `title` and `alt`, and its
+  `name` and `id` (`identifierLooksLikeSubmission`). Three fixture controls in Sheffield's shape,
+  each pressed by the old code, are refused.
+- **Fixed** both test portals keying nationality on demonyms the interview never stores (row 157).
+  They offer thirteen countries and map the ISO code (`@askimate/aas-mapping/fixtures/countries`).
+  Tests that fed "Iranian" feed `IR`; the P290 tests narrow their list to three.
+- **Fixed** the questions-per-application measure calling a missing value a stop for a person
+  (row 161): it is `ask`, *"the profile holds no value for it … the run asks the student"*.
+- **Added** six synthetic students (`docs/run-a/synthetic-students.json`) and
+  `scripts/questions-by-nationality.ts`, with its test and its output
+  (`docs/run-a/p298-questions-by-nationality.txt`).
+- **Added** `docs/run-a/p298-plan.md`: his run through the remaining pages, stopping before final
+  submission, and the live read-only searches per country, with two new read snippets (G, S) that
+  print the country.
+- **Recorded** rows 167 (the stop's sentence quotes a country code to the student) and 168 (a page
+  with nothing mapped is never opened, so never saved).
+
+---
+
 ## [0.290.0] — 2026-10-12
 
 **P297 — his six decisions of 2026-10-12: he is the only reviewer, and the code stops counting a

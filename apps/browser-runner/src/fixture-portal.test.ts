@@ -259,6 +259,19 @@ describe("a list the page fills after another field is set (P94)", () => {
     const forNothing = await (await fetch(`${portal.baseUrl}/passport-countries?nationality=`, { headers: { cookie: signedIn } })).json();
     expect(forNothing).toEqual([]);
   });
+
+  it("offers the nationalities of P298's test plan, and answers a passport's country for each (row 157)", async () => {
+    const signedIn = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
+    const html = await (await fetch(`${portal.baseUrl}/apply`, { headers: { cookie: signedIn } })).text();
+    for (const [code, label] of [["IN", "India"], ["NG", "Nigeria"], ["PK", "Pakistan"], ["BD", "Bangladesh"], ["AE", "United Arab Emirates"], ["SA", "Saudi Arabia"]] as const) {
+      expect(html, code).toContain(`<option value="${code}">${label}</option>`);
+      const answered = await (await fetch(`${portal.baseUrl}/passport-countries?nationality=${code}`, { headers: { cookie: signedIn } })).json();
+      expect(answered, code).toEqual([
+        { value: code, label },
+        { value: "XX", label: "Another country" },
+      ]);
+    }
+  });
 });
 
 describe("the application form remembers, and the review page shows it", () => {

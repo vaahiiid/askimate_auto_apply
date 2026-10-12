@@ -12,6 +12,7 @@
 import type { ApplicationBlueprint, BlueprintId } from "@askimate/aas-blueprint";
 
 import type { MappingSet } from "../mapping.js";
+import { FIXTURE_COUNTRIES, FIXTURE_COUNTRY_OPTIONS } from "./countries.js";
 
 const DISCOVERED_AT = new Date("2026-08-20T09:00:00Z");
 const REVIEWED_AT = new Date("2026-08-21T14:00:00Z");
@@ -92,11 +93,7 @@ export const FIXTURE_BLUEPRINT: ApplicationBlueprint = {
               dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Nationality" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
-              options: [
-                { value: "IR", label: "Iran (Islamic Republic of)" },
-                { value: "IQ", label: "Iraq" },
-                { value: "GB", label: "United Kingdom" },
-              ],
+              options: [...FIXTURE_COUNTRIES],
             },
             {
               fieldRef: "email",
@@ -240,11 +237,9 @@ export const FIXTURE_MAPPING_SET: MappingSet = {
         // stops the run rather than being approximated.
         format: {
           kind: "option",
-          options: {
-            Iranian: "IR",
-            Iraqi: "IQ",
-            British: "GB",
-          },
+          // The ISO code the interview stores (P199), to the portal's own value
+          // (P298, row 157: these were demonyms the interview cannot produce).
+          options: FIXTURE_COUNTRY_OPTIONS,
         },
       },
     },

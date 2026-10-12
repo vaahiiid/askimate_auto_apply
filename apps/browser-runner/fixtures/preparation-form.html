@@ -65,6 +65,12 @@
 
   <button type="button" id="continueBtn">Save and continue</button>
   <button type="submit" id="submitBtn">Submit application</button>
+  <!-- P298, row 155: Sheffield's buttons are <input type="submit">, whose text content is empty.
+       One says what it does only in its value; one only in its name. Neither may be pressed. -->
+  <input type="submit" id="finalStep" name="final" value="Submit Application">
+  <input type="submit" id="go" name="submitApplicationBtn" value="">
+  <!-- An image button says what it does only in its alt text. -->
+  <input type="image" id="imgGo" alt="Submit application" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">
 </form>
 
 <script>

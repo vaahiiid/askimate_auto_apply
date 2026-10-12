@@ -49,7 +49,7 @@ const COMPLETE_PROFILE = withConfirmed(emptyProfile(STUDENT, NOW), [
   ["identity.given_name", "Niloofar"],
   ["identity.family_name", "Hosseini"],
   ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
-  ["identity.nationality", "Iranian"],
+  ["identity.nationality", "IR"],
   ["contact.email", "niloofar.hosseini@example.com"],
   [
     "study.personal_statement",

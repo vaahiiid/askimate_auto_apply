@@ -1,0 +1,140 @@
+{
+  "$comment": [
+    "Synthetic students for P298's test plan (decision 5, 2026-10-12: 'synthetic students of several nationalities (India, Nigeria, Pakistan, Bangladesh, Gulf)'). Every value is invented: no real person, no real record. Each student is docs/run-a/synthetic-profile.json with the keys below replaced; nothing else of that profile changes.",
+    "Each grade scale is held as a student would state it, under P297's rule: a scale that names its maximum in words is kept as said ('CGPA out of 10'), and 'GPA out of 4' keeps its token. The institutions are real names chosen for the plan; whether Sheffield's list holds them under each country is exactly what the live searches in docs/run-a/p298-plan.md would read. 'Gulf' is two of its six states here: the United Arab Emirates and Saudi Arabia."
+  ],
+  "students": [
+    {
+      "code": "IN",
+      "name": "Synthetic student, India",
+      "replace": {
+        "identity.given_name": "Aarav",
+        "identity.family_name": "Sharma",
+        "identity.nationality": "IN",
+        "identity.country_of_birth": "IN",
+        "contact.email": "aarav.sharma@example.com",
+        "contact.address": { "line1": "14 Ring Road", "city": "New Delhi", "postalCode": "110001", "countryCode": "IN" },
+        "residence.country": "IN",
+        "residence.history": [{ "countryCode": "IN", "from": { "year": 2016, "month": 7 }, "to": { "kind": "current" } }],
+        "immigration.uk_study": { "kind": "none" },
+        "education.prior_qualifications": [
+          { "level": "Bachelor's degree", "awardTitle": "BCom (Hons)", "subject": "Commerce", "institution": "University of Delhi", "countryCode": "IN", "start": { "year": 2016, "month": 7 }, "end": { "kind": "completed", "date": { "year": 2019, "month": 6 } }, "grade": "8.2", "gradeScale": "CGPA out of 10" }
+        ],
+        "employment.history": [
+          { "employer": "Indus Analytics Pvt Ltd", "employerAddress": "Sector 18, Noida, India", "position": "Analyst", "startDate": { "year": 2019, "month": 8 }, "end": { "kind": "ended", "date": { "year": 2022, "month": 3 } }, "basis": "full_time", "duties": "Prepared monthly sales reports and maintained the client database." },
+          { "employer": "Ganga Retail Ltd", "employerAddress": "Connaught Place, New Delhi, India", "position": "Business analyst", "startDate": { "year": 2022, "month": 4 }, "end": { "kind": "current" }, "basis": "full_time", "duties": "Supports the pricing team with weekly analyses." }
+        ]
+      }
+    },
+    {
+      "code": "NG",
+      "name": "Synthetic student, Nigeria",
+      "replace": {
+        "identity.given_name": "Chiamaka",
+        "identity.family_name": "Okafor",
+        "identity.nationality": "NG",
+        "identity.country_of_birth": "NG",
+        "contact.email": "chiamaka.okafor@example.com",
+        "contact.address": { "line1": "7 Allen Avenue", "city": "Ikeja", "postalCode": "100271", "countryCode": "NG" },
+        "residence.country": "NG",
+        "residence.history": [{ "countryCode": "NG", "from": { "year": 2014, "month": 10 }, "to": { "kind": "current" } }],
+        "immigration.uk_study": { "kind": "none" },
+        "education.prior_qualifications": [
+          { "level": "Bachelor's degree", "awardTitle": "BSc", "subject": "Economics", "institution": "University of Lagos", "countryCode": "NG", "start": { "year": 2014, "month": 10 }, "end": { "kind": "completed", "date": { "year": 2018, "month": 7 } }, "grade": "4.1", "gradeScale": "CGPA out of 5" }
+        ],
+        "employment.history": [
+          { "employer": "Lagoon Capital Ltd", "employerAddress": "Victoria Island, Lagos, Nigeria", "position": "Research assistant", "startDate": { "year": 2018, "month": 9 }, "end": { "kind": "ended", "date": { "year": 2021, "month": 1 } }, "basis": "full_time", "duties": "Compiled market data for the equities team." },
+          { "employer": "Niger Delta Foods plc", "employerAddress": "Port Harcourt, Nigeria", "position": "Commercial analyst", "startDate": { "year": 2021, "month": 2 }, "end": { "kind": "current" }, "basis": "full_time", "duties": "Forecasts regional demand and reports monthly." }
+        ]
+      }
+    },
+    {
+      "code": "PK",
+      "name": "Synthetic student, Pakistan",
+      "replace": {
+        "identity.given_name": "Ayesha",
+        "identity.family_name": "Khan",
+        "identity.nationality": "PK",
+        "identity.country_of_birth": "PK",
+        "contact.email": "ayesha.khan@example.com",
+        "contact.address": { "line1": "22 Mall Road", "city": "Lahore", "postalCode": "54000", "countryCode": "PK" },
+        "residence.country": "PK",
+        "residence.history": [{ "countryCode": "PK", "from": { "year": 2015, "month": 9 }, "to": { "kind": "current" } }],
+        "immigration.uk_study": { "kind": "none" },
+        "education.prior_qualifications": [
+          { "level": "Bachelor's degree", "awardTitle": "BBA", "subject": "Business Administration", "institution": "University of the Punjab", "countryCode": "PK", "start": { "year": 2015, "month": 9 }, "end": { "kind": "completed", "date": { "year": 2019, "month": 6 } }, "grade": "3.4", "gradeScale": "CGPA out of 4" }
+        ],
+        "employment.history": [
+          { "employer": "Ravi Textiles Ltd", "employerAddress": "Faisalabad, Pakistan", "position": "Management trainee", "startDate": { "year": 2019, "month": 8 }, "end": { "kind": "ended", "date": { "year": 2020, "month": 12 } }, "basis": "full_time", "duties": "Rotated through finance, sales and operations." },
+          { "employer": "Indus Logistics (Pvt) Ltd", "employerAddress": "Karachi, Pakistan", "position": "Operations analyst", "startDate": { "year": 2021, "month": 1 }, "end": { "kind": "current" }, "basis": "full_time", "duties": "Tracks shipment performance and prepares weekly reports." }
+        ]
+      }
+    },
+    {
+      "code": "BD",
+      "name": "Synthetic student, Bangladesh",
+      "replace": {
+        "identity.given_name": "Rahim",
+        "identity.family_name": "Hossain",
+        "identity.nationality": "BD",
+        "identity.country_of_birth": "BD",
+        "contact.email": "rahim.hossain@example.com",
+        "contact.address": { "line1": "18 Road 11, Banani", "city": "Dhaka", "postalCode": "1213", "countryCode": "BD" },
+        "residence.country": "BD",
+        "residence.history": [{ "countryCode": "BD", "from": { "year": 2016, "month": 1 }, "to": { "kind": "current" } }],
+        "immigration.uk_study": { "kind": "none" },
+        "education.prior_qualifications": [
+          { "level": "Bachelor's degree", "awardTitle": "BBA", "subject": "Finance", "institution": "University of Dhaka", "countryCode": "BD", "start": { "year": 2016, "month": 1 }, "end": { "kind": "completed", "date": { "year": 2020, "month": 2 } }, "grade": "3.6", "gradeScale": "CGPA out of 4" }
+        ],
+        "employment.history": [
+          { "employer": "Padma Securities Ltd", "employerAddress": "Motijheel, Dhaka, Bangladesh", "position": "Junior analyst", "startDate": { "year": 2020, "month": 4 }, "end": { "kind": "ended", "date": { "year": 2022, "month": 6 } }, "basis": "full_time", "duties": "Wrote company notes for the research desk." },
+          { "employer": "Jamuna Garments Ltd", "employerAddress": "Gazipur, Bangladesh", "position": "Finance officer", "startDate": { "year": 2022, "month": 7 }, "end": { "kind": "current" }, "basis": "full_time", "duties": "Prepares budgets and monthly variance reports." }
+        ]
+      }
+    },
+    {
+      "code": "AE",
+      "name": "Synthetic student, United Arab Emirates",
+      "replace": {
+        "identity.given_name": "Omar",
+        "identity.family_name": "Al Mansoori",
+        "identity.nationality": "AE",
+        "identity.country_of_birth": "AE",
+        "contact.email": "omar.almansoori@example.com",
+        "contact.address": { "line1": "Villa 9, Street 15, Al Karama", "city": "Dubai", "postalCode": "00000", "countryCode": "AE" },
+        "residence.country": "AE",
+        "residence.history": [{ "countryCode": "AE", "from": { "year": 2015, "month": 8 }, "to": { "kind": "current" } }],
+        "immigration.uk_study": { "kind": "none" },
+        "education.prior_qualifications": [
+          { "level": "Bachelor's degree", "awardTitle": "BBA", "subject": "Business Administration", "institution": "United Arab Emirates University", "countryCode": "AE", "start": { "year": 2015, "month": 8 }, "end": { "kind": "completed", "date": { "year": 2019, "month": 6 } }, "grade": "3.5", "gradeScale": "gpa_4" }
+        ],
+        "employment.history": [
+          { "employer": "Gulf Horizon Bank PJSC", "employerAddress": "Abu Dhabi, United Arab Emirates", "position": "Graduate trainee", "startDate": { "year": 2019, "month": 9 }, "end": { "kind": "ended", "date": { "year": 2021, "month": 8 } }, "basis": "full_time", "duties": "Supported the retail credit team." },
+          { "employer": "Falcon Trading LLC", "employerAddress": "Dubai, United Arab Emirates", "position": "Business development analyst", "startDate": { "year": 2021, "month": 9 }, "end": { "kind": "current" }, "basis": "full_time", "duties": "Researches new markets and prepares proposals." }
+        ]
+      }
+    },
+    {
+      "code": "SA",
+      "name": "Synthetic student, Saudi Arabia",
+      "replace": {
+        "identity.given_name": "Noura",
+        "identity.family_name": "Al Qahtani",
+        "identity.nationality": "SA",
+        "identity.country_of_birth": "SA",
+        "contact.email": "noura.alqahtani@example.com",
+        "contact.address": { "line1": "4 King Fahd Road", "city": "Riyadh", "postalCode": "12271", "countryCode": "SA" },
+        "residence.country": "SA",
+        "residence.history": [{ "countryCode": "SA", "from": { "year": 2016, "month": 9 }, "to": { "kind": "current" } }],
+        "immigration.uk_study": { "kind": "none" },
+        "education.prior_qualifications": [
+          { "level": "Bachelor's degree", "awardTitle": "BSc", "subject": "Business Administration", "institution": "King Saud University", "countryCode": "SA", "start": { "year": 2016, "month": 9 }, "end": { "kind": "completed", "date": { "year": 2020, "month": 6 } }, "grade": "4.2", "gradeScale": "GPA out of 5" }
+        ],
+        "employment.history": [
+          { "employer": "Najd Consulting Co.", "employerAddress": "Riyadh, Saudi Arabia", "position": "Junior consultant", "startDate": { "year": 2020, "month": 9 }, "end": { "kind": "ended", "date": { "year": 2022, "month": 12 } }, "basis": "full_time", "duties": "Supported strategy projects for public-sector clients." },
+          { "employer": "Red Sea Logistics Co.", "employerAddress": "Jeddah, Saudi Arabia", "position": "Planning analyst", "startDate": { "year": 2023, "month": 1 }, "end": { "kind": "current" }, "basis": "full_time", "duties": "Plans warehouse capacity and reports weekly." }
+        ]
+      }
+    }
+  ]
+}

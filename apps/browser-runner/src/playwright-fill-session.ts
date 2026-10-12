@@ -1287,9 +1287,16 @@ export class PlaywrightPreparationSession implements FillableSession {
    */
   public async click(locator: FieldLocator): Promise<void> {
     const target = await this.#resolve([locator]);
-    const accessibleName = ((await target.textContent()) ?? "").trim();
+    // What the control says, wherever it says it: an `<input type="submit">`
+    // has no text content and carries its label in `value`, an image button
+    // in `alt` (row 155, P298).
+    const said = async (attribute: string): Promise<string> => ((await target.getAttribute(attribute)) ?? "").trim();
+    const accessibleName = [((await target.textContent()) ?? "").trim(), await said("value"), await said("aria-label"), await said("title"), await said("alt")]
+      .filter((part) => part.length > 0)
+      .join(" / ");
+    const identifiers = [await said("name"), await said("id")].filter((part) => part.length > 0);
 
-    const decision = this.#clickAllowList.decide(locator, accessibleName);
+    const decision = this.#clickAllowList.decide(locator, accessibleName, identifiers);
     if (!decision.allowed) throw new ClickRefusedError(decision);
 
     await target.click();

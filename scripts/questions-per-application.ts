@@ -44,8 +44,14 @@ export interface Question {
   readonly field: string;
   /** The entry of a repeating page, from 0. */
   readonly item?: number;
-  /** `choice`: put to the student. `person`: the run stops for a person. `fix`: the form refuses a value only the student can change. */
-  readonly kind: "choice" | "person" | "fix";
+  /**
+   * `choice`: put to the student. `person`: the run stops for a person. `fix`:
+   * the form refuses a value only the student can change. `ask`: the profile
+   * holds no value for it, and the run asks the student for it (P298: until
+   * then a missing value was counted as a stop for a person, and said to be a
+   * list with no escape).
+   */
+  readonly kind: "choice" | "person" | "fix" | "ask";
   readonly reason: string;
 }
 
@@ -108,6 +114,12 @@ function whyNotOffered(field: BlueprintField | undefined): string {
   return "no list on file for these words, so it is not offered";
 }
 
+/** A missing value is the interview's question, not a list's: its own kind and words (P298). */
+function missing(blocker: FillPlan["blockers"][number], item: number | undefined): Question | null {
+  if (blocker.kind !== "value_unavailable") return null;
+  return { field: blocker.fieldRef, ...(item === undefined ? {} : { item }), kind: "ask", reason: `the profile holds no value for it (${blocker.reason}): the run asks the student` };
+}
+
 /** Today: what the code does now, field by field. */
 export function questionsToday(entry: CatalogueEntry, profile: ConfirmedProfile): readonly Question[] {
   const set = usable(entry);
@@ -126,7 +138,7 @@ export function questionsToday(entry: CatalogueEntry, profile: ConfirmedProfile)
   for (const blocker of after.blockers) {
     const item = (blocker as { readonly item?: { readonly index: number } }).item?.index;
     const refusal = blocker.kind === "render_refused" ? ` (${blocker.refusal.kind})` : "";
-    const q: Question = { field: blocker.fieldRef, ...(item === undefined ? {} : { item }), kind: "person", reason: `stops for a person${refusal}: ${whyNotOffered(fields.get(blocker.fieldRef))}` };
+    const q: Question = missing(blocker, item) ?? { field: blocker.fieldRef, ...(item === undefined ? {} : { item }), kind: "person", reason: `stops for a person${refusal}: ${whyNotOffered(fields.get(blocker.fieldRef))}` };
     out.set(key(q), q);
   }
   for (const violation of validatePlan(entry.blueprint, after).violations) {
@@ -210,7 +222,7 @@ export function questionsProposed(entry: CatalogueEntry, profile: ConfirmedProfi
   }
   for (const blocker of after.blockers) {
     const item = (blocker as { readonly item?: { readonly index: number } }).item?.index;
-    const q: Question = { field: blocker.fieldRef, ...(item === undefined ? {} : { item }), kind: "choice", reason: `${whyNotOffered(fields.get(blocker.fieldRef))}, and no deterministic row maps it — asked before the run starts` };
+    const q: Question = missing(blocker, item) ?? { field: blocker.fieldRef, ...(item === undefined ? {} : { item }), kind: "choice", reason: `${whyNotOffered(fields.get(blocker.fieldRef))}, and no deterministic row maps it — asked before the run starts` };
     perApplication.set(key(q), q);
   }
   for (const violation of validatePlan(entry.blueprint, after).violations) {

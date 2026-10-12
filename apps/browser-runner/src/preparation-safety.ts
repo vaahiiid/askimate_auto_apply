@@ -104,6 +104,17 @@ export function looksLikeSubmission(accessibleName: string): boolean {
   return SUBMISSION_NAMES.some((pattern) => pattern.test(accessibleName));
 }
 
+/**
+ * Whether an identifier — a control's `name` or `id`, or a locator's value —
+ * names a submission: "submit" anywhere in it, so `submitBtn`,
+ * `submitApplicationBtn` and `btnSubmit` are caught, which `\bsubmit\b` alone
+ * never matched (row 155, P298). Identifiers are written as one word, so the
+ * word-boundary patterns above cannot see into them.
+ */
+export function identifierLooksLikeSubmission(identifier: string): boolean {
+  return /submit/i.test(identifier) || looksLikeSubmission(identifier.replace(/([a-z])([A-Z])/g, "$1 $2"));
+}
+
 /** What the click guard decided. */
 export interface ClickDecision {
   readonly allowed: boolean;
@@ -128,7 +139,15 @@ export class ClickAllowList {
     return this.#permitted;
   }
 
-  public decide(locator: FieldLocator, accessibleName?: string): ClickDecision {
+  /**
+   * `accessibleName` is what the control says to a person — its text, or an
+   * input button's `value`, its `aria-label`, its `title`, an image button's
+   * `alt`; `identifiers` are its
+   * `name` and `id`. Sheffield's buttons are `<input type="submit">`, whose
+   * text content is empty, so until P298 a "Submit Application" input reached
+   * this check with no name at all (row 155).
+   */
+  public decide(locator: FieldLocator, accessibleName?: string, identifiers: readonly string[] = []): ClickDecision {
     // The name check runs FIRST, so a submission control on the allow-list is
     // still refused. An allow-list assembled from a blueprint is only as right
     // as the blueprint.
@@ -142,14 +161,16 @@ export class ClickAllowList {
       };
     }
 
-    if (looksLikeSubmission(locator.value)) {
-      return {
-        allowed: false,
-        locator,
-        reason:
-          `Refusing to click ${locator.strategy}="${locator.value}": it reads as a submission ` +
-          `control.`,
-      };
+    for (const identifier of [locator.value, ...identifiers]) {
+      if (identifierLooksLikeSubmission(identifier)) {
+        return {
+          allowed: false,
+          locator,
+          reason:
+            `Refusing to click ${locator.strategy}="${locator.value}": it reads as a submission ` +
+            `control${identifier === locator.value ? "" : ` (its name or id is "${identifier}")`}.`,
+        };
+      }
     }
 
     const listed = this.#permitted.some(

@@ -551,7 +551,7 @@ beforeAll(async () => {
     new Date("1999-04-02T00:00:00Z"),
     "2 April 1999",
   );
-  await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian");
+  await confirmInto(profiles, "identity.nationality", "IR", "Iran");
   await confirmInto(profiles, "contact.email", EMAIL, EMAIL);
   // Two qualifications: the education page is filled once per item (P96).
   await confirmInto(

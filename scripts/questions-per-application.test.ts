@@ -76,15 +76,16 @@ function entryWith(patch: Partial<BlueprintField>, unlisted: BlueprintField = bo
 describe("questions per application (P292, ADR-0156 proposed)", () => {
   it("counts nothing where the rules map everything", () => {
     const entry = entryWith({});
-    expect(questionsToday(entry, profileWith("Iranian"))).toEqual([]);
-    expect(questionsProposed(entry, profileWith("Iranian"), NO_STANDING_RULES).perApplication).toEqual([]);
+    expect(questionsToday(entry, profileWith("IR"))).toEqual([]);
+    expect(questionsProposed(entry, profileWith("IR"), NO_STANDING_RULES).perApplication).toEqual([]);
   });
 
   it("today: a list on file is one choice mid-run; proposed: a question before the run, or none with the standing rule", () => {
     const entry = entryWith({});
     const today = questionsToday(entry, profileWith("Persian"));
     expect(today.map((q) => `${q.field}:${q.kind}`)).toEqual(["nationality:choice"]);
-    expect(today[0]?.reason).toBe('offered mid-run: 3 entries and "Not in list" for "Persian"');
+    // The test portal's list holds thirteen countries since P298 (row 157).
+    expect(today[0]?.reason).toBe('offered mid-run: 13 entries and "Not in list" for "Persian"');
     const bare = questionsProposed(entry, profileWith("Persian"), NO_STANDING_RULES);
     expect(bare.perApplication.map((q) => q.field)).toEqual(["nationality"]);
     expect(bare.atIntake).toEqual(["escape when not listed"]);

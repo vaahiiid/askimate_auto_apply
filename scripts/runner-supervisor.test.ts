@@ -228,7 +228,7 @@ async function confirmTheInterview(owner: string): Promise<void> {
   await confirmInto(profiles, owner, "identity.given_name", "Niloofar", "Niloofar");
   await confirmInto(profiles, owner, "identity.family_name", "Hosseini", "Hosseini");
   await confirmInto(profiles, owner, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
-  await confirmInto(profiles, owner, "identity.nationality", "Iranian", "Iranian");
+  await confirmInto(profiles, owner, "identity.nationality", "IR", "Iran");
   await confirmInto(profiles, owner, "contact.email", "niloofar@example.test", "niloofar@example.test");
   await confirmInto(profiles, owner, "study.personal_statement", "Because it is the course I want.", "…");
 }

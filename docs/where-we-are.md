@@ -4906,6 +4906,26 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P298 — the stop that could not see Sheffield's button, and six students
+
+*2026-10-12.* He asked for his run finished through every remaining page, stopping before final
+submission, and for synthetic students of several nationalities. The stop came first. The guard
+that refuses a submit button read only a button's text, and Sheffield's buttons are inputs with
+no text, so a "Submit Application" there would have reached it with no name. It now reads what a
+control says and what it is called, and the old code was seen pressing each new case before it
+was fixed.
+
+The test portals could not carry a student from anywhere but Iran: they took "Iranian", and the
+interview stores "IR". They now take the code and offer the six countries he named. Measured on
+the stand-in, each of the six students meets three to six questions on Sheffield's education
+page today, at the same places: the institution, the grading system, the grade. That is because
+no list under their countries has been read. The plan for his run and for those reads is written
+for him. Nothing touched the portal.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P296 — the grade from his own read, and a student from India
 
 *2026-10-11.* He made the reads: the grade list after *Not in list* and GPA 20, the words beside the

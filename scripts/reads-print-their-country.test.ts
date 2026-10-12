@@ -77,7 +77,8 @@ const bound = found.filter((snippet) => !pinned(snippet.path, snippet.sha256));
 /**
  * What the snippets read, and nothing of Sheffield's: the country select, the
  * institution's code, the grading system, the grade list, the institution
- * box with an open dropdown, and the three escape boxes.
+ * box with an open dropdown, the three escape boxes, and (P298) the subject
+ * search box with its results.
  */
 const PAGE = `<!doctype html><html><body>
 <form>
@@ -94,6 +95,8 @@ const PAGE = `<!doctype html><html><body>
   </div>
   <select name="gradingSystemId"><option value="6">GPA 20 (e.g. 16.5/20)</option></select>
   <select name="grade"><option value="">Select your grade...</option><option value="0.0">0.0</option></select>
+  <input id="subjectSearch" name="subjectSearch" value="Commerce">
+  <select name="subject"><option value="">Select a subject...</option></select>
   <div class="form-group"><label for="ui">Institution name</label><input id="ui" name="unlistedInstitution"></div>
   <div class="form-group"><label for="us">Subject</label><input id="us" name="unlistedSubject"></div>
   <div class="form-group"><label for="ud">Award title</label><input id="ud" name="unlistedDegree"></div>
