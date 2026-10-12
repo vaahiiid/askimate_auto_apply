@@ -511,6 +511,68 @@ describe("parsing rebuilds rather than casts", () => {
     }
   });
 
+  it("records where each authentication fact came from — the read, the words, or the reasoning — and refuses a source that says nothing, or one on a fact recorded as unobserved (P300, row 169)", () => {
+    // Vahid, 2026-10-12: "record each of AUTH 3, 5, 6 and 8 by its real
+    // source: observed (name the read), stated by me (quote me), or reasoned
+    // from the design. Nothing reasoned may be recorded as observed."
+    const withSources = (sources: unknown, facts: Record<string, unknown> = {}): unknown => {
+      const document = JSON.parse(documentOf()) as { portalAuthentication: Record<string, unknown> };
+      Object.assign(document.portalAuthentication, facts, { sources });
+      return document;
+    };
+    const SOURCES = {
+      passwordlessAvailable: [{ kind: "observed", read: "run-gated-1: the sign-in page, signed out" }],
+      mfaOrOtpRequired: [
+        { kind: "stated", by: "Test Person", on: "2026-08-30", words: "No code arrived and none was asked for." },
+        { kind: "observed", read: "run-gated-2: a sign-in that reached the form" },
+      ],
+      credentialsCanBeHandedBack: [{ kind: "reasoned", from: "the password is the student's own, chosen at registration" }],
+    };
+    const parsed = parseReviewedEntry(withSources(SOURCES));
+    if (!parsed.ok) expect.unreachable(`${parsed.refusal.path}: ${parsed.refusal.detail}`);
+    expect(parsed.value.portalAuthentication?.sources).toEqual(SOURCES);
+    // A reasoned value is said to be reasoned: nothing else in the record can call it observed.
+    expect(parsed.value.portalAuthentication?.sources?.credentialsCanBeHandedBack?.map((source) => source.kind)).toEqual(["reasoned"]);
+    // Hashed with the facts, so a source cannot change under a signature.
+    expect(contentHash(toCanonical(parsed.value))).not.toBe(contentHash(toCanonical(ENTRY)));
+    const again = parseReviewedEntryText(canonicalText(toCanonical(parsed.value)));
+    if (!again.ok) expect.unreachable("round-trips");
+    expect(again.value.portalAuthentication?.sources).toEqual(SOURCES);
+
+    for (const [sources, facts, says] of [
+      [{ lunarPhase: [{ kind: "reasoned", from: "x" }] }, {}, "not an authentication fact"],
+      [{ captchaPresent: [] }, {}, "at least one source"],
+      [{ captchaPresent: [{ kind: "assumed", from: "x" }] }, {}, "observed, stated or reasoned"],
+      [{ captchaPresent: [{ kind: "observed", read: "" }] }, {}, "read"],
+      [{ captchaPresent: [{ kind: "stated", by: "Test Person", on: "2026-08-30" }] }, {}, "words"],
+      [{ captchaPresent: [{ kind: "stated", by: "Test Person", on: "30 August", words: "None." }] }, {}, "YYYY-MM-DD"],
+      [{ captchaPresent: [{ kind: "reasoned", from: " " }] }, {}, "from"],
+      [{ captchaPresent: [{ kind: "observed", read: "run-gated-1", seen: true }] }, {}, "seen"],
+      [{ passwordResetAvailable: [{ kind: "observed", read: "run-gated-1" }] }, { passwordResetAvailable: "unobserved" }, "rests on nothing"],
+      // The P300 review: an empty `sources` means what no `sources` means and
+      // would hash differently; a day that does not exist is not a day it was
+      // said; and a misspelt container would drop every source it holds from
+      // the hash without a word.
+      [{}, {}, "at least one fact"],
+      [{ captchaPresent: [{ kind: "stated", by: "Test Person", on: "2026-02-30", words: "None." }] }, {}, "a day that exists"],
+      [{ captchaPresent: [{ kind: "stated", by: "Test Person", on: "2026-13-11", words: "None." }] }, {}, "a day that exists"],
+      [undefined, { source: { captchaPresent: [{ kind: "reasoned", from: "x" }] } }, "portalAuthentication.source"],
+    ] as const) {
+      const refused = parseReviewedEntry(withSources(sources, facts));
+      if (refused.ok) expect.unreachable(`accepted ${JSON.stringify(sources)} ${JSON.stringify(facts)}`);
+      expect(refused.refusal.path + " " + refused.refusal.detail, JSON.stringify(sources)).toContain(says);
+    }
+    // Without sources, an entry parses as it always did, and keeps its hash.
+    const plain = parseReviewedEntryText(documentOf());
+    if (!plain.ok) expect.unreachable("plain parses");
+    expect(plain.value.portalAuthentication !== undefined && "sources" in plain.value.portalAuthentication).toBe(false);
+    // A `$comment` is the one other key admitted, and it is outside the hash,
+    // as the entry's own is: a note, not content.
+    const commented = parseReviewedEntry(withSources(undefined, { $comment: ["A note for the reader."] }));
+    if (!commented.ok) expect.unreachable(`${commented.refusal.path}: ${commented.refusal.detail}`);
+    expect(contentHash(toCanonical(commented.value))).toBe(contentHash(toCanonical(plain.value)));
+  });
+
   it("reads a condition on the EMPTY string as that value, not as no value (P291)", () => {
     // Sheffield's award title: "Not in list" submits "", and the box it opens
     // is shown when the title equals "". Read as absent, the condition never

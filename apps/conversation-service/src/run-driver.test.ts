@@ -12160,6 +12160,313 @@ describeIfDatabase("an entry that is NOT the last is corrected: the rest stay, t
   }, 600_000);
 });
 
+describeIfDatabase("a run that holds an account never loses sight of it when an authentication fact reads unobserved, and is never closed as owing nothing (P300, row 170)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-10-12: *"A run that holds an account must never lose sight of
+  // it because an auth fact reads "unobserved". A stop or abandon must never
+  // close a case as owing the student nothing while an account created in
+  // their name has not been handed back. Prove it with a test that fails
+  // first."*
+  //
+  // The account is created under the entry as it was reviewed; the entry is
+  // then deployed with AUTH 7 recorded as unobserved, as Sheffield's would be
+  // (row 152). Until P300 the account derived from the chooser's plan, so the
+  // chooser's refusal made it vanish, and the conclusion read "nothing is
+  // outstanding" off its absence (row 170).
+  // ═══════════════════════════════════════════════════════════════════════
+  const UNOBSERVED_ENTRY: CatalogueEntry = {
+    ...GATED_ENTRY,
+    portalAuthentication: { ...GATED_ENTRY.portalAuthentication!, passwordResetAvailable: "unobserved" },
+  };
+  const UNOBSERVED_CATALOGUE: TestCatalogue = {
+    targets: () => [targetOf({ entry: UNOBSERVED_ENTRY, contentHash: TEST_CONTENT_HASH, admits: UNOBSERVED_ENTRY.admits })],
+    find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? UNOBSERVED_ENTRY : null),
+  };
+
+  /**
+   * A run on the gated portal, past the yes, with an account created in the
+   * student's name — or, for the review's finding (P300), a creation whose
+   * outcome is not known: begun and never finished, or closed on a second
+   * factor the portal asked for after it had taken the form.
+   */
+  async function holdingAnAccount(
+    conversation: string,
+    suffix: string,
+    creation: "succeeded" | "open" | "second_factor_met" | "captcha_met" = "succeeded",
+  ): Promise<string> {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const hash = (await instance.driver.previewFor(runId, conversation))?.contentHash ?? "";
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "authorise", contentHash: hash } })).toEqual({ ok: true });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: `sr_${"0".repeat(30)}${suffix}`, handle: `sh_${"f".repeat(30)}${suffix}` },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const runRef = makeRunId(runId);
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const accountKey = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      await runs.recordIntent(runRef, { idempotencyKey: accountKey, action: "create_portal_account", target: runId, startedAt: NOW });
+      if (creation === "open") return runId;
+      if (creation === "second_factor_met" || creation === "captcha_met") {
+        await runs.completeIntent(runRef, accountKey, "failed_cleanly", NOW, { attempted: true, failure: creation });
+        return runId;
+      }
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
+      await instance.driver.advance({ runId, conversationId: conversation });
+      return runId;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function caseState(conversation: string): Promise<string> {
+    return fold(await new PostgresCaseStore(pool).read(makeCaseId(`case_${conversation.toLowerCase()}`))).state;
+  }
+  /** What a person has been given to hold for this run and not yet resolved. */
+  async function openFor(runId: string): Promise<readonly { encountered: string; target: string }[]> {
+    const rows = await pool.query<{ encountered: string; target: string }>(
+      "SELECT encountered, checkpoint->>'target' AS target FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+      [runId],
+    );
+    return rows.rows;
+  }
+  async function lastSaid(conversation: string): Promise<string> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    return rows.rows[0]?.content ?? "";
+  }
+
+  it("a stop leaves the case winding down, names the account it still owes, and tells the student it still exists", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX30001";
+    const runId = await holdingAnAccount(conversation, "a1");
+    const instance = buildInstance(connectionString(), opener(), UNOBSERVED_CATALOGUE);
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      expect(await caseState(conversation), "not concluded: the account has not been handed back").toBe("WINDING_DOWN");
+      expect(await lastSaid(conversation), "the student is told the account is still there").toContain("still exists");
+      const finished = await instance.driver.finishStoppedCase(conversation);
+      if (!finished.ok) expect.unreachable("the repair reads the case");
+      expect(finished.concluded, "and the repair does not conclude it either").toBe(false);
+      if (!finished.concluded) expect(finished.outstanding.join(" "), "it names what is owed").toContain("handed back");
+
+      // ── And a person holds it (the P300 review) ──────────────────────
+      //
+      // A stopped case owing an account the student cannot be asked about —
+      // no handover can be planned — is a person's, or it is nobody's. The
+      // review found it was nobody's: the wind-down raised only a student's
+      // handoff, and an unplanned account has none.
+      const moved = await instance.driver.advance({ runId, conversationId: conversation });
+      expect(moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`, "held for a person").toBe("escalated");
+      const open = await openFor(runId);
+      expect(open, "one thing for a person to hold").toHaveLength(1);
+      expect(open[0]?.encountered, "which account").toContain(`acct_${runId}`);
+      expect(open[0]?.encountered, "that the case cannot close").toContain("cannot close");
+      expect(await lastSaid(conversation), "the student is told a person has it").toContain("passed it to a member of the team");
+      // Re-advanced, nothing new: one person, one message.
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect(await openFor(runId)).toHaveLength(1);
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseState(conversation)).toBe("WINDING_DOWN");
+  }, 300_000);
+
+  it("the account is owed from the ledger even when the run cannot derive it at all — here, its confirmed address is gone", async () => {
+    // His rule names a stop "while an account created in their name has not
+    // been handed back", whatever made the run lose sight of it. With the
+    // facts observed and the address gone, the derivation has nothing to
+    // build an account from; the ledger still says one was created.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX30003";
+    const runId = await holdingAnAccount(conversation, "a3");
+    await pool.query("DELETE FROM profile_entries WHERE student_id = $1 AND field_key = 'contact.email'", [await ownConversation(conversation)]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      expect(await lastSaid(conversation), "the student is told the account is still there").toContain("still exists");
+      const finished = await instance.driver.finishStoppedCase(conversation);
+      if (!finished.ok) expect.unreachable("the repair reads the case");
+      expect(finished.concluded, "not concluded").toBe(false);
+      if (!finished.concluded) expect(finished.outstanding.join(" "), "the ledger's account is named").toContain("created in the student's name");
+      // A person holds it here too (the P300 review): the run cannot derive
+      // the account, so the student cannot be asked to take it back.
+      const moved = await instance.driver.advance({ runId, conversationId: conversation });
+      expect(moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`, "held for a person").toBe("escalated");
+      const open = await openFor(runId);
+      expect(open, "one thing for a person to hold").toHaveLength(1);
+      expect(open[0]?.encountered).toContain("created in the student's name");
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseState(conversation), "not concluded: the account has not been handed back").toBe("WINDING_DOWN");
+    expect(await lastSaid(conversation), "and then that a person has it").toContain("passed it to a member of the team");
+  }, 300_000);
+
+  it("a person's abandon does not close it as owing nothing either", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX30002";
+    const runId = await holdingAnAccount(conversation, "a2");
+    const instance = buildInstance(connectionString(), opener(), UNOBSERVED_CATALOGUE);
+    try {
+      // With AUTH 7 unobserved, the run cannot plan its next step on this
+      // portal, and stops for a person — with the account still in view.
+      const moved = await instance.driver.advance({ runId, conversationId: conversation });
+      expect(moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`, "stopped for a person").toBe("escalated");
+      const held = await pool.query<{ intervention_id: string; encountered: string }>("SELECT intervention_id, encountered FROM interventions WHERE run_id = $1 AND resolved_at IS NULL", [runId]);
+      const interventionId = held.rows[0]?.intervention_id ?? "";
+      expect(interventionId).not.toBe("");
+      // The person is told which account, that it is owed, and why nothing can be planned.
+      const encountered = held.rows[0]?.encountered ?? "";
+      expect(encountered).toContain(`acct_${runId}`);
+      // "Cannot be shown", not "has not" (the P300 review): with no plan there
+      // is nothing to check a handover against, and the evidence may say the
+      // student already holds it.
+      expect(encountered).toContain("cannot be shown to have been handed back");
+      expect(encountered).not.toContain("has not been handed back");
+      expect(encountered).toContain("Forgot password");
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(interventionId),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the entry.", resolution: "Not one we can complete.", resolvedAt: NOW, outcome: "abandon" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "account:authentication_unobserved" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseState(conversation), "not concluded: the account has not been handed back").toBe("WINDING_DOWN");
+    const log = (await new PostgresCaseStore(pool).read(makeCaseId(`case_${conversation.toLowerCase()}`))) as readonly { type: string; reason?: string }[];
+    expect(log.some((event) => (event.reason ?? "").includes("nothing is outstanding")), "never 'nothing is outstanding'").toBe(false);
+    expect(await lastSaid(conversation), "the student is told the account is still there").toContain("still exists");
+
+    // After the abandon a person still holds it (the P300 review). The
+    // abandon resolved the only intervention and put the run back to
+    // `running`; until the review, nothing raised another.
+    const after = buildInstance(connectionString(), opener(), UNOBSERVED_CATALOGUE);
+    try {
+      const moved = await after.driver.advance({ runId, conversationId: conversation });
+      expect(moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`, "held for a person").toBe("escalated");
+      const open = await openFor(runId);
+      expect(open, "a person holds it again").toHaveLength(1);
+      expect(open[0]?.encountered).toContain(`acct_${runId}`);
+    } finally {
+      await after.pool.end();
+    }
+  }, 300_000);
+
+  it.each([
+    ["begun and never finished", "open", "01JBXQ8Z9WKTQ6M4H2NPX30004", "a4"],
+    ["closed on a second factor after the portal took the form", "second_factor_met", "01JBXQ8Z9WKTQ6M4H2NPX30005", "a5"],
+    // The runner reports `captcha_met` for a CAPTCHA before anything was typed
+    // and for one after the portal took the form (create-account.ts), and the
+    // ledger keeps only the code: the strictest reading is that it may exist.
+    ["closed on a CAPTCHA the ledger cannot place before or after the form was taken", "captcha_met", "01JBXQ8Z9WKTQ6M4H2NPX30007", "a7"],
+  ] as const)("a creation whose outcome is not known — %s — is owed too, and the student is not told an account exists", async (_, creation, conversation, suffix) => {
+    // The review's finding (P300): a stop while the creation was in flight,
+    // or after it met a second factor the code itself says means the account
+    // "MAY ALREADY EXIST", read the ledger's lack of a success as "no
+    // account" and closed the case as owing nothing. His words cover an
+    // account created in their name; whether one was is exactly what is not
+    // known, and the safe reading is that it may have been.
+    const runId = await holdingAnAccount(conversation, suffix, creation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      expect(await caseState(conversation), "not concluded: an account may exist").toBe("WINDING_DOWN");
+      const told = await lastSaid(conversation);
+      expect(told, "the student is told what is not known").toContain("do not yet know whether");
+      expect(told, "and is not told an account exists").not.toContain("still exists");
+      const finished = await instance.driver.finishStoppedCase(conversation);
+      if (!finished.ok) expect.unreachable("the repair reads the case");
+      expect(finished.concluded).toBe(false);
+      if (!finished.concluded) expect(finished.outstanding.join(" ")).toContain("may exist");
+      const moved = await instance.driver.advance({ runId, conversationId: conversation });
+      expect(moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`, "held for a person").toBe("escalated");
+      const open = (await openFor(runId)).filter((held) => held.target === "specialist:winding_down_owed");
+      expect(open, "a person finds out").toHaveLength(1);
+      expect(open[0]?.encountered).toContain("may exist");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a student who has told us they can sign in is not told the account is still in our hands (the P300 review)", async () => {
+    // The review's probe: an account handed back under the facts as observed,
+    // then one fact unobserved. It is held open — whether evidence without a
+    // plan may close it is his to say (row 172) — but the student, who has
+    // confirmed they can sign in, must not read "still in my hands".
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX30008";
+    const runId = await holdingAnAccount(conversation, "a8");
+    const observed = buildInstance(connectionString(), opener());
+    try {
+      expect(await observed.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      await observed.driver.advance({ runId, conversationId: conversation });
+      // The student answers the handover the way a student does, through the
+      // read that publishes the hash, up to and including confirming access —
+      // and no further advance, which would conclude it under these facts.
+      for (let round = 0; round < 5; round += 1) {
+        const now = await observed.driver.runFor(conversation);
+        if (now?.pending?.decision !== "confirm_handoff") break;
+        expect(await observed.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_handoff", contentHash: now.pending.contentHash } })).toEqual({ ok: true });
+        const done = fold(await new PostgresCaseStore(pool).read(makeCaseId(`case_${conversation.toLowerCase()}`))).completedHandoffs;
+        if (done.includes("account_handover")) break;
+        await observed.driver.advance({ runId, conversationId: conversation });
+      }
+      expect(fold(await new PostgresCaseStore(pool).read(makeCaseId(`case_${conversation.toLowerCase()}`))).completedHandoffs, "they have confirmed access").toContain("account_handover");
+    } finally {
+      await observed.pool.end();
+    }
+    expect(await caseState(conversation)).toBe("WINDING_DOWN");
+
+    const unobserved = buildInstance(connectionString(), opener(), UNOBSERVED_CATALOGUE);
+    try {
+      const moved = await unobserved.driver.advance({ runId, conversationId: conversation });
+      expect(moved.ok ? moved.position.status : `refused:${moved.refusal.kind}`, "held for a person").toBe("escalated");
+      const held = await pool.query<{ intervention_id: string }>("SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL", [runId]);
+      await unobserved.driver.resolveIntervention({
+        interventionId: makeInterventionId(held.rows[0]?.intervention_id ?? ""),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the entry.", resolution: "Not one we can complete.", resolvedAt: NOW, outcome: "abandon" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "account:authentication_unobserved" },
+        didHappen: false,
+      });
+    } finally {
+      await unobserved.pool.end();
+    }
+    expect(await caseState(conversation), "still held open").toBe("WINDING_DOWN");
+    const told = await lastSaid(conversation);
+    expect(told, "what they told us is said back").toContain("you have told me you can sign in");
+    expect(told, "and not the opposite").not.toContain("still in my hands");
+  }, 300_000);
+
+  it("a student cannot declare an account of their own where no plan can be made for it (the P300 review)", async () => {
+    // Before P300 `accountDeclared` answered null wherever the chooser
+    // refused, and the declaration was refused on it. P300 made it answer an
+    // unplanned account instead, and the gate let the declaration through.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX30006";
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), UNOBSERVED_CATALOGUE);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "existing_account" } })).toEqual({ ok: false, reason: "refused" });
+      const declared = await pool.query("SELECT 1 FROM case_events WHERE case_id = $1 AND event->>'type' = 'PortalAccountDeclared'", [`case_${conversation.toLowerCase()}`]);
+      expect(declared.rows, "nothing on the case").toHaveLength(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
 describeIfDatabase("telling a specialist that a run stopped", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Every part of the recovery design was built and tested before this: stop

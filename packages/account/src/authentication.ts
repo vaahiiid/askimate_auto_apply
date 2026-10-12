@@ -87,7 +87,41 @@ export interface ObservedPortalAuthentication {
    * bound to us, no admin or agent relationship that survives?
    */
   readonly credentialsCanBeHandedBack: PortalAuthFact;
+  /**
+   * Where each fact came from, for the facts that say (P300, row 169). A fact
+   * with no entry here has no recorded source: the record does not say where
+   * it came from, and nothing may read it as observed by `discoveryRunId`,
+   * which names where the record as a whole began. Until the P300 review this
+   * said such a fact "rests on `discoveryRunId`", and on Sheffield's entry that
+   * would have called AUTH 4, which rests on Vahid's statement, observed by a
+   * run that could not settle it. A fact recorded `"unobserved"` has none:
+   * there is nothing it rests on.
+   *
+   * Vahid, 2026-10-12: *"record each of AUTH 3, 5, 6 and 8 by its real source:
+   * observed (name the read), stated by me (quote me), or reasoned from the
+   * design. Nothing reasoned may be recorded as observed."*
+   *
+   * Recorded, not acted on: the chooser reads the facts, not their sources.
+   */
+  readonly sources?: PortalAuthFactSources;
 }
+
+/** The eight facts, by name. */
+export type PortalAuthFactKey = keyof Omit<ObservedPortalAuthentication, "portalHost" | "discoveryRunId" | "observedAt" | "sources">;
+
+/**
+ * Where one fact came from.
+ *
+ *   observed   a read or a run saw it; `read` names which, and what it covered.
+ *   stated     a person said it; `words` are theirs, verbatim, with who and when.
+ *   reasoned   nobody saw it; it follows from `from`, a reading of the design.
+ */
+export type PortalAuthFactSource =
+  | { readonly kind: "observed"; readonly read: string }
+  | { readonly kind: "stated"; readonly by: string; readonly on: string; readonly words: string }
+  | { readonly kind: "reasoned"; readonly from: string };
+
+export type PortalAuthFactSources = Readonly<Partial<Record<PortalAuthFactKey, readonly PortalAuthFactSource[]>>>;
 
 // ───────────────────────────────────────────────────────────────────────────
 // The ranked approaches
@@ -233,9 +267,7 @@ export type AuthenticationChoice =
   | { readonly chosen: false; readonly refusal: AuthenticationRefusal };
 
 /** The question each fact answers, phrased for a person running discovery. */
-const QUESTIONS: Readonly<
-  Record<keyof Omit<ObservedPortalAuthentication, "portalHost" | "discoveryRunId" | "observedAt">, string>
-> = {
+const QUESTIONS: Readonly<Record<PortalAuthFactKey, string>> = {
   applicantChoosesPassword: "Does the applicant choose their own password at account creation?",
   portalIssuesCredential: "Does the portal generate a credential and send it to the applicant?",
   passwordlessAvailable:

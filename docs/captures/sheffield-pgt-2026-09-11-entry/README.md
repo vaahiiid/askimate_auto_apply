@@ -68,8 +68,10 @@ question; the test holds that, and `student_chosen` only as if AUTH 7 were tried
 still reads `true` until his signature changes it (row 152 of `docs/state-of-the-system.md`). The
 summary line above, *"1, 3, 6 and 8 settled by the capture"*, says more of AUTH 8 than its own row
 does (row 169). The refusal is
-proved to still bite, not merely to have stopped firing. The type carries no per-fact provenance,
-so the file's comment and this README are where "observed by Vahid, not by a run" lives.
+proved to still bite, not merely to have stopped firing. Until P300 the type carried no per-fact
+provenance, so the file's comment and this README are where "observed by Vahid, not by a run" lives.
+P300 added a source beside each fact (observed, stated, reasoned); Sheffield's sources wait on his
+signature (`docs/run-a/p300-for-signature.md`).
 
 ## The locators, authored
 

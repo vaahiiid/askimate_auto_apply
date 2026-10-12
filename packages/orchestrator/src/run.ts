@@ -158,8 +158,12 @@ export interface RunState {
   /**
    * The portal account, where the portal needs one.
    *
-   * Absent means no account has been prepared yet — which, on a portal whose
-   * blueprint says authentication is required, is itself a step.
+   * Absent means the derivation found none — which, on a portal whose
+   * blueprint says authentication is required, is itself a step. It is NOT
+   * proof that none exists (the P300 review): an account the ledger says was
+   * created is absent here when the student's confirmed address is gone, and
+   * a creation whose outcome is not known derives none. The Run Driver's
+   * `#accountOnRecord` reads the ledger and the case log for exactly that.
    */
   readonly account?: PortalAccount;
   /**
@@ -678,6 +682,13 @@ function accountStepFor(state: RunState): RunStep | null {
   const portalHost =
     account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl);
 
+  // ── An account the run holds and can plan nothing about (P300, row 170) ──
+  //
+  // Before the creation branch, so a held account is never planned for again
+  // as if it did not exist. A person looks: the run does not sign in, fill or
+  // hand over on facts that no longer settle how to get in.
+  if (account !== undefined && account.authentication === null) return unplannedStep(state, account);
+
   if (account === undefined || account.stage === "creation_required") {
     // Before anything else: how do we get in, and did anyone find out?
     //
@@ -763,6 +774,9 @@ function accountStepFor(state: RunState): RunStep | null {
   }
 
   if (account.stage === "handover_due") {
+    const plan = account.authentication;
+    // The branch above returned for an account with no plan; said again for the compiler.
+    if (plan === null) return unplannedStep(state, account);
     return {
       kind: "hand_over_account",
       // The STUDENT's outstanding items, not the whole gate. See
@@ -774,13 +788,43 @@ function accountStepFor(state: RunState): RunStep | null {
         institutionName: state.inputs.blueprint.institutionName,
         portalHost: account.portalHost,
         email: unwrapConfirmed(account.email),
-        approach: account.authentication.approach,
+        approach: plan.approach,
         leftToStudent: studentsOwnActs(state),
       }),
     };
   }
 
   return null;
+}
+
+/**
+ * The step for an account the run holds and cannot plan (P300, row 170): a
+ * person, told which account, whose it is, that it cannot be shown to have
+ * been handed back, and why nothing can be planned — the chooser's own words.
+ * "Cannot be shown", not "has not" (the P300 review): with no plan there is
+ * nothing to check a handover against.
+ */
+function unplannedStep(state: RunState, account: PortalAccount): RunStep {
+  const why = planFor(state);
+  const refusal = "rejected" in why || why.kind !== "specialist" ? null : why;
+  const whose = account.createdBy === "student" ? "the student's own" : "created in the student's name";
+  // Which questions, by name: `planFor` keeps only the count, and a person
+  // told "1 question is unobserved" has to go and find out which.
+  const observed = state.inputs.portalAuthentication;
+  const choice =
+    observed === undefined
+      ? null
+      : chooseApproach({ observed, studentPresentAtCreation: state.inputs.studentPresentAtCreation ?? true });
+  const questions = choice !== null && !choice.chosen && choice.refusal.kind === "unobserved" ? choice.refusal.questions : [];
+  return {
+    kind: "specialist",
+    reason: refusal?.reason ?? "account_unplanned",
+    detail:
+      `The account ${account.accountId} on ${account.portalHost}, ${whose}, exists and cannot be ` +
+      `shown to have been handed back, and nothing about it can be planned now.` +
+      (refusal === null ? "" : ` ${refusal.detail}`) +
+      (questions.length === 0 ? "" : ` Unobserved: ${questions.join(" ")}`),
+  };
 }
 
 /**
@@ -990,6 +1034,7 @@ export function describeConsentChoice(
 }
 
 function resumeStepFor(state: RunState, account: PortalAccount): RunStep {
+  if (account.authentication === null) return unplannedStep(state, account);
   const approach = account.authentication.approach;
   if (approach !== "student_chosen" || state.inputs.passwordDelivery !== "askimate_secure_channel") {
     return {
@@ -1202,9 +1247,11 @@ export function withAccountCreationFailure(
  * observed that requirement and `active` where it did not. That observation is
  * a reviewed per-portal fact, not a guess.
  *
- * Returns `null` when the state cannot support an account — no plan, or no
- * confirmed email. Both are states `accountStepFor` refuses to `specialist`
- * from, and answering `null` here keeps that refusal the one that happens.
+ * Returns `null` only when there is no confirmed email, a state
+ * `accountStepFor` refuses to `specialist` from; answering `null` keeps that
+ * refusal the one that happens. With no plan it returns the account
+ * `"unplanned"` (P300, row 170): until P300 this said "no plan" was a `null`
+ * too, and that is how a run lost sight of an account it held.
  */
 /**
  * What the case log and the run's own records say about handing the account
@@ -1473,18 +1520,36 @@ export function accountCreated(
   },
 ): RunState | null {
   const plan = planFor(state);
-  // Narrowed on `rejected`, not on `approach`. `planFor` answers a plan or a
-  // `specialist` step, and the step union ALSO has an `approach` — so the
-  // obvious discriminator lets a `create_account` step through where a plan is
-  // wanted. `rejected` — the approaches this one was chosen over — belongs to
-  // the plan alone.
-  if (!("rejected" in plan)) return null;
-
   const email = resolveField(state.profile, "contact.email");
   if (isFieldUnavailable(email)) return null;
 
   const portalHost =
     state.account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl);
+
+  // Narrowed on `rejected`, not on `approach`. `planFor` answers a plan or a
+  // `specialist` step, and the step union ALSO has an `approach` — so the
+  // obvious discriminator lets a `create_account` step through where a plan is
+  // wanted. `rejected` — the approaches this one was chosen over — belongs to
+  // the plan alone.
+  //
+  // No plan is no longer no account (P300, row 170). The account was created;
+  // that the facts no longer settle how we get in changes nothing about
+  // whether it exists, or whether it is owed back. Until P300 this returned
+  // null, the run lost sight of the account, and a stop closed the case as
+  // owing the student nothing.
+  if (!("rejected" in plan)) {
+    return withAccount(state, {
+      accountId: input.accountId,
+      caseId: state.inputs.caseId,
+      studentRef: state.inputs.studentRef,
+      portalHost,
+      email,
+      stage: "unplanned",
+      authentication: null,
+      createdBy: "askimate_on_behalf",
+      createdAt: input.createdAt ?? input.now,
+    });
+  }
   const evidence = input.handover ?? NO_HANDOVER_EVIDENCE;
   const checklist = handoverChecklistFrom(evidence, plan);
   // The text the student is shown when the account is handed back. The same
@@ -1572,13 +1637,27 @@ export function accountDeclared(
   },
 ): RunState | null {
   const plan = planFor(state);
-  if (!("rejected" in plan)) return null;
-
   const email = resolveField(state.profile, "contact.email");
   if (isFieldUnavailable(email)) return null;
 
   const portalHost =
     state.account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl);
+
+  // As `accountCreated` (P300, row 170): a declared account does not stop
+  // existing because the facts no longer settle a plan.
+  if (!("rejected" in plan)) {
+    return withAccount(state, {
+      accountId: input.accountId,
+      caseId: state.inputs.caseId,
+      studentRef: state.inputs.studentRef,
+      portalHost,
+      email,
+      stage: "unplanned",
+      authentication: null,
+      createdBy: "student",
+      createdAt: input.declaredAt,
+    });
+  }
   const evidence = input.handover ?? NO_HANDOVER_EVIDENCE;
   const checklist = handoverChecklistFrom(evidence, plan);
   const presentedText = renderHandover({

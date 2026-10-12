@@ -1,0 +1,7 @@
+My decisions on P299.
+
+Row 170: fix it now, as a defect, regardless of Sheffield. A run that holds an account must never lose sight of it because an auth fact reads "unobserved". A stop or abandon must never close a case as owing the student nothing while an account created in their name has not been handed back. Prove it with a test that fails first.
+
+AUTH 7: I will try "Forgot password" on Sheffield with my own account and send you what arrived. Do not change the signed entry's AUTH 7 until then. After my result, prepare the entry change for my signature.
+
+Row 169: record each of AUTH 3, 5, 6 and 8 by its real source: observed (name the read), stated by me (quote me), or reasoned from the design. Nothing reasoned may be recorded as observed. AUTH 8 is reasoned. Prepare whatever needs my signature as one sheet, and give me the exact signing message.

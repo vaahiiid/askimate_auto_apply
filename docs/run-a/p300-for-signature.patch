@@ -1,0 +1,365 @@
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+index 42423c47..3749871e 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+@@ -1,6 +1,6 @@
+ {
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "version": "0.2.35",
++  "version": "0.2.36",
+   "status": "draft",
+   "institutionName": "University of Sheffield",
+   "courseName": "MSc Management and International Business",
+@@ -30714,12 +30714,12 @@
+       "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
+       "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
+       "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
+-      "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
++      "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code? NONE on the pages read — OBSERVED by the signed-out read of 2026-09-11 and the runner's read of the login page of 2026-09-18; no page after sign-in was read for it (P300; each read named in portalAuthentication.sources.passwordlessAvailable)",
+       "AUTH 4 — Must the email be verified before the form is reachable? NO (Vahid, 2026-10-01, three observations on one account: registration 2026-09-11 went straight into the form with one acknowledgement e-mail and no link clicked; sign-in 2026-09-18; two signed-in reads 2026-09-25)",
+-      "AUTH 5 — Is MFA or a one-time code required, and where?",
+-      "AUTH 6 — Is a CAPTCHA present, and where?",
++      "AUTH 5 — Is MFA or a one-time code required, and where? NOT AT SIGN-IN — STATED by Vahid, 2026-09-11 ('no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.'), and OBSERVED by Run A's sign-ins, attempts 4 to 10; registration not observed by a run (P300; portalAuthentication.sources.mfaOrOtpRequired)",
++      "AUTH 6 — Is a CAPTCHA present, and where? NONE on the pages read — OBSERVED by the signed-in read of 2026-09-10, the signed-out read of 2026-09-11 (Google Tag Manager refused on both), the runner's read of the login page of 2026-09-18 and Run A's attempts 4 and 10; registration submitted not observed (P300; portalAuthentication.sources.captchaPresent)",
+       "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
+-      "AUTH 8 — Can control be handed back cleanly?",
++      "AUTH 8 — Can control be handed back cleanly? YES — REASONED FROM THE DESIGN, NOT OBSERVED: from AUTH 1, the password is the student's own and never held here (ADR-0020, ADR-0101); no account has been handed back on this portal (P300; portalAuthentication.sources.credentialsCanBeHandedBack)",
+       "PART 2, read 2026-09-25 (581070e): the overview's only two links out of Part 1 are plain <a href> GETs, studyprogrammetaught.do and studyprogrammeresearch.do — no form, no button — so opening Part 2 commits nothing. The taught page's own form POSTs to itself with saveBtn and backBtn, the shape of every Part 1 page, and carries NO submit-the-application control. WHERE THE FINAL SUBMISSION IS remains UNREAD: the overview's HTML was not kept, and nothing read shows what appears once a course choice is saved. Vahid pressed nothing.",
+       "PART 2, the research route (studyprogrammeresearch.do): UNREAD by his word — a row, not a phase.",
+       "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+index a760171c..b12b2eb5 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+@@ -68,10 +68,10 @@
+     "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
+   ],
+   "mappingSetId": "map-sheffield-pgt-2027-09",
+-  "version": "0.3.47",
++  "version": "0.3.48",
+   "status": "draft",
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "blueprintVersion": "0.2.35",
++  "blueprintVersion": "0.2.36",
+   "authoredBy": "Vahid Mohammadi",
+   "authoredAt": "2026-09-11T12:00:00Z",
+   "mappings": [
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json b/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json
+index 1bb6f0eb..f170f428 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json
+@@ -15,7 +15,7 @@
+     "(2026-09-21) to 10 (2026-09-22) with no code asked for (docs/what-run-a-proved.md); registration was not.",
+     "Until P300 the type carried one discoveryRunId for the record and no per-fact provenance, so this comment",
+     "and the READMEs are where the provenance of those facts lives, and the reviewer reads them together. P300",
+-    "added a source beside each fact; Sheffield's wait on his signature (docs/run-a/p300-for-signature.md).",
++    "added a source beside each fact; the sources below record AUTH 3, 5, 6 and 8, signed with the entry (P300).",
+     "Vahid, 2026-09-11, carried with them in his words: 'this is Sheffield's behaviour, not a property of direct",
+     "portals. Another university may verify the email, or ask for a code, and finding that out is per-target work,",
+     "not something these two answers settle for anything but this entry.'",
+@@ -41,5 +41,53 @@
+   "mfaOrOtpRequired": false,
+   "captchaPresent": false,
+   "passwordResetAvailable": "unobserved",
+-  "credentialsCanBeHandedBack": true
++  "credentialsCanBeHandedBack": true,
++  "sources": {
++    "passwordlessAvailable": [
++      {
++        "kind": "observed",
++        "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): the entry page, read twice, and forgottenPassword.do. The login form takes an email and a password, and the only other route is a reset. Pages after sign-in were not read for it."
++      },
++      {
++        "kind": "observed",
++        "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same forms and signals as the read of 2026-09-11."
++      }
++    ],
++    "mfaOrOtpRequired": [
++      {
++        "kind": "stated",
++        "by": "Vahid Mohammadi",
++        "on": "2026-09-11",
++        "words": "no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for."
++      },
++      {
++        "kind": "observed",
++        "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in to his account with his email and password, through the consent path, read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
++      }
++    ],
++    "captchaPresent": [
++      {
++        "kind": "observed",
++        "read": "The signed-in read of 2026-09-10, run attached-sheffield-pgt-september-direct-2026-09-10T16-13-23-186Z (docs/captures/sheffield-pgt-2026-09-10, P81): eleven pages, no CAPTCHA signal. Google Tag Manager was refused."
++      },
++      {
++        "kind": "observed",
++        "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): no CAPTCHA script, iframe, widget or marker on the entry page or forgottenPassword.do. Google Tag Manager was refused, so a CAPTCHA a tag would inject could not have loaded."
++      },
++      {
++        "kind": "observed",
++        "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same signals, no CAPTCHA."
++      },
++      {
++        "kind": "observed",
++        "read": "Run A, attempts 4 (2026-09-21) and 10 (2026-09-22) (docs/what-run-a-proved.md; P178 in docs/state-of-the-system.md): the runner reads the page for a CAPTCHA before and after signing in and as it fills (apps/browser-runner/src/sign-in.ts, fill-application.ts). Attempt 4 saved the personal, contact and nationality pages and attempt 10 the education, employment and equal opportunities pages, six pages of Part 1 between them, and neither met one. Registration, submitted, was not observed for it."
++      }
++    ],
++    "credentialsCanBeHandedBack": [
++      {
++        "kind": "reasoned",
++        "from": "AUTH 1 and the design: the password is the student's own, chosen at registration and never held by AskiMate (ADR-0020, ADR-0101), and nothing seen on the portal would prevent the student taking control (docs/captures/sheffield-pgt-2026-09-11-entry/README.md, AUTH 8: 'settled by AUTH 1, not by a page'). No account has been handed back on this portal, so nothing has observed it."
++      }
++    ]
++  }
+ }
+diff --git a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+index 505c82fd..b92ece9f 100644
+--- a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
++++ b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+@@ -23,8 +23,8 @@
+     "the content hash, so it changes only with his signature. P299 proposed that it wait for row 170 of",
+     "docs/state-of-the-system.md (an unobserved fact made a run stop seeing an account it held), and P300",
+     "closed row 170. Vahid, 2026-10-12: 'Do not change the signed entry's AUTH 7 until then', his own 'Forgot",
+-    "password' result. Row 152 holds the rest. What AUTH 3, 5, 6 and 8 rest on is row 169, and P300's sheet for",
+-    "his signature records each by its source (docs/run-a/p300-for-signature.md)."
++    "password' result. Row 152 holds the rest. What AUTH 3, 5, 6 and 8 rest on is row 169, and since P300's",
++    "signature portalAuthentication.sources below records each by its source (docs/run-a/p300-for-signature.md)."
+   ],
+   "institutionRef": "inst-sheffield",
+   "courseRef": "course-sheffield-msc-management-and-international-business",
+@@ -42,11 +42,59 @@
+     "mfaOrOtpRequired": false,
+     "captchaPresent": false,
+     "passwordResetAvailable": true,
+-    "credentialsCanBeHandedBack": true
++    "credentialsCanBeHandedBack": true,
++    "sources": {
++      "passwordlessAvailable": [
++        {
++          "kind": "observed",
++          "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): the entry page, read twice, and forgottenPassword.do. The login form takes an email and a password, and the only other route is a reset. Pages after sign-in were not read for it."
++        },
++        {
++          "kind": "observed",
++          "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same forms and signals as the read of 2026-09-11."
++        }
++      ],
++      "mfaOrOtpRequired": [
++        {
++          "kind": "stated",
++          "by": "Vahid Mohammadi",
++          "on": "2026-09-11",
++          "words": "no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for."
++        },
++        {
++          "kind": "observed",
++          "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in to his account with his email and password, through the consent path, read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
++        }
++      ],
++      "captchaPresent": [
++        {
++          "kind": "observed",
++          "read": "The signed-in read of 2026-09-10, run attached-sheffield-pgt-september-direct-2026-09-10T16-13-23-186Z (docs/captures/sheffield-pgt-2026-09-10, P81): eleven pages, no CAPTCHA signal. Google Tag Manager was refused."
++        },
++        {
++          "kind": "observed",
++          "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): no CAPTCHA script, iframe, widget or marker on the entry page or forgottenPassword.do. Google Tag Manager was refused, so a CAPTCHA a tag would inject could not have loaded."
++        },
++        {
++          "kind": "observed",
++          "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same signals, no CAPTCHA."
++        },
++        {
++          "kind": "observed",
++          "read": "Run A, attempts 4 (2026-09-21) and 10 (2026-09-22) (docs/what-run-a-proved.md; P178 in docs/state-of-the-system.md): the runner reads the page for a CAPTCHA before and after signing in and as it fills (apps/browser-runner/src/sign-in.ts, fill-application.ts). Attempt 4 saved the personal, contact and nationality pages and attempt 10 the education, employment and equal opportunities pages, six pages of Part 1 between them, and neither met one. Registration, submitted, was not observed for it."
++        }
++      ],
++      "credentialsCanBeHandedBack": [
++        {
++          "kind": "reasoned",
++          "from": "AUTH 1 and the design: the password is the student's own, chosen at registration and never held by AskiMate (ADR-0020, ADR-0101), and nothing seen on the portal would prevent the student taking control (docs/captures/sheffield-pgt-2026-09-11-entry/README.md, AUTH 8: 'settled by AUTH 1, not by a page'). No account has been handed back on this portal, so nothing has observed it."
++        }
++      ]
++    }
+   },
+   "blueprint": {
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "version": "0.2.35",
++    "version": "0.2.36",
+     "status": "reviewed",
+     "institutionName": "University of Sheffield",
+     "courseName": "MSc Management and International Business",
+@@ -30760,12 +30808,12 @@
+         "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
+         "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
+         "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
+-        "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
++        "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code? NONE on the pages read — OBSERVED by the signed-out read of 2026-09-11 and the runner's read of the login page of 2026-09-18; no page after sign-in was read for it (P300; each read named in portalAuthentication.sources.passwordlessAvailable)",
+         "AUTH 4 — Must the email be verified before the form is reachable? NO (Vahid, 2026-10-01, three observations on one account: registration 2026-09-11 went straight into the form with one acknowledgement e-mail and no link clicked; sign-in 2026-09-18; two signed-in reads 2026-09-25)",
+-        "AUTH 5 — Is MFA or a one-time code required, and where?",
+-        "AUTH 6 — Is a CAPTCHA present, and where?",
++        "AUTH 5 — Is MFA or a one-time code required, and where? NOT AT SIGN-IN — STATED by Vahid, 2026-09-11 ('no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.'), and OBSERVED by Run A's sign-ins, attempts 4 to 10; registration not observed by a run (P300; portalAuthentication.sources.mfaOrOtpRequired)",
++        "AUTH 6 — Is a CAPTCHA present, and where? NONE on the pages read — OBSERVED by the signed-in read of 2026-09-10, the signed-out read of 2026-09-11 (Google Tag Manager refused on both), the runner's read of the login page of 2026-09-18 and Run A's attempts 4 and 10; registration submitted not observed (P300; portalAuthentication.sources.captchaPresent)",
+         "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
+-        "AUTH 8 — Can control be handed back cleanly?",
++        "AUTH 8 — Can control be handed back cleanly? YES — REASONED FROM THE DESIGN, NOT OBSERVED: from AUTH 1, the password is the student's own and never held here (ADR-0020, ADR-0101); no account has been handed back on this portal (P300; portalAuthentication.sources.credentialsCanBeHandedBack)",
+         "PART 2, read 2026-09-25 (581070e): the overview's only two links out of Part 1 are plain <a href> GETs, studyprogrammetaught.do and studyprogrammeresearch.do — no form, no button — so opening Part 2 commits nothing. The taught page's own form POSTs to itself with saveBtn and backBtn, the shape of every Part 1 page, and carries NO submit-the-application control. WHERE THE FINAL SUBMISSION IS remains UNREAD: the overview's HTML was not kept, and nothing read shows what appears once a course choice is saved. Vahid pressed nothing.",
+         "PART 2, the research route (studyprogrammeresearch.do): UNREAD by his word — a row, not a phase.",
+         "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
+@@ -30853,10 +30901,10 @@
+       "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
+     ],
+     "mappingSetId": "map-sheffield-pgt-2027-09",
+-    "version": "0.3.47",
++    "version": "0.3.48",
+     "status": "reviewed",
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "blueprintVersion": "0.2.35",
++    "blueprintVersion": "0.2.36",
+     "authoredBy": "Vahid Mohammadi",
+     "authoredAt": "2026-09-11T12:00:00Z",
+     "mappings": [
+diff --git a/docs/run-a/what-will-be-typed.md b/docs/run-a/what-will-be-typed.md
+index 0415f1a2..7f64cc0c 100644
+--- a/docs/run-a/what-will-be-typed.md
++++ b/docs/run-a/what-will-be-typed.md
+@@ -1,4 +1,4 @@
+-REVIEWED — blueprint 0.2.35, mapping set 0.3.47, reviewed by Vahid Mohammadi.
++REVIEWED — blueprint 0.2.36, mapping set 0.3.48, reviewed by Vahid Mohammadi.
+ Profile: 19 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
+ 
+ University of Sheffield — MSc Management and International Business, 2027-09
+@@ -130,4 +130,4 @@ We did not answer these for you:
+     Not answered on your behalf. Instead we entered "Prefer not to say".
+     Why: Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer.
+ 
+-Reference: sha256:29c0efb2d835d89a5bdea06504596e81026946a92350df8f48e31990e453c7e7
++Reference: sha256:c22cfaec2c2c92f329c973acf9fb81562633b9966960f7f172098e2c01a1a0cc
+diff --git a/scripts/run-a-profile.test.ts b/scripts/run-a-profile.test.ts
+index 15b7a5a2..63e1f1af 100644
+--- a/scripts/run-a-profile.test.ts
++++ b/scripts/run-a-profile.test.ts
+@@ -256,7 +256,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     return parsed.value;
+   }
+ 
+-  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs", () => {
++  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs, and AUTH 3, 5, 6 and 8 by their real source (P300)", () => {
+     const { blueprint, mappingSet } = drafts();
+     const value = entry();
+     // P154: signed. The drafts in docs/captures stay drafts (the record of the
+@@ -273,6 +273,43 @@ describe("the catalogue entry for Run A (P152)", () => {
+     expect(value.portalAuthentication?.portalHost).toBe("www.sheffield.ac.uk");
+     expect(value.portalAuthentication?.applicantChoosesPassword).toBe(true);
+     expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
++
++    // ── P300, row 169: each fact by its real source ──────────────────────
++    // Held in this test rather than a new one, so the patch moves no count
++    // in the census and the signing commit carries nothing but the patch.
++    // Vahid, 2026-10-12: "record each of AUTH 3, 5, 6 and 8 by its real
++    // source: observed (name the read), stated by me (quote me), or reasoned
++    // from the design. Nothing reasoned may be recorded as observed. AUTH 8 is
++    // reasoned."
++    const sources = entry().portalAuthentication?.sources;
++    const kinds = (key: keyof NonNullable<typeof sources>): readonly string[] | undefined => sources?.[key]?.map((source) => source.kind);
++    expect(Object.keys(sources ?? {}).sort()).toEqual(["captchaPresent", "credentialsCanBeHandedBack", "mfaOrOtpRequired", "passwordlessAvailable"]);
++    expect(kinds("credentialsCanBeHandedBack"), "AUTH 8 is reasoned, and only reasoned").toEqual(["reasoned"]);
++    expect(kinds("passwordlessAvailable")).toEqual(["observed", "observed"]);
++    expect(kinds("captchaPresent")).toEqual(["observed", "observed", "observed", "observed"]);
++    expect(kinds("mfaOrOtpRequired")).toEqual(["stated", "observed"]);
++    // His words as P92 recorded them on 2026-09-11, the same words the capture
++    // draft's comment carries.
++    const stated = sources?.mfaOrOtpRequired?.find((source) => source.kind === "stated");
++    expect(stated).toEqual({
++      kind: "stated",
++      by: "Vahid Mohammadi",
++      on: "2026-09-11",
++      words: "no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.",
++    });
++    const DRAFT = join(ROOT, "docs", "captures", "sheffield-pgt-2026-09-10", "portal-authentication.draft.json");
++    const draft = JSON.parse(readFileSync(DRAFT, "utf8")) as { $comment: string[]; sources?: unknown };
++    expect(draft.$comment.join(" ").replace(/\s+/gu, " ")).toContain(stated?.kind === "stated" ? stated.words : "");
++    // Every observed source names the read it rests on: a capture's run, or Run A's record.
++    for (const [key, list] of Object.entries(sources ?? {})) {
++      for (const source of list) {
++        if (source.kind === "observed") expect(source.read, key).toMatch(/attached-sheffield-pgt-september-direct-|docs\/what-run-a-proved\.md/u);
++      }
++    }
++    // AUTH 7 has none: it waits for his "Forgot password" result (row 152).
++    expect(sources?.passwordResetAvailable).toBeUndefined();
++    // The draft it came from carries the same sources: two files, held equal.
++    expect(draft.sources).toEqual(sources);
+   });
+ 
+   it("locates every page's SAVE by what that page's own read showed — name where no id was ever read (P176)", () => {
+@@ -444,12 +481,17 @@ describe("the catalogue entry for Run A (P152)", () => {
+     //                     asked: "Record the country a read was made under in
+     //                     the reads record itself" (0.2.34 / 0.3.46), P294
+     //                     (signed, 34760af4)
+-    //   sha256:546b2948…  11 October, THIS one — from his reads R and L:
++    //   sha256:546b2948…  11 October — from his reads R and L:
+     //                     the grade's list after GPA 20 with the institution's
+     //                     escape and Iran, its prompt, and the row he asked
+     //                     for, "build the grade row from R for my signature";
+     //                     two escape boxes labelled with the page's own words
+-    //                     (0.2.35 / 0.3.47), P296
++    //                     (0.2.35 / 0.3.47), P296 (signed, 8f51a599)
++    //   sha256:31770fb8…  12 October, THIS one — AUTH 3, 5, 6 and 8 recorded
++    //                     by their real source, as he asked: "observed (name
++    //                     the read), stated by me (quote me), or reasoned from
++    //                     the design. Nothing reasoned may be recorded as
++    //                     observed. AUTH 8 is reasoned." (0.2.36 / 0.3.48), P300
+     //
+     // The `degree` mapping reads `awardTitle` — the part the registry now
+     // holds, stated by the student and distinct from `level` — onto the
+@@ -465,7 +507,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // P283 and P284 moved it again, for step 2 of his own run, delivered as a patch he
+     // applies and signs in ONE commit with approvals.json — so main never
+     // holds an entry that is not signed, and this test is never red there.
+-    expect(labelledHash(toCanonical(value))).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
++    expect(labelledHash(toCanonical(value))).toBe("sha256:31770fb8d8719fd3a8b6433edf50ce8398e7b29c50987dfb5dd5d0c24189be9a");
+     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
+     expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
+     if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
+@@ -485,7 +527,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+       ownAccountOnly?: { studentId: string };
+     }[];
+     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
+-    expect(approvals[0]?.contentHash).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
++    expect(approvals[0]?.contentHash).toBe("sha256:31770fb8d8719fd3a8b6433edf50ce8398e7b29c50987dfb5dd5d0c24189be9a");
+     expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
+     // The four spellings of Iran, from the entry itself: unchanged by this
+     // edit, and the reason the countries' signature was spent.
+@@ -652,7 +694,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // it. Nothing typed here came from a map's guess.
+     expect(code).toBe(0);
+     expect(output).toBe(readFileSync(READ, "utf8"));
+-    expect(output).toContain("REVIEWED — blueprint 0.2.35, mapping set 0.3.47, reviewed by Vahid Mohammadi.");
++    expect(output).toContain("REVIEWED — blueprint 0.2.36, mapping set 0.3.48, reviewed by Vahid Mohammadi.");
+     expect(output).toContain("How do you want to study?*: Full Time");
+     expect(output).toContain('(sent as "MGT:Management and International Business")');
+     expect(output).toContain("MSC, Master of Science");
+diff --git a/scripts/sheffield-draft.test.ts b/scripts/sheffield-draft.test.ts
+index cd251ed1..b55b9d38 100644
+--- a/scripts/sheffield-draft.test.ts
++++ b/scripts/sheffield-draft.test.ts
+@@ -144,7 +144,7 @@ describe("the Sheffield drafts, under the real checks", () => {
+     // The two marks flagged for Iman are carried as observed, not dropped.
+     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
+     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
+-    expect(blueprint.version).toBe("0.2.35");
++    expect(blueprint.version).toBe("0.2.36");
+   });
+ 
+   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
+@@ -459,8 +459,8 @@ describe("the Sheffield drafts, under the real checks", () => {
+   });
+ 
+   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
+-    expect(blueprint.version).toBe("0.2.35");
+-    expect(mappingSet.version).toBe("0.3.47");
++    expect(blueprint.version).toBe("0.2.36");
++    expect(mappingSet.version).toBe("0.3.48");
+     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
+     expect(employment?.repeats?.fieldKey).toBe("employment.history");
+     expect(employment?.title).toBe("Employment history");

@@ -60,7 +60,14 @@ import type {
 import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
 import type { FormatRule, OrdinaryFieldKey, ProfileFieldKey } from "@askimate/aas-profile";
 import { LIST_VALUED_FIELD_KEYS, PROFILE_FIELD_KEYS, categoryOf } from "@askimate/aas-profile";
-import type { ObservedPortalAuthentication, PasswordDelivery, PortalAuthFact } from "@askimate/aas-account";
+import type {
+  ObservedPortalAuthentication,
+  PasswordDelivery,
+  PortalAuthFact,
+  PortalAuthFactKey,
+  PortalAuthFactSource,
+  PortalAuthFactSources,
+} from "@askimate/aas-account";
 
 import type { ReviewedCatalogueEntry } from "./entry.js";
 
@@ -1015,12 +1022,35 @@ function authFact(source: Record<string, unknown>, key: string, path: string): P
   fail(`${path}.${key}`, 'expected true, false, or "unobserved"');
 }
 
+/**
+ * The keys a portal-authentication record may hold (the P300 review). Any other
+ * is refused rather than dropped: a misspelt `sources` would otherwise take
+ * every source in it out of the hash the signer was shown, without a word.
+ * `$comment` is admitted and dropped, as the entry's own is — a note for the
+ * reader, outside the hash.
+ */
+const PORTAL_AUTHENTICATION_KEYS: readonly string[] = [
+  "portalHost",
+  "discoveryRunId",
+  "observedAt",
+  "applicantChoosesPassword",
+  "portalIssuesCredential",
+  "passwordlessAvailable",
+  "emailVerificationRequired",
+  "mfaOrOtpRequired",
+  "captchaPresent",
+  "passwordResetAvailable",
+  "credentialsCanBeHandedBack",
+  "sources",
+  "$comment",
+];
+
 function readPortalAuthentication(value: unknown, path: string): ObservedPortalAuthentication {
   const source = record(value, path);
-  return {
-    portalHost: text(source, "portalHost", path),
-    discoveryRunId: text(source, "discoveryRunId", path),
-    observedAt: instant(source, "observedAt", path),
+  for (const key of Object.keys(source)) {
+    if (!PORTAL_AUTHENTICATION_KEYS.includes(key)) fail(`${path}.${key}`, "not part of a portal-authentication record");
+  }
+  const facts: Record<PortalAuthFactKey, PortalAuthFact> = {
     applicantChoosesPassword: authFact(source, "applicantChoosesPassword", path),
     portalIssuesCredential: authFact(source, "portalIssuesCredential", path),
     passwordlessAvailable: authFact(source, "passwordlessAvailable", path),
@@ -1030,6 +1060,81 @@ function readPortalAuthentication(value: unknown, path: string): ObservedPortalA
     passwordResetAvailable: authFact(source, "passwordResetAvailable", path),
     credentialsCanBeHandedBack: authFact(source, "credentialsCanBeHandedBack", path),
   };
+  const sources = optionalWith(source, "sources", path, (raw, sourcesPath) => readAuthFactSources(raw, sourcesPath, facts));
+  return {
+    portalHost: text(source, "portalHost", path),
+    discoveryRunId: text(source, "discoveryRunId", path),
+    observedAt: instant(source, "observedAt", path),
+    ...facts,
+    ...(sources === undefined ? {} : { sources }),
+  };
+}
+
+const AUTH_FACT_SOURCE_KEYS: Readonly<Record<PortalAuthFactSource["kind"], readonly string[]>> = {
+  observed: ["kind", "read"],
+  stated: ["kind", "by", "on", "words"],
+  reasoned: ["kind", "from"],
+};
+
+/**
+ * Where each fact came from (P300, row 169): the read that observed it, the
+ * words that stated it, or the reasoning it follows from. Every source must
+ * say something, and a fact recorded `"unobserved"` may have none, because it
+ * rests on nothing. Unknown keys are refused rather than dropped: a dropped key
+ * would be outside the hash the signer was shown.
+ */
+function readAuthFactSources(
+  value: unknown,
+  path: string,
+  facts: Readonly<Record<PortalAuthFactKey, PortalAuthFact>>,
+): PortalAuthFactSources {
+  const source = record(value, path);
+  // An empty `sources` says what no `sources` says, and would hash differently
+  // (the P300 review): written at all, it names at least one fact.
+  if (Object.keys(source).length === 0) fail(path, "expected at least one fact's sources");
+  const out: Partial<Record<PortalAuthFactKey, readonly PortalAuthFactSource[]>> = {};
+  for (const [key, list] of Object.entries(source)) {
+    const listPath = `${path}.${key}`;
+    if (!Object.hasOwn(facts, key)) fail(listPath, "not an authentication fact");
+    const fact = key as PortalAuthFactKey;
+    if (facts[fact] === "unobserved") fail(listPath, "a fact recorded as unobserved rests on nothing, so it has no source");
+    if (!Array.isArray(list) || list.length === 0) fail(listPath, "expected at least one source");
+    out[fact] = list.map((item: unknown, index) => readAuthFactSource(item, `${listPath}[${String(index)}]`));
+  }
+  return out;
+}
+
+function readAuthFactSource(value: unknown, path: string): PortalAuthFactSource {
+  const source = record(value, path);
+  const kind = source["kind"];
+  if (kind !== "observed" && kind !== "stated" && kind !== "reasoned") fail(`${path}.kind`, "expected observed, stated or reasoned");
+  for (const key of Object.keys(source)) {
+    if (!AUTH_FACT_SOURCE_KEYS[kind].includes(key)) fail(`${path}.${key}`, `not part of a source that is ${kind}`);
+  }
+  // Kept as written: a source is someone's words or a read's name, and
+  // trimming one would change what was recorded. Only blankness is refused.
+  const saying = (key: string): string => {
+    const said = text(source, key, path);
+    if (said.trim().length === 0) fail(`${path}.${key}`, "expected words, not blank space");
+    return said;
+  };
+  switch (kind) {
+    case "observed":
+      return { kind, read: saying("read") };
+    case "stated": {
+      const on = saying("on");
+      if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u.test(on)) fail(`${path}.on`, "expected the day it was said, YYYY-MM-DD");
+      // A day that exists (the P300 review): 2026-02-30 has the shape and is no
+      // day anyone said anything on. The calendar's own answer, round-tripped.
+      const [year, month, day] = on.split("-").map(Number) as [number, number, number];
+      if (new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10) !== on) {
+        fail(`${path}.on`, "expected a day that exists, YYYY-MM-DD");
+      }
+      return { kind, by: saying("by"), on, words: saying("words") };
+    }
+    case "reasoned":
+      return { kind, from: saying("from") };
+  }
 }
 
 // ── The reviewed entry ─────────────────────────────────────────────────────

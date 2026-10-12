@@ -20,10 +20,11 @@
     "'Forgot password' on this portal: the signed-out read found the reset page and sent nothing",
     "(docs/captures/sheffield-pgt-2026-09-11-entry/README.md, AUTH 7). Vahid, 2026-10-12: 'it was never observed,",
     "so it must not be recorded as true. Record it as not observed until someone tries it.' The value is inside",
-    "the content hash, so it changes only with his signature. P299 proposes, and did not decide, that it wait",
-    "for row 170 of docs/state-of-the-system.md: traced in the code, not run, an unobserved fact makes a run",
-    "stop seeing an account it already holds. Whether it waits is his to say. Row 152 holds the rest. What",
-    "AUTH 3, 5, 6 and 8 rest on is row 169."
+    "the content hash, so it changes only with his signature. P299 proposed that it wait for row 170 of",
+    "docs/state-of-the-system.md (an unobserved fact made a run stop seeing an account it held), and P300",
+    "closed row 170. Vahid, 2026-10-12: 'Do not change the signed entry's AUTH 7 until then', his own 'Forgot",
+    "password' result. Row 152 holds the rest. What AUTH 3, 5, 6 and 8 rest on is row 169, and P300's sheet for",
+    "his signature records each by its source (docs/run-a/p300-for-signature.md)."
   ],
   "institutionRef": "inst-sheffield",
   "courseRef": "course-sheffield-msc-management-and-international-business",

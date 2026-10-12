@@ -665,8 +665,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   it("record AUTH 7 as not observed, so the chooser refuses and names that one question; observed, it would pick student_chosen (P92, P299)", () => {
     // AUTH 4 and 5 could not be settled by a page that was read. They are
     // settled by Vahid's direct statement of 2026-09-11 — observed by him,
-    // not by a run — and the file says so in its comment, because the type
-    // carries no per-fact provenance. For this entry only, in his words:
+    // not by a run — and the file says so in its comment, because until P300
+    // the type carried no per-fact provenance. For this entry only, in his words:
     // "this is Sheffield's behaviour, not a property of direct portals."
     const observed = facts();
     expect(observed.applicantChoosesPassword).toBe(true);

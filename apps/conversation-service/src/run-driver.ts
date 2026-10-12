@@ -744,7 +744,21 @@ function pauseMessage(entry: CatalogueEntry): string {
  */
 type StopConclusion =
   | { readonly concluded: true }
-  | { readonly concluded: false; readonly outstanding: readonly string[] };
+  | {
+      readonly concluded: false;
+      readonly outstanding: readonly string[];
+      /**
+       * What is owed may not exist: an account creation whose outcome is not
+       * known (the P300 review). The student is not told an account exists.
+       */
+      readonly creationUncertain?: boolean;
+      /**
+       * The student has told us they can sign in to it — the case log's
+       * completed `account_handover` — so "still in my hands" would be false
+       * (the P300 review).
+       */
+      readonly studentConfirmedAccess?: boolean;
+    };
 
 /**
  * What the student is told when they stop.
@@ -805,14 +819,44 @@ function stoppedRemainder(institution: string, hasAccount: boolean, conclusion: 
       `form is still saved there; I cannot remove it, and you can change it yourself once you have ` +
       `the account. `
     : ``;
+  // Three ways of not being finished, each said as what is known (the P300
+  // review). A creation whose outcome is not known is not an account that
+  // "is still in my hands"; an account the student has told us they can sign
+  // in to is not one either.
   const completion = conclusion.concluded
     ? `Nothing was submitted, and nothing is outstanding — this application is closed. `
-    : `It is stopped, but it is not finished: the account at ${institution} is still in my ` +
-      `hands, and I have to give you control of it before we are done. I will come back to you ` +
-      `about that, and I will tell you when it is finished. Nothing was submitted. `;
+    : conclusion.creationUncertain === true
+      ? `It is stopped, but it is not finished: I was creating an account for you at ${institution}, ` +
+        `and I do not yet know whether the university made it. A member of the team will find out, ` +
+        `and I will tell you when it is finished. Nothing was submitted. `
+      : conclusion.studentConfirmedAccess === true
+        ? `It is stopped, but it is not finished: you have told me you can sign in to the account at ` +
+          `${institution}, but I cannot yet show that it is fully back with you. I will tell you when ` +
+          `it is finished. Nothing was submitted. `
+        : `It is stopped, but it is not finished: the account at ${institution} is still in my ` +
+          `hands, and I have to give you control of it before we are done. I will come back to you ` +
+          `about that, and I will tell you when it is finished. Nothing was submitted. `;
   return (
     `${account}${completion}If you want your data deleted rather than just ` +
     `stopped, tell me — that is a separate request and I will pass it to a person.`
+  );
+}
+
+/**
+ * What the student reads when a stopped case is given to a person (the P300
+ * review): something at the university is left that the system cannot settle.
+ *
+ * Said of what is LEFT, never of "the account": the thing a person holds may be
+ * a creation whose outcome is not known, and a student must not be told an
+ * account exists that may not. The promise — a member of the team has it — is
+ * the open intervention, asserted by the driver's test (P300, row 170).
+ */
+function heldForAPersonMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `Your ${institution} application is stopped, but what is left of it at ${institution} is ` +
+    `something I cannot settle on my own, so I have passed it to a member of the team. I will ` +
+    `tell you when it is finished. Nothing was submitted.`
   );
 }
 
@@ -4998,8 +5042,13 @@ export class RunDriver {
       }
       if (held.authorisedContentHash !== undefined) return { ok: false, reason: "refused" };
       const now = this.#options.now();
-      // Derivable, or it is not declarable: the address is the confirmed e-mail.
-      if (accountDeclared(situation.state, { accountId: "probe", declaredAt: now, now }) === null) {
+      // Derivable, or it is not declarable: the address is the confirmed e-mail,
+      // and there is a plan for it. Since P300 an account the chooser cannot
+      // plan derives as "unplanned" rather than `null`; that keeps an account
+      // already held in view, and must not open a new way to declare one the
+      // run could do nothing with (the P300 review). Refused, as before P300.
+      const probe = accountDeclared(situation.state, { accountId: "probe", declaredAt: now, now });
+      if (probe === null || probe.account?.authentication === null) {
         return { ok: false, reason: "refused" };
       }
       const loginUrl = entry.blueprint.authentication.loginUrl;
@@ -5217,12 +5266,23 @@ export class RunDriver {
    * means nothing owed. Two questions, two derivations, one source of truth
    * underneath — the account is derived by `#situation` in both.
    *
-   * Every member of the list comes from `mayConcludeCase`, whose only source
-   * is the portal account. `cancellationMessage` relies on that to say what is
-   * outstanding in the student's terms rather than reciting account ids; a
-   * second source of obligations added here has to change that wording too, or
-   * a student will be told about an account that is not the thing holding
-   * their case open.
+   * Every member of the list is about the portal account. `cancellationMessage`
+   * relies on that to say what is outstanding in the student's terms rather
+   * than reciting account ids; a second source of obligations added here has
+   * to change that wording too, or a student will be told about an account
+   * that is not the thing holding their case open.
+   *
+   * ── No account seen is not no account (P300, row 170) ───────────────────
+   *
+   * Until P300 an account the derivation could not see — the situation not
+   * built, or the account not derived from it — counted as nothing owed, and
+   * the case concluded over an account created in the student's name. Vahid,
+   * 2026-10-12: *"A stop or abandon must never close a case as owing the
+   * student nothing while an account created in their name has not been handed
+   * back."* So where the derivation sees no account, the ledger and the case
+   * log are asked directly, as `#whatIsBeyondReach` asks them, and an account
+   * on record that cannot be read back is owed: whether it was handed back
+   * cannot be shown.
    */
   async #outstandingObligations(input: {
     readonly record: WorkflowRunRecord;
@@ -5236,9 +5296,46 @@ export class RunDriver {
       caseId: input.record.caseId,
       studentRef: input.record.studentRef,
     });
-    if (!situation.ok) return [];
-    const account = situation.account;
-    return account === undefined ? [] : mayConcludeCase([account]).outstanding;
+    if (situation.ok && situation.account !== undefined) return mayConcludeCase([situation.account]).outstanding;
+    const held = await this.#accountOnRecord(input.record);
+    if (held === null) return [];
+    if (held === "uncertain") {
+      return [
+        `an account creation for run ${input.record.runId} began and its outcome is not known, so an ` +
+          `account may exist in the student's name that cannot be shown to have been handed back`,
+      ];
+    }
+    return [
+      `an account ${held === "student" ? "the student declared" : "created in the student's name"} for run ` +
+        `${input.record.runId} is on record and cannot be read back${situation.ok ? "" : " (the run's situation cannot be built)"}, ` +
+        `so it cannot be shown to have been handed back`,
+    ];
+  }
+
+  /**
+   * Whether the run holds an account, from the records alone (P300, row 170):
+   * a creation the ledger says succeeded, or a declaration on the case log.
+   * Who made it, or `null` for neither. No derivation, so nothing that reads
+   * the portal's facts can make the answer "none".
+   *
+   * `"uncertain"` (the P300 review): a creation whose outcome is not known —
+   * begun and never recorded as finished, or closed on a challenge. A second
+   * factor asked for after the portal took the form means the account "MAY
+   * ALREADY EXIST", in `challengeDetail`'s own words. A CAPTCHA is reported as
+   * `captcha_met` whether it was met before anything was typed or after the
+   * form was taken (create-account.ts), and the ledger keeps only the code, so
+   * it is read the strict way too. Until the review all of these read as no
+   * account, and a stop closed the case as owing nothing.
+   */
+  async #accountOnRecord(record: WorkflowRunRecord): Promise<"askimate_on_behalf" | "student" | "uncertain" | null> {
+    const intents = await this.#options.stores.runs.listIntents(record.runId, "create_portal_account");
+    if (intents.some((held) => held.completed?.outcome === "succeeded")) return "askimate_on_behalf";
+    const challenged = (failure: string | undefined): boolean => failure === "second_factor_met" || failure === "captcha_met";
+    if (intents.some((held) => held.completed === undefined || challenged(held.completed.failure))) {
+      return "uncertain";
+    }
+    const events = await this.#options.stores.cases.read(record.caseId);
+    return events.length > 0 && fold(events).declaredAccount !== undefined ? "student" : null;
   }
 
   /**
@@ -5285,7 +5382,14 @@ export class RunDriver {
       entry: input.entry,
       conversationId: input.conversationId,
     });
-    if (outstanding.length > 0) return { concluded: false, outstanding };
+    if (outstanding.length > 0) {
+      return {
+        concluded: false,
+        outstanding,
+        creationUncertain: (await this.#accountOnRecord(input.record)) === "uncertain",
+        studentConfirmedAccess: input.held.completedHandoffs.includes("account_handover"),
+      };
+    }
 
     const decided = decide(input.held, {
       kind: "transition",
@@ -5320,15 +5424,24 @@ export class RunDriver {
   /** The accounts this run holds, for a message that must not claim one exists. */
   async #accountsOn(record: WorkflowRunRecord, entry: CatalogueEntry): Promise<readonly unknown[]> {
     const bound = await this.#options.bindings.conversationForCase(record.caseId);
-    if (bound === null) return [];
-    const situation = await this.#situation({
-      entry,
-      record,
-      conversationId: bound,
-      caseId: record.caseId,
-      studentRef: record.studentRef,
-    });
-    return situation.ok && situation.account !== undefined ? [situation.account] : [];
+    const situation =
+      bound === null
+        ? null
+        : await this.#situation({
+            entry,
+            record,
+            conversationId: bound,
+            caseId: record.caseId,
+            studentRef: record.studentRef,
+          });
+    if (situation?.ok === true && situation.account !== undefined) return [situation.account];
+    // An account the derivation cannot see is still there (P300, row 170):
+    // what the student is told about it comes from the records, as the
+    // obligation does, never from its absence in a derivation.
+    // A creation whose outcome is not known is not an account to claim (the
+    // P300 review): the stop says what is not known instead.
+    const held = await this.#accountOnRecord(record);
+    return held === null || held === "uncertain" ? [] : [held];
   }
 
   /**
@@ -8451,6 +8564,15 @@ export class RunDriver {
         step: situation.step,
         now: situation.now,
       });
+      // ── Owed, and nothing the student can be asked to do (the P300 review) ──
+      //
+      // An account with no plan, one only the ledger shows, or a creation
+      // whose outcome is not known has no handoff for the student: the step
+      // is a person's, or the account is not on the state at all. Until the
+      // review the wind-down raised only the student's handoff, so here it
+      // raised nothing, the run stayed `running`, and the account was
+      // nobody's — the state P278 quotes Vahid against.
+      if (handoffFor(situation.step) === null) return await this.#holdForAPerson(input, situation, conclusion.outstanding);
       return stoppedAt(input.record.status);
     }
 
@@ -8560,6 +8682,74 @@ export class RunDriver {
       status: "stopped_by_student",
     });
     return position("stopped_by_student", revision);
+  }
+
+  /**
+   * A stopped case that owes something no student can be asked to take back,
+   * given to a person (the P300 review).
+   *
+   * Vahid, 2026-10-12: *"A run that holds an account must never lose sight of
+   * it."* Kept in sight by the obligation, it was still nobody's: no handoff,
+   * no intervention, the run `running` and re-advanced to nothing. One
+   * intervention per run at a time (`specialist:winding_down_owed`), raised
+   * again after a person resolves it if the case still owes — an abandon does
+   * not make an account go away. The run is `escalated` while a person holds
+   * it, as every other stop for a person leaves it.
+   */
+  async #holdForAPerson(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    },
+    situation: { readonly state: RunState; readonly step: RunStep; readonly now: Date },
+    outstanding: readonly string[],
+  ): Promise<RunOutcome> {
+    const step = specialistHandoverOf(situation.step);
+    await this.#raiseForSpecialist({
+      entry: input.entry,
+      record: input.record,
+      conversationId: input.conversationId,
+      caseId: input.caseId,
+      priority: "high",
+      target: "specialist:winding_down_owed",
+      encountered:
+        `The student's case is stopped and cannot close: ${outstanding.join("; ")}.` +
+        (step === null ? "" : ` ${step.detail}`),
+      expected:
+        `A person finds out whether the account exists and, if it does, gets it back to the ` +
+        `student; the case closes only once nothing is owed. While no handover can be planned, the ` +
+        `student cannot be asked to take it back: the portal's authentication facts observed and ` +
+        `the entry signed again, or the student's confirmed address restored, then resume. For a ` +
+        `creation whose outcome is not known there is no recorded way yet to say what was found ` +
+        `(row 173).`,
+      message: heldForAPersonMessage(input.entry),
+      now: situation.now,
+    });
+    const revision =
+      input.record.status === "running"
+        ? await this.#options.stores.runs.saveCheckpoint({
+            runId: input.record.runId,
+            checkpoint: input.record.checkpoint,
+            expectedRevision: input.record.revision,
+            status: "escalated",
+          })
+        : input.record.revision;
+    return {
+      ok: true,
+      position: {
+        runId: input.record.runId,
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        status: input.record.status === "running" ? "escalated" : input.record.status,
+        phase: input.record.checkpoint.phase,
+        step: situation.step.kind,
+        revision,
+        resumed: false,
+        concerns: [],
+      },
+    };
   }
 
   async #decideOnce(input: {
@@ -11025,6 +11215,9 @@ function accountDetail(
   // Reading it from the account rather than re-deriving it is what stops the
   // two ever disagreeing about whose application this is.
   if (existing === undefined) return null;
+  // An account with no plan (P300, row 170) is no work for a runner: the run
+  // stops for a person before it gets here, and nothing is signed in on it.
+  if (existing.authentication === null) return null;
   if (!(WORK_APPROACHES as readonly string[]).includes(existing.authentication.approach)) {
     return null;
   }

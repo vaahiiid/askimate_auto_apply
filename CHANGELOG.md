@@ -19,6 +19,40 @@ not shipped artefacts.
 
 ---
 
+## [0.293.0] — 2026-10-12
+
+**P300 — his decisions on P299: a held account is never lost to an unobserved fact, and a case
+never closes over an account not handed back; AUTH 3, 5, 6 and 8 by their real source, for his
+signature.**
+
+- **Fixed** row 170, seen failing first: when the account chooser refused, a run lost sight of
+  an account it held, and a stop or an abandon closed the case as owing nothing. An account the
+  run cannot plan for is now `"unplanned"` and owed, and the run stops for a person; where no
+  account can be derived, the ledger and the case log say one is owed.
+- **Fixed**, from P300's review, each seen failing first:
+  - a stopped case that owes an account the student cannot be asked to take back now goes to a
+    person, and the run is escalated; before, nobody was told, even after an abandon;
+  - a creation whose outcome is not known (unfinished, or closed on a second factor or a
+    CAPTCHA) is owed too, and the student is told it is not known whether an account was made,
+    not that one exists; before, a stop closed the case as owing nothing;
+  - a student can no longer declare an account of their own where no plan can be made for it,
+    as before P300;
+  - an unplanned account is said to be one that "cannot be shown to have been handed back",
+    not one that "has not been".
+- **Added** per-fact sources to the portal's authentication facts: observed (the read named),
+  stated (who, when, the words) or reasoned (from what), hashed with the facts. The parser
+  refuses an empty `sources`, a day that does not exist, and any key it does not know in the
+  record.
+- **Added** `docs/run-a/p300-for-signature.md` and its patch: AUTH 3, 5, 6 and 8 by their
+  sources, AUTH 8 reasoned, AUTH 7 untouched, `sha256:31770fb8…`, with the signing message,
+  which names the hash.
+- **Added** his message, saved as sent (`docs/run-a/p300-his-decisions-as-sent.txt`).
+- **Recorded** rows 171, 172 and 173: a student's stop refused when the run's situation cannot
+  be built; an unplanned account the evidence shows handed back, held open; and no recorded way
+  yet for a person to settle a creation whose outcome is not known.
+
+---
+
 ## [0.292.0] — 2026-10-12
 
 **P299 — P296's patch signed at his word; AUTH 7 recorded as not observed where his signature does

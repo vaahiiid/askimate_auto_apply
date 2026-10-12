@@ -510,6 +510,9 @@ describe("creating an account on the student's behalf", () => {
   it("carries the plan onto the account, with its observations", () => {
     const check = prepareAccountCreation(creationInput());
     if (!check.permitted) expect.unreachable("permitted");
+    // Only an account read under facts that no longer settle a plan has none
+    // (P300); one being created always carries the plan it was created by.
+    if (check.account.authentication === null) expect.unreachable("a created account carries its plan");
     expect(check.account.authentication.approach).toBe("generated_ephemeral");
     expect(check.account.authentication.basedOn.discoveryRunId).toBe("disc-2026-08-26-1");
   });

@@ -65,6 +65,17 @@ export type AccountStage =
   | "active"
   /** The application is done; control has not yet gone back. */
   | "handover_due"
+  /**
+   * It exists, and nothing about it can be planned (P300, row 170): the
+   * portal's authentication facts no longer settle how we get in — one reads
+   * `"unobserved"`, say — so there is no plan to hand it back by. It is still
+   * the student's, still owed, and a person looks at it. Never concludes.
+   *
+   * Vahid, 2026-10-12: *"A run that holds an account must never lose sight of
+   * it because an auth fact reads "unobserved"."* Until P300 such an account
+   * had no stage to be in, and vanished.
+   */
+  | "unplanned"
   /** Verified handed back. The only state in which a case may finish. */
   | "handed_over";
 
@@ -91,14 +102,18 @@ export interface PortalAccount {
   readonly email: ConfirmedValue<string>;
   readonly stage: AccountStage;
   /**
-   * How we get in, and why that way.
+   * How we get in, and why that way, carrying the observations it was chosen
+   * from. A plan cannot exist without discovery having answered the eight
+   * questions — so "we used a password because that is what the code did" is
+   * not a reachable state.
    *
-   * Required, and it carries the observations it was chosen from. An account
-   * cannot exist here without a plan, and a plan cannot exist without
-   * discovery having answered the eight questions — so "we used a password
-   * because that is what the code did" is not a reachable state.
+   * `null` exactly when `stage` is `"unplanned"` (P300, row 170). Until P300
+   * this said an account could not exist without a plan. It can: one created
+   * under facts that were observed then, read under facts that are not now.
+   * Making that unrepresentable made the account disappear, and a stop then
+   * closed the case as owing nothing.
    */
-  readonly authentication: AuthenticationPlan;
+  readonly authentication: AuthenticationPlan | null;
   /** Who created it — AskiMate on the student's behalf, or the student. */
   readonly createdBy: "askimate_on_behalf" | "student";
   readonly createdAt?: Date;
@@ -266,8 +281,12 @@ function applicableItems(input: {
    * Did discovery observe that this portal verifies the email address?
    *
    * From `ObservedPortalAuthentication.emailVerificationRequired`, which cannot
-   * be `"unobserved"` by the time an account exists — `chooseApproach` refuses
-   * on any unobserved question.
+   * be `"unobserved"` in an account's PLAN — `chooseApproach` refuses on any
+   * unobserved question, so no plan is made from one. An account can still
+   * exist when a fact reads `"unobserved"` (P300, row 170): it is `"unplanned"`,
+   * has no plan, and never reaches here — `outstandingKeys` holds every item
+   * against it instead. Until P300 this said "by the time an account exists",
+   * the latent constraint row 170 made reachable.
    */
   readonly portalVerifiesEmail: boolean;
 }): readonly (keyof HandoverChecklist)[] {
@@ -367,11 +386,16 @@ export function outstandingHandoverItems(account: PortalAccount): readonly strin
 
 /** The applicable items this account has not satisfied, as keys. */
 function outstandingKeys(account: PortalAccount): readonly (keyof HandoverChecklist)[] {
-  const applicable = applicableItems({
-    approach: account.authentication.approach,
-    portalVerifiesEmail: account.authentication.basedOn.emailVerificationRequired === true,
-    createdBy: account.createdBy,
-  });
+  // An account with no plan (P300) cannot say which items apply, so every
+  // item does: the strictest reading, never the most convenient one.
+  const applicable =
+    account.authentication === null
+      ? (Object.keys(CHECKLIST_LABELS) as (keyof HandoverChecklist)[])
+      : applicableItems({
+          approach: account.authentication.approach,
+          portalVerifiesEmail: account.authentication.basedOn.emailVerificationRequired === true,
+          createdBy: account.createdBy,
+        });
   const checklist = account.handover?.checklist;
   if (checklist === undefined) return applicable;
   return applicable.filter((key) => !checklist[key]);
@@ -416,10 +440,16 @@ export function mayConcludeCase(accounts: readonly PortalAccount[]): {
 } {
   const outstanding = accounts
     .filter((account) => account.stage !== "handed_over" && account.stage !== "not_required")
-    .map(
-      (account) =>
-        `${account.accountId} on ${account.portalHost} is "${account.stage}" and has not been ` +
-        `handed back`,
+    .map((account) =>
+      // An account with no plan (P300) is owed, but "has not been handed back"
+      // would say more than is known: there is nothing to check a handover
+      // against, and the case log may say the student already holds it (the
+      // P300 review). What is known is that it cannot be shown.
+      account.stage === "unplanned"
+        ? `${account.accountId} on ${account.portalHost} is "unplanned": there is no plan to check ` +
+          `its handover against, so it cannot be shown to have been handed back`
+        : `${account.accountId} on ${account.portalHost} is "${account.stage}" and has not been ` +
+          `handed back`,
     );
 
   return { may: outstanding.length === 0, outstanding };

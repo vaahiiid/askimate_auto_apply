@@ -19,6 +19,9 @@ export type {
   ObservedPortalAuthentication,
   PasswordDelivery,
   PortalAuthFact,
+  PortalAuthFactKey,
+  PortalAuthFactSource,
+  PortalAuthFactSources,
 } from "./authentication.js";
 export {
   AUTHENTICATION_APPROACHES,

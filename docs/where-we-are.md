@@ -4906,6 +4906,33 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P300 — an account that cannot be planned is still owed
+
+*2026-10-12.* He asked for row 170 fixed as a defect, proven by a test that fails first. The
+tests came first, and on the old code they did what P299 had only traced. A student stopped,
+or a person abandoned the application, and the case closed as owing nothing over an account
+created in the student's name, because one fact about the portal read "unobserved". Now such
+an account stays in view, still owed, and a person is told which account it is and what is not
+known about the portal. Where the run cannot see the account at all, the ledger still can.
+
+An adversarial review then found that "still owed" was not yet "held by someone".
+- A stopped case that owed such an account sat with nobody told, even after a person's abandon.
+  Now a person holds it.
+- A stop while an account was being created closed the case as owing nothing, because nobody
+  yet knew whether the university had made one. Now that counts as owed. The student is told
+  what is not known, not that an account exists.
+
+Sheffield's AUTH 7 waits for his own "Forgot password" try. The four other facts are now written
+by where they came from: what a read saw, what he said, or what was reasoned from the design.
+That is one sheet for his signature. Nothing reasoned is called seen. The review caught one
+sentence in it saying more than happened: Run A's attempt 10 was credited with six pages, and it
+saved three. The sentence is corrected, and the hash it moved is the one the signing message
+names.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P299 — signed, and a fact taken back
 
 *2026-10-12.* He approved P296's patch, and it is signed as its sheet said: the grade row from his

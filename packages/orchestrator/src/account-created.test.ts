@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { proposeValue, studentId, unwrapConfirmed } from "@askimate/aas-domain";
-import { outstandingHandoverItems } from "@askimate/aas-account";
+import { mayConcludeCase, outstandingHandoverItems } from "@askimate/aas-account";
 import type { ObservedPortalAuthentication } from "@askimate/aas-account";
 import { newInterview } from "@askimate/aas-interview";
 import {
@@ -146,14 +146,70 @@ describe("the account a creation produced", () => {
     expect(after).toBeNull();
   });
 
-  it("produces NOTHING when nobody has observed how the portal signs people in", () => {
+  it("keeps an account the ledger says exists in view, with NO plan, when nobody has observed how the portal signs people in (P300)", () => {
     // Without observations `chooseApproach` refuses, and "we used a password
-    // because that is what the code did" must not be a reachable state.
+    // because that is what the code did" must not be a reachable state — so
+    // there is no plan. Until P300 there was no account either, and a run
+    // that held one lost sight of it (row 170). The account is a fact of the
+    // ledger, not of the plan.
     const after = accountCreated(stateWith({ profile: withEmail(EMAIL) }), {
       accountId: "acct-1",
       now: NOW,
     });
-    expect(after).toBeNull();
+    if (after?.account === undefined) expect.unreachable("the account is still there");
+    expect(after.account.stage).toBe("unplanned");
+    expect(after.account.authentication).toBeNull();
+  });
+
+  // Vahid, 2026-10-12: "A run that holds an account must never lose sight of
+  // it because an auth fact reads "unobserved". A stop or abandon must never
+  // close a case as owing the student nothing while an account created in
+  // their name has not been handed back."
+  it.each([
+    ["created in the student's name", (state: RunState) => accountCreated(state, { accountId: "acct-1", now: NOW })],
+    ["declared by the student", (state: RunState) => accountDeclared(state, { accountId: "acct-1", declaredAt: NOW, now: NOW })],
+  ] as const)("an account %s stays in view, owed and unplanned, when a fact reads unobserved (P300, row 170)", (_whose, derive) => {
+    const unobserved: ObservedPortalAuthentication = { ...OBSERVED, passwordResetAvailable: "unobserved" };
+    const after = derive(stateWith({ profile: withEmail(EMAIL), observed: unobserved }));
+    if (after?.account === undefined) expect.unreachable("the account is still there");
+    expect(after.account.stage).toBe("unplanned");
+    expect(after.account.authentication).toBeNull();
+    expect(unwrapConfirmed(after.account.email)).toBe(EMAIL);
+    // Owed: it may not conclude, and every handover item is outstanding.
+    const conclusion = mayConcludeCase([after.account]);
+    expect(conclusion.may).toBe(false);
+    // "Cannot be shown", not "has not" (the P300 review): with no plan there
+    // is nothing to check a handover against.
+    expect(conclusion.outstanding.join(" ")).toContain("cannot be shown to have been handed back");
+    expect(outstandingHandoverItems(after.account).length).toBeGreaterThan(0);
+    // That the run then stops for a person, told which account, is the
+    // driver's test (run-driver.test.ts, P300, row 170), on the real step.
+  });
+
+  it("an account the evidence shows handed back is held open, and not said to be unreturned, when a fact then reads unobserved (the P300 review)", () => {
+    // The review ran this: handed back under the facts as observed, then one
+    // fact unobserved. The account is held open — every item, the strictest
+    // reading, because with no plan nothing says which items applied — and
+    // whether evidence without a plan may close it is Vahid's to say (row
+    // 172). What it must not do is state as fact that it was not handed back.
+    const handedBack: HandoverEvidence = {
+      raised: ["account_handover"],
+      completed: ["account_handover", "email_verification", "password_reset"],
+      askimateRetainsNoAccess: true,
+      applicationFilled: true,
+      runStopped: true,
+    };
+    const observed = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED }), { accountId: "acct-1", now: NOW, handover: handedBack });
+    expect(observed?.account?.stage, "handed back, under the facts as observed").toBe("handed_over");
+    const unobserved: ObservedPortalAuthentication = { ...OBSERVED, passwordResetAvailable: "unobserved" };
+    const after = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: unobserved }), { accountId: "acct-1", now: NOW, handover: handedBack });
+    if (after?.account === undefined) expect.unreachable("the account is still there");
+    expect(after.account.stage).toBe("unplanned");
+    const conclusion = mayConcludeCase([after.account]);
+    expect(conclusion.may, "held open").toBe(false);
+    const said = conclusion.outstanding.join(" ");
+    expect(said).toContain("cannot be shown to have been handed back");
+    expect(said, "never stated as fact").not.toContain("has not been handed back");
   });
 
   it("does not mutate the state it was given", () => {
@@ -282,7 +338,7 @@ describe("the account the student declared (ADR-0110)", () => {
     expect(after.account.createdAt).toEqual(DECLARED_AT);
     expect(after.account.stage).toBe("active");
     expect(unwrapConfirmed(after.account.email)).toBe(EMAIL);
-    expect(after.account.authentication.approach).toBe("student_chosen");
+    expect(after.account.authentication?.approach).toBe("student_chosen");
   });
 
   it("does not wait for the portal's e-mail verification: they sign in with the address, so it works", () => {
