@@ -1,0 +1,18 @@
+My decisions, in my own words.
+
+1. I am the only reviewer from now on. I am alone. Do not record my second signature as a second review. Propose an amendment to ADR-0118 for my approval: while I am the sole founder, my signature is enough to serve other students, with compensating controls that you propose (stricter automated checks; every student-specific value marked in the preview and approved by the student).
+
+2. The direction is partly wrong and I want it corrected now. AskiMate is a global platform. The system must learn a portal's pages once, then apply for any student quickly after the interview. Per-country reads and signed rows for every portal and every country do not scale.
+
+Propose a Proposed ADR that separates:
+- Portal structure (pages, fields, escapes, limits, order): learned once per portal, signed by me once.
+- Each student's values (institution, subject, award title, grading system, grade): resolved at run time against the live list by a deterministic rule. Exact match to the student's own words: pick it. No exact match: the escape plus their exact words. Where the escape is a dead end (Sheffield's grading system): the matching listed entry if the student's stated scale matches one exactly, otherwise ask before the run. No guessing ever. Every value recorded per application, marked in the preview, approved by the student.
+Say what this removes (country re-keying of the 43 rows, row 145's checker defect if it no longer matters, per-country reads) and what safety it costs, honestly.
+
+3. Our own intake must record a grade and its scale exactly as the student states them ("8.2 out of 10"). "GPA" must never be silently read as out of 4. Fix this as a defect now, regardless of any portal.
+
+4. Profile data must be portal-neutral, so a second university asks only that portal's own questions. Confirm whether it already is.
+
+5. Then finish Sheffield on my account through every remaining page, stopping before final submission. Then a test plan with synthetic students of several nationalities (India, Nigeria, Pakistan, Bangladesh, Gulf) on the fixture portal plus live read-only list searches, measuring questions per application for each.
+
+6. Measure one more thing from now on: the time it takes to onboard a new portal. That is the number that decides whether we are global.
