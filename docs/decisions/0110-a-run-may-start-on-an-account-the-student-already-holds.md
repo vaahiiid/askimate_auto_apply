@@ -66,6 +66,10 @@ And later the same day, on the handover checklist item the consequences below ha
   types it. So the synthetic profile for Run A must carry his real account e-mail as
   `contact.email`, and the contact page will be filled with it. That is his own data, at his own
   consent; it is the one true value in the run.
+  *P301, 2026-10-12:* not his. That account is registered with an address that is not his (his
+  message, `docs/run-a/p301-his-account-as-sent.txt`), so the value the re-seed put in
+  `contact.email` is the account's, and the contact page then carries an address that is not his.
+  Left as written; `docs/state-of-the-system.md`, row 174.
 - **His real password crosses the secure box once**, exactly as the resume path already does for
   a password the student chose: single use, typed by the Fill Agent over CDP, never held by the
   Conversation Plane (ADR-0034, 0042). The hard stop — no design stores a portal password —

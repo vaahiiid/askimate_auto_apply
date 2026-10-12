@@ -88,6 +88,8 @@ export interface PortalApplication {
 export interface FixturePortal {
   readonly baseUrl: string;
   readonly host: string;
+  /** Accounts whose password a "Forgot password" replaced (P301). Must stay empty for any run. */
+  resets(): readonly string[];
   /** Emails that successfully created an account. Never the passwords. */
   accounts(): readonly string[];
   /**
@@ -195,6 +197,16 @@ export interface FixturePortalOptions {
    * place, it is shown in neither.
    */
   readonly registerConsentBanner?: boolean | "settings-records-everything";
+  /**
+   * P301. Sheffield's "Forgot password", as Vahid observed it on 2026-10-12
+   * (docs/run-a/p301-his-auth7-as-sent.txt): the login page links to a reset
+   * page that takes an e-mail and a plain "Send" (`name=sendBtn`, as the
+   * 2026-09-11 read recorded it), and sending it REPLACES the account's
+   * password at once with one the portal generates. `resets()` lists every
+   * account whose password was replaced, so a test can show the run never
+   * did it — and, with nothing guarding a context, that it can.
+   */
+  readonly passwordReset?: boolean;
 }
 
 /** The widget as the real one renders: a marked div and the response field it writes to. */
@@ -206,6 +218,7 @@ const REGISTER_PAGE = (
   error: string | null,
   challenge?: FixtureChallenge,
   consentBanner: false | "nothing" | "everything" = false,
+  resetControls = false,
 ): string =>
   page(
     "Create your account",
@@ -224,11 +237,21 @@ const REGISTER_PAGE = (
 
   <p>Your password must be at least ${String(MINIMUM_PASSWORD_LENGTH)} characters.</p>
 ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
-  <button type="submit" id="createAccount">Create account</button>
-</form>
+  <button type="submit" id="createAccount">Create account</button>${resetControls ? CREATE_RESET_CONTROLS : ""}
+</form>${resetControls ? `\n<p><button type="button" id="createScripted" onclick="location.href='/forgottenPassword.do'">Create my account</button></p>` : ""}
 <p>Already registered? <a href="/login">Sign in</a></p>
 <p><a href="/private/staff-only">Staff area</a></p>${consentBanner === false ? "" : CONSENT_BANNER(consentBanner)}`,
   );
+
+/**
+ * P301's review: three creation presses whose words say nothing of a reset.
+ * One posts the registration to the reset (its `formaction` is all that says
+ * so); one registers and is then redirected onto the reset; and, outside the
+ * form, one that a script sends there.
+ */
+const CREATE_RESET_CONTROLS = `
+  <button type="submit" id="createToReset" formaction="/forgottenPassword.do">Create account</button>
+  <button type="submit" id="createThenHelp" formaction="/register?then=help">Create account and continue</button>`;
 
 /** Over everything, sees every click, says nothing: the overlay case (ADR-0127). */
 const BUTTON_COVER = `
@@ -286,6 +309,7 @@ const LOGIN_PAGE = (
   tagScriptUrl?: string,
   pixelFrameUrl?: string,
   consentBanner: false | "nothing" | "everything" = false,
+  resetLink = false,
 ): string =>
   page(
     "Sign in",
@@ -299,7 +323,35 @@ ${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
   <input type="password" id="password" name="password" required autocomplete="current-password">
 ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="signIn">Sign in</button>
-</form>${covered ? BUTTON_COVER : ""}${consentBanner === false ? "" : CONSENT_BANNER(consentBanner)}`,
+</form>${resetLink ? LOGIN_RESET_CONTROLS : ""}${covered ? BUTTON_COVER : ""}${consentBanner === false ? "" : CONSENT_BANNER(consentBanner)}`,
+  );
+
+/**
+ * P301: ways onto the reset from the login page. The link says so; `Help` is a
+ * redirect onto it; `Continue` is a script's navigation; and `Save` posts a
+ * form to /help, which answers 307 — so the browser posts the same body to
+ * the reset, a hop no route handler sees (P301's review, measured).
+ */
+const LOGIN_RESET_CONTROLS = `
+<p id="help"><a href="/forgottenPassword.do">Forgotten Password</a> <a href="/help" id="helpRedirect">Help</a>
+  <button type="button" id="helpScripted" onclick="location.href='/forgottenPassword.do'">Continue</button></p>
+<form method="post" action="/help" id="helpForm">
+  <label for="helpEmail">Your e-mail</label>
+  <input type="email" id="helpEmail" name="email">
+  <button type="submit" id="helpSave">Save</button>
+</form>`;
+
+/** P301: Sheffield's reset page, in its shape — an e-mail and a plain "Send". */
+const RESET_PAGE = (sent: boolean): string =>
+  page(
+    "Forgotten Password",
+    sent
+      ? `<p id="sent">A new password has been e-mailed to the account's address.</p>`
+      : `<form method="post" action="/forgottenPassword.do" id="resetForm">
+  <label for="resetEmail">Email address</label>
+  <input type="email" id="resetEmail" name="email" required>
+  <input type="submit" name="sendBtn" id="sendBtn" value="Send">
+</form>`,
   );
 
 /** The second factor, as portals put it: a code the applicant was emailed. */
@@ -741,6 +793,8 @@ export async function startFixturePortal(
   const applications = new Map<string, PortalApplication>();
   const submissions: string[] = [];
   const requests: { method: string; path: string }[] = [];
+  const resets: string[] = [];
+  const passwordReset = options.passwordReset === true;
 
   const server: Server = createServer((request, response) => {
     void (async (): Promise<void> => {
@@ -766,6 +820,40 @@ export async function startFixturePortal(
         return;
       }
 
+      // ── P301: "Forgot password", the way Sheffield does it ────────────────
+      //
+      // Sending the form replaces the account's password at once with one the
+      // portal generates, and "e-mails" it. Nothing confirms first, and the
+      // old password stops working there and then.
+      // A link whose words and address say nothing of a reset, and whose
+      // answer is a redirect onto one: what a route handler, which sees a
+      // redirect's first request only, cannot catch by itself.
+      if (passwordReset && method === "GET" && path === "/help") {
+        send(response, 302, "", { location: "/forgottenPassword.do" });
+        return;
+      }
+      // A 307 keeps the method and the body: the browser posts this form's
+      // e-mail to the reset itself.
+      if (passwordReset && method === "POST" && path === "/help") {
+        send(response, 307, "", { location: "/forgottenPassword.do" });
+        return;
+      }
+      if (passwordReset && path === "/forgottenPassword.do") {
+        if (method === "GET") {
+          send(response, 200, RESET_PAGE(false));
+          return;
+        }
+        const body = await readBody(request);
+        const email = (body.get("email") ?? "").toLowerCase();
+        const held = accounts.get(email);
+        if (held !== undefined) {
+          accounts.set(email, { email: held.email, password: `generated-${randomBytes(9).toString("hex")}` });
+          resets.push(held.email);
+        }
+        send(response, 200, RESET_PAGE(true));
+        return;
+      }
+
       if (method === "GET" && path === "/private/staff-only") {
         // Reachable only by ignoring robots.txt. If a run ever renders this,
         // the guard is not working.
@@ -777,7 +865,7 @@ export async function startFixturePortal(
         // The notice is shown until answered, here as on the login page: the
         // answer is a cookie, as the real one keeps it (ADR-0131, ADR-0144).
         const answered = consentOf(request) !== null;
-        send(response, 200, REGISTER_PAGE(null, challenge, answered ? false : registerConsentBanner));
+        send(response, 200, REGISTER_PAGE(null, challenge, answered ? false : registerConsentBanner, passwordReset));
         return;
       }
 
@@ -858,7 +946,8 @@ export async function startFixturePortal(
         }
         sessions.set(id, email.toLowerCase());
         send(response, 302, "", {
-          location: "/apply",
+          // P301: registered, then sent on to a page that redirects onto the reset.
+          location: passwordReset && url.searchParams.get("then") === "help" ? "/help" : "/apply",
           "set-cookie": `portal_session=${id}; Path=/; HttpOnly`,
         });
         return;
@@ -871,7 +960,7 @@ export async function startFixturePortal(
         send(
           response,
           200,
-          LOGIN_PAGE(null, challenge, covered, tagScriptUrl, pixelFrameUrl, answered ? false : consentBanner),
+          LOGIN_PAGE(null, challenge, covered, tagScriptUrl, pixelFrameUrl, answered ? false : consentBanner, passwordReset),
         );
         return;
       }
@@ -1202,6 +1291,7 @@ export async function startFixturePortal(
     baseUrl: `http://${host}`,
     host,
     accounts: () => [...accounts.values()].map((account) => account.email),
+    resets: () => [...resets],
     credentialsWork: (email, password) => {
       const account = accounts.get(email.toLowerCase());
       return account !== undefined && samePassword(account.password, password);

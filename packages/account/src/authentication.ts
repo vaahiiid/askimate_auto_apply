@@ -104,10 +104,38 @@ export interface ObservedPortalAuthentication {
    * Recorded, not acted on: the chooser reads the facts, not their sources.
    */
   readonly sources?: PortalAuthFactSources;
+  /**
+   * What a "Forgot password" on this portal sends, where someone has tried it
+   * (P301). Only beside `passwordResetAvailable: true`: a reset that does not
+   * work, or that nobody has tried, sends nothing anyone saw.
+   *
+   *   new_password_in_plain_text  the portal replaces the password AT ONCE
+   *                               with one it generates and e-mails that one,
+   *                               readable, to the account's address.
+   *                               Sheffield's, Vahid, 2026-10-12: "it does not
+   *                               send a reset link. Sheffield immediately
+   *                               generates a new password, replacing the old
+   *                               one, and e-mails it in plain text".
+   *   reset_link                  a link to choose a new password; the old one
+   *                               stands until the link is used.
+   *
+   * Absent: not recorded, and nothing may claim either — the handover then
+   * says nothing of what a reset does. Not one of the eight questions: it is
+   * read by the handover (`renderHandover`), never by the chooser, so a portal
+   * whose reset nobody has tried is not stopped by its absence.
+   */
+  readonly passwordResetSends?: PasswordResetSends;
 }
 
+/** What a portal's "Forgot password" sends, as observed (P301). */
+export type PasswordResetSends = "new_password_in_plain_text" | "reset_link";
+export const PASSWORD_RESET_SENDS: readonly PasswordResetSends[] = ["new_password_in_plain_text", "reset_link"];
+
 /** The eight facts, by name. */
-export type PortalAuthFactKey = keyof Omit<ObservedPortalAuthentication, "portalHost" | "discoveryRunId" | "observedAt" | "sources">;
+export type PortalAuthFactKey = keyof Omit<
+  ObservedPortalAuthentication,
+  "portalHost" | "discoveryRunId" | "observedAt" | "sources" | "passwordResetSends"
+>;
 
 /**
  * Where one fact came from.

@@ -12446,6 +12446,41 @@ describeIfDatabase("a run that holds an account never loses sight of it when an 
     expect(told, "and not the opposite").not.toContain("still in my hands");
   }, 300_000);
 
+  it("the handover a student reads says what this portal's reset does: replaced at once, the new one by e-mail (P301)", async () => {
+    // Vahid, 2026-10-12 (docs/run-a/p301-his-auth7-as-sent.txt): "If a student
+    // loses their password, the handover message must tell them that resetting
+    // replaces their password at once and the new one arrives by e-mail." The
+    // message the driver posts when it raises the handover, read off the
+    // conversation — not the function that writes it.
+    const RESET_ENTRY: CatalogueEntry = {
+      ...GATED_ENTRY,
+      portalAuthentication: { ...GATED_ENTRY.portalAuthentication!, passwordResetSends: "new_password_in_plain_text" },
+    };
+    const RESET_CATALOGUE: TestCatalogue = {
+      targets: () => [targetOf({ entry: RESET_ENTRY, contentHash: TEST_CONTENT_HASH, admits: RESET_ENTRY.admits })],
+      find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? RESET_ENTRY : null),
+    };
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX30009";
+    const runId = await holdingAnAccount(conversation, "a9");
+    const instance = buildInstance(connectionString(), opener(), RESET_CATALOGUE);
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const said = await pool.query<{ content: string }>(
+        `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+          WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal`,
+        [conversation],
+      );
+      const handover = said.rows.map((row) => row.content).find((content) => content.includes("the account is yours"));
+      if (handover === undefined) expect.unreachable("the handover was posted");
+      expect(handover).toContain("replaces your password at once");
+      expect(handover).toContain("the new one arrives by e-mail");
+      expect(handover).not.toContain("only you can read");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
   it("a student cannot declare an account of their own where no plan can be made for it (the P300 review)", async () => {
     // Before P300 `accountDeclared` answered null wherever the chooser
     // refused, and the declaration was refused on it. P300 made it answer an

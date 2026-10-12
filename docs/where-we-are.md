@@ -4906,6 +4906,45 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P301 — the run never presses "Forgot password"
+
+*2026-10-12.* He tried Sheffield's "Forgot password" on the account the reads use. It sends no
+link: it replaces the password at once and e-mails a new one in plain text. He asked for two
+things. The run must never press it. And a student who loses their password must be told that a
+reset replaces it and the new one arrives by e-mail.
+
+Until now the run had not pressed it only because nothing signed pointed at it. Now four layers
+hold the rule:
+- the catalogue, which refuses a reset at review;
+- every press, which reads where a control would go before pressing it;
+- every request, which is refused;
+- a watch on every request to a reset, read after each press.
+
+The review found the gap the watch is for. A navigation the guard refused left the browser on its
+own error page, and a sign-in read that as success. Now a press that reached a reset is never a
+success, and says why. One case still gets through. A save answered with a 307 re-sends its form to
+the reset, and no handler is shown that hop. It is seen afterwards, not refused (row 178).
+
+The test portal has a reset of its own that replaces the password and records each one sent. So the
+tests end on a count of zero, not on the absence of an error. The handover can now say what a
+portal's reset does, as it was seen, and nothing it cannot know. For Sheffield it will, once he
+signs. It no longer says "which only you can read", because nothing here knows who reads an inbox.
+
+His result is in P300's sheet in his own words, with three readings of his message named as mine.
+The sheet waits on his signature, at a new hash.
+
+His second message said the account signs in with an address that is not his. The run assumes
+otherwise everywhere. It types the profile's e-mail at the sign-in, and the handover names it. That
+was known as blocker 31, and the fix recorded for it would now write the address into the case
+record, which he has forbidden. So the shape is open, and the address appears nowhere here. A test
+now fails if any address that is neither his nor a fixture's enters the repository. A scan of the
+history found one such address, already removed from the tree but still in a commit, and whether to
+rewrite history is his to say.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P300 — an account that cannot be planned is still owed
 
 *2026-10-12.* He asked for row 170 fixed as a defect, proven by a test that fails first. The

@@ -26,6 +26,7 @@ import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
 import type { LoginConsent } from "@askimate/aas-contracts";
 import type { Page } from "playwright";
 
+import { refusalToPress } from "./password-reset-guard.js";
 import { thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
@@ -110,6 +111,15 @@ export async function pressConsentPath(
           `${String(pressed)} pressed, nothing else tried`,
       );
       return { kind: "failed", failure: "consent_not_recorded" };
+    }
+    // P301: a consent step is never a password reset, whatever the entry says.
+    const reset = await refusalToPress(control);
+    if (reset !== null) {
+      say(
+        `run ${input.runId}: ${doing} stopped — step ${String(index + 1)} of ${String(chosen.steps.length)} of the ` +
+          `student's consent choice — ${reset}`,
+      );
+      return { kind: "failed", failure: "portal_drift" };
     }
     try {
       await control.click({ timeout: input.pressMs });

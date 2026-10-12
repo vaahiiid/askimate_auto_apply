@@ -436,6 +436,7 @@ function isOurs(error: unknown): boolean {
     name === "OptionNotAvailableError" ||
     name === "ControlNotActionableError" ||
     name === "ClickRefusedError" ||
+    name === "PasswordResetRefusedError" ||
     name === "RobotsDisallowedError"
   );
 }

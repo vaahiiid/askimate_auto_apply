@@ -573,6 +573,73 @@ describe("parsing rebuilds rather than casts", () => {
     expect(contentHash(toCanonical(commented.value))).toBe(contentHash(toCanonical(plain.value)));
   });
 
+  it("records what a portal's reset sends, only beside a reset that works, and hashes it (P301)", () => {
+    // Vahid, 2026-10-12, of Sheffield's: "it does not send a reset link.
+    // Sheffield immediately generates a new password, replacing the old one,
+    // and e-mails it in plain text". A fact the handover reads, so the student
+    // is told what a reset does on THIS portal and no other.
+    const withSends = (sends: unknown, facts: Record<string, unknown> = {}): unknown => {
+      const document = JSON.parse(documentOf()) as { portalAuthentication: Record<string, unknown> };
+      Object.assign(document.portalAuthentication, facts, { passwordResetSends: sends });
+      return document;
+    };
+    const plain = parseReviewedEntryText(documentOf());
+    if (!plain.ok) expect.unreachable("plain parses");
+    expect(plain.value.portalAuthentication?.passwordResetSends, "absent means not recorded").toBeUndefined();
+    for (const sends of ["new_password_in_plain_text", "reset_link"] as const) {
+      const parsed = parseReviewedEntry(withSends(sends));
+      if (!parsed.ok) expect.unreachable(`${parsed.refusal.path}: ${parsed.refusal.detail}`);
+      expect(parsed.value.portalAuthentication?.passwordResetSends).toBe(sends);
+      expect(contentHash(toCanonical(parsed.value)), "hashed: it cannot change under a signature").not.toBe(contentHash(toCanonical(plain.value)));
+    }
+    for (const [sends, facts, says] of [
+      ["", {}, "passwordResetSends"],
+      ["a_postcard", {}, "passwordResetSends"],
+      ["new_password_in_plain_text", { passwordResetAvailable: "unobserved" }, "only beside a reset that works"],
+      ["new_password_in_plain_text", { passwordResetAvailable: false }, "only beside a reset that works"],
+    ] as const) {
+      const refused = parseReviewedEntry(withSends(sends, facts));
+      if (refused.ok) expect.unreachable(`accepted ${JSON.stringify(sends)} with ${JSON.stringify(facts)}`);
+      expect(refused.refusal.path + " " + refused.refusal.detail).toContain(says);
+    }
+  });
+
+  it("refuses an entry whose page, sign-in or press is a portal's password reset — at review, by name (P301)", () => {
+    // Vahid, 2026-10-12: "The run must never press "Forgot password" itself: it
+    // silently replaces the student's password and puts a new one in their
+    // inbox in plain text." Refused where a reviewer meets it, before any
+    // signature, so no signed entry can carry a reset to a runner.
+    type Doc = { blueprint: { authentication: Record<string, unknown>; pages: Record<string, unknown>[] } };
+    const SHEFFIELD_RESET = "https://www.sheffield.ac.uk/postgradapplication/forgottenPassword.do";
+    const cases: readonly (readonly [string, (doc: Doc) => void, string])[] = [
+      ["a page on the reset page", (doc) => { doc.blueprint.pages[0]!["url"] = SHEFFIELD_RESET; }, "pages[0].url"],
+      ["an advance that presses a reset", (doc) => { doc.blueprint.pages[0]!["advanceControl"] = { strategy: "role", value: "link:Forgotten Password" }; }, "pages[0].advanceControl"],
+      ["a sign-in on the reset page", (doc) => { doc.blueprint.authentication["loginUrl"] = "https://gated.portal.test/s/login/ForgotPassword"; }, "authentication.loginUrl"],
+      // P301's review: an identifier spelt with a hyphen, and a typeahead's
+      // entry, which the runner presses, were both admitted.
+      ["an advance whose id is spelt with a hyphen", (doc) => { doc.blueprint.pages[0]!["advanceControl"] = { strategy: "id", value: "reset-password" }; }, "pages[0].advanceControl"],
+      [
+        "a typeahead whose entry is a reset",
+        (doc) => {
+          const field = ((doc.blueprint.pages[0]!["sections"] as Record<string, unknown>[])[0]!["fields"] as Record<string, unknown>[])[0]!;
+          field["inputType"] = "typeahead";
+          field["typeahead"] = { optionLocator: { strategy: "css", value: "a.forgotPasswordLink" } };
+        },
+        "typeahead.optionLocator",
+      ],
+    ];
+    for (const [what, change, at] of cases) {
+      const document = JSON.parse(documentOf()) as Doc;
+      change(document);
+      const refused = parseReviewedEntry(document);
+      if (refused.ok) expect.unreachable(`accepted ${what}`);
+      expect(refused.refusal.path, what).toContain(at);
+      expect(refused.refusal.detail, what).toContain("Forgot password");
+    }
+    // The fixture as it is parses: the test refuses what it names and nothing else.
+    expect(parseReviewedEntry(JSON.parse(documentOf())).ok).toBe(true);
+  });
+
   it("reads a condition on the EMPTY string as that value, not as no value (P291)", () => {
     // Sheffield's award title: "Not in list" submits "", and the box it opens
     // is shown when the title equals "". Read as absent, the condition never

@@ -2,6 +2,7 @@
 
 **Status:** **Accepted** — Vahid's decision, 2026-08-26
 **Revised:** 2026-08-26 (later) — the preferred order of authentication approaches, §2
+**Amended:** 2026-10-12 (P301) — §5a, the run never presses "Forgot password", and what the student is told a reset does
 **Implements:** brief §7 (handoffs), §8 (no stored portal passwords), product rule 7
 **Depends on:** [ADR-0004](./0004-branded-types-for-confirmed-values.md)
 
@@ -203,6 +204,79 @@ go and look.
 The password reset is the portal's own mechanism on purpose. It reaches their email, and we are not
 in it.
 
+## 5a. The run never presses "Forgot password" (P301, 2026-10-12)
+
+Vahid tried AUTH 7 on Sheffield, on the account used for the reads, and wrote
+([as sent](../run-a/p301-his-auth7-as-sent.txt)):
+
+> *""Forgot password" works, but it does not send a reset link. Sheffield immediately generates a
+> new password, replacing the old one, and e-mails it in plain text to the account's e-mail address,
+> with a recommendation to sign in and change it. I am changing it now."*
+
+And the two consequences, in his words:
+
+> *"The run must never press "Forgot password" itself: it silently replaces the student's password
+> and puts a new one in their inbox in plain text."*
+>
+> *"If a student loses their password, the handover message must tell them that resetting replaces
+> their password at once and the new one arrives by e-mail."*
+
+§5 said the reset is the portal's own mechanism and we are not in it. Until P301 that was true
+only because no signed target pointed at the reset: nothing refused one. A curation that copied the
+2026-09-11 read's reset page into an entry, or a press that landed on its link, would have replaced
+a student's password with nothing going red. His sentence names the run, not a portal, so it is held
+on every portal, by one test (`isPasswordResetUrl`, `readsAsPasswordReset`, in
+`packages/blueprint/src/password-reset.ts`) at four layers:
+
+| Layer | Where | What it does |
+|---|---|---|
+| Entry | `packages/catalogue/src/parse.ts` (`refusePasswordResets`) | refuses an entry whose page, sign-in, press or typeahead entry is a reset — at review, by name, before any signature |
+| Press | `ClickAllowList.decide`; `refusalToPress` in `sign-in.ts`, `create-account.ts`, `consent.ts` and the typeahead entry | refuses a control whose words, identifiers or destination (`href`, `formaction`, its form's `action`) read as a reset, and says which of the three did |
+| Request | `abortPasswordResetRequests` on every context `openSensitiveContext` opens; `decidePreparationRequest` once a fill attaches | aborts any request to a reset URL, by any method — the first request of a redirect only (below) |
+| After | `passwordResetWatch`, read by the sign-in and the creation after their press and by the fill before it reports a page saved | sees every request to a reset, refused or not, redirect hops included: a sign-in that reached one fails, a creation is uncertain, a fill is never reported saved, and each says so in a line |
+
+A route handler is shown a redirect's first request only. So a press whose answer redirects onto a
+reset is not refused at the Request layer, and is seen After. A 302 or 303 only fetches the reset
+page, which sends nothing. **A 307 or 308 re-sends the form's body to it, and that reset is sent**
+(P301's review measured it on the fixture; `preparation.test.ts` pins it). The run sees it and
+says so, after it happened. Refusing it before it is sent means following every redirect by hand,
+which changes how every request on a live portal is made. That is proposed and not built
+(state-of-the-system row 178).
+
+Each check was switched off in turn and its test went red (P301's mutations, and again after the
+review), with one exception. The landing-by-address check alone went unnoticed, because the watch
+catches the same landings. Switched off together, four tests went red. The catalogue's tests were
+red before its gate existed. The fixture portal has a reset that replaces the password and records
+each one sent. So "it never pressed" is a count of zero, not an absence of errors. One test shows
+that, with nothing guarding the context, a press does replace it.
+
+What is said is which check fired, in fixed words, and never the control's own words or where it
+goes. The runner's log takes nothing from a page (P301's review).
+
+**What it cannot see:** a reset whose URL and words say neither — *"Trouble signing in?"* pointing
+at an opaque path, or the words in another language. A miss is not evidence of safety, which is why
+the rule is stated at every layer rather than at one.
+
+**What the student is told** is now what the portal's reset was seen to do, and no more
+(`whatAResetDoes`, `resetWordsFor`, `packages/account/src/ownership.ts`):
+- where it replaces the password and e-mails a new one, the handover says so in his terms;
+- where a reset sends a link, it says that;
+- where nobody has tried it, it says only to use "Forgot password";
+- where it was tried and did not work, it is not offered;
+- a passwordless student is told of the sign-in link, not of a password.
+
+For Sheffield the first applies once his signature puts `passwordResetSends` in its entry. Until
+then Sheffield is a portal nobody has recorded trying. Where the reset is still owed before an
+account we made is handed back (ADR-0050 §4, on a portal that never e-mailed the student), the
+handover says it is owed now, as the list sent with it does, not that it is for a lost password.
+Whether that requirement should stand where a reset replaces the password is his (row 177). The
+text before creation says the same of a reset as the handover. It no longer says the mail
+goes to an inbox *"which only you can read"*, or names the profile's address as where it goes:
+nothing here can know who reads an inbox, and the mail goes to the address the **account** is
+registered with — which, on the account his reads use, is not his profile's
+([his message](../run-a/p301-his-account-as-sent.txt)). Whether §1's *"the account's email is the
+student's own"* admits such an account is his to say (state-of-the-system row 174).
+
 ## What the student is told, and when
 
 Both texts are rendered deterministically, like the submission preview and for the same reason.
@@ -215,6 +289,9 @@ afterwards via "Forgot password".
 **At handover:** where to sign in and with which address; under `generated_ephemeral`, to use
 "Forgot password" now, that the reset link goes to an inbox only they can read, and that once done
 the temporary password is gone.
+
+*Amended 2026-10-12 (P301, §5a):* "the reset link goes to an inbox only they can read" is no longer
+said. What a reset does is said as the portal's reset was observed to do it, and only there.
 
 The middle paragraph of both texts **differs by approach**, and that is not cosmetic. Telling a
 student we will set a temporary password when we will not is a small lie that makes the handover

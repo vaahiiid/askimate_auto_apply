@@ -39,7 +39,7 @@ import type { StoredFillPlan } from "@askimate/aas-mapping";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 import { challengeFailure, type ChallengeProbe } from "./challenge.js";
-import { RobotsDisallowedError } from "./playwright-fill-session.js";
+import { PasswordResetRefusedError, RobotsDisallowedError } from "./playwright-fill-session.js";
 import { pressCheckInWords, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
@@ -70,6 +70,13 @@ export interface FillApplicationDeps {
    * requirement exists to prevent.
    */
   readonly challenge: ChallengeProbe;
+  /**
+   * Every request this fill's context makes to a password reset, redirect hops
+   * included (P301's review; `passwordResetWatch`). Read after the save: a fill
+   * during which one was reached is never reported saved. Optional so every
+   * existing test builds deps without one; the production runner passes it.
+   */
+  readonly passwordResets?: { mark(): number; since(mark: number): "reached" | "resource" | null };
   /**
    * Where this page fill says what it is doing (ADR-0124, applied to the
    * fill in P163). Optional so every existing test builds deps without one;
@@ -142,6 +149,12 @@ export async function fillApplication(
   const say = deps.log ?? ((): void => undefined);
   const run = `run ${work.runId}`;
   say(`${run}: page fill starting, opening ${target.toString()}`);
+  // P301's review: a redirect can carry a press to a password reset that no
+  // route handler is shown. Watched from here, read before anything is
+  // reported saved.
+  const resetMark = deps.passwordResets?.mark();
+  const reachedAReset = (): boolean =>
+    resetMark !== undefined && deps.passwordResets?.since(resetMark) === "reached";
 
   // ── A repeating page's listing, counted BEFORE the save (ADR-0106) ─────
   //
@@ -172,6 +185,9 @@ export async function fillApplication(
     // The second of ADR-0091's two places: the gate refused before the
     // browser opened; the session refuses again at the navigation (P135).
     say(`${run}: page fill failed opening the form — ${thrownInWords(error)}`);
+    // P301: a form that is a password reset is the blueprint being wrong,
+    // not the browser giving out.
+    if (error instanceof PasswordResetRefusedError) return { kind: "failed", failure: "portal_drift" };
     return { kind: "failed", failure: error instanceof RobotsDisallowedError ? "robots_disallows" : "runner_fault" };
   }
 
@@ -351,6 +367,10 @@ export async function fillApplication(
       ? {}
       : { listing: { url: listing.url, entryLocator: listing.entryLocator, before } }),
   });
+  if (reachedAReset()) {
+    say(`${run}: page fill: a press reached a password reset page during this fill, and that is never a save — the run never presses a portal's "Forgot password"`);
+    return { kind: "uncertain", failure: "portal_drift" };
+  }
   if (!seen.recorded) {
     // What was NOT seen, by the blueprint's field names or the listing's
     // word for its entries — the reviewer's names, never the page's values.

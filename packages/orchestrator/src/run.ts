@@ -54,6 +54,7 @@ import {
   outstandingHandoverItems,
   renderAccountCreationRequest,
   renderHandover,
+  resetWordsFor,
   studentHandoverItems,
 } from "@askimate/aas-account";
 import type { ApplicationBlueprint, ConsentBanner } from "@askimate/aas-blueprint";
@@ -758,6 +759,10 @@ function accountStepFor(state: RunState): RunStep | null {
         portalHost,
         email: address,
         approach: authentication.approach,
+        // P301's review: what this portal's reset was seen to send.
+        ...("basedOn" in authentication && authentication.basedOn.passwordResetSends !== undefined
+          ? { passwordResetSends: authentication.basedOn.passwordResetSends }
+          : {}),
       }),
     };
   }
@@ -790,6 +795,10 @@ function accountStepFor(state: RunState): RunStep | null {
         email: unwrapConfirmed(account.email),
         approach: plan.approach,
         leftToStudent: studentsOwnActs(state),
+        // P301 and its review: what a reset does on this portal, from the
+        // plan's own record, and whether it is still owed — so the text
+        // agrees with the list sent beside it.
+        ...resetWordsFor(plan, account.createdBy),
       }),
     };
   }
@@ -1562,6 +1571,8 @@ export function accountCreated(
     email: unwrapConfirmed(email),
     approach: plan.approach,
     leftToStudent: studentsOwnActs(state),
+    // P301: the same as the step says, so the text recorded is the text shown.
+    ...resetWordsFor(plan, "askimate_on_behalf"),
   });
   const handover = checkHandoverComplete({
     checklist,
@@ -1666,6 +1677,8 @@ export function accountDeclared(
     email: unwrapConfirmed(email),
     approach: plan.approach,
     leftToStudent: studentsOwnActs(state),
+    // P301: the same as the step says, so the text recorded is the text shown.
+    ...resetWordsFor(plan, "student"),
   });
   const handover = checkHandoverComplete({
     checklist,

@@ -57,6 +57,7 @@ import type {
   MappingSetStatus,
   ValueSource,
 } from "@askimate/aas-mapping";
+import { PASSWORD_RESET_REFUSAL, isPasswordResetUrl, readsAsPasswordReset } from "@askimate/aas-blueprint";
 import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
 import type { FormatRule, OrdinaryFieldKey, ProfileFieldKey } from "@askimate/aas-profile";
 import { LIST_VALUED_FIELD_KEYS, PROFILE_FIELD_KEYS, categoryOf } from "@askimate/aas-profile";
@@ -68,6 +69,7 @@ import type {
   PortalAuthFactSource,
   PortalAuthFactSources,
 } from "@askimate/aas-account";
+import { PASSWORD_RESET_SENDS } from "@askimate/aas-account";
 
 import type { ReviewedCatalogueEntry } from "./entry.js";
 
@@ -1042,6 +1044,7 @@ const PORTAL_AUTHENTICATION_KEYS: readonly string[] = [
   "passwordResetAvailable",
   "credentialsCanBeHandedBack",
   "sources",
+  "passwordResetSends",
   "$comment",
 ];
 
@@ -1061,12 +1064,19 @@ function readPortalAuthentication(value: unknown, path: string): ObservedPortalA
     credentialsCanBeHandedBack: authFact(source, "credentialsCanBeHandedBack", path),
   };
   const sources = optionalWith(source, "sources", path, (raw, sourcesPath) => readAuthFactSources(raw, sourcesPath, facts));
+  // What a reset sends (P301): read by the handover, so hashed; only beside a
+  // reset that works, because nothing was sent by one that does not.
+  const passwordResetSends = optionalOneOf(source, "passwordResetSends", path, PASSWORD_RESET_SENDS);
+  if (passwordResetSends !== undefined && facts.passwordResetAvailable !== true) {
+    fail(`${path}.passwordResetSends`, `is recorded only beside a reset that works (passwordResetAvailable: true)`);
+  }
   return {
     portalHost: text(source, "portalHost", path),
     discoveryRunId: text(source, "discoveryRunId", path),
     observedAt: instant(source, "observedAt", path),
     ...facts,
     ...(sources === undefined ? {} : { sources }),
+    ...(passwordResetSends === undefined ? {} : { passwordResetSends }),
   };
 }
 
@@ -1139,6 +1149,58 @@ function readAuthFactSource(value: unknown, path: string): PortalAuthFactSource 
 
 // ── The reviewed entry ─────────────────────────────────────────────────────
 
+/**
+ * No page, sign-in or press of a reviewed entry is a portal's password reset
+ * (P301).
+ *
+ * Vahid, 2026-10-12 (docs/run-a/p301-his-auth7-as-sent.txt): "The run must
+ * never press "Forgot password" itself: it silently replaces the student's
+ * password and puts a new one in their inbox in plain text." Refused here, at
+ * review, so the reviewer meets it by name before any signature — and a
+ * signed entry can never hand a runner a reset to open or press. The runner
+ * refuses a reset at every press and request as well (its
+ * password-reset-guard.ts); this is the gate before the work exists.
+ *
+ * What is read is what the run opens or presses: every page's URL and advance
+ * control, a repeating page's add-another and listing, a search's press, a
+ * typeahead's entry, the sign-in's URL and button, and the consent path's
+ * steps. A field the run only
+ * TYPES into is not read: a reset is pressed, not filled.
+ */
+function refusePasswordResets(blueprint: ReviewedCatalogueEntry["blueprint"], path: string): void {
+  const opens = (url: string | undefined, at: string): void => {
+    if (url !== undefined && isPasswordResetUrl(url)) fail(at, `is a portal's password reset page, and ${PASSWORD_RESET_REFUSAL}`);
+  };
+  const presses = (locator: { readonly value: string } | undefined, at: string, words = ""): void => {
+    if (locator === undefined) return;
+    if (readsAsPasswordReset(locator.value) || (words.length > 0 && readsAsPasswordReset(words))) {
+      fail(at, `presses a portal's password reset, and ${PASSWORD_RESET_REFUSAL}`);
+    }
+  };
+  const auth = blueprint.authentication;
+  opens(auth.loginUrl, `${path}.authentication.loginUrl`);
+  presses(auth.login?.submitLocator, `${path}.authentication.login.submitLocator`);
+  for (const [c, choice] of (auth.consent?.choices ?? []).entries()) {
+    for (const [st, step] of choice.path.entries()) {
+      presses(step.locator, `${path}.authentication.consent.choices[${String(c)}].path[${String(st)}]`, step.label);
+    }
+  }
+  for (const [p, page] of blueprint.pages.entries()) {
+    const at = `${path}.pages[${String(p)}]`;
+    opens(page.url, `${at}.url`);
+    presses(page.advanceControl, `${at}.advanceControl`);
+    presses(page.repeats?.addAnother, `${at}.repeats.addAnother`);
+    opens(page.repeats?.recorded?.url, `${at}.repeats.recorded.url`);
+    for (const [s, section] of page.sections.entries()) {
+      for (const [f, field] of section.fields.entries()) {
+        presses(field.optionsAfter?.press, `${at}.sections[${String(s)}].fields[${String(f)}].optionsAfter.press`);
+        // The entry a typeahead chooses is pressed too (P301's review).
+        presses(field.typeahead?.optionLocator, `${at}.sections[${String(s)}].fields[${String(f)}].typeahead.optionLocator`);
+      }
+    }
+  }
+}
+
 function readEntry(value: unknown, path: string): ReviewedCatalogueEntry {
   const source = record(value, path);
   const portalAuthentication = optionalWith(
@@ -1148,8 +1210,10 @@ function readEntry(value: unknown, path: string): ReviewedCatalogueEntry {
     readPortalAuthentication,
   );
   const passwordDelivery = optionalOneOf(source, "passwordDelivery", path, PASSWORD_DELIVERIES);
+  const blueprint = readBlueprint(source["blueprint"], `${path}.blueprint`);
+  refusePasswordResets(blueprint, `${path}.blueprint`);
   return {
-    blueprint: readBlueprint(source["blueprint"], `${path}.blueprint`),
+    blueprint,
     mappingSet: readMappingSet(source["mappingSet"], `${path}.mappingSet`),
     requiredDocuments: textList(source, "requiredDocuments", path),
     institutionRef: text(source, "institutionRef", path),

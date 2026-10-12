@@ -680,3 +680,35 @@ describe("the fill says what it did, in words it is allowed to say (ADR-0124 app
     expect(lines.join("\n")).not.toContain("tok_secret");
   });
 });
+
+describe("a fill during which a request reached a password reset (P301's review)", () => {
+  // Vahid, 2026-10-12: "The run must never press "Forgot password" itself."
+  // A redirect's later hops are not shown to a route handler, so a 307 can
+  // carry a press to a reset that nothing refused. The watch sees every
+  // request to one; the fill reads it before it reports anything saved.
+  function watchReaching(afterSave: boolean) {
+    let saved = false;
+    const live = session({
+      click: () => {
+        saved = true;
+        return Promise.resolve();
+      },
+      readValue: () => Promise.resolve("Niloofar"),
+    });
+    const passwordResets = { mark: () => 0, since: () => (afterSave && saved ? ("reached" as const) : null) };
+    return { live, passwordResets };
+  }
+
+  it("is never reported as saved: UNCERTAIN, and the line says a reset was reached", async () => {
+    const { live, passwordResets } = watchReaching(true);
+    const lines: string[] = [];
+    const outcome = await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged, passwordResets, log: (line) => lines.push(line) });
+    expect(outcome).toEqual({ kind: "uncertain", failure: "portal_drift" });
+    expect(lines.join("\n")).toContain("password reset");
+  });
+
+  it("a fill that reached none is reported as before", async () => {
+    const { live, passwordResets } = watchReaching(false);
+    expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged, passwordResets })).toEqual({ kind: "succeeded" });
+  });
+});

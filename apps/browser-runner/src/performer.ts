@@ -32,6 +32,7 @@ import { documentSourceFor } from "./document-source.js";
 import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { fillApplication } from "./fill-application.js";
+import { passwordResetWatch } from "./password-reset-guard.js";
 import { atPointInWords } from "./point-of-control.js";
 import type { RobotsGate } from "./robots-gate.js";
 import { signInToPortal } from "./sign-in.js";
@@ -171,6 +172,8 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
       now: deps.now,
       session,
       challenge: () => session.challenge(),
+      // P301's review: every request to a password reset, redirect hops included.
+      passwordResets: passwordResetWatch(page.context()),
       // ADR-0124, applied to the fill (P163): what the page fill is doing,
       // and what stood at the Save button's point when a press fails.
       ...(deps.log === undefined ? {} : { log: deps.log }),

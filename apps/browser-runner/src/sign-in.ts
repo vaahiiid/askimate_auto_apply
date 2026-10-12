@@ -47,6 +47,7 @@ import { consentNoticeOnThePage, consentTargetsOf, pressConsentPath, type Consen
 import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
 import { openSensitiveContext } from "./sensitive.js";
+import { landedOnPasswordReset, passwordResetWatch, REACHED_A_RESET, refusalToPress } from "./password-reset-guard.js";
 import { atPointInWords, overControlInWords } from "./point-of-control.js";
 import { pressCheckInWords, signInStartLine, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
@@ -154,6 +155,17 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
 
   const submit = await resolve(page, input.submitLocator);
   if (submit === null) return { kind: "failed", failure: "portal_drift" };
+  // P301: never a password reset, read off the control before it is pressed —
+  // its words, its name, where it would go. Vahid, 2026-10-12: "The run must
+  // never press "Forgot password" itself."
+  const reset = await refusalToPress(submit);
+  if (reset !== null) {
+    input.say(`run ${input.runId}: sign-in stopped before the press — ${reset}`);
+    return { kind: "failed", failure: "portal_drift" };
+  }
+  // Every request to a reset from here on is watched, redirect hops included,
+  // and read once the press has landed (P301's review).
+  const resetMark = passwordResetWatch(page.context()).mark();
 
   // ── The answer, armed before the press ────────────────────────────────
   //
@@ -288,6 +300,23 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
   // on the login form, the portal did not accept the password; anywhere
   // else, it did — and if THAT page asks for a code, the sign-in is gated by
   // something only the student holds (ADR-0101 §5).
+  // P301: a press that ended on a reset page, or reached one on the way, is
+  // not a sign-in, however far from the login form it landed. A route handler
+  // sees a redirect's first request only, and a navigation it refused leaves
+  // the browser on its own error page; the watch sees both.
+  if (landedOnPasswordReset(page, resetMark)) {
+    input.say(`run ${input.runId}: sign-in failed — ${REACHED_A_RESET}`);
+    return { kind: "failed", failure: "portal_drift" };
+  }
+  if (passwordResetWatch(page.context()).since(resetMark) === "resource") {
+    input.say(`run ${input.runId}: sign-in: something on a password reset page was asked for during the press; nothing was sent to it`);
+  }
+  // The browser's own error page is no page of the portal's: the answer did
+  // not arrive, whatever its address says (P301's review: read as signed in).
+  if (!/^https?:$/u.test(new URL(page.url()).protocol)) {
+    input.say(`run ${input.runId}: sign-in failed — the press ended on the browser's own error page, not on the portal`);
+    return { kind: "failed", failure: "runner_fault" };
+  }
   if (new URL(page.url()).pathname === input.loginUrl.pathname) {
     return { kind: "failed", failure: "portal_refused" };
   }

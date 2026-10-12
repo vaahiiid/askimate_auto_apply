@@ -760,8 +760,74 @@ describe("handover", () => {
 
     expect(text).toContain("the account is yours");
     expect(text).toContain("Forgot password");
-    expect(text).toContain("only you can read");
     expect(text).toContain("only you can get into the account");
+    // P301: never "which only you can read". Nothing here can know who reads
+    // an inbox, and the account used for his own reads signs in with an
+    // address that is not his profile's (docs/run-a/p301-his-account-as-sent.txt).
+    expect(text).not.toContain("only you can read");
+  });
+
+  it("tells a student who loses their password what a reset does on THIS portal, and claims nothing it was not told (P301)", () => {
+    // Vahid, 2026-10-12 (docs/run-a/p301-his-auth7-as-sent.txt): "If a student
+    // loses their password, the handover message must tell them that resetting
+    // replaces their password at once and the new one arrives by e-mail."
+    const base = { institutionName: "University of Sheffield", portalHost: "www.sheffield.ac.uk", email: "student@example.test" } as const;
+    // Not `passwordless`: that student has no password to lose (P301's review).
+    for (const approach of ["student_chosen", "portal_issued", "generated_ephemeral"] as const) {
+      const sheffield = renderHandover({ ...base, approach, passwordResetSends: "new_password_in_plain_text" });
+      expect(sheffield, approach).toContain("replaces your password at once");
+      expect(sheffield, approach).toContain("the new one arrives by e-mail");
+      expect(sheffield, approach).not.toContain("reset link");
+      expect(sheffield, approach).not.toContain("only you can read");
+      // Where it arrives is the account's address, which is not always the
+      // profile's: the profile's address is never named as where it goes.
+      expect(sheffield, approach).toContain("the address the account is registered with");
+      expect(sheffield.split("Forgot password")[1] ?? "", approach).not.toContain("student@example.test");
+    }
+    // A portal whose reset sends a link is not told Sheffield's behaviour…
+    const link = renderHandover({ ...base, approach: "student_chosen", passwordResetSends: "reset_link" });
+    expect(link).toContain("sends a link");
+    expect(link).not.toContain("replaces your password at once");
+    // …and one nobody has tried is told nothing about what a reset does.
+    const untried = renderHandover({ ...base, approach: "student_chosen" });
+    expect(untried).toContain("Forgot password");
+    expect(untried).not.toContain("replaces your password");
+    expect(untried).not.toContain("link to");
+    expect(untried).not.toContain("only you can read");
+  });
+
+  it("says a reset only where it is the thing to do: never a password to a passwordless student, never a reset seen not to work, and the reset still owed said as owed (P301's review)", () => {
+    const base = { institutionName: "University of Sheffield", portalHost: "www.sheffield.ac.uk", email: "student@example.test" } as const;
+    // Passwordless: no password to lose, and the sign-in link is the way back.
+    const passwordless = renderHandover({ ...base, approach: "passwordless", passwordResetSends: "new_password_in_plain_text" });
+    expect(passwordless).not.toContain("your password");
+    expect(passwordless).not.toContain("Forgot password");
+    expect(passwordless).toContain("sign-in link");
+    // A reset recorded as not working is not offered as the way back.
+    const broken = renderHandover({ ...base, approach: "student_chosen", passwordResetSeenNotToWork: true });
+    expect(broken).toContain("was not seen to work");
+    expect(broken).not.toContain('use "Forgot password"');
+    // Where the reset is still owed (an account we made, on a portal that
+    // never e-mailed the student), the text says so — and does not call it
+    // something for a lost password while the list beside it asks for it now.
+    const owed = renderHandover({ ...base, approach: "student_chosen", passwordResetSends: "new_password_in_plain_text", resetStillToDo: true });
+    expect(owed).toContain("One thing is left before I can close this off");
+    expect(owed).toContain('use it once on that page');
+    expect(owed).toContain("replaces your password at once");
+    expect(owed).not.toContain("If you ever lose your password");
+    expect(owed).toContain("Tell me when you have done that and you are in");
+    expect(owed).not.toContain("Tell me when you are in, and");
+  });
+
+  it("does not tell a student before creation that the reset is a link where it is not (P301's review)", () => {
+    const base = { institutionName: "University of Sheffield", portalHost: "www.sheffield.ac.uk", email: "student@example.test", approach: "generated_ephemeral" } as const;
+    const sheffield = renderAccountCreationRequest({ ...base, passwordResetSends: "new_password_in_plain_text" });
+    expect(sheffield).not.toContain("link");
+    expect(sheffield).toContain("replaces the password at once");
+    expect(renderAccountCreationRequest({ ...base, passwordResetSends: "reset_link" })).toContain("e-mails you a link");
+    const untried = renderAccountCreationRequest(base);
+    expect(untried).toContain('"Forgot password"');
+    expect(untried).not.toContain("link");
   });
 
   it("names what the student attaches themselves, with its entry, before they submit (ADR-0104)", () => {

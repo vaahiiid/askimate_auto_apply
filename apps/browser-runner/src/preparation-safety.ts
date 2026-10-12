@@ -76,6 +76,9 @@
 
 import type { FieldLocator } from "@askimate/aas-blueprint";
 
+import { PASSWORD_RESET_REFUSAL, isPasswordResetUrl } from "@askimate/aas-blueprint";
+
+import { resetReason } from "./password-reset-guard.js";
 import type { GuardDecision } from "./safety.js";
 import { HostAllowList } from "./safety.js";
 
@@ -147,7 +150,27 @@ export class ClickAllowList {
    * text content is empty, so until P298 a "Submit Application" input reached
    * this check with no name at all (row 155).
    */
-  public decide(locator: FieldLocator, accessibleName?: string, identifiers: readonly string[] = []): ClickDecision {
+  public decide(
+    locator: FieldLocator,
+    accessibleName?: string,
+    identifiers: readonly string[] = [],
+    /**
+     * Where the control would go if pressed — its `href`, its `formaction`,
+     * its form's `action` (P301). Sheffield's reset button is a plain "Send"
+     * named `sendBtn`: only where it goes says what it is.
+     */
+    destinations: readonly string[] = [],
+  ): ClickDecision {
+    // ── Never a password reset (P301), before anything else ─────────────
+    //
+    // Vahid, 2026-10-12: "The run must never press "Forgot password" itself:
+    // it silently replaces the student's password and puts a new one in their
+    // inbox in plain text." Refused even when the allow-list holds it, for the
+    // reason the submission check is: the list is only as right as the
+    // blueprint it was built from.
+    const reset = resetReason(accessibleName ?? "", [locator.value, ...identifiers], destinations);
+    if (reset !== null) return { allowed: false, locator, reason: reset };
+
     // The name check runs FIRST, so a submission control on the allow-list is
     // still refused. An allow-list assembled from a blueprint is only as right
     // as the blueprint.
@@ -309,6 +332,22 @@ export function decidePreparationRequest(
   policy: PreparationNetworkPolicy,
 ): GuardDecision {
   const normalised = method.toUpperCase();
+
+  // ── Never a password reset, by any method (P301) ──────────────────────────
+  //
+  // Before the host rule, and for GET too: the fill's guard takes over every
+  // request once a fill attaches (`guardContext` continues without falling
+  // back), so the context's own reset guard no longer sees them, and this is
+  // where the rule has to hold. Vahid, 2026-10-12: "The run must never press
+  // "Forgot password" itself."
+  if (isPasswordResetUrl(url)) {
+    return {
+      allowed: false,
+      method: normalised,
+      url,
+      reason: `Preparation blocked a ${normalised} to ${url}: it is a portal's password reset, and ${PASSWORD_RESET_REFUSAL}.`,
+    };
+  }
 
   if (!policy.allowList.permits(url)) {
     return {

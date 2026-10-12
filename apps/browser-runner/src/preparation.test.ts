@@ -17,7 +17,7 @@ import type { FieldLocator } from "@askimate/aas-blueprint";
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import { proposeValue, studentId } from "@askimate/aas-domain";
 import { applyConfirmation, isDeclined, renderConfirmed } from "@askimate/aas-profile";
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import { chromium } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
@@ -35,11 +35,16 @@ import {
   LocatorNotFoundError,
   OptionNotAvailableError,
   PlaywrightPreparationSession,
+  PasswordResetRefusedError,
   RobotsDisallowedError,
   ValueNotAcceptedError,
 } from "./playwright-fill-session.js";
+import { createPortalAccount } from "./create-account.js";
+import { startFixturePortal, type FixturePortal } from "./fixture-portal.js";
+import { passwordResetWatch } from "./password-reset-guard.js";
 import { robotsGate } from "./robots-gate.js";
 import { openSensitiveContext } from "./sensitive.js";
+import { settleSignIn } from "./sign-in.js";
 
 // ───────────────────────────────────────────────────────────────────────────
 // The pure guard
@@ -1147,5 +1152,397 @@ describe("filling a fixture portal", () => {
       expect(session.writeLog.count, "one request, recorded once").toBe(1);
       expect(second.writeLog.count, "and both sessions read the same context log").toBe(1);
     }, 30_000);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P301 — the run never presses a portal's "Forgot password"
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("the run never presses a portal's \"Forgot password\" (P301)", () => {
+  // Vahid, 2026-10-12 (docs/run-a/p301-his-auth7-as-sent.txt), having tried it
+  // on Sheffield with his own account: "The run must never press "Forgot
+  // password" itself: it silently replaces the student's password and puts a
+  // new one in their inbox in plain text."
+  const SHEFFIELD_RESET = "https://www.sheffield.ac.uk/postgradapplication/forgottenPassword.do";
+  const NOW = new Date("2026-10-12T19:45:00Z");
+
+  it("the network policy refuses a reset by any method, even on the run's own host", () => {
+    const policy = { allowList: new HostAllowList(["www.sheffield.ac.uk"]), forbiddenEndpoints: [] };
+    for (const method of ["GET", "POST"]) {
+      const decision = decidePreparationRequest(method, SHEFFIELD_RESET, policy);
+      expect(decision.allowed, method).toBe(false);
+      expect(decision.reason, method).toContain("Forgot password");
+    }
+    expect(decidePreparationRequest("POST", "https://www.sheffield.ac.uk/postgradapplication/personal.do", policy).allowed).toBe(true);
+  });
+
+  it("the click allow-list refuses a reset control it holds — by its words, by its name, or by where it goes", () => {
+    const send: FieldLocator = { strategy: "name", value: "sendBtn" };
+    const link: FieldLocator = { strategy: "role", value: "link:Forgotten Password" };
+    const named: FieldLocator = { strategy: "id", value: "forgotPasswordLink" };
+    const list = new ClickAllowList([send, link, named]);
+    expect(list.decide(send, "Send", ["sendBtn"]).allowed, "a plain Send, going nowhere it says").toBe(true);
+    // Sheffield's own reset button, as the 2026-09-11 read recorded it: "Send",
+    // `sendBtn`. Only where its form posts says what it is.
+    const sheffield = list.decide(send, "Send", ["sendBtn"], [SHEFFIELD_RESET]);
+    expect(sheffield.allowed).toBe(false);
+    expect(sheffield.reason).toContain("password reset");
+    expect(list.decide(link, "Forgotten Password").allowed).toBe(false);
+    expect(list.decide(named, "Help").allowed).toBe(false);
+  });
+
+  describe("against a portal whose reset replaces the password at once, as Sheffield's does", () => {
+    const EMAIL = "reset-guard@example.test";
+    const PASSWORD = "Tr0ub4dor-3-horses!";
+    let browser: Awaited<ReturnType<typeof chromium.launch>>;
+    let portal: FixturePortal;
+
+    async function portalWithAnAccount(): Promise<FixturePortal> {
+      const started = await startFixturePortal({ passwordReset: true });
+      const made = await fetch(`${started.baseUrl}/register`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ email: EMAIL, password: PASSWORD, password_confirm: PASSWORD }).toString(),
+        redirect: "manual",
+      });
+      expect(made.status, "the fixture account is made").toBeLessThan(400);
+      expect(started.credentialsWork(EMAIL, PASSWORD)).toBe(true);
+      return started;
+    }
+    /** Requests to the reset page since `mark` — each test counts its own. */
+    const reached = (from: FixturePortal, mark = 0): number =>
+      from.requests.slice(mark).filter((request) => request.path === "/forgottenPassword.do").length;
+
+    beforeAll(async () => {
+      const executablePath = process.env["AAS_CHROMIUM_PATH"];
+      browser = await chromium.launch({
+        headless: true,
+        ...(executablePath !== undefined && executablePath.length > 0 ? { executablePath } : {}),
+      });
+      portal = await portalWithAnAccount();
+    }, 60_000);
+    afterAll(async () => {
+      await browser.close();
+      await portal.stop();
+    });
+
+    it("with nothing guarding the context, a stray press replaces the password — so this fixture can see a reset", async () => {
+      // The fail-once, kept: a plain context, the link pressed and the form
+      // sent by hand. Without it, an empty `resets()` below would prove only
+      // that nothing was looked for.
+      const exposed = await portalWithAnAccount();
+      const context = await browser.newContext();
+      try {
+        const page = await context.newPage();
+        await page.goto(`${exposed.baseUrl}/login`);
+        await Promise.all([page.waitForURL("**/forgottenPassword.do"), page.click("#help a >> text=Forgotten Password")]);
+        await page.fill("#resetEmail", EMAIL);
+        await Promise.all([page.waitForSelector("#sent"), page.click("#sendBtn")]);
+        expect(exposed.resets()).toEqual([EMAIL]);
+        expect(exposed.credentialsWork(EMAIL, PASSWORD), "the old password stopped working at once").toBe(false);
+      } finally {
+        await context.close();
+        await exposed.stop();
+      }
+    }, 30_000);
+
+    it("every context the run opens refuses the reset page and the reset itself, by any method", async () => {
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      const mark = portal.requests.length;
+      try {
+        const page = await context.newPage();
+        await page.goto(`${portal.baseUrl}/login`);
+        // A press nobody checked — Playwright's own click, not one of ours.
+        await page.click("#help a >> text=Forgotten Password").catch(() => undefined);
+        await page.waitForTimeout(300);
+        const posted = await page.evaluate(async (email) => {
+          try {
+            await fetch("/forgottenPassword.do", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: `email=${encodeURIComponent(email)}` });
+            return "sent";
+          } catch {
+            return "refused";
+          }
+        }, EMAIL);
+        expect(posted, "a script's own reset is refused too").toBe("refused");
+        expect(reached(portal, mark), "nothing reached the reset page").toBe(0);
+        expect(portal.resets()).toEqual([]);
+        expect(portal.credentialsWork(EMAIL, PASSWORD), "the password stands").toBe(true);
+      } finally {
+        await context.close();
+      }
+    }, 30_000);
+
+    it("the sign-in refuses to press a control that goes to the reset, and says why", async () => {
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      const said: string[] = [];
+      const mark = portal.requests.length;
+      try {
+        const page = await context.newPage();
+        await page.goto(`${portal.baseUrl}/login`);
+        await page.fill("#email", EMAIL);
+        await page.fill("#password", PASSWORD);
+        // A submit locator that says nothing of a reset — the shape a
+        // reviewer's mistake would take — on the reset link.
+        const outcome = await settleSignIn(page, {
+          runId: "run_p301",
+          loginUrl: new URL(`${portal.baseUrl}/login`),
+          submitLocator: { strategy: "css", value: "#help a:first-child" },
+          passwordLocator: { strategy: "id", value: "password" },
+          say: (line) => said.push(line),
+        });
+        expect(outcome).toEqual({ kind: "failed", failure: "portal_drift" });
+        expect(said.join("\n")).toContain("password reset");
+        // P301's review: the log's rule is that nothing from a page reaches
+        // it, and a page's URL can carry a token. Which check fired is said;
+        // the control's own words and address are not.
+        expect(said.join("\n"), "the page's words and address stay out of the log").not.toMatch(/Forgotten Password|forgottenPassword\.do|127\.0\.0\.1/u);
+        expect(reached(portal, mark)).toBe(0);
+        expect(portal.resets()).toEqual([]);
+      } finally {
+        await context.close();
+      }
+    }, 30_000);
+
+    it("a sign-in whose press a script sends to the reset is not read as signed in, and says why (P301's review)", async () => {
+      // `Continue` says nothing of a reset, has no address and sits in no
+      // form: only the navigation its script starts goes there. The context
+      // refuses it, and the browser shows its own error page — which, before
+      // the review, read as "somewhere other than the login form": signed in.
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      const said: string[] = [];
+      const mark = portal.requests.length;
+      try {
+        const page = await context.newPage();
+        await page.goto(`${portal.baseUrl}/login`);
+        const outcome = await settleSignIn(page, {
+          runId: "run_p301",
+          loginUrl: new URL(`${portal.baseUrl}/login`),
+          submitLocator: { strategy: "id", value: "helpScripted" },
+          passwordLocator: { strategy: "id", value: "password" },
+          say: (line) => said.push(line),
+          timeouts: { pressMs: 5_000, answerMs: 5_000 },
+        });
+        expect(outcome, `never a success: ${said.join(" | ")}`).toEqual({ kind: "failed", failure: "portal_drift" });
+        expect(said.join("\n")).toContain("password reset");
+        expect(reached(portal, mark), "the navigation was refused before it left").toBe(0);
+        expect(portal.resets()).toEqual([]);
+      } finally {
+        await context.close();
+      }
+    }, 30_000);
+
+    it("a sign-in whose press is redirected onto the reset page is not read as signed in", async () => {
+      // `Help` says nothing of a reset and goes to /help, which redirects to
+      // the reset page: the route sees /help only. The landing is read.
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      const said: string[] = [];
+      const mark = portal.requests.length;
+      try {
+        const page = await context.newPage();
+        await page.goto(`${portal.baseUrl}/login`);
+        const outcome = await settleSignIn(page, {
+          runId: "run_p301",
+          loginUrl: new URL(`${portal.baseUrl}/login`),
+          submitLocator: { strategy: "id", value: "helpRedirect" },
+          passwordLocator: { strategy: "id", value: "password" },
+          say: (line) => said.push(line),
+          timeouts: { pressMs: 5_000, answerMs: 5_000 },
+        });
+        expect(outcome, `never a success: ${said.join(" | ")}`).toEqual({ kind: "failed", failure: "portal_drift" });
+        expect(said.join("\n")).toContain("reached a password reset page");
+        // The gap this layer exists for, measured rather than assumed: the
+        // redirect's second hop is not seen by the route handler, and the
+        // reset PAGE was fetched. Fetching the page sends nothing; nothing on
+        // it was pressed.
+        expect(reached(portal, mark), "the route did not see the redirect's hop").toBe(1);
+        expect(portal.resets(), "and nothing was sent from it").toEqual([]);
+        expect(portal.credentialsWork(EMAIL, PASSWORD)).toBe(true);
+      } finally {
+        await context.close();
+      }
+    }, 30_000);
+
+    it("a fill session refuses to open the reset page, and its own guard refuses the reset once attached", async () => {
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      const mark = portal.requests.length;
+      try {
+        const page = await context.newPage();
+        const session = await PlaywrightPreparationSession.attach(page, {
+          capability: "fillable",
+          allowedHosts: ["127.0.0.1"],
+          runId: "run_p301",
+          now: () => NOW,
+          // Listed, as a reviewer's mistake would list it: still refused.
+          clickableControls: [{ strategy: "name", value: "sendBtn" }],
+        });
+        await expect(session.goto(`${portal.baseUrl}/forgottenPassword.do`)).rejects.toBeInstanceOf(PasswordResetRefusedError);
+        await session.goto(`${portal.baseUrl}/login`);
+        // Once attached, the fill's guard holds every request — the context's
+        // own reset guard no longer sees them — so it must refuse a reset itself.
+        const posted = await page.evaluate(async (email) => {
+          try {
+            await fetch("/forgottenPassword.do", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: `email=${encodeURIComponent(email)}` });
+            return "sent";
+          } catch {
+            return "refused";
+          }
+        }, EMAIL);
+        expect(posted).toBe("refused");
+        expect(session.blockedRequests().some((request) => request.url.endsWith("/forgottenPassword.do")), "and it says so").toBe(true);
+        expect(reached(portal, mark)).toBe(0);
+        expect(portal.resets()).toEqual([]);
+      } finally {
+        await context.close();
+      }
+    }, 30_000);
+
+    it("a fill press reads where a control goes: a plain Send whose form posts to the reset is refused before anything is sent (P301's review)", async () => {
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      const mark = portal.requests.length;
+      try {
+        const page = await context.newPage();
+        const session = await PlaywrightPreparationSession.attach(page, {
+          capability: "fillable",
+          allowedHosts: ["127.0.0.1"],
+          runId: "run_p301",
+          now: () => NOW,
+          clickableControls: [{ strategy: "name", value: "sendBtn" }],
+        });
+        await session.goto(`${portal.baseUrl}/login`);
+        // Sheffield's reset form in its own shape, on a page the fill may
+        // open: "Send", `sendBtn`, and only its action saying what it is.
+        await page.evaluate(([action, email]) => {
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            `<form method="post" action="${action}"><input name="email" value="${email}"><input type="submit" name="sendBtn" value="Send"></form>`,
+          );
+        }, [`${portal.baseUrl}/forgottenPassword.do`, EMAIL]);
+        await expect(session.click({ strategy: "name", value: "sendBtn" })).rejects.toBeInstanceOf(ClickRefusedError);
+        expect(reached(portal, mark)).toBe(0);
+        expect(portal.resets()).toEqual([]);
+      } finally {
+        await context.close();
+      }
+    }, 30_000);
+
+    it("a 307 that re-posts a form to the reset is not refused before it is sent — the gap, measured — and is seen afterwards (P301's review)", async () => {
+      // `Save` posts to /help, which answers 307: the browser sends the same
+      // body to the reset, a hop no route handler is shown. So this reset
+      // HAPPENS. What the run can do is see it: every request to a reset is
+      // watched, redirect hops included, and the fill and the sign-in read
+      // the watch after a press. A separate portal, because its password goes.
+      const exposed = await portalWithAnAccount();
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      try {
+        const page = await context.newPage();
+        const session = await PlaywrightPreparationSession.attach(page, {
+          capability: "fillable",
+          allowedHosts: ["127.0.0.1"],
+          runId: "run_p301",
+          now: () => NOW,
+          clickableControls: [{ strategy: "id", value: "helpSave" }],
+        });
+        await session.goto(`${exposed.baseUrl}/login`);
+        await page.fill("#helpEmail", EMAIL);
+        const watch = passwordResetWatch(context);
+        const before = watch.mark();
+        await session.click({ strategy: "id", value: "helpSave" });
+        await page.waitForLoadState("domcontentloaded");
+        expect(watch.since(before), "the hop was seen").toBe("reached");
+        expect(exposed.resets(), "and it was sent: the gap, not refused").toEqual([EMAIL]);
+      } finally {
+        await context.close();
+        await exposed.stop();
+      }
+    }, 30_000);
+
+    describe("an account creation (P301's review)", () => {
+      const NEW = "created-p301@example.test";
+      const NEW_PASSWORD = "C0rrect-h0rse-battery!";
+      /** The work item for a creation whose submit is `submit`. */
+      const creation = (on: FixturePortal, submit: string, email: string) => ({
+        leaseId: "wl_p301",
+        expiresAt: new Date(Date.now() + 120_000).toISOString(),
+        runId: "run_p301",
+        caseId: "case_p301",
+        studentRef: "11111111-1111-1111-1111-111111111111",
+        kind: "create_account" as const,
+        portalHost: on.host,
+        email,
+        approach: "student_chosen" as const,
+        secretHandle: `sh_${"0".repeat(32)}`,
+        registration: {
+          url: `${on.baseUrl}/register`,
+          emailLocator: { strategy: "id" as const, value: "email" },
+          passwordLocators: [
+            { strategy: "name" as const, value: "password" },
+            { strategy: "name" as const, value: "password_confirm" },
+          ],
+          submitLocator: { strategy: "id" as const, value: submit },
+        },
+      });
+      /** The fill agent, standing in: it types the student's password where the creation asks. */
+      const agentThatTypes = (context: BrowserContext): typeof globalThis.fetch =>
+        async () => {
+          const page = context.pages()[0];
+          await page?.fill("#password", NEW_PASSWORD);
+          await page?.fill("#passwordConfirm", NEW_PASSWORD);
+          return new Response(JSON.stringify({ status: "filled", lifecycle: "secret_consumed" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        };
+
+      async function create(on: FixturePortal, submit: string, email: string) {
+        const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+        const said: string[] = [];
+        try {
+          const outcome = await createPortalAccount(creation(on, submit, email), {
+            browser,
+            browserEndpoint: "ws://127.0.0.1:9/never",
+            agentBaseUrl: "http://127.0.0.1:9",
+            context,
+            fetch: agentThatTypes(context),
+            log: (line) => said.push(line),
+          });
+          return { outcome, said };
+        } finally {
+          await context.close();
+        }
+      }
+
+      it("refuses to press a submit whose own formaction is the reset, and says why", async () => {
+        const mark = portal.requests.length;
+        const { outcome, said } = await create(portal, "createToReset", `refused-${NEW}`);
+        expect(outcome).toEqual({ kind: "failed", failure: "portal_drift" });
+        expect(said.join("\n")).toContain("password reset");
+        expect(said.join("\n")).not.toMatch(/forgottenPassword\.do|127\.0\.0\.1/u);
+        expect(reached(portal, mark)).toBe(0);
+        expect(portal.requests.slice(mark).filter((request) => request.method === "POST"), "nothing was posted").toEqual([]);
+      }, 30_000);
+
+      it("a press a script sends to the reset is not a creation: not known, and said", async () => {
+        const mark = portal.requests.length;
+        const { outcome, said } = await create(portal, "createScripted", `scripted-${NEW}`);
+        expect(outcome, `never a success: ${said.join(" | ")}`).toEqual({ kind: "uncertain", failure: "portal_drift" });
+        expect(said.join("\n")).toContain("password reset");
+        expect(reached(portal, mark)).toBe(0);
+        expect(portal.resets()).toEqual([]);
+      }, 30_000);
+
+      it("a registration redirected onto the reset is not known to have made nothing: uncertain, and said", async () => {
+        const mark = portal.requests.length;
+        const email = `redirected-${NEW}`;
+        const { outcome, said } = await create(portal, "createThenHelp", email);
+        // The registration reached the portal: the account exists. A clean
+        // failure would claim it does not (ADR-0008).
+        expect(portal.accounts()).toContain(email);
+        expect(outcome, said.join(" | ")).toEqual({ kind: "uncertain", failure: "portal_drift" });
+        expect(said.join("\n")).toContain("password reset");
+        expect(reached(portal, mark), "the redirect's hop, unseen by the route").toBe(1);
+        expect(portal.resets()).toEqual([]);
+      }, 30_000);
+    });
   });
 });

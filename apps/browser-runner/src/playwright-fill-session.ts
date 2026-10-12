@@ -33,8 +33,10 @@ import type { Browser, BrowserContext, Locator, Page, Request } from "playwright
 import { chromium } from "playwright";
 
 import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
+import { PASSWORD_RESET_REFUSAL, isPasswordResetUrl } from "@askimate/aas-blueprint";
 
 import { OBSERVE_SCRIPT } from "./observe-script.js";
+import { destinationsOf, refusalToPress } from "./password-reset-guard.js";
 import type { ClickDecision, PreparationNetworkPolicy } from "./preparation-safety.js";
 import {
   ClickAllowList,
@@ -76,6 +78,18 @@ export class RobotsDisallowedError extends Error {
   public override readonly name = "RobotsDisallowedError";
   public constructor(public readonly url: string, reason: string) {
     super(reason);
+  }
+}
+
+/**
+ * A navigation to a password reset, refused (P301). Its own class, so the
+ * fill reports it as the blueprint being wrong rather than the browser
+ * giving out.
+ */
+export class PasswordResetRefusedError extends Error {
+  public override readonly name = "PasswordResetRefusedError";
+  public constructor(public readonly url: string) {
+    super(`Refusing to open ${url}: it is a portal's password reset, and ${PASSWORD_RESET_REFUSAL}.`);
   }
 }
 
@@ -268,6 +282,7 @@ const OWN_ERRORS: ReadonlySet<string> = new Set([
   "OptionNotAvailableError",
   "ValueNotAcceptedError",
   "ClickRefusedError",
+  "PasswordResetRefusedError",
   "RobotsDisallowedError",
   "ControlNotActionableError",
 ]);
@@ -759,6 +774,10 @@ export class PlaywrightPreparationSession implements FillableSession {
   // ── Reading ──────────────────────────────────────────────────────────────
 
   public async goto(url: string): Promise<void> {
+    // P301: a password reset is never a page this session goes to, on any
+    // host. Said here, by name, before the network guard would refuse it
+    // without one.
+    if (isPasswordResetUrl(url)) throw new PasswordResetRefusedError(url);
     if (!this.#allowList.permits(url)) {
       throw new Error(
         `Refusing to navigate to ${url}: host is not on this run's allow-list ` +
@@ -1028,6 +1047,9 @@ export class PlaywrightPreparationSession implements FillableSession {
         reason: `Refusing to choose a typeahead entry that reads as a submission control.`,
       });
     }
+    // P301: an entry is pressed too, and is never a password reset.
+    const reset = await refusalToPress(exact.first());
+    if (reset !== null) throw new ClickRefusedError({ allowed: false, locator: entries.optionLocator, reason: reset });
     await exact.first().click();
     // The chosen widget is not finished when the click resolves: `open()` ends
     // in `focus()`, and `openOnFocus` re-arms it, so it goes on taking the
@@ -1295,8 +1317,11 @@ export class PlaywrightPreparationSession implements FillableSession {
       .filter((part) => part.length > 0)
       .join(" / ");
     const identifiers = [await said("name"), await said("id")].filter((part) => part.length > 0);
+    // Where it would go (P301): a reset button can say "Send" and be called
+    // `sendBtn`, and only its form's action says what it is.
+    const destinations = await destinationsOf(target);
 
-    const decision = this.#clickAllowList.decide(locator, accessibleName, identifiers);
+    const decision = this.#clickAllowList.decide(locator, accessibleName, identifiers, destinations);
     if (!decision.allowed) throw new ClickRefusedError(decision);
 
     await target.click();

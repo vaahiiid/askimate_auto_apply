@@ -41,3 +41,6 @@ export {
   unclassifiedFields,
   unmappedFields,
 } from "./blueprint.js";
+
+// ── A portal's "Forgot password", never pressed (P301) ───────────────────
+export { PASSWORD_RESET_REFUSAL, isPasswordResetUrl, readsAsPasswordReset } from "./password-reset.js";

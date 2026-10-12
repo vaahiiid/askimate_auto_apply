@@ -59,6 +59,16 @@ address, and mail from Sheffield reaches him. The honest product shape — the `
 declaration carrying the account's own e-mail, distinct from the contact address — is recorded
 as **the thing to build** (state document, blocker 31), at his word: *"not as a note."*
 
+**P301, 2026-10-12: that account's address is not his.** In his words
+([as sent](./p301-his-account-as-sent.txt)): *"The Sheffield account used for our reads and for
+my live run is registered with my wife's e-mail address, with her knowledge."* So where the
+paragraph above says *"his account's e-mail"*, the address is the account's and not his; and where
+it says the personal page's e-mail boxes *"carry his address, and mail from Sheffield reaches
+him"*, they carry the account's address, and the mail goes to that inbox. The paragraph is left as
+written because it records what was decided on 2026-09-17; what it means now is row 174 of
+`docs/state-of-the-system.md`. **That address is never written into the repository or any record**
+(his rule, the same message); `scripts/no-stray-addresses.test.ts` holds the repository to it.
+
 **Not held, and why.** `residence.uk_entry_date` — not in the UK now, and the page hides the entry
 date for a resident abroad; `immigration.uk_study.currentVisaExpiry` — no current visa, the three
 expiry boxes typed empty as the row's own words allow; and every registry field no Sheffield

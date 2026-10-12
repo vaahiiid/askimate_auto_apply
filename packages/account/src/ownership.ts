@@ -46,7 +46,7 @@ import type { Brand, StudentId } from "@askimate/aas-domain";
 import { unwrapConfirmed } from "@askimate/aas-domain";
 import type { ConfirmedValue } from "@askimate/aas-domain";
 
-import type { AuthenticationApproach, AuthenticationPlan } from "./authentication.js";
+import type { AuthenticationApproach, AuthenticationPlan, PasswordResetSends } from "./authentication.js";
 import type { EphemeralCredential } from "./credential.js";
 
 /** Where an account stands. */
@@ -563,6 +563,8 @@ export function renderAccountCreationRequest(input: {
   readonly portalHost: string;
   readonly email: string;
   readonly approach: AuthenticationApproach;
+  /** What this portal's reset was seen to send (P301's review); absent, nothing is said of it. */
+  readonly passwordResetSends?: PasswordResetSends;
 }): string {
   return (
     `To apply to ${input.institutionName} you need an account on their application portal ` +
@@ -577,6 +579,7 @@ export function renderAccountCreationRequest(input: {
 function creationMiddle(input: {
   readonly approach: AuthenticationApproach;
   readonly email: string;
+  readonly passwordResetSends?: PasswordResetSends;
 }): string {
   switch (input.approach) {
     case "passwordless":
@@ -605,10 +608,57 @@ function creationMiddle(input: {
         `This portal requires a password to create the account, so I will generate a long random ` +
         `one. Nobody at AskiMate sees it, it is never written down anywhere, and it stops ` +
         `working shortly afterwards. When the application is finished I will ask you to set your ` +
-        `own password using the portal's "Forgot password" link, which goes to your email — ` +
+        `own password using the portal's "Forgot password"${resetBeforeCreation(input.passwordResetSends)} — ` +
         `after that only you can get in.`
       );
   }
+}
+
+/**
+ * What the creation request says a reset does, as it was seen and no more
+ * (P301's review: it called every portal's reset "a link").
+ */
+function resetBeforeCreation(sends: PasswordResetSends | undefined): string {
+  if (sends === "new_password_in_plain_text") {
+    return `, which on this portal replaces the password at once and e-mails you a new one, in plain text, to change straight away`;
+  }
+  if (sends === "reset_link") return `, which on this portal e-mails you a link`;
+  return "";
+}
+
+/**
+ * What the handover says about a reset, read off the plan the account was
+ * made under and who made it (P301 and its review), so every place that
+ * renders the handover says the same.
+ *
+ * `resetStillToDo` is ADR-0050's substitution: an account we made, on a portal
+ * that never e-mailed the student, is not handed back until the portal's reset
+ * has shown its e-mail reaches them. Said as owed now, because the list sent
+ * with the text asks for it now — not as something for a lost password.
+ * Whether that requirement should stand on a portal whose reset replaces the
+ * password is Vahid's (state-of-the-system row 177); this only makes the text
+ * agree with the list.
+ */
+export function resetWordsFor(
+  plan: AuthenticationPlan,
+  createdBy: PortalAccount["createdBy"],
+): {
+  readonly passwordResetSends?: PasswordResetSends;
+  readonly passwordResetSeenNotToWork?: true;
+  readonly resetStillToDo?: true;
+} {
+  const owed =
+    plan.approach !== "generated_ephemeral" &&
+    applicableItems({
+      approach: plan.approach,
+      createdBy,
+      portalVerifiesEmail: plan.basedOn.emailVerificationRequired === true,
+    }).includes("passwordResetCompleted");
+  return {
+    ...(plan.basedOn.passwordResetSends === undefined ? {} : { passwordResetSends: plan.basedOn.passwordResetSends }),
+    ...(plan.basedOn.passwordResetAvailable === false ? { passwordResetSeenNotToWork: true as const } : {}),
+    ...(owed ? { resetStillToDo: true as const } : {}),
+  };
 }
 
 /**
@@ -628,6 +678,16 @@ export function renderHandover(input: {
    * as well as in the preview, because this is the message they act on.
    */
   readonly leftToStudent?: readonly { readonly text: string; readonly toldLater: boolean }[];
+  /**
+   * What this portal's "Forgot password" sends, where someone has tried it
+   * (P301; `ObservedPortalAuthentication.passwordResetSends`). Absent, the
+   * text says nothing of what a reset does.
+   */
+  readonly passwordResetSends?: PasswordResetSends;
+  /** The portal's reset was tried and did not work (`passwordResetAvailable: false`). */
+  readonly passwordResetSeenNotToWork?: true;
+  /** The reset is still owed before the handover is complete (`resetWordsFor`). */
+  readonly resetStillToDo?: true;
 }): string {
   const left = input.leftToStudent ?? [];
   // ADR-0108, in Vahid's words: *"the student must be able to tell that we
@@ -652,26 +712,101 @@ export function renderHandover(input: {
     `Sign in at ${input.portalHost} with ${input.email}.\n\n` +
     `${ownActs}` +
     `${handoverMiddle(input)}\n\n` +
-    `Tell me when you are in, and I will close this off.`
+    (input.resetStillToDo === true && input.approach !== "generated_ephemeral"
+      ? `Tell me when you have done that and you are in, and I will close this off.`
+      : `Tell me when you are in, and I will close this off.`)
   );
 }
 
+/**
+ * What a reset does, said as it was observed on this portal and no more (P301).
+ *
+ * Vahid, 2026-10-12 (docs/run-a/p301-his-auth7-as-sent.txt): *"If a student
+ * loses their password, the handover message must tell them that resetting
+ * replaces their password at once and the new one arrives by e-mail."* Said
+ * where it was observed — Sheffield's reset sends no link — and only there:
+ * a portal whose reset sends a link is told that, and one nobody has tried is
+ * told nothing about what a reset does.
+ *
+ * Two things it never says, though it said both until P301:
+ *   - "which only you can read". Nothing here can know who reads an inbox;
+ *   - the profile's address as where the mail goes. The mail goes to the
+ *     address the ACCOUNT is registered with, and that is not always the
+ *     profile's: his own reads' account signs in with an address that is not
+ *     his profile's (docs/run-a/p301-his-account-as-sent.txt).
+ */
+function whatAResetDoes(sends: PasswordResetSends | undefined): string {
+  if (sends === "new_password_in_plain_text") {
+    return (
+      `resetting it with "Forgot password" on that page replaces your password at once, and the ` +
+      `new one arrives by e-mail, in plain text, at the address the account is registered with. ` +
+      `Sign in with it and change it straight away, as that e-mail asks you to.`
+    );
+  }
+  if (sends === "reset_link") {
+    return (
+      `"Forgot password" on that page sends a link to the address the account is registered with, ` +
+      `and your password stays as it is until you use the link.`
+    );
+  }
+  return `use "Forgot password" on that page.`;
+}
+
+/** What a reset owed now does on this portal, as it was seen; nothing where nobody has tried it. */
+function whatTheOwedResetDoes(sends: PasswordResetSends | undefined): string {
+  if (sends === "new_password_in_plain_text") {
+    return (
+      ` On this portal it replaces your password at once, and the new one arrives by e-mail, in ` +
+      `plain text, at the address the account is registered with: sign in with it and change it ` +
+      `straight away, as that e-mail asks you to.`
+    );
+  }
+  if (sends === "reset_link") {
+    return (
+      ` On this portal it sends a link to the address the account is registered with, and your ` +
+      `password stays as it is until you use the link.`
+    );
+  }
+  return "";
+}
+
 function handoverMiddle(input: {
+  readonly institutionName: string;
   readonly approach: AuthenticationApproach;
   readonly email: string;
+  readonly passwordResetSends?: PasswordResetSends;
+  readonly passwordResetSeenNotToWork?: true;
+  readonly resetStillToDo?: true;
 }): string {
   if (input.approach === "generated_ephemeral") {
     return (
-      `Please set your own password now using the "Forgot password" link on that page. It sends ` +
-      `a reset link to ${input.email}, which only you can read. Once you have done that, the ` +
-      `temporary password I used is gone and only you can get into the account.`
+      `Please set your own password now: ${whatAResetDoes(input.passwordResetSends)} Once you ` +
+      `have done that, the temporary password I used is gone and only you can get into the account.`
     );
   }
 
-  return (
+  const neverHeld =
     `I have never had a password for this account and I do not have one now — you sign in the ` +
-    `same way you have been. I have closed the session I was using, so from here it is only ` +
-    `you. If you ever lose access, use the "Forgot password" or sign-in link on that page; it ` +
-    `goes to ${input.email}, which only you can read.`
-  );
+    `same way you have been. I have closed the session I was using, so from here it is only you.`;
+  // P301's review: the list sent with this text asks for the reset now, so the
+  // text says it is owed now, not that it is for a lost password.
+  if (input.resetStillToDo === true) {
+    return (
+      `${neverHeld}\n\nOne thing is left before I can close this off. ${input.institutionName}'s ` +
+      `portal has not yet shown that its e-mail reaches you, and the way it shows it is its ` +
+      `"Forgot password": please use it once on that page.${whatTheOwedResetDoes(input.passwordResetSends)}`
+    );
+  }
+  // A passwordless student has no password to lose: the way back is the link.
+  if (input.approach === "passwordless") {
+    return `${neverHeld} If you ever lose access, ask that page for a new sign-in link; it goes to the address the account is registered with.`;
+  }
+  // A reset tried and seen not to work is not offered as the way back.
+  if (input.passwordResetSeenNotToWork === true) {
+    return (
+      `${neverHeld} If you ever lose your password, this portal's "Forgot password" was not seen ` +
+      `to work, so ${input.institutionName}'s admissions office is the way back in.`
+    );
+  }
+  return `${neverHeld} If you ever lose your password, ${whatAResetDoes(input.passwordResetSends)}`;
 }

@@ -113,7 +113,7 @@ account:
 |---|---|---|
 | 2 | Does the portal generate a credential and email it to the applicant? | Only visible after an account exists |
 | 3 | Is there passwordless sign-in — a magic link or emailed code? | Only visible if offered on the login page, and often it is not |
-| 7 | Does "Forgot password" work, and does the reset reach the account's own address? | Requires triggering it |
+| 7 | Does "Forgot password" work, and does the reset reach the account's own address? | Requires triggering it — which, on Sheffield, replaces the password (below) |
 | 8 | Can control be handed back cleanly — no lingering session, no second factor bound to us? | Requires an account to hand back |
 
 **This does not block the run, and it does not block anything downstream except the account step.**
@@ -123,6 +123,15 @@ Preview and Authorisation — proceeds on what this run captures.
 Those four are answered on an account we are permitted to use: a sandbox if QA HE offer one, or the
 consenting applicant's own account at the point the run reaches account creation. Either way it is
 one short session, not a dependency to wait on.
+
+> **AUTH 7: do not trigger the reset on an applicant's account (P301, 2026-10-12).** On Sheffield,
+> "Forgot password" sends no link. In Vahid's words (`docs/run-a/p301-his-auth7-as-sent.txt`):
+> *"Sheffield immediately generates a new password, replacing the old one, and e-mails it in plain
+> text to the account's e-mail address."* So answering AUTH 7 by triggering it replaces that
+> applicant's password on the spot. On 2026-10-12 it was answered by the account's owner, who tried
+> it himself and recorded what he saw in his own words. The run never
+> presses it (ADR-0020 §5a). Whether a read may open a reset page at all is open (row 177 of
+> `docs/state-of-the-system.md`).
 
 ---
 

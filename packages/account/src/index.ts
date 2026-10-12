@@ -18,6 +18,7 @@ export type {
   CredentialRefusal,
   ObservedPortalAuthentication,
   PasswordDelivery,
+  PasswordResetSends,
   PortalAuthFact,
   PortalAuthFactKey,
   PortalAuthFactSource,
@@ -25,6 +26,7 @@ export type {
 } from "./authentication.js";
 export {
   AUTHENTICATION_APPROACHES,
+  PASSWORD_RESET_SENDS,
   authenticationQuestions,
   chooseApproach,
   describePlan,
@@ -55,4 +57,5 @@ export {
   prepareAccountCreation,
   renderAccountCreationRequest,
   renderHandover,
+  resetWordsFor,
 } from "./ownership.js";

@@ -388,6 +388,8 @@ admissions system.
 ## Must be true during the run, whatever else changes
 
 - The applicant's **own** email is the account's address, and stays the official contact
+  *(P301, 2026-10-12: not true of the account his reads use, whose address is not his; row 174 of
+  `state-of-the-system.md`. Whether a live run may use such an account is his to say.)*
 - The authentication approach came from `chooseApproach` over real observations — not a default
 - The applicant's portal password is typed by them into the Secure Plane's frame, held for at most
   five minutes, and never stored (ADR-0034, ADR-0101)

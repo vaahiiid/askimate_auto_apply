@@ -19,6 +19,55 @@ not shipped artefacts.
 
 ---
 
+## [0.294.0] — 2026-10-12
+
+**P301 — his "Forgot password" result: the run never presses one, the handover says what this
+portal's reset does, and AUTH 7 joins P300's sheet for his signature; the account his reads use
+signs in with an address that is not his, and that address stays out of every record.**
+
+- **Added** a refusal of a portal's password reset at four layers (ADR-0020 §5a). Each check
+  switched off made its test red; the catalogue's tests were red before its gate existed.
+  - The catalogue refuses an entry whose page, sign-in, press or typeahead entry is a reset.
+  - Every press reads the control's words, identifiers and destination first, and says which
+    check fired, never the page's own words.
+  - Every context the run opens aborts a request to a reset.
+  - A watch sees every request to a reset, redirect hops included. A sign-in that reached one
+    fails, a creation is uncertain, and a fill is never reported saved.
+  - A 307 that re-posts a form to a reset is seen, not refused (row 178).
+- **Changed** the fixture portal: it has a reset that replaces the password and records each one
+  sent, and presses that reach it by a script, a redirect and a 307.
+- **Added** `passwordResetSends` beside `passwordResetAvailable`
+  (`"new_password_in_plain_text"` or `"reset_link"`). It is refused unless the reset is
+  recorded as available, and it is hashed with the facts.
+- **Changed** the handover and the text before creation. Each now says what the portal's reset
+  was seen to do:
+  - where it replaces the password, that it does so at once and the new one arrives by e-mail,
+    in plain text, at the address the account is registered with (on Sheffield, once his
+    signature records it);
+  - where a reset sends a link, that;
+  - where nobody has tried one, only to use "Forgot password";
+  - where it was seen not to work, not to use it;
+  - to a passwordless student, the sign-in link instead.
+
+  Where the reset is still owed before handover, the text says so, as the list beside it does. It
+  no longer says the mail goes to an inbox "which only you can read".
+- **Added** `scripts/no-stray-addresses.test.ts`. It fails on any tracked file holding an
+  address that is neither his, nor a fixture's, nor one of two test addresses named exactly. It
+  names the file and line only.
+- **Changed** `docs/run-a/p300-for-signature.md` and its patch: rebuilt with AUTH 7 in his
+  words, `sha256:e74ade25…`; `31770fb8…` withdrawn.
+- **Added** his two messages, saved as sent (`docs/run-a/p301-his-auth7-as-sent.txt`,
+  `docs/run-a/p301-his-account-as-sent.txt`).
+- **Recorded** rows 174 to 178:
+  - the run takes the sign-in address to be the profile's e-mail (blocker 31), and the account
+    his reads use is registered with an address that is not his;
+  - such an address in the pushed history (`ebac18d1`), not removed;
+  - his statement and the records disagree about what that application holds;
+  - three places a reset is still part of the design;
+  - a 307 onto a reset, seen and not refused.
+
+---
+
 ## [0.293.0] — 2026-10-12
 
 **P300 — his decisions on P299: a held account is never lost to an unobserved fact, and a case

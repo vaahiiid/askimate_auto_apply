@@ -411,6 +411,14 @@ await fetch("/dev/session", { method: "POST", headers: { "content-type": "applic
 Then open `http://127.0.0.1:4870/`. `document.cookie` stays empty whatever happens — the cookie is
 `HttpOnly` — so that is not evidence either way; the student page loading is.
 
+> **P301, 2026-10-12: read this before using the re-seed below.** That account's address is not
+> his (his message, `docs/run-a/p301-his-account-as-sent.txt`). So the re-seed puts an address that
+> is not his into the profile copy, the application's two e-mail boxes, the preview and the
+> handover. **Never write that address into the repository or any record**, by his rule: not in a
+> file under the repository, a commit message, an issue, or a log you paste. Whether the live run
+> uses this account at all, and how its address would enter, are open (row 174 of
+> `docs/state-of-the-system.md`).
+
 **Run A signs in with his account's e-mail (blocker 31, decided 2026-09-17).** The resume path
 uses the profile's `contact.email` as the account's address (ADR-0110), and the file's address
 is synthetic, so for Run A the profile is seeded from a copy outside the repository whose

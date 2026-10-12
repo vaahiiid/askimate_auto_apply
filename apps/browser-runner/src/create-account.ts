@@ -54,6 +54,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { consentNoticeOnThePage, consentTargetsOf, pressConsentPath } from "./consent.js";
 import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
+import { landedOnPasswordReset, passwordResetWatch, REACHED_A_RESET, refusalToPress } from "./password-reset-guard.js";
 import { openSensitiveContext } from "./sensitive.js";
 import { pressCheckInWords, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
@@ -254,6 +255,16 @@ export async function createPortalAccount(
     // ── 5. Submit, and only now ────────────────────────────────────────────
     const submit = await resolve(page, targets.submitLocator);
     if (submit === null) return { kind: "failed", failure: "portal_drift" };
+    // P301: never a password reset, read off the control before it is
+    // pressed — its words, its name, where it would go.
+    const reset = await refusalToPress(submit);
+    if (reset !== null) {
+      say(`run ${work.runId}: account creation stopped before the press — ${reset}`);
+      return { kind: "failed", failure: "portal_drift" };
+    }
+    // Every request to a reset from here on is watched, redirect hops
+    // included, and read once the press has landed (P301's review).
+    const resetMark = passwordResetWatch(page.context()).mark();
     try {
       await Promise.all([
         page.waitForLoadState("load", { timeout: STEP_TIMEOUT_MS }),
@@ -275,7 +286,23 @@ export async function createPortalAccount(
     // A portal that refused re-renders the form; a portal that accepted moves
     // on. So "are we still looking at the registration page?" is the question,
     // and it is answered by where the browser actually is.
+    // P301: a press that ended on a reset page, or reached one, is not a
+    // creation — and not a clean failure either. The registration may have
+    // reached the portal before the redirect did (P301's review: it had), so
+    // UNCERTAIN, as any press whose outcome this process cannot see (ADR-0008).
+    if (landedOnPasswordReset(page, resetMark)) {
+      say(`run ${work.runId}: account creation: ${REACHED_A_RESET}; whether the account was made is not known`);
+      return { kind: "uncertain", failure: "portal_drift" };
+    }
+    if (passwordResetWatch(page.context()).since(resetMark) === "resource") {
+      say(`run ${work.runId}: account creation: something on a password reset page was asked for during the press; nothing was sent to it`);
+    }
     const landed = new URL(page.url());
+    // The browser's own error page is no answer of the portal's.
+    if (!/^https?:$/u.test(landed.protocol)) {
+      say(`run ${work.runId}: account creation: the press ended on the browser's own error page; whether the account was made is not known`);
+      return { kind: "uncertain", failure: "runner_fault" };
+    }
     if (landed.pathname === target.pathname) {
       // Still on the form. The portal rejected something — a duplicate email, a
       // rule we do not model. Which one it was is in text this plane must not

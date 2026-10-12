@@ -212,6 +212,41 @@ describe("the account a creation produced", () => {
     expect(said, "never stated as fact").not.toContain("has not been handed back");
   });
 
+  it.each([
+    ["created in the student's name", (state: RunState) => accountCreated(state, { accountId: "acct-1", now: NOW })],
+    ["declared by the student", (state: RunState) => accountDeclared(state, { accountId: "acct-1", declaredAt: NOW, now: NOW })],
+  ] as const)("the handover of an account %s says what the portal's reset does, from the portal's own record (P301)", (_whose, derive) => {
+    // Vahid, 2026-10-12: "If a student loses their password, the handover
+    // message must tell them that resetting replaces their password at once
+    // and the new one arrives by e-mail." Read from the plan's observations,
+    // so the text the student is shown is the text recorded and hashed.
+    const sheffield: ObservedPortalAuthentication = { ...OBSERVED, passwordResetSends: "new_password_in_plain_text" };
+    const told = derive(stateWith({ profile: withEmail(EMAIL), observed: sheffield }))?.account?.handover?.presentedText ?? "";
+    expect(told).toContain("replaces your password at once");
+    expect(told).toContain("the new one arrives by e-mail");
+    const untried = derive(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED }))?.account?.handover?.presentedText ?? "";
+    expect(untried, "a portal nobody has tried is told nothing of it").not.toContain("replaces your password");
+  });
+
+  it("the handover of an account we made, on a portal that never e-mailed the student, says the reset is owed now — as the list beside it does (P301's review)", () => {
+    // ADR-0050 §4 asks for the portal's reset before such an account is
+    // handed back. The text said it was for a lost password while the list
+    // sent with it asked for it now. Whether the requirement should stand on
+    // Sheffield is Vahid's (row 177); the text and the list now agree.
+    const sheffield: ObservedPortalAuthentication = { ...OBSERVED, passwordResetSends: "new_password_in_plain_text" };
+    const created = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: sheffield }), { accountId: "acct-1", now: NOW });
+    const told = created?.account?.handover?.presentedText ?? "";
+    expect(outstandingHandoverItems(created?.account ?? expect.unreachable("an account")).join(" ")).toContain("reset");
+    expect(told).toContain("One thing is left before I can close this off");
+    expect(told).toContain("replaces your password at once");
+    expect(told).not.toContain("If you ever lose your password");
+    // The student's own account owes no reset (ADR-0110), and is not told one is owed.
+    const declared = accountDeclared(stateWith({ profile: withEmail(EMAIL), observed: sheffield }), { accountId: "acct-1", declaredAt: NOW, now: NOW });
+    const theirs = declared?.account?.handover?.presentedText ?? "";
+    expect(theirs).not.toContain("One thing is left");
+    expect(theirs).toContain("If you ever lose your password");
+  });
+
   it("does not mutate the state it was given", () => {
     const before = stateWith({ profile: withEmail(EMAIL), observed: OBSERVED });
     const after = accountCreated(before, { accountId: "acct-1", now: NOW });

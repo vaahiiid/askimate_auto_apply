@@ -42,6 +42,8 @@
 
 import type { Browser, BrowserContext } from "playwright";
 
+import { abortPasswordResetRequests } from "./password-reset-guard.js";
+
 // Redaction is a domain concept, not a browser one — the orchestrator's
 // execution outcomes need it too, and a package may not depend on an app.
 export type { RedactedValue } from "@askimate/aas-domain";
@@ -110,6 +112,16 @@ export async function openSensitiveContext(
   await context.addInitScript({
     content: "globalThis.__name = globalThis.__name || function (f) { return f; };",
   });
+
+  // ── Never a password reset, on any context the run opens (P301) ────────
+  //
+  // Vahid, 2026-10-12: "The run must never press "Forgot password" itself: it
+  // silently replaces the student's password and puts a new one in their
+  // inbox in plain text." Every request to a reset page is aborted, by any
+  // method, before anything else is installed — so the creation's and the
+  // sign-in's contexts, which until P301 carried no route at all, refuse it
+  // too. See ./password-reset-guard.ts for the layers above this one.
+  await abortPasswordResetRequests(context);
 
   // ── Make tracing unavailable, not merely unused ─────────────────────────
   //
