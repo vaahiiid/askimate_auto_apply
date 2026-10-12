@@ -97,7 +97,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     if (!check.usable) expect(check.refusal.kind).toBe("not_reviewed");
   });
 
-  it("carry the third read's row-text labels and observed markers on the five pages — 79 labels, 50 markers, the fourteen wrong labels excluded, the thirteen unread left as their names (P126)", () => {
+  it("carry the third read's row-text labels and observed markers on the five pages — 79 labels, 50 markers, the fourteen wrong labels excluded, the thirteen unread left as their names (P126); two of the fourteen since labelled from his read L, claimed as no observer's (P296)", () => {
     // Vahid, 2026-09-14: "the ceiling is 106 of 149 because 43 fields have no
     // question of their own, and the 13 between 93 and 106 are not a tool
     // failure. They are markup a positional rule cannot reach." And: "79
@@ -111,16 +111,24 @@ describe("the Sheffield drafts, under the real checks", () => {
     const marked = fields.filter((f) => f.validations.some((v) => v.kind === "required" && v.source === "observed_marker"));
     expect(marked).toHaveLength(50);
     // The fourteen the third rule got wrong are not carried: no label from
-    // the row, and the field's name stands.
+    // the row (P126). Twelve keep the field's name; two carry the words his
+    // read L printed, since P296 (below).
     const WRONG = [
       "institutionCode", "unlistedInstitution", "unlistedDegree", "grade", "unlistedGrade",
       "previousCountry1", "dateFromDay1", "dateFromMonth1", "dateFromYear1", "dateToDay1", "dateToMonth1", "dateToYear1",
       "otherInst1", "otherInstCourse1",
     ];
+    // P296: two of them now carry the words his read L printed beside them,
+    // not the third read's positional guess, and no labelSource: the
+    // observer did not read them. The rest keep their names.
+    const FROM_L: Readonly<Record<string, string>> = {
+      unlistedInstitution: "If you cannot find your institution listed, please enter its name below.",
+      unlistedDegree: "If your qualification is not in the list please enter it here:",
+    };
     for (const ref of WRONG) {
       const f = fields.find((x) => x.fieldRef === ref);
       expect(f?.labelSource, ref).toBeUndefined();
-      expect(f?.label, ref).toBe(ref);
+      expect(f?.label, ref).toBe(FROM_L[ref] ?? ref);
     }
     // The thirteen read from the screenshots at review: unlabelled here, by
     // name, and never a label the file did not carry.
@@ -136,7 +144,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.34");
+    expect(blueprint.version).toBe("0.2.35");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -451,8 +459,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.34");
-    expect(mappingSet.version).toBe("0.3.46");
+    expect(blueprint.version).toBe("0.2.35");
+    expect(mappingSet.version).toBe("0.3.47");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -900,9 +908,10 @@ describe("the Sheffield drafts, under the real checks", () => {
     // P293: with the institution box a constant, its escape is never chosen,
     // so the grading system's row for that escape could never be taken, and
     // `checkUsable` refuses a row that rests on nothing. The hypothetical
-    // drops that row with the box's own mapping.
+    // drops that row with the box's own mapping. P296: and the grade's row
+    // after the same escape, for the same reason.
     const withoutEscapedRow = (m: (typeof asIfReviewed.mappings)[number]) =>
-      m.fieldRef === "gradingSystemId" && m.source.kind === "profile_field"
+      (m.fieldRef === "gradingSystemId" || m.fieldRef === "grade") && m.source.kind === "profile_field"
         ? { ...m, source: { ...m.source, format: Object.fromEntries(Object.entries(m.source.format).filter(([key]) => key !== "escaped")) as typeof m.source.format } }
         : m;
     const naming = (value: string) => ({
