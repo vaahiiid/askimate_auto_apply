@@ -2,8 +2,9 @@
 
 > ## Run A was made on 2026-09-22. The distance is zero.
 >
-> Attempt 10 signed in through the consent path, filled, saved and read back six pages of Part 1 on
-> Vahid's own account under the fifth signature, handed over and reached `ready_to_submit` with
+> Attempt 10 signed in through the consent path, filled, saved and read back the last three of six
+> pages of Part 1 (attempt 4 had saved the first three; corrected in P300, which found this line
+> crediting attempt 10 with all six) on Vahid's own account under the fifth signature, handed over and reached `ready_to_submit` with
 > **nothing submitted**. The portal's own line: *"Completed Part 1 — You have now completed all the
 > required fields in this section and can now return to the overview to make your course choices."*
 > He checked `summary.do` by hand, section by section, against `what-will-be-typed.md`: every value
