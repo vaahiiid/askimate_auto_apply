@@ -1,13 +1,64 @@
 # ADR-0158 — A portal is learned once; a student's values are resolved per application against the live list
 
-**Status:** Proposed · written 2026-10-12 (P297) for Vahid's approval, at his request in his own
-words · **not agreed by Vahid, so nothing here is built** · would amend
+**Status:** Accepted in direction · approved by Vahid on 2026-10-13, in his own words (below), with
+four of its five open points decided by him and the fifth, §4's ordering, his to choose · written
+2026-10-12 (P297) for his approval, at his request · **nothing here is built yet** · amends
 [ADR-0156](./0156-ask-the-student-only-when-it-matters.md) §1, §3 and §4(a),
 [ADR-0155](./0155-a-student-chooses-from-the-forms-own-list.md),
 [ADR-0109](./0109-a-typeahead-mapping-names-the-value-the-form-submits.md) as amended in P290,
 [ADR-0101](./0101-the-yes-comes-first-and-a-runner-is-signed-in-for-one-sitting.md) if §4's option
 (a) is chosen, [ADR-0017](./0017-mapping-is-reviewed-data.md), and the rule at the head of
 `packages/mapping/src/mapping.ts`
+
+## Decided, in his words (2026-10-13)
+
+Saved whole as sent: [`docs/run-a/p302-his-decisions-as-sent.txt`](../run-a/p302-his-decisions-as-sent.txt).
+
+> *"ADR-0158: I approve the direction. On its five open points:*
+> *1. A label with two values: the run never picks one. It asks the student before the run, showing
+> both; if they cannot tell them apart, it stops for me.*
+> *2. Pressing the escape is permitted only when both hold: the student accepted the escape rule at
+> intake, and the live search at run time shows their exact words are not on the list.*
+> *3. Equal maxima count as an exact match only when the kind is also the same: points with points,
+> percentage with percentage.*
+> *4. The subject search word is the student's exact subject wording, searched once. No exact match:
+> the escape. The run never tries other words.*
+> *5. The three orderings: explain each in one plain sentence with your recommendation. I will
+> choose."*
+
+What each settles below:
+- **1 settles §2.1:** who settles a label with two values. The student is asked before the run,
+  with both shown. If they cannot tell them apart, the run stops for him.
+- **2 settles §2.2:** what permits the escape's press. Both conditions must hold: the student
+  accepted the escape rule at intake (ADR-0156 §4(a)'s standing rule), and the live search shows
+  their exact words are not on the list. A preview yes alone does not permit it.
+- **3 settles §2.3:** equal maxima are an exact match only with the same kind, points with points
+  and percentage with percentage. So §3's signed vocabulary must say each entry's kind as well as
+  its maximum. §3's choice between a table and a rule is not among his five points. The table is
+  the form that can carry a kind, so this ADR reads his point 3 as needing it. That reading is
+  mine, and his to correct.
+- **4 settles §4's search word:** the student's exact subject wording, searched once. No exact
+  match on what comes back means the escape, under point 2's two conditions. No other word is ever
+  tried.
+
+**Point 5, the ordering (§4), explained for his choice, one sentence each:**
+- **(a) The account first:** the student says yes to creating their account on its own, and the
+  run creates it, reads the lists inside it and only then shows the application for their yes, so an
+  account with their e-mail and a password exists before they have approved the application.
+- **(b) Signed out:** the run reads the lists without any account, which works only where the
+  portal answers a visitor, and on Sheffield it cannot read the grading, grade and subject lists,
+  which load in a way the read-only guard refuses.
+- **(c) An account of ours:** the run reads the lists through an AskiMate account on each portal,
+  so the student's words are typed into the portal under a name that is not theirs, which the
+  portal's terms may not allow.
+
+**Recommended: (a).** It is the only one of the three that serves Sheffield's lists whole without an
+account of ours. Its cost is real, and the student accepts it on its own yes. ADR-0101 A1 changes to
+"the account's yes comes first", and the fill after the preview signs in again, as the resume path
+does today (ADR-0101 B). For his own live run it would also move the account's creation, which
+today comes after his yes on the preview, to before it. Measure (b) only where one read would
+settle it. This supersedes §4's earlier "measure (b) first". **His choice; nothing is built until he
+makes it.**
 
 ## Why this exists
 
@@ -41,7 +92,7 @@ between the first (`3575eb1e`, 2026-09-16) and the tenth (`34760af4`, 2026-10-10
 apart by commit time, and an eleventh waiting. Sheffield is 31 days past its first capture and has
 reached no stage beyond it ([`docs/onboarding/sheffield-pgt.json`](../onboarding/sheffield-pgt.json)).
 
-## Decision (proposed)
+## Decision (proposed in P297; its direction approved in his words above, 2026-10-13)
 
 ### 1. What is structure, learned once and signed once
 
@@ -68,19 +119,21 @@ this student's application has already made (their country; their institution), 
    (*Sheffield International College*, `SCH40484` and `SHE0512`), nothing tells the student which is
    theirs, so it is a question before the run whose answer is not the student's to know; today a
    signed row chooses `SHE0512`, with no reason recorded. Who settles such a case is **undecided,
-   his to say**.
+   his to say**. *Decided 2026-10-13: his point 1 above.*
 2. **No exact match: the escape plus their exact words**, in the box the escape opens, within its
    limit. This presses the escape without a choice recorded on an offer, which ADR-0109 as amended
    in his words forbids today (*"the runner may choose the form's escape entry when, and only when,
    the student has chosen it. Never otherwise, and never as a fallback when nothing matches"*).
    Under this ADR the record that permits the press is the student's yes on the preview line that
    says it (§5), or ADR-0156's standing rule where he has accepted one. Which of the two is **his
-   to say**. Words that do not fit the box are a question before the run (ADR-0156 §5 stands).
+   to say**. *Decided 2026-10-13, his point 2 above: the intake rule AND a live search showing the
+   exact words are not on the list; a preview yes alone does not permit it.* Words that do not fit the box are a question before the run (ADR-0156 §5 stands).
 3. **The escape leads nowhere** (Sheffield's grading system): the listed entry that names the
    maximum the student stated, using the portal's signed vocabulary of maxima (§3). That is this
    ADR's reading of his *"the student's stated scale matches one exactly"*: equal maxima, not equal
    words, because no label on the list is a student's phrasing. Two different scales can share a
-   maximum, so whether equal maxima is "matches exactly" is **his to say**. The stated maximum comes
+   maximum, so whether equal maxima is "matches exactly" is **his to say**. *Decided 2026-10-13,
+   his point 3 above: only with the same kind.* The stated maximum comes
    from the profile: a scale the student stated in words ("out of 10", P297) names it; a token
    names it through a signed table of its own (`twenty_point` → 20, `gpa_4` → 4, `percentage` →
    100; `uk_honours` names none). Exactly one entry, or a question before the run.
@@ -131,7 +184,8 @@ reads the grading systems, reads the grades; for the subject, it types into the 
 presses the search button, as the blueprint's `optionsAfter` says (Sheffield loads subjects only
 after a press, and today the word typed is a signed row, `business` or `international`, for all 94
 subjects). Which word is typed for the subject, the student's whole words or a part of them, is
-**undecided, his to say**; a portal that truncates its labels (*"Business Studies With Humaniti"*)
+**undecided, his to say** (*decided 2026-10-13, his point 4 above: the student's exact wording,
+searched once*); a portal that truncates its labels (*"Business Studies With Humaniti"*)
 can never equal a student's words, so for such a list exact matching means the escape. It **never
 saves, never presses an advance or a submit**, and presses only the blueprint's `optionsAfter`
 presses. It records what each list showed and what it was shown under (the rule *"a read prints
@@ -162,14 +216,15 @@ created only after the student's yes (ADR-0101, ADR-0144). Three ways through, h
   the portal under an account that is not theirs; the portal's terms decide whether that is
   allowed.
 
-Recommended: measure (b) first, from his browser (a signed-out search, one read). Where it does
+Recommended (P297; superseded in P302 by the recommendation of (a) under "Decided" above): measure
+(b) first, from his browser (a signed-out search, one read). Where it does
 not answer, (a) or (c) is a decision about ADR-0101 and about the portal's terms, and both are his.
 
 ### 5. Marked in the preview, approved by the student
 
 Each resolved value prints with how it was resolved: *exactly as you said it, on the form's list*;
 *not on the form's list: sent in your own words*; *the form's 20-point entry, for your scale "out
-of 20"*; and, under ADR-0157 if he approves it, the source of every other line too. The hash takes
+of 20"*; and, under ADR-0157 (approved 2026-10-13, not built), the source of every other line too. The hash takes
 the mark **and the resolved label** into its line, as well as the value: today it hashes the value
 alone, so a list that kept a value and changed its label would not void the student's yes.
 
@@ -231,10 +286,10 @@ alone, so a list that kept a value and changed its label would not void the stud
   live list under §2, or an entry of §3's signed table.
 - **ADR-0156 §1 and §4(a)**: the escape becomes the answer whenever nothing matches, which §1 and
   the standing rule of §4(a) (accepted at intake, worded explicitly, withdrawable) govern today;
-  §2.2 above says what would permit the press, for him to decide.
+  §2.2 above says what would permit the press: decided by him as point 2 (2026-10-13).
 - **ADR-0109 as amended in P290**, in his words: *"never as a fallback when nothing matches"*.
-  §2.2 makes the escape exactly that, on the student's yes to the marked preview line or a standing
-  rule; and the value the form submits is the one the live list pairs with the exact label,
+  §2.2 makes the escape exactly that, under his point 2: the intake rule and a live search, never
+  a preview yes alone; and the value the form submits is the one the live list pairs with the exact label,
   recorded at the pass, checked by label and value at the fill.
 - **ADR-0155**: offers come from the list the resolution pass read, not only from lists on file.
 - **ADR-0101 A1, A2 and B**, if §4's (a) is chosen.
@@ -256,4 +311,5 @@ choice), the record per application, the label-and-value check at the fill, §3'
 choice), the preview marks and the hash line, and the removal of the rows and of the checks that
 guard them. Five things in it are his to say before it can be built: who settles a label with two
 values (§2.1), what permits the escape's press (§2.2), whether equal maxima is an exact match
-(§2.3), the subject's search word (§4), and the ordering (§4 (a), (b) or (c)).
+(§2.3), the subject's search word (§4), and the ordering (§4 (a), (b) or (c)). The first four were
+decided by him on 2026-10-13 (above); the ordering is still his to choose.

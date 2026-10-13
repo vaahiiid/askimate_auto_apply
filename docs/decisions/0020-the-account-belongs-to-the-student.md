@@ -253,6 +253,12 @@ that, with nothing guarding the context, a press does replace it.
 What is said is which check fired, in fixed words, and never the control's own words or where it
 goes. The runner's log takes nothing from a page (P301's review).
 
+**Reads, too, in his words (2026-10-13, [`docs/run-a/p302-his-decisions-as-sent.txt`](../run-a/p302-his-decisions-as-sent.txt)):** *"Reads never open a reset page."* And of a
+reset made mid-run: *"If someone resets mid-run, the sign-in fails; ask the student once for the
+new password, then hand to a person."* As built, a first failed sign-in asks once more and a second
+goes to a person (ADR-0120). The words naming a reset, and holding the discovery and inspection
+tools to the rule, are still to build (state-of-the-system row 177).
+
 **What it cannot see:** a reset whose URL and words say neither — *"Trouble signing in?"* pointing
 at an opaque path, or the words in another language. A miss is not evidence of safety, which is why
 the rule is stated at every layer rather than at one.

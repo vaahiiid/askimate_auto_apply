@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.295.0] — 2026-10-13
+
+**P302 — his decisions of 2026-10-13, in his words: the sheet rebuilt with AUTH 5 on Run A alone,
+ADR-0157 approved, ADR-0158 approved in direction with four of its five points, his rule on
+reasoned facts, and what stands between today and his live run.**
+
+- **Changed** `docs/run-a/p300-for-signature.md` and its patch: AUTH 5 rests on Run A's sign-ins
+  alone, at his word (*"I cannot confirm the exact words of 2026-09-11"*). Its Run A source no
+  longer says the runner signed in to "his account with his email". His confirmation of the three
+  AUTH 7 readings is recorded. New hash `sha256:2a4ae5a9…`; `e74ade25…` withdrawn. Not signed.
+- **Accepted** ADR-0157 (*"ADR-0157: I approve it."*), with his rule recorded on it: reasoned facts
+  stand for his own account only, and before any other student is served every fact the account
+  chooser relies on must be observed. Not built.
+- **Accepted in direction** ADR-0158, with his decisions on its points 1 to 4 and the three
+  orderings of point 5 explained for his choice. Not built.
+- **Recorded** his decisions on rows 152, 169, 171 to 175, 177 and 178. His live run uses a new
+  Sheffield account the run creates with his own e-mail. The account the reads use is for reads
+  only. History is not rewritten, and that must be revisited before anyone else gets access. The
+  builds for rows 171, 172, 173 and 177 wait, at his word, behind the sheet, ADR-0158 and his
+  live run.
+- **Added** his message, saved as sent (`docs/run-a/p302-his-decisions-as-sent.txt`).
+- **Added** `docs/run-a/p302-what-stands-before-his-live-run.md`: twelve items between today and
+  his live run reaching `ready_to_submit`, each with its evidence and whose it is, checked by a
+  completeness critic.
+
+---
+
 ## [0.294.0] — 2026-10-12
 
 **P301 — his "Forgot password" result: the run never presses one, the handover says what this

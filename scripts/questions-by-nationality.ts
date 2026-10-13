@@ -104,7 +104,7 @@ if (process.argv[1] !== undefined && import.meta.filename === process.argv[1]) {
       formatQuestions(today),
       `  Sheffield under ADR-0156, no standing rule: ${String(bare.perApplication.length)}; with the intake's escape rule: ${String(withRule.perApplication.length)}`,
       formatQuestions(withRule.perApplication),
-      `  Sheffield under ADR-0158 (proposed): not measured — no list under ${student.code} has been read`,
+      `  Sheffield under ADR-0158 (approved in direction, not built): not measured — no list under ${student.code} has been read`,
       "",
     );
   }

@@ -18,6 +18,10 @@ the stack restarted with P221's page.
 
 1. **A dedicated e-mail address**, made by him, for this account only. Nothing here reads that
    mailbox (ADR-0020 §5). He tells the chat the address when the interview asks for `contact.email`.
+   *P302, 2026-10-13, his words: "my live run uses a NEW Sheffield account, created by the run
+   itself (ADR-0144), with my own e-mail address."* So not a dedicated address: his own, told to
+   the chat as `contact.email`. What stands before the run, as a list:
+   [`p302-what-stands-before-his-live-run.md`](./p302-what-stands-before-his-live-run.md).
 2. **The local stack on the catalogue** — the conversation service, the run driver, the runner and
    the secure plane against the entry `docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json`
    (hash `sha256:7b46e6fe…` at the time of writing; the signature covers whatever hash is current
@@ -100,4 +104,5 @@ the stack restarted with P221's page.
 - Where a **created account lands**. The runner reads success by the path changing; the evidence
   that it does is his one observation (row 89).
 - What Sheffield does with a **duplicate e-mail** — the dedicated address exists to make that
-  question moot for this run.
+  question moot for this run. *P302: his own address now, so the question is open again: item 4 of
+  [`p302-what-stands-before-his-live-run.md`](./p302-what-stands-before-his-live-run.md).*

@@ -3,6 +3,14 @@
 **Status:** Accepted · 2026-09-25 · amends 0110 §2 for the item-6 run · continues 0020 §5 (the mailbox is never read), 0114 (two attempts, then a person), 0131 (a consent notice is answered only with the student's own choice)
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-25, on reading that item 6 had been framed as starting on an account he would register by hand. Built in P219 inside item 6 of the list to `ready_to_submit`; no seventh item.
 
+## Clarified, in his words (2026-10-13)
+
+[`docs/run-a/p302-his-decisions-as-sent.txt`](../run-a/p302-his-decisions-as-sent.txt): *"Row 174: my live run uses a NEW Sheffield account, created by the run itself (ADR-0144),
+with my own e-mail address. My wife's account stays for read-only reads only. No separate sign-in
+address for now."* So the account this ADR's run creates is registered with his own e-mail, not a
+dedicated one, and that address is the profile's `contact.email`, the one the run types. The
+account the reads use is never signed in to by a run.
+
 ## Context
 
 The list in `docs/what-stands-between-a-person-and-ready-to-submit.md` had item 6 — the signature
@@ -48,7 +56,7 @@ And, from earlier the same day, what the run needs from him:
 So:
 
 1. **The item-6 run starts from no account.** The system creates it, on the dedicated e-mail he
-   makes, with a password only he has typed, through the secure channel (ADR-0020, ADR-0042). ADR-0110
+   makes (*P302: his own e-mail now; see "Clarified" above*), with a password only he has typed, through the secure channel (ADR-0020, ADR-0042). ADR-0110
    §2 — *"the run enters my existing account"* — is amended for this run and this run only: the
    account is still his, still the one an `ownAccountOnly` approval names (ADR-0118), and it comes
    to exist by the run rather than before it. Nothing in ADR-0110's refusal of a synthetic applicant

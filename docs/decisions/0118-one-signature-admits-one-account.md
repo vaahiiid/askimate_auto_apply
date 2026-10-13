@@ -93,8 +93,8 @@ the CLI must name the one account it admits, whatever names it carries. §2's te
 decided until ADR-0157 is. A defect fixed in the same phase, not his words: a second record in
 `approvals.json` for content already signed replaced the first in silence, and is refused now. Who may sign for any applicant is named by code, never by the file, and production
 names nobody. Whether his single signature may serve other students is
-[ADR-0157](./0157-while-he-is-the-sole-founder-his-signature-serves-other-students.md), proposed and
-not decided.
+[ADR-0157](./0157-while-he-is-the-sole-founder-his-signature-serves-other-students.md), approved by
+him on 2026-10-13 and not yet built: §2 holds in code until that build.
 
 ## What this deliberately gives up
 

@@ -89,8 +89,8 @@ export interface Approval {
    * admit any applicant, and the only test of a second person was that two
    * name strings differed: "Vahid Mohammadi" beside "vahid mohammadi",
    * "Vahid", his email or an agent's name all passed. Whether his single
-   * signature may admit other students is ADR-0157's question, proposed and
-   * not decided.
+   * signature may admit other students is ADR-0157's question, approved on
+   * 2026-10-13 and not yet built.
    */
   readonly ownAccountOnly?: { readonly studentId: string };
   /** Free text: what was checked, or which review this came from. */

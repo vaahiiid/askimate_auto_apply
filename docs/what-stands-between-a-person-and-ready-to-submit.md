@@ -324,8 +324,8 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 ## What needs his hand, batched
 
 - ~~**Two reads on his account, read-only**~~ — both made (items 4 and 5, 2026-09-25).
-- **A dedicated e-mail address**, made by him, for the account the run creates (ADR-0144). He
-  registers nothing by hand.
+- ~~**A dedicated e-mail address**, made by him, for the account the run creates (ADR-0144). He
+  registers nothing by hand.~~ *P302, his words: "with my own e-mail address."*
 - ~~**A fresh `students` row's id** in `approvals.json`, and **one signature** at the end~~ — given
   2026-09-25 (4e05911): `7b46e6fe…`, admitting `5774ff16-…` only.
 - **His answers** in the chat, **his consent choice** when the run asks it, **his password** in the
@@ -419,6 +419,14 @@ Each of these is real. None of them stops the sentence. Each has a blocker row (
 - **2026-10-12 (P298):** the guard before final submission now sees Sheffield's submit controls (row 155); the test portals take the interview's ISO nationalities (row 157); six synthetic students measured on the stand-in (3 to 6 questions each on Sheffield today); his run through the remaining pages and the live read-only searches written for him (`docs/run-a/p298-plan.md`); pages with nothing mapped are never saved (row 168). Nothing on this list moved: the distance is unchanged.
 - **2026-10-12 (P299):** P296's patch signed at his word (the grade row from read R and the escape boxes' words from read L); his run asks 5 today, 4 with "DBA"; AUTH 7 recorded as not observed outside the signed entry; whether the entry's change waits for row 170 (traced, not run: a refused chooser hides an account a run holds) is his to say; rows 169 and 170 opened. Nothing on this list moved: the distance is unchanged.
 - **2026-10-12 (P300):** row 170 fixed, seen failing first: a held account stays in view and owed when a fact reads unobserved, and no stop or abandon closes a case over an account not handed back, or over a creation whose outcome is not known; a person holds what the student cannot be asked to take back (widened after the review). AUTH 3, 5, 6 and 8 by their real source in a sheet for his signature (`sha256:31770fb8…`); AUTH 7 waits on his "Forgot password" try; rows 171, 172 and 173 opened. Nothing on this list moved: the distance is unchanged.
+- **2026-10-13 (P302):** his decisions recorded in his words:
+  - the sheet is rebuilt with AUTH 5 on Run A alone, at `sha256:2a4ae5a9…`, not signed;
+  - ADR-0157 is approved, and ADR-0158 is approved in direction with points 1 to 4;
+  - his live run uses a new account the run creates with his own e-mail.
+
+  What stands between today and that run reaching `ready_to_submit` is listed in twelve items in
+  `docs/run-a/p302-what-stands-before-his-live-run.md`. One of them is code: the creation's consent
+  check at the press. Nothing on this list moved: the distance is unchanged.
 - **2026-10-12 (P301):** his "Forgot password" result recorded. The run never presses a reset, held at four layers, with one gap seen and not refused (a 307, row 178). The handover can say what a portal's reset does; for Sheffield it will once he signs. AUTH 7 has joined P300's sheet for his signature (`sha256:e74ade25…`). The account his reads use signs in with an address that is not his, and the run assumes otherwise (row 174). Rows 174 to 178 are opened. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P272):** an abandoned application is said so to the student (row 126); row 129 open. Nothing on this list moved: the distance is unchanged.
 - **2026-10-03 (P270, P271):** the retention sweep's cost measured (row 128); *use my CV* after a reading answered truly (row 126, D25). Nothing on this list moved: the distance is unchanged.

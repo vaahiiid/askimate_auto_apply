@@ -1,0 +1,28 @@
+Do not sign P300's sheet. My earlier messages with decisions did not reach you; here they all are, in my own words.
+
+SIGNING
+- AUTH 5: I cannot confirm the exact words of 2026-09-11. Rebuild AUTH 5 to rest on Run A's observation alone.
+- AUTH 7: your three readings are right (source "stated", the one paragraph ending "I am changing it now.", value true).
+- Rebuild the sheet with this and give me the new signing message.
+
+AUTH AND ACCOUNTS
+- Reasoned facts (AUTH 8) may stand for my own account only. Before any other student is served, every auth fact the account chooser relies on must be observed. Record this as a rule.
+- Row 171: a student's stop must always be taken. If the run's situation cannot be built, stop anyway and hand the case to a person.
+- Row 172: an unplanned account closes as handed back only on the student's own explicit confirmation in chat that they signed in. Otherwise a person confirms.
+- Row 173: build the way you proposed.
+- Row 174: my live run uses a NEW Sheffield account, created by the run itself (ADR-0144), with my own e-mail address. My wife's account stays for read-only reads only. No separate sign-in address for now.
+- Row 175: do not rewrite history. The repository is private. Record that this must be revisited before anyone else gets access.
+- Row 177: keep the reset before handing over an account the run creates. If someone resets mid-run, the sign-in fails; ask the student once for the new password, then hand to a person. Reads never open a reset page.
+- Row 178: do not build it now. Record it.
+
+ADR-0157: I approve it.
+
+ADR-0158: I approve the direction. On its five open points:
+1. A label with two values: the run never picks one. It asks the student before the run, showing both; if they cannot tell them apart, it stops for me.
+2. Pressing the escape is permitted only when both hold: the student accepted the escape rule at intake, and the live search at run time shows their exact words are not on the list.
+3. Equal maxima count as an exact match only when the kind is also the same: points with points, percentage with percentage.
+4. The subject search word is the student's exact subject wording, searched once. No exact match: the escape. The run never tries other words.
+5. The three orderings: explain each in one plain sentence with your recommendation. I will choose.
+
+PRIORITY
+After the sheet, ADR-0158 and my live run come first. Before building more safety around accounts, tell me what stands between today and my live run creating its own account and reaching ready_to_submit, as a short numbered list.

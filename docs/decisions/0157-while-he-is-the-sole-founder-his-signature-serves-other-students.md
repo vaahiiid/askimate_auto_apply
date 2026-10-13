@@ -1,10 +1,49 @@
 # ADR-0157 — While he is the sole founder, his signature serves other students, with compensating controls in its place
 
-**Status:** Proposed · written 2026-10-12 (P297) for Vahid's approval, at his request in his own
-words · **not agreed by Vahid, so nothing in its Decision is built** · would amend
-[ADR-0118](./0118-one-signature-admits-one-account.md) §2 and its "What this deliberately gives up",
-[ADR-0057](./0057-approval-binds-to-content-not-to-claims.md) property 4, and
+**Status:** Accepted · approved by Vahid on 2026-10-13, in his own words (below) · written
+2026-10-12 (P297) for his approval, at his request · **nothing in its Decision is built yet** ·
+amends [ADR-0118](./0118-one-signature-admits-one-account.md) §2 and its "What this deliberately
+gives up", [ADR-0057](./0057-approval-binds-to-content-not-to-claims.md) property 4, and
 [ADR-0017](./0017-mapping-is-reviewed-data.md) §1
+
+## Approved, in his words (2026-10-13)
+
+Saved whole as sent: [`docs/run-a/p302-his-decisions-as-sent.txt`](../run-a/p302-his-decisions-as-sent.txt).
+
+> *"ADR-0157: I approve it."*
+
+And, the same message, a rule that belongs to it, because it is about serving students other than
+himself:
+
+> *"Reasoned facts (AUTH 8) may stand for my own account only. Before any other student is served,
+> every auth fact the account chooser relies on must be observed. Record this as a rule."*
+
+**The rule is his sentence above, as he wrote it.** Today nothing admits another student
+(ADR-0118), so it holds by construction. Building this ADR must enforce it, refusing such an
+admission where a fact the chooser reads is not observed. That is part of this ADR's build, not yet
+done.
+
+**What "observed" means here is not yet his word, and it matters.** P300's per-fact sources
+(`packages/account/src/authentication.ts`) have three kinds:
+- `observed`: a read or a run named;
+- `stated`: a person's own words, with who and when;
+- `reasoned`: from the design.
+
+If "observed" in his rule means the type's `observed` kind, these Sheffield facts would not pass,
+because each rests on his own statement or try (`stated`):
+- AUTH 1 and 2, his words of 2026-09-11;
+- AUTH 4, his observations of 2026-10-01;
+- AUTH 7, his try of 2026-10-12, whose source he confirmed as "stated".
+
+AUTH 7 could then never pass on Sheffield. The run never presses a reset (P301), and by his words
+of the same message, *"Reads never open a reset page."*
+
+If "observed" includes a person's own observation in their own words, those four pass and only a
+`reasoned` fact (AUTH 8) does not. **Which he means is his to say;** until he says, this ADR
+records his sentence, and no reading of it.
+
+**Priority, in his words, same message:** *"After the sheet, ADR-0158 and my live run come
+first."* So this ADR is built after those.
 
 ## Why this exists
 
@@ -55,7 +94,7 @@ set, because the profile holds the same value in both sources; the residence mon
 not planned for it. The content hash changes when one is made after the signature; nothing refuses
 one signed in.
 
-## Decision (proposed)
+## Decision (proposed in P297; approved in his words above, 2026-10-13)
 
 ### 1. A founder's signature is its own kind of admission
 
@@ -166,12 +205,15 @@ signed entry's line 30613 and the distance document's line 124). They are in `RE
 `docs/what-a-controlled-live-run-needs.md`, `docs/distance-to-a-reviewed-sheffield-run.md` (line
 177), the review pack, the draft mapping set's line 5, the signed entry's `$comment`, ADR-0118
 (twice), and the journal (`docs/where-we-are.md`), which stays as the record of its day. Each of
-the others would say what replaced it and point here. The entry's `$comment` sits outside its
+the others would say what replaced it and point here. *Approved 2026-10-13; these records change
+when the Decision is built, because until then the precondition is what holds in code: nothing
+serves another student. They are left as they stand until that build, which comes after the sheet,
+ADR-0158 and his live run, at his word.* The entry's `$comment` sits outside its
 content hash (measured in P297: the hash is unchanged with the comment rewritten), so it can be
 changed without his signature, and his signature does not cover it.
 
 ## Not built
 
-Everything under "Decision (proposed)". Built in P297 and not part of this proposal: the refusal of
+Everything under "Decision". Built in P297 and not part of this proposal: the refusal of
 an approval with no account named whatever its names, the refusal of a second record for signed
 content, and `catalogue check`'s line for an admission no file can now produce.

@@ -1,5 +1,5 @@
 diff --git a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
-index 42423c47..e0eeb61f 100644
+index 42423c47..54c3fe9c 100644
 --- a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
 +++ b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
 @@ -1,6 +1,6 @@
@@ -21,7 +21,7 @@ index 42423c47..e0eeb61f 100644
 -      "AUTH 6 — Is a CAPTCHA present, and where?",
 -      "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
 -      "AUTH 8 — Can control be handed back cleanly?",
-+      "AUTH 5 — Is MFA or a one-time code required, and where? NOT AT SIGN-IN — STATED by Vahid, 2026-09-11 ('no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.'), and OBSERVED by Run A's sign-ins, attempts 4 to 10; registration not observed by a run (P300; portalAuthentication.sources.mfaOrOtpRequired)",
++      "AUTH 5 — Is MFA or a one-time code required, and where? NOT AT SIGN-IN — OBSERVED by Run A's sign-ins, attempts 4 to 10 (2026-09-21 to 2026-09-22); registration not observed by a run. It does not rest on his statement of 2026-09-11, whose exact words he cannot confirm (P302; portalAuthentication.sources.mfaOrOtpRequired)",
 +      "AUTH 6 — Is a CAPTCHA present, and where? NONE on the pages read — OBSERVED by the signed-in read of 2026-09-10, the signed-out read of 2026-09-11 (Google Tag Manager refused on both), the runner's read of the login page of 2026-09-18 and Run A's attempts 4 and 10; registration submitted not observed (P300; portalAuthentication.sources.captchaPresent)",
 +      "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address? YES, AND IT REPLACES THE PASSWORD AT ONCE — STATED by Vahid, 2026-10-12, who tried it on the account used for the reads: no reset link is sent; Sheffield generates a new password, replacing the old one, and e-mails it in plain text to the account's address. The run never presses it (P301; portalAuthentication.sources.passwordResetAvailable, portalAuthentication.passwordResetSends)",
 +      "AUTH 8 — Can control be handed back cleanly? YES — REASONED FROM THE DESIGN, NOT OBSERVED: from AUTH 1, the password is the student's own and never held here (ADR-0020, ADR-0101); no account has been handed back on this portal (P300; portalAuthentication.sources.credentialsCanBeHandedBack)",
@@ -46,10 +46,10 @@ index a760171c..b12b2eb5 100644
    "authoredAt": "2026-09-11T12:00:00Z",
    "mappings": [
 diff --git a/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json b/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json
-index fe99a99e..27ef39e8 100644
+index fe99a99e..fa9792f8 100644
 --- a/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json
 +++ b/docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json
-@@ -42,6 +42,63 @@
+@@ -42,6 +42,57 @@
    "emailVerificationRequired": false,
    "mfaOrOtpRequired": false,
    "captchaPresent": false,
@@ -71,14 +71,8 @@ index fe99a99e..27ef39e8 100644
 +    ],
 +    "mfaOrOtpRequired": [
 +      {
-+        "kind": "stated",
-+        "by": "Vahid Mohammadi",
-+        "on": "2026-09-11",
-+        "words": "no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for."
-+      },
-+      {
 +        "kind": "observed",
-+        "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in to his account with his email and password, through the consent path, read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
++        "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in, through the consent path, to the account the reads use, with that account's e-mail and a password typed once through the secure box; it read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
 +      }
 +    ],
 +    "captchaPresent": [
@@ -116,10 +110,10 @@ index fe99a99e..27ef39e8 100644
 +  }
  }
 diff --git a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
-index 187b71d8..f926c27a 100644
+index 187b71d8..676050b4 100644
 --- a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
 +++ b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
-@@ -41,11 +41,68 @@
+@@ -41,11 +41,62 @@
      "mfaOrOtpRequired": false,
      "captchaPresent": false,
      "passwordResetAvailable": true,
@@ -139,14 +133,8 @@ index 187b71d8..f926c27a 100644
 +      ],
 +      "mfaOrOtpRequired": [
 +        {
-+          "kind": "stated",
-+          "by": "Vahid Mohammadi",
-+          "on": "2026-09-11",
-+          "words": "no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for."
-+        },
-+        {
 +          "kind": "observed",
-+          "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in to his account with his email and password, through the consent path, read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
++          "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in, through the consent path, to the account the reads use, with that account's e-mail and a password typed once through the secure box; it read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
 +        }
 +      ],
 +      "captchaPresent": [
@@ -190,7 +178,7 @@ index 187b71d8..f926c27a 100644
      "status": "reviewed",
      "institutionName": "University of Sheffield",
      "courseName": "MSc Management and International Business",
-@@ -30759,12 +30816,12 @@
+@@ -30759,12 +30810,12 @@
          "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
          "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
          "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
@@ -201,14 +189,14 @@ index 187b71d8..f926c27a 100644
 -        "AUTH 6 — Is a CAPTCHA present, and where?",
 -        "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
 -        "AUTH 8 — Can control be handed back cleanly?",
-+        "AUTH 5 — Is MFA or a one-time code required, and where? NOT AT SIGN-IN — STATED by Vahid, 2026-09-11 ('no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.'), and OBSERVED by Run A's sign-ins, attempts 4 to 10; registration not observed by a run (P300; portalAuthentication.sources.mfaOrOtpRequired)",
++        "AUTH 5 — Is MFA or a one-time code required, and where? NOT AT SIGN-IN — OBSERVED by Run A's sign-ins, attempts 4 to 10 (2026-09-21 to 2026-09-22); registration not observed by a run. It does not rest on his statement of 2026-09-11, whose exact words he cannot confirm (P302; portalAuthentication.sources.mfaOrOtpRequired)",
 +        "AUTH 6 — Is a CAPTCHA present, and where? NONE on the pages read — OBSERVED by the signed-in read of 2026-09-10, the signed-out read of 2026-09-11 (Google Tag Manager refused on both), the runner's read of the login page of 2026-09-18 and Run A's attempts 4 and 10; registration submitted not observed (P300; portalAuthentication.sources.captchaPresent)",
 +        "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address? YES, AND IT REPLACES THE PASSWORD AT ONCE — STATED by Vahid, 2026-10-12, who tried it on the account used for the reads: no reset link is sent; Sheffield generates a new password, replacing the old one, and e-mails it in plain text to the account's address. The run never presses it (P301; portalAuthentication.sources.passwordResetAvailable, portalAuthentication.passwordResetSends)",
 +        "AUTH 8 — Can control be handed back cleanly? YES — REASONED FROM THE DESIGN, NOT OBSERVED: from AUTH 1, the password is the student's own and never held here (ADR-0020, ADR-0101); no account has been handed back on this portal (P300; portalAuthentication.sources.credentialsCanBeHandedBack)",
          "PART 2, read 2026-09-25 (581070e): the overview's only two links out of Part 1 are plain <a href> GETs, studyprogrammetaught.do and studyprogrammeresearch.do — no form, no button — so opening Part 2 commits nothing. The taught page's own form POSTs to itself with saveBtn and backBtn, the shape of every Part 1 page, and carries NO submit-the-application control. WHERE THE FINAL SUBMISSION IS remains UNREAD: the overview's HTML was not kept, and nothing read shows what appears once a course choice is saved. Vahid pressed nothing.",
          "PART 2, the research route (studyprogrammeresearch.do): UNREAD by his word — a row, not a phase.",
          "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
-@@ -30852,10 +30909,10 @@
+@@ -30852,10 +30903,10 @@
        "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
      ],
      "mappingSetId": "map-sheffield-pgt-2027-09",
@@ -238,7 +226,7 @@ index 0415f1a2..7f64cc0c 100644
 -Reference: sha256:29c0efb2d835d89a5bdea06504596e81026946a92350df8f48e31990e453c7e7
 +Reference: sha256:c22cfaec2c2c92f329c973acf9fb81562633b9966960f7f172098e2c01a1a0cc
 diff --git a/scripts/run-a-profile.test.ts b/scripts/run-a-profile.test.ts
-index 15b7a5a2..e29be178 100644
+index 15b7a5a2..6f64c9c6 100644
 --- a/scripts/run-a-profile.test.ts
 +++ b/scripts/run-a-profile.test.ts
 @@ -256,7 +256,7 @@ describe("the catalogue entry for Run A (P152)", () => {
@@ -246,11 +234,11 @@ index 15b7a5a2..e29be178 100644
    }
  
 -  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs", () => {
-+  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs, and AUTH 3, 5, 6, 7 and 8 by their real source (P300, P301)", () => {
++  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs, and AUTH 3, 5, 6, 7 and 8 by their real source (P300, P301, P302)", () => {
      const { blueprint, mappingSet } = drafts();
      const value = entry();
      // P154: signed. The drafts in docs/captures stay drafts (the record of the
-@@ -273,6 +273,56 @@ describe("the catalogue entry for Run A (P152)", () => {
+@@ -273,6 +273,51 @@ describe("the catalogue entry for Run A (P152)", () => {
      expect(value.portalAuthentication?.portalHost).toBe("www.sheffield.ac.uk");
      expect(value.portalAuthentication?.applicantChoosesPassword).toBe(true);
      expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
@@ -268,19 +256,14 @@ index 15b7a5a2..e29be178 100644
 +    expect(kinds("credentialsCanBeHandedBack"), "AUTH 8 is reasoned, and only reasoned").toEqual(["reasoned"]);
 +    expect(kinds("passwordlessAvailable")).toEqual(["observed", "observed"]);
 +    expect(kinds("captchaPresent")).toEqual(["observed", "observed", "observed", "observed"]);
-+    expect(kinds("mfaOrOtpRequired")).toEqual(["stated", "observed"]);
-+    // His words as P92 recorded them on 2026-09-11, the same words the capture
-+    // draft's comment carries.
-+    const stated = sources?.mfaOrOtpRequired?.find((source) => source.kind === "stated");
-+    expect(stated).toEqual({
-+      kind: "stated",
-+      by: "Vahid Mohammadi",
-+      on: "2026-09-11",
-+      words: "no second factor. I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.",
-+    });
++    // P302, his words (docs/run-a/p302-his-decisions-as-sent.txt): "AUTH 5: I
++    // cannot confirm the exact words of 2026-09-11. Rebuild AUTH 5 to rest on
++    // Run A's observation alone." So no stated source, and Run A's is the one.
++    expect(kinds("mfaOrOtpRequired"), "AUTH 5 rests on Run A's observation alone").toEqual(["observed"]);
++    expect(sources?.mfaOrOtpRequired?.[0]?.kind === "observed" ? sources.mfaOrOtpRequired[0].read : "").toMatch(/^Run A \(docs\/what-run-a-proved\.md\)/u);
++    expect(JSON.stringify(sources), "his 2026-09-11 words are quoted nowhere in the sources").not.toContain("I signed in again later");
 +    const DRAFT = join(ROOT, "docs", "captures", "sheffield-pgt-2026-09-10", "portal-authentication.draft.json");
 +    const draft = JSON.parse(readFileSync(DRAFT, "utf8")) as { $comment: string[]; sources?: unknown };
-+    expect(draft.$comment.join(" ").replace(/\s+/gu, " ")).toContain(stated?.kind === "stated" ? stated.words : "");
 +    // Every observed source names the read it rests on: a capture's run, or Run A's record.
 +    for (const [key, list] of Object.entries(sources ?? {})) {
 +      for (const source of list) {
@@ -307,7 +290,7 @@ index 15b7a5a2..e29be178 100644
    });
  
    it("locates every page's SAVE by what that page's own read showed — name where no id was ever read (P176)", () => {
-@@ -444,12 +494,19 @@ describe("the catalogue entry for Run A (P152)", () => {
+@@ -444,12 +489,24 @@ describe("the catalogue entry for Run A (P152)", () => {
      //                     asked: "Record the country a read was made under in
      //                     the reads record itself" (0.2.34 / 0.3.46), P294
      //                     (signed, 34760af4)
@@ -322,10 +305,15 @@ index 15b7a5a2..e29be178 100644
 +    //   sha256:31770fb8…  12 October — AUTH 3, 5, 6 and 8 recorded by their
 +    //                     real source (0.2.36 / 0.3.48), P300; never signed,
 +    //                     withdrawn when his AUTH 7 result arrived
-+    //   sha256:e74ade25…  12 October, THIS one — the same, and AUTH 7 as he
++    //   sha256:e74ade25…  12 October — the same, and AUTH 7 as he
 +    //                     tried it: "Record AUTH 7 as observed, with exactly
 +    //                     this", his words its source, and what Sheffield's
-+    //                     reset sends (0.2.36 / 0.3.48), P301
++    //                     reset sends (0.2.36 / 0.3.48), P301; never signed,
++    //                     withdrawn at his word, "Do not sign P300's sheet"
++    //   sha256:2a4ae5a9…  13 October, THIS one — the same, with AUTH 5
++    //                     resting on Run A's observation alone, as he asked:
++    //                     "I cannot confirm the exact words of 2026-09-11"
++    //                     (0.2.36 / 0.3.48), P302
      //
      // The `degree` mapping reads `awardTitle` — the part the registry now
      // holds, stated by the student and distinct from `level` — onto the
@@ -334,7 +322,7 @@ index 15b7a5a2..e29be178 100644
      // applies and signs in ONE commit with approvals.json — so main never
      // holds an entry that is not signed, and this test is never red there.
 -    expect(labelledHash(toCanonical(value))).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
-+    expect(labelledHash(toCanonical(value))).toBe("sha256:e74ade254c751bba66c688357d2ee440d21eb9e895c9652869b687d8b1973b87");
++    expect(labelledHash(toCanonical(value))).toBe("sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0");
      const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
      expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
      if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
@@ -343,7 +331,7 @@ index 15b7a5a2..e29be178 100644
      }[];
      expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
 -    expect(approvals[0]?.contentHash).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
-+    expect(approvals[0]?.contentHash).toBe("sha256:e74ade254c751bba66c688357d2ee440d21eb9e895c9652869b687d8b1973b87");
++    expect(approvals[0]?.contentHash).toBe("sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0");
      expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
      // The four spellings of Iran, from the entry itself: unchanged by this
      // edit, and the reason the countries' signature was spent.
@@ -357,7 +345,7 @@ index 15b7a5a2..e29be178 100644
      expect(output).toContain('(sent as "MGT:Management and International Business")');
      expect(output).toContain("MSC, Master of Science");
 diff --git a/scripts/sheffield-draft.test.ts b/scripts/sheffield-draft.test.ts
-index cd251ed1..60a4404e 100644
+index cd251ed1..1d0e8d99 100644
 --- a/scripts/sheffield-draft.test.ts
 +++ b/scripts/sheffield-draft.test.ts
 @@ -144,7 +144,7 @@ describe("the Sheffield drafts, under the real checks", () => {
@@ -380,16 +368,25 @@ index cd251ed1..60a4404e 100644
      const employment = blueprint.pages.find((p) => p.pageRef === "page8");
      expect(employment?.repeats?.fieldKey).toBe("employment.history");
      expect(employment?.title).toBe("Employment history");
-@@ -662,7 +662,7 @@ describe("the Sheffield drafts, under the real checks", () => {
+@@ -662,37 +662,43 @@ describe("the Sheffield drafts, under the real checks", () => {
      expect(plan.instructions.find((i) => i.fieldRef === "newemail")?.value.kind).toBe("confirmed");
    });
  
 -  it("record AUTH 7 as not observed, so the chooser refuses and names that one question; observed, it would pick student_chosen (P92, P299)", () => {
-+  it("record AUTH 7 as he tried it — it works and replaces the password at once — so the chooser picks student_chosen, and set back to unobserved it refuses naming that one question (P92, P299, P301)", () => {
-     // AUTH 4 and 5 could not be settled by a page that was read. They are
-     // settled by Vahid's direct statement of 2026-09-11 — observed by him,
-     // not by a run — and the file says so in its comment, because until P300
-@@ -672,19 +672,23 @@ describe("the Sheffield drafts, under the real checks", () => {
+-    // AUTH 4 and 5 could not be settled by a page that was read. They are
+-    // settled by Vahid's direct statement of 2026-09-11 — observed by him,
+-    // not by a run — and the file says so in its comment, because until P300
+-    // the type carried no per-fact provenance. For this entry only, in his words:
+-    // "this is Sheffield's behaviour, not a property of direct portals."
++  it("record AUTH 7 as he tried it — it works and replaces the password at once — so the chooser picks student_chosen, and set back to unobserved it refuses naming that one question (P92, P299, P301, P302)", () => {
++    // AUTH 4 and 5 could not be settled by a page that was read. AUTH 4 is
++    // settled by Vahid's own observations, and the file says so in its
++    // comment, because until P300 the type carried no per-fact provenance.
++    // AUTH 5 rests on Run A's sign-ins alone (P302, his words: "I cannot
++    // confirm the exact words of 2026-09-11. Rebuild AUTH 5 to rest on Run
++    // A's observation alone."). For this entry only, in his words: "this is
++    // Sheffield's behaviour, not a property of direct portals."
+     const observed = facts();
      expect(observed.applicantChoosesPassword).toBe(true);
      expect(observed.emailVerificationRequired).toBe(false);
      expect(observed.mfaOrOtpRequired).toBe(false);
@@ -421,11 +418,12 @@ index cd251ed1..60a4404e 100644
    });
  
    it.each([["emailVerificationRequired"], ["mfaOrOtpRequired"]] as const)(
-@@ -692,7 +696,7 @@ describe("the Sheffield drafts, under the real checks", () => {
+     "still REFUSES when %s alone is set back to unobserved — the refusal bites, it has not merely stopped firing",
      (fact) => {
        // "An unobserved answer is not a no." Proved on each of the two facts
-       // his statement settled, one at a time, against the committed file —
+-      // his statement settled, one at a time, against the committed file —
 -      // with AUTH 7 as if tried, so that this fact is the one refusing.
++      // no page read settled, one at a time, against the committed file —
 +      // with AUTH 7 true (as he tried it), so that this fact is the one refusing.
        const observed = { ...facts(), passwordResetAvailable: true, [fact]: "unobserved" as const };
        const choice = chooseApproach({ observed, studentPresentAtCreation: true });

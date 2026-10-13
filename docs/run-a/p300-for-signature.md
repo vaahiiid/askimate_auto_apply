@@ -1,4 +1,4 @@
-# AUTH 3, 5, 6, 7 and 8 by their real source: one patch, one signature (P300, P301)
+# AUTH 3, 5, 6, 7 and 8 by their real source: one patch, one signature (P300, P301, P302)
 
 **Status: built, not signed.** Nothing here is on `main` as entry content. The batch is the patch
 [`p300-for-signature.patch`](./p300-for-signature.patch), applied and signed in one commit, so
@@ -6,17 +6,19 @@
 
 It applies on top of the P301 commit, which teaches the catalogue to read `passwordResetSends`.
 - **On `main` with P300 but without P301,** the parser refuses the patched entry loudly, naming
-  `passwordResetSends` (measured).
+  `passwordResetSends`. This was measured on P301's build; the field is the same in this one.
 - **On `main` before P300,** the parser drops the sources and the new field without a word, and the
-  entry hashes to `sha256:67bb4e99…` instead of the hash below (measured with that commit's parser,
-  `6e535c07`).
+  entry hashes to `sha256:64dd9469…` instead of the hash below. This was measured on this build in
+  P302, with that commit's parser (`6e535c07`); P301's build gave `67bb4e99…`.
 
 So "How to sign" checks that the P301 commit is in before anything else, and the hash check is the
 second guard.
 
-This sheet was first built in P300 for AUTH 3, 5, 6 and 8, at `sha256:31770fb8…`. It is rebuilt
-here with AUTH 7 in it, as you asked. `31770fb8…` was never signed and is withdrawn; its signing
-message, if sent, would fail the hash check.
+This sheet was first built in P300 for AUTH 3, 5, 6 and 8, at `sha256:82127c34…` and then
+`sha256:31770fb8…`. P301 rebuilt it with AUTH 7 in it, at `sha256:e74ade25…`. It is rebuilt again
+here (P302), with AUTH 5 resting on Run A's observation alone, as you asked. None of the three
+earlier builds was signed. All three are withdrawn, and their signing messages, if sent, would fail
+the hash check.
 
 ## What you asked, in your words (2026-10-12)
 
@@ -34,6 +36,16 @@ signature."* Your result, saved whole as sent:
 
 > *"Record AUTH 7 as observed, with exactly this. … Fold this into P300's sheet as I asked, and
 > give me the signing message when it is ready."*
+
+And on 2026-10-13, saved whole as sent: [`p302-his-decisions-as-sent.txt`](./p302-his-decisions-as-sent.txt).
+
+> *"Do not sign P300's sheet."*
+>
+> *"- AUTH 5: I cannot confirm the exact words of 2026-09-11. Rebuild AUTH 5 to rest on Run A's
+> observation alone.*
+> *- AUTH 7: your three readings are right (source "stated", the one paragraph ending "I am
+> changing it now.", value true).*
+> *- Rebuild the sheet with this and give me the new signing message."*
 
 ## Why it needs a signature
 
@@ -85,30 +97,25 @@ naming each kind.
   same forms and signals as the read of 2026-09-11."
 
 **AUTH 5: MFA or a one-time code.** `mfaOrOtpRequired: false`.
-- *Stated* by Vahid Mohammadi, 2026-09-11: "no second factor. I signed in again later with email
-  and password only and went straight into the form. No code arrived and none was asked for."
 - *Observed:* "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4
-  (2026-09-21) to 10 (2026-09-22). The runner signed in to his account with his email and
-  password, through the consent path, read the page for a second factor after pressing sign in
-  (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not
-  observed by a run."
+  (2026-09-21) to 10 (2026-09-22). The runner signed in, through the consent path, to the account
+  the reads use, with that account's e-mail and a password typed once through the secure box; it
+  read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts),
+  and reached the form each time. Registration was not observed by a run."
 
-**Your words are quoted from P92's record, not from your message.** P92 (`4a1f550b`, 2026-09-11)
-recorded them as your direct statement. Two places hold them whole: the capture draft's comment
-(`docs/captures/sheffield-pgt-2026-09-10/portal-authentication.draft.json`) and the capture's README
-(`docs/captures/sheffield-pgt-2026-09-11-entry/README.md`, AUTH 5). Two hold them shortened:
-- the target file (`targets/sheffield-pgt-2026-09.json`) keeps only the last two sentences;
-- the target document (`docs/target-sheffield-pgt.md`) cuts the middle with "…".
+It rests on that alone, as you asked. Your statement of 2026-09-11 is quoted in no source and no
+open-question line of the patch. The AUTH 5 line names it only to say it does not rest on it. The
+words P92 recorded as yours stay on `main`, outside the hash, in four places:
+- the capture draft's comment and the capture's README, each now marked as P92's record, whose exact
+  words you cannot confirm;
+- `docs/target-sheffield-pgt.md`, marked the same way;
+- the target file `targets/sheffield-pgt-2026-09.json`, the record of the target as opened (the
+  onboarding clock's T0), left unmarked.
 
-The message you typed them in was not saved in this repository. If you still have your
-conversation of 2026-09-11, that is where they can be checked.
-
-**Three ways to answer:**
-- **They are your words.** Send the signing message below.
-- **They are not as you said them.** Do not send it; say what you said, and I will put that in.
-- **You cannot confirm the wording.** Say so, and I will rebuild the patch with AUTH 5 resting
-  on Run A's observation alone. Nothing you would need to recall goes into signed content, and
-  the rebuilt patch comes with a new hash and message.
+**One correction to that source, mine.** P300's text said the runner signed in "to his account with
+his email and password". By your P301 message, the account the reads use is registered with an
+address that is not yours. It now says it signed in to the account the reads use, with that
+account's e-mail and a password typed once through the secure box.
 
 **AUTH 6: a CAPTCHA.** `captchaPresent: false`.
 - *Observed:* "The signed-in read of 2026-09-10, run
@@ -149,11 +156,13 @@ conversation of 2026-09-11, that is where they can be checked.
   used for the reads: no reset link is sent; Sheffield generates a new password, replacing the old
   one, and e-mails it in plain text to the account's address. The run never presses it."*
 
-**Three readings of your message that are mine, not yours. Say if any is wrong, and I will rebuild:**
+**Three readings of your message that were mine. You confirmed them on 2026-10-13:** *"AUTH 7: your
+three readings are right (source "stated", the one paragraph ending "I am changing it now.", value
+true)."*
 - **The kind is `stated`, not `observed`.** You wrote "Record AUTH 7 as observed". In the record,
   AUTH 7 stops being `"unobserved"`. Its source is `stated` because the type's `observed` names a
-  read or a run, and your try was neither: it is your own observation, in your words. AUTH 5's
-  statement of 2026-09-11 is recorded the same way.
+  read or a run, and your try was neither: it is your own observation, in your words. (P300
+  recorded AUTH 5's statement of 2026-09-11 the same way; this rebuild removes it, at your word.)
 - **"Exactly this" is the paragraph alone.** That is the paragraph after your opening line, ending "I
   am changing it now." Your opening line stays in the saved file and is not in the entry:
   > AUTH 7, observed by me today (12 October, about 20:45 UK time) on the Sheffield account used for our reads:
@@ -182,8 +191,16 @@ conversation of 2026-09-11, that is where they can be checked.
 Each source says this in its own words.
 
 **What the patch leaves without a source.** AUTH 1, 2 and 4. Your words named AUTH 3, 5, 6 and 8,
-and then AUTH 7. AUTH 4 rests on your statement of 2026-09-11, and AUTH 1 and 2 on the reads; the
-entry's open questions already say so.
+and then AUTH 7. Their open-question lines, already signed in `546b2948…`, say what each rests on:
+- AUTH 1 and 2 quote your words of 2026-09-11 (*'I typed the password I chose'*, *'Sheffield did not
+  email me one'*);
+- AUTH 4 cites your observations of 2026-10-01.
+
+**A question this rebuild cannot answer for you.** You wrote *"I cannot confirm the exact words of
+2026-09-11"* of AUTH 5. AUTH 1 and 2 quote words of the same date, and so do AUTH 4's notes on
+`main` (P92 recorded them together with AUTH 5's). Whether your sentence covers them too is yours to
+say. Until you do, this patch leaves them as they are signed, and the records mark only AUTH 5's
+words, plus AUTH 4's where they sit beside them.
 
 ### Everything else in the patch
 
@@ -207,7 +224,8 @@ entry's open questions already say so.
   - The test that holds the entry equal to its drafts now also holds:
     - the five sources;
     - AUTH 8 reasoned, and only reasoned;
-    - your AUTH 5 words exactly, and the same words in the draft's comment;
+    - AUTH 5 resting on Run A's observation alone, and your 2026-09-11 words in none of the
+      sources;
     - your AUTH 7 words exactly, read from the saved message as the test runs;
     - every observed source naming a capture's run or Run A's record;
     - `passwordResetSends`;
@@ -220,12 +238,14 @@ entry's open questions already say so.
 ## The hash
 
 ```
-sha256:e74ade254c751bba66c688357d2ee440d21eb9e895c9652869b687d8b1973b87
+sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0
 ```
 
-Two earlier builds are withdrawn, and no message names either:
+Three earlier builds are withdrawn, and no message names any of them:
 - `sha256:82127c34…`: P300's first, which credited Run A's attempt 10 with six pages;
-- `sha256:31770fb8…`: P300's corrected build, before AUTH 7.
+- `sha256:31770fb8…`: P300's corrected build, before AUTH 7;
+- `sha256:e74ade25…`: P301's, with AUTH 5 resting on your 2026-09-11 statement as P92 recorded it.
+  Withdrawn at your word: *"Do not sign P300's sheet."*
 
 ## What it does to your run (measured)
 
@@ -273,31 +293,34 @@ it does.
     - beside an unobserved or `false` reset.
 - **On the patched tree, under a stand-in approval** (never committed, its note saying it is not
   yours):
-  - the ten test files on the entry, the approval and the drafts: 212 of 212, and 212 of 212
-    again after P301's review changed the parser and the runner;
+  - the ten test files on the entry, the approval and the drafts: 212 of 212 in P301, and again
+    on P302's rebuild. That rebuild's first run was red once, a fault of mine: a test still used a
+    variable removed with the AUTH 5 words. It was fixed and run again: 212 of 212;
   - the catalogue check admits the one account.
 - **Made to fail once (P301):** one character of your AUTH 7 words changed in the entry ("plain
-  text" → "plain-text") turned the test red on the source, and on the hash pin; restored, the
-  hash printed the one above again.
+  text" → "plain-text") turned the test red on the source, and on the hash pin.
+- **Made to fail once (P302):** a stated source put back on AUTH 5 turned the test red. It failed
+  on *"AUTH 5 rests on Run A's observation alone"*, and on the hash pin. Restored, the hash printed
+  the one above again.
 - **AUTH 8's** deliberate failure is P300's and was not repeated here; its assertion ran green in the
   212.
 - **The patch round-trips:** applied, it prints the hash above; reversed, `main`'s
   `sha256:546b2948…`.
 
-## What stays open, and is yours
+## What was open here, and what you decided (2026-10-13)
 
-- **A reasoned fact still counts for the chooser (P300).** AUTH 8 is recorded as reasoned, and the
-  chooser reads its `true` as it did before. Whether a reasoned fact may stand where the chooser
-  takes the portal's word is yours to say.
-- **The reset a created account's handover asks for (P301).** For an account the run creates on
-  Sheffield, which is what your item-6 run does, ADR-0050 §4 asks the student to use the portal's
-  reset as proof that they receive mail. That item is "the student has set their own password via
-  the portal's reset flow". By your observation, that reset replaces the password they typed
-  through our box, and e-mails a new one in plain text. Should the requirement stand on Sheffield,
-  be dropped there, or be replaced by another proof? Your words of 2026-10-01 record an
-  acknowledgement e-mail at registration (the AUTH 4 line). Unchanged until you say; the handover
-  now at least tells the student what the reset does.
-- **These are recorded on `docs/state-of-the-system.md`, row by row.**
+- **A reasoned fact in the chooser.** Your words: *"Reasoned facts (AUTH 8) may stand for my own
+  account only. Before any other student is served, every auth fact the account chooser relies on
+  must be observed. Record this as a rule."* AUTH 8 stays reasoned in this patch, and the approval
+  admits your account only (`ownAccountOnly`). The rule is recorded on ADR-0157 and on
+  `docs/state-of-the-system.md` row 169, as your sentence. What "observed" means in it is yours to
+  say. If it means a read or a run, AUTH 1, 2, 4 and 7 would not pass, because they rest on your own
+  words or try; and AUTH 7 never could, because no run and no read may open a reset.
+- **The reset a created account's handover asks for.** Your words: *"keep the reset before handing
+  over an account the run creates."* So for the account your live run creates, the handover asks
+  you to use Sheffield's "Forgot password" once. Once this patch is signed, the handover says what
+  that reset does: it replaces the password at once, and a new one arrives by e-mail in plain text.
+  Recorded on row 177.
 
 ## How to sign: one commit
 
@@ -315,7 +338,7 @@ The approval file keeps **one** entry:
 ```json
 [
   {
-    "contentHash": "sha256:e74ade254c751bba66c688357d2ee440d21eb9e895c9652869b687d8b1973b87",
+    "contentHash": "sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
     "approvedAt": "<when you sign, UTC>",
@@ -330,17 +353,13 @@ The approval file keeps **one** entry:
 Send this, as it stands, if it is true:
 
 > I approve the patch in docs/run-a/p300-for-signature.patch, whose entry hashes to
-> sha256:e74ade254c751bba66c688357d2ee440d21eb9e895c9652869b687d8b1973b87. Apply it and sign it
+> sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0. Apply it and sign it
 > as docs/run-a/p300-for-signature.md says, with approvedAt at the time of signing, and this note:
-> "Approved by Vahid: AUTH 3, 5, 6, 7 and 8 recorded by their real source; AUTH 7 in my words of
-> 2026-10-12; AUTH 8 reasoned from the design, not observed." The AUTH 5 words quoted in it are
-> mine, as I said them on 2026-09-11. The AUTH 7 words are the paragraph of my message of
-> 2026-10-12 that ends "I am changing it now.", as saved in docs/run-a/p301-his-auth7-as-sent.txt.
-> Check that the printed hash is the one in this message before committing, then push and report
-> CI.
-
-If any of the three readings under AUTH 7 above is not what you mean, do not send it; say which,
-and I will rebuild.
+> "Approved by Vahid: AUTH 3, 5, 6, 7 and 8 recorded by their real source; AUTH 5 on Run A's
+> observation alone; AUTH 7 in my words of 2026-10-12; AUTH 8 reasoned from the design, not
+> observed." The AUTH 7 words are the paragraph of my message of 2026-10-12 that ends "I am
+> changing it now.", as saved in docs/run-a/p301-his-auth7-as-sent.txt. Check that the printed hash
+> is the one in this message before committing, then push and report CI.
 
 ## What this costs
 

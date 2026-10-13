@@ -71,7 +71,7 @@
       "stage": "T6",
       "name": "a second student",
       "missing": [
-        "ADR-0118: one signature admits one account; ADR-0157 proposes otherwise and is not decided"
+        "ADR-0118: one signature admits one account; ADR-0157, approved on 2026-10-13, would admit other students and is not built"
       ]
     }
   ]

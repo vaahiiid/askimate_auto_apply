@@ -124,6 +124,10 @@ credentials had skipped part of the work.
 
 ### 4 · The proof of receipt, where the portal does not verify — Vahid, 2026-09-01
 
+*Kept, 2026-10-13, after his "Forgot password" result showed Sheffield's reset replaces the
+password, [`docs/run-a/p302-his-decisions-as-sent.txt`](../run-a/p302-his-decisions-as-sent.txt)):* *"Row 177: keep the reset before handing over an account the run creates."* What the
+student is told it does is in ADR-0020 §5a.
+
 `emailVerifiedByPortal` is on every checklist in ADR-0020 §3. It is not really
 about verification: it is the only external proof that **the student can receive
 mail at the account's address** — the recovery route, without which "the account

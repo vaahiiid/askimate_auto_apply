@@ -72,7 +72,7 @@ loader stopped refusing an approval whose two names are one person. 2026-10-12 (
 only reviewer from now on. I am alone. Do not record my second signature as a second review."* So
 every approval now names, under `ownAccountOnly`, the one account it admits, whatever names it
 carries, and the record above, signed "Iman Behravan" with no account, would be refused at load.
-Whether his signature may serve other students is ADR-0157, proposed and not decided.
+Whether his signature may serve other students is ADR-0157, approved by him on 2026-10-13 and not yet built.
 
 ## The first read — 2026-09-10, eleven pages, zero failed
 
@@ -105,7 +105,9 @@ read. The login URL and locators and a registration page are in the curated draf
 eight facts are in `portal-authentication.draft.json`. AUTH 4 and 5, which no page read could
 settle, are settled by Vahid's direct statement of 2026-09-11 and marked observed by him, not by
 a run: *"no verification step … nothing stood between the button and the first page"*; *"no
-second factor … No code arrived and none was asked for."* With all eight observed the approach
+second factor … No code arrived and none was asked for."* *(P302, 2026-10-13: he cannot confirm the exact
+words of 2026-09-11, in his words; these are P92's record of them. In the patch for his signature AUTH 5 rests on Run A's
+sign-ins alone: state-of-the-system row 169.)* With all eight observed the approach
 chooser picks `student_chosen` for this entry, and the test proves it still refuses when either
 fact is set back to unobserved. **P299, 2026-10-12:** not all eight were observed. AUTH 7 never was,
 and is now `unobserved` in the draft at Vahid's word, so the chooser refuses the draft (row 152 of
@@ -131,6 +133,7 @@ likely to stop for a reason nobody had seen, measured what could be measured wit
   what the sign-in's does, with the same two paths and the same verification. Row 88 is measured.
 - **Where a created account lands stays unmeasured**, by his decision: the run's own creation on
   the dedicated address is that measurement, and its failure is a resolvable stop (rows 89, 59).
+  *P302: not a dedicated address any more. His words of 2026-10-13: "with my own e-mail address".*
 
 The two facts enter the signed entry with his signature at step 2 of the walk, as a prepared patch
 (row 117). The rule his two reads taught — *"a read on a profile that has already answered the

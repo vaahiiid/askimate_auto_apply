@@ -418,6 +418,13 @@ Then open `http://127.0.0.1:4870/`. `document.cookie` stays empty whatever happe
 > file under the repository, a commit message, an issue, or a log you paste. Whether the live run
 > uses this account at all, and how its address would enter, are open (row 174 of
 > `docs/state-of-the-system.md`).
+>
+> **P302, 2026-10-13, decided in his words:** *"my live run uses a NEW Sheffield account, created
+> by the run itself (ADR-0144), with my own e-mail address. My wife's account stays for read-only
+> reads only."* So his live run does not use this re-seed. Its profile's `contact.email` must be
+> his own address, which he confirms or corrects in the chat (item 7 of
+> `docs/run-a/p302-what-stands-before-his-live-run.md`). The re-seed below is Run A's, kept as the
+> record of what Run A did.
 
 **Run A signs in with his account's e-mail (blocker 31, decided 2026-09-17).** The resume path
 uses the profile's `contact.email` as the account's address (ADR-0110), and the file's address

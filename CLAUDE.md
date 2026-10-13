@@ -318,7 +318,8 @@ So:
 - The code holds it (P297): an approval in `approvals.json` must name the one account it admits,
   whatever names it carries, because two name strings were all that made "a second person" before;
   and a second record for content already signed is refused. Whether his signature may serve other
-  students is ADR-0157's question, proposed and not decided.
+  students is ADR-0157's question, approved by him on 2026-10-13 ("ADR-0157: I approve it.") and
+  not yet built.
 
 ## A report says how long a portal has taken to onboard
 

@@ -4906,6 +4906,25 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P302 — his decisions, and the list before his live run
+
+*2026-10-13.* His decisions that had not reached the session arrived in one message, in his own
+words, and every one is recorded where it applies.
+- **AUTH 5 now rests on Run A's sign-ins alone**, because he cannot confirm the words of 2026-09-11.
+  The sheet is rebuilt at a new hash for his signature.
+- **ADR-0157 is approved**, with his rule that a reasoned authentication fact stands for his own
+  account only. ADR-0158 is approved in direction. Four of its open points are now his words; the
+  ordering is his to choose, with each option explained in one sentence.
+- **His live run will create its own Sheffield account with his own e-mail.** The account the
+  reads use stays for reads.
+- **Nothing was built around accounts**, as he asked. What stands between today and that run
+  reaching `ready_to_submit` is a list of twelve, most of them his own acts. One is code: account
+  creation must answer the consent notice at the press, as the sign-in does.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P301 — the run never presses "Forgot password"
 
 *2026-10-12.* He tried Sheffield's "Forgot password" on the account the reads use. It sends no

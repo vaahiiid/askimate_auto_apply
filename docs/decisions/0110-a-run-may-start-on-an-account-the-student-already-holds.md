@@ -70,6 +70,8 @@ And later the same day, on the handover checklist item the consequences below ha
   message, `docs/run-a/p301-his-account-as-sent.txt`), so the value the re-seed put in
   `contact.email` is the account's, and the contact page then carries an address that is not his.
   Left as written; `docs/state-of-the-system.md`, row 174.
+  *P302, 2026-10-13, his words:* *"My wife's account stays for read-only reads only."* No run signs
+  in to it again; his live run creates a new account with his own e-mail (ADR-0144).
 - **His real password crosses the secure box once**, exactly as the resume path already does for
   a password the student chose: single use, typed by the Fill Agent over CDP, never held by the
   Conversation Plane (ADR-0034, 0042). The hard stop — no design stores a portal password —
