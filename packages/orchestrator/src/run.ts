@@ -156,6 +156,14 @@ export interface RunInputs {
    * every derivation, as the documents are; absent means none.
    */
   readonly choices?: readonly StudentChoice[];
+  /**
+   * A person recorded that the application was submitted by hand (ADR-0159
+   * O10, P307). Read from the case log on every derivation. The run fills
+   * nothing more, so the account is due back, and the hand-back's words are
+   * for an application already submitted. The one source of the fact here:
+   * the account's stage and the words both read it from this field.
+   */
+  readonly submittedByHand?: { readonly submittedAt: Date };
 }
 
 /** Where a run has got to. Immutable; each step returns a new one. */
@@ -505,6 +513,20 @@ export function assess(state: RunState): RunAssessment {
  * says can change which branch is taken.
  */
 export async function nextStep(state: RunState, model: ModelClient): Promise<RunStep> {
+  // ── A submission made by hand (ADR-0159 O10, P307) ──────────────────────
+  //
+  // Nothing is asked about the form once a person has recorded that it was
+  // submitted: what the account still owes comes first, whatever the plan
+  // lacks (the P307 review, R2). Only for an account the state holds: with
+  // none, the account step would be a creation, which a recorded case never
+  // takes, and the caller completes the run or hands it to a person.
+  if (state.inputs.submittedByHand !== undefined && state.account !== undefined) {
+    const owed = accountStepFor(state);
+    if (owed !== null && (owed.kind === "hand_over_account" || owed.kind === "student_handoff" || owed.kind === "specialist")) {
+      return owed;
+    }
+  }
+
   const assessment = assess(state);
 
   if (assessment.refusal !== undefined && assessment.plan === null) {
@@ -857,6 +879,7 @@ function accountStepFor(state: RunState): RunStep | null {
         // by the checklist as it stands, the same checklist `accountCreated`
         // rendered the recorded text from.
         ...resetWordsFor(plan, account.createdBy, account.handover?.checklist),
+        ...submittedWordsFor(state),
       }),
     };
   }
@@ -1637,6 +1660,7 @@ export function accountCreated(
     leftToStudent: studentsOwnActs(state),
     // P301: the same as the step says, so the text recorded is the text shown.
     ...resetWordsFor(plan, "askimate_on_behalf", checklist),
+    ...submittedWordsFor(state),
   });
   const handover = checkHandoverComplete({
     checklist,
@@ -1651,7 +1675,7 @@ export function accountCreated(
     studentRef: state.inputs.studentRef,
     portalHost,
     email,
-    stage: stageFrom(plan, evidence, handover.complete),
+    stage: stageFrom(plan, evidence, handover.complete, state.inputs.submittedByHand !== undefined),
     // Attached either way, so `outstandingHandoverItems` reports what is
     // ACTUALLY left rather than the whole list. Only the branded
     // `CompletedHandover` means it is done, and only `checkHandoverComplete`
@@ -1743,6 +1767,7 @@ export function accountDeclared(
     leftToStudent: studentsOwnActs(state),
     // P301: the same as the step says, so the text recorded is the text shown.
     ...resetWordsFor(plan, "student"),
+    ...submittedWordsFor(state),
   });
   const handover = checkHandoverComplete({
     checklist,
@@ -1760,7 +1785,7 @@ export function accountDeclared(
     email,
     stage: handover.complete
       ? "handed_over"
-      : evidence.applicationFilled || evidence.runStopped === true
+      : evidence.applicationFilled || evidence.runStopped === true || state.inputs.submittedByHand !== undefined
         ? "handover_due"
         : "active",
     handover: handover.complete
@@ -1772,10 +1797,21 @@ export function accountDeclared(
   });
 }
 
+/**
+ * The hand-back's words for an application a person recorded as submitted by
+ * hand (ADR-0159 O10, P307), passed by every caller of `renderHandover`, so
+ * the text recorded is the text shown.
+ */
+function submittedWordsFor(state: RunState): { readonly applicationSubmitted?: true } {
+  return state.inputs.submittedByHand === undefined ? {} : { applicationSubmitted: true };
+}
+
 function stageFrom(
   plan: AuthenticationPlan,
   evidence: HandoverEvidence,
   handoverComplete: boolean,
+  /** ADR-0159 O10 (P307): `RunInputs.submittedByHand`, the third fact with the consequence of the two above. */
+  submittedByHand: boolean,
 ): PortalAccount["stage"] {
   if (handoverComplete) return "handed_over";
 
@@ -1798,7 +1834,9 @@ function stageFrom(
     if (evidence.declined?.includes("registration_email") === true && evidence.open !== "registration_email") {
       return "registration_email_not_received";
     }
-    if (!evidence.applicationFilled && evidence.runStopped !== true) return "awaiting_registration_email";
+    if (!evidence.applicationFilled && evidence.runStopped !== true && !submittedByHand) {
+      return "awaiting_registration_email";
+    }
   }
 
   // "The application is done" is the run having filled the portal. Not
@@ -1809,7 +1847,7 @@ function stageFrom(
   // A STOPPED run is due back for the mirror-image reason (ADR-0053): the form
   // will never be filled, so there is no sign-in to protect, and an account
   // that waited for a fill that is not coming would stay `active` for ever.
-  return evidence.applicationFilled || evidence.runStopped === true
+  return evidence.applicationFilled || evidence.runStopped === true || submittedByHand
     ? "handover_due"
     : "active";
 }

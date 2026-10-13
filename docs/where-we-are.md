@@ -4906,6 +4906,27 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P307 — a submission made by hand, recorded
+
+*2026-10-13.* ADR-0159's O10, the recommendation applied at his word: a person records a submission
+made by hand on the case, and the press path refuses any case that has one.
+
+His run is held before page 12, and he may sign in and press submit himself. Until now nothing could
+say so: the run would have offered a fill on an application already submitted, and every stop would
+have told the student "Nothing was submitted". Now `pnpm run submission-by-hand` records it, with
+when and how it is known. The student is told once. The run fills nothing more, the press is
+refused, no yes is taken, and the account is handed back in words for an application already
+submitted. The advice is to change the password now, which is his rule's "after". Then the run is
+`completed`, the first run that ever is. His held stop can be resolved `resume` once the record is
+there, and nothing says the run is moving again.
+
+A page saved by hand without a submission still cannot be recorded; for that, ADR-0160 still says to
+abandon. The press is still not built.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P306 — no reset before submission
 
 *2026-10-13.* Decision 1, built alone, as he ordered: *"decision 1 alone first. The press comes

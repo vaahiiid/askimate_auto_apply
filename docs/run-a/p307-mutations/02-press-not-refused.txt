@@ -1,0 +1,44 @@
+# P307 mutation 02-press-not-refused
+# file: packages/domain/src/transitions.ts
+# replaced:
+    if (context.submittedByHand === true) {
+      return {
+        permitted: false,
+        refusal: {
+          kind: "submitted_by_hand",
+# with:
+    if (false) {
+      return {
+        permitted: false,
+        refusal: {
+          kind: "submitted_by_hand",
+# command: pnpm exec vitest run --project unit packages/domain/src/machine.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/domain/src/machine.test.ts (76 tests | 1 failed) 54ms
+   × a submission made by hand (ADR-0159 O10, P307) > closes the road to SUBMITTING: the press path refuses a case submitted by hand 16ms
+     → expected "a case submitted by hand is never pressed" not to be reached
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 75 passed (76)
+   Start at  16:54:34
+   Duration  654ms (transform 173ms, setup 0ms, collect 210ms, tests 54ms, environment 0ms, prepare 70ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/domain/src/machine.test.ts > a submission made by hand (ADR-0159 O10, P307) > closes the road to SUBMITTING: the press path refuses a case submitted by hand
+AssertionError: expected "a case submitted by hand is never pressed" not to be reached
+ ❯ packages/domain/src/machine.test.ts:1382:33
+    1380|       submittedByHand: true,
+    1381|     });
+    1382|     if (check.permitted) expect.unreachable("a case submitted by hand …
+       |                                 ^
+    1383|     expect(check.refusal.kind).toBe("submitted_by_hand");
+    1384|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

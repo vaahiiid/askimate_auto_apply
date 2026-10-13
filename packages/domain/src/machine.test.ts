@@ -1347,6 +1347,69 @@ describe("decide — handoffs", () => {
   });
 });
 
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0159 O10 (P307) — a submission made by hand, recorded by a person
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a submission made by hand (ADR-0159 O10, P307)", () => {
+  const AT = new Date("2026-10-14T09:30:00Z");
+
+  it("is recorded once, as a fact, with no change of state", () => {
+    const opened = fold(buildLog([OPENED]));
+    const decision = decide(opened, { kind: "record_submission_by_hand", submittedAt: AT, source: "observed" });
+    if (!decision.accepted) expect.unreachable(`refused: ${decision.refusal.kind}`);
+    expect(decision.events).toEqual([{ type: "SubmissionByHandRecorded", submittedAt: AT, source: "observed" }]);
+    const after = fold(buildLog([OPENED, { type: "SubmissionByHandRecorded", submittedAt: AT, source: "observed" }]));
+    expect(after.submittedByHand).toEqual({ submittedAt: AT, source: "observed" });
+    expect(after.state, "a fact, not a move").toBe(opened.state);
+  });
+
+  it("refuses a second record, and keeps the first", () => {
+    const recorded = fold(buildLog([OPENED, { type: "SubmissionByHandRecorded", submittedAt: AT, source: "stated" }]));
+    const decision = decide(recorded, { kind: "record_submission_by_hand", submittedAt: new Date("2026-10-15T09:00:00Z"), source: "observed" });
+    expect(decision.accepted).toBe(false);
+    expect(recorded.submittedByHand?.source).toBe("stated");
+  });
+
+  it("closes the road to SUBMITTING: the press path refuses a case submitted by hand", () => {
+    const check = checkTransition("AUTHORISED", "SUBMITTING", {
+      activeTriggers: [],
+      completedReviews: [],
+      authorisedContentHash: "sha256:a",
+      preparedContentHash: "sha256:a",
+      submittedByHand: true,
+    });
+    if (check.permitted) expect.unreachable("a case submitted by hand is never pressed");
+    expect(check.refusal.kind).toBe("submitted_by_hand");
+  });
+
+  it("is refused on a case this system attempted to submit: two submissions are for a person to reconcile", () => {
+    const attempted = fold(
+      buildLog([OPENED, { type: "SubmissionAttempted", submissionIdentity: IDENTITY, authorisedContentHash: "sha256:v1" }]),
+    );
+    const decision = decide(attempted, { kind: "record_submission_by_hand", submittedAt: AT, source: "observed" });
+    if (decision.accepted) expect.unreachable("recorded beside an attempt of ours");
+    if (decision.refusal.kind !== "invalid_intent") expect.unreachable(`refused for another reason: ${decision.refusal.kind}`);
+    expect(decision.refusal.detail).toContain("attempted a submission");
+  });
+
+  it("takes no yes once recorded: there is nothing left to fill or submit", () => {
+    const awaiting = [
+      OPENED,
+      { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
+      { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "x" },
+      { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "x" },
+    ] as const;
+    // The same case takes a yes without the record, so the record is what refuses it.
+    expect(decide(fold(buildLog([...awaiting])), { kind: "capture_authorisation", contentHash: "sha256:v1" }).accepted).toBe(true);
+    const recorded = fold(buildLog([...awaiting, { type: "SubmissionByHandRecorded", submittedAt: AT, source: "observed" }]));
+    const decision = decide(recorded, { kind: "capture_authorisation", contentHash: "sha256:v1" });
+    if (decision.accepted) expect.unreachable("a yes taken after a submission by hand");
+    if (decision.refusal.kind !== "invalid_intent") expect.unreachable(`refused for another reason: ${decision.refusal.kind}`);
+    expect(decision.refusal.detail).toContain("submitted by hand");
+  });
+});
+
 describe("the account the student declared (ADR-0110)", () => {
   it("is carried once, from the first declaration, and carries no address", () => {
     const first = new Date("2026-09-14T09:00:00Z");

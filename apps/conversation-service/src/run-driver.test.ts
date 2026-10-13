@@ -19048,3 +19048,796 @@ describeIfDatabase("a stop while the registration e-mail question is open (P306 
     }
   }, 300_000);
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// P307, ADR-0159 O10 — a submission made by hand, recorded on the case
+// ───────────────────────────────────────────────────────────────────────────
+//
+// His case, replayed on the gated fixture: the run stops before the course
+// page (ADR-0160), he signs in and submits on the portal himself, and a person
+// records it. `page-study` stands in for Sheffield's page 12, as in P305.
+describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00307";
+  const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+  let runId = "";
+  const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+  const HOLD: readonly HeldPage[] = [
+    {
+      blueprintId: "bp-gated-portal",
+      pageRef: "page-study",
+      url: "https://gated.portal.test/study",
+      pageName: "the course choice page",
+      because: "a test hold standing in for his words of 2026-10-13",
+      source: "docs/run-a/p305-his-answers-on-adr-0159-as-sent.txt",
+    },
+  ];
+  const RECORDED =
+    "A member of the team has recorded that your Gated University application was submitted on the " +
+    "university's website on 30 August 2026. I will not fill in or submit anything more on it.";
+  const FINISHED =
+    "That is the last of it. The account at Gated University is yours now, and nothing is left for me " +
+    "to do on your Gated University application.";
+  const MOVING_AGAIN = "it is moving again";
+
+  function held(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, null, HOLD);
+  }
+
+  async function saidTo(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function openHolds(): Promise<{ intervention_id: string; reason: string }[]> {
+    return (
+      await pool.query<{ intervention_id: string; reason: string }>(
+        "SELECT intervention_id, reason FROM interventions WHERE run_id = $1 AND resolved_at IS NULL ORDER BY raised_at",
+        [runId],
+      )
+    ).rows;
+  }
+
+  async function statusOf(): Promise<string | undefined> {
+    return (await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status;
+  }
+
+  async function offeredTo(): Promise<ClaimedWork | null> {
+    await pool.query("DELETE FROM work_leases");
+    const instance = held();
+    try {
+      return await instance.driver.claimWork({ holder: "runner-by-hand", leaseSeconds: 120 });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("his case: the run held before the course page, and a person records the submission once, as its actor; the student told once", async () => {
+    await ownConversation(conversation);
+    const instance = held();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      await instance.driver.advance({ runId, conversationId: conversation });
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: `sr_${"0".repeat(31)}1`, handle: `sh_${"7".repeat(32)}` },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: accountKey, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+      await pool.query("DELETE FROM work_leases");
+      const first = await instance.driver.claimWork({ holder: "runner-by-hand", leaseSeconds: 120 });
+      expect(first?.formUrl).toBe("https://gated.portal.test/apply");
+      const pageKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "advance_portal_page",
+        target: await targetForPage("page-application", ownerOf(conversation)),
+      });
+      await runs.completeIntent(runRef, pageKey, "succeeded", NOW);
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await offeredTo())?.runId, "held before the course page").not.toBe(runId);
+    const [hold] = await openHolds();
+    expect(hold?.reason).toBe("page_save_may_submit");
+    expect(await statusOf()).toBe("escalated");
+
+    const recording = held();
+    try {
+      const recorded = await recording.driver.recordSubmissionByHand({
+        caseId: caseRef,
+        submittedAt: SUBMITTED,
+        source: "observed",
+        recordedBy: "specialist_vahid",
+      });
+      expect(recorded, "recorded now; the hold still holds the run").toEqual({
+        ok: true,
+        recordedNow: true,
+        heldBy: [hold?.intervention_id],
+        told: true,
+      });
+      // The same record again is a retry: nothing new, and the student is not told twice.
+      expect(
+        await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+      ).toEqual({ ok: true, recordedNow: false, heldBy: [hold?.intervention_id], told: true });
+      // A different record is a disagreement, refused.
+      const other = await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: NOW, source: "stated", recordedBy: "specialist_other" });
+      expect(other.ok).toBe(false);
+      if (!other.ok) expect(other.reason).toBe("refused");
+      expect(
+        await recording.driver.recordSubmissionByHand({ caseId: makeCaseId("case_none"), submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+      ).toMatchObject({ ok: false, reason: "no_case" });
+    } finally {
+      await recording.pool.end();
+    }
+    const events = await new PostgresCaseStore(pool).read(caseRef);
+    const records = events.filter((event) => event.type === "SubmissionByHandRecorded");
+    expect(records, "one record").toHaveLength(1);
+    expect(records[0]?.actor, "the person is its actor").toEqual({ kind: "specialist", reviewerId: "specialist_vahid" });
+    expect(records[0]?.type === "SubmissionByHandRecorded" ? records[0].submittedAt : null).toEqual(SUBMITTED);
+    expect((await saidTo()).filter((content) => content === RECORDED), "told once").toHaveLength(1);
+    expect(await statusOf(), "still held by the person: the hand-back waits for them").toBe("escalated");
+  }, 300_000);
+
+  it("keeps its promise: no work is offered even while the run reads running, the press is refused, and no yes is taken", async () => {
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    try {
+      expect((await offeredTo())?.runId, "nothing more is filled in").not.toBe(runId);
+      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      expect(leases.rows).toHaveLength(0);
+      expect(await openHolds(), "no new stop raised").toHaveLength(1);
+      const theCase = fold(await new PostgresCaseStore(pool).read(caseRef));
+      expect(theCase.state, "the spine was not walked").toBe("AUTHORISED");
+      const press = decide(theCase, { kind: "attempt_submission" });
+      if (press.accepted) expect.unreachable("nothing more is submitted");
+      if (press.refusal.kind !== "transition_refused") expect.unreachable(`refused for another reason: ${press.refusal.kind}`);
+      expect(press.refusal.refusal.kind, "refused because it was submitted by hand").toBe("submitted_by_hand");
+    } finally {
+      await pool.query("UPDATE workflow_runs SET status = 'escalated' WHERE run_id = $1", [runId]);
+    }
+  }, 120_000);
+
+  it("the held stop is released after the record without 'moving again', and the account is handed back in words for a submitted application", async () => {
+    const [hold] = await openHolds();
+    if (hold === undefined) expect.unreachable("the hold's intervention is open");
+    const instance = held();
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(hold.intervention_id),
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Submitted on the portal by hand, and recorded it.",
+          resolution: "Nothing more is filled in; the account goes back.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand" },
+        didHappen: false,
+      });
+      expect(await openHolds(), "the hold is closed").toHaveLength(0);
+      expect((await saidTo()).some((content) => content.includes(MOVING_AGAIN)), "no 'moving again'").toBe(false);
+      const moved = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!moved.ok) expect.unreachable(`advance refused: ${moved.refusal.kind}`);
+      expect(moved.position.status).toBe("running");
+      expect(moved.position.step).toBe("hand_over_account");
+      const handBack = (await saidTo()).filter((content) => content.includes("and the account is yours."));
+      expect(handBack, "the hand-back, said once").toHaveLength(1);
+      const text = handBack[0] ?? "";
+      expect(text).toContain("Your application to Gated University has been recorded as submitted on the university's website, and the account is yours.");
+      expect(text).toContain("Your application has been submitted, so we advise you to change the password now");
+      expect(text).not.toContain("until you have submitted");
+      const reading = await instance.driver.runFor(conversation);
+      if (reading?.pending?.decision !== "confirm_handoff") expect.unreachable("the account's question is the one pending");
+      expect(reading.pending.contentHash).toBe(`sha256:${createHash("sha256").update(text).digest("hex")}`);
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await offeredTo())?.runId, "still nothing to fill").not.toBe(runId);
+  }, 120_000);
+
+  it("once the student has it back the run is completed, says so once, and asks nothing more", async () => {
+    const instance = held();
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      if (reading?.pending?.decision !== "confirm_handoff") expect.unreachable("the account's question is pending");
+      expect(
+        await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_handoff", contentHash: reading.pending.contentHash } }),
+      ).toEqual({ ok: true });
+      for (let poll = 0; poll < 3; poll++) await instance.driver.advance({ runId, conversationId: conversation });
+      expect(await statusOf()).toBe("completed");
+      expect((await saidTo()).filter((content) => content === FINISHED), "said once").toHaveLength(1);
+      const after = await instance.driver.runFor(conversation);
+      expect(after?.run.status).toBe("completed");
+      expect(after?.pending ?? null, "nothing offered: no yes, no password").toBeNull();
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await offeredTo())?.runId).not.toBe(runId);
+  }, 120_000);
+
+  it("offers no work in the window after the account is back and before the run completes (the P307 mutation round)", async () => {
+    // The run reads `running`, nothing is owed, the case is authorised and the
+    // form not filled: the orchestrator's next step is a fill. Until the next
+    // advance completes the run, only `claimWork`'s own check stands between
+    // that step and a runner. The first mutation round removed it and no test
+    // went red, because every earlier test held the run on the hand-back.
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    try {
+      const reading = held();
+      try {
+        const position = await reading.driver.runFor(conversation);
+        expect(["execute", "sign_in", "request_secret"], "the step would be browser work, or the sign-in before it").toContain(position?.run.step);
+      } finally {
+        await reading.pool.end();
+      }
+      // With no page held, so the hold is not what stands in the way (the
+      // second mutation round: with the test's hold on the course page, the
+      // hold refused the page and hid the missing check).
+      await pool.query("DELETE FROM work_leases");
+      const unheld = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, null, []);
+      try {
+        const work = await unheld.driver.claimWork({ holder: "runner-by-hand", leaseSeconds: 120 });
+        expect(work?.runId, "nothing more is filled in").not.toBe(runId);
+      } finally {
+        await unheld.pool.end();
+      }
+      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      expect(leases.rows, "no lease taken on it").toHaveLength(0);
+    } finally {
+      await pool.query("UPDATE workflow_runs SET status = 'completed' WHERE run_id = $1", [runId]);
+    }
+  }, 120_000);
+
+  it("takes no stop once completed: refused, the case and the run unchanged, nothing said (the P307 review, D1)", async () => {
+    const before = await new PostgresCaseStore(pool).read(caseRef);
+    const count = (await saidTo()).length;
+    const instance = held();
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({
+        ok: false,
+        reason: "refused",
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    const after = await new PostgresCaseStore(pool).read(caseRef);
+    expect(after.length, "no event appended").toBe(before.length);
+    expect(fold(after).state).toBe("AUTHORISED");
+    expect(await statusOf()).toBe("completed");
+    expect((await saidTo()).length, "nothing said").toBe(count);
+  }, 120_000);
+});
+
+describeIfDatabase("a stop after a submission made by hand says what was recorded (P307)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03071";
+  const CREATION_REQUEST = `sr_${"0".repeat(31)}1`;
+  const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+
+  async function assistantSaid(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted", async () => {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({ conversationId: conversation, event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: `sh_${"6".repeat(32)}` } });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step, "the registration question, before any fill").toBe("student_handoff");
+
+      const recorded = await instance.driver.recordSubmissionByHand({
+        caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
+        submittedAt: SUBMITTED,
+        source: "stated",
+        recordedBy: "specialist_vahid",
+      });
+      expect(recorded).toEqual({ ok: true, recordedNow: true, heldBy: [], told: true });
+      // Advanced by the record itself: the hand-back is said, the question inside it.
+      const handBack = (await assistantSaid()).filter((content) => content.includes("has been recorded as submitted on the university's website"));
+      expect(handBack, "the hand-back, at once").toHaveLength(1);
+      expect(handBack[0]).toContain("Tell me with the buttons below whether it has arrived.");
+
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      const stop = (await assistantSaid()).find((content) => content.startsWith("I have stopped work on your Gated University application"));
+      if (stop === undefined) expect.unreachable("the stop is said");
+      expect(stop).toContain(
+        "A member of the team recorded that your application was submitted on the university's website on 30 August 2026; stopping here does not withdraw it.",
+      );
+      expect(stop).not.toContain("Nothing was submitted");
+      expect((await assistantSaid()).some((content) => content.includes("Nothing was submitted")), "said nowhere").toBe(false);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("through the internal plane: refused without a certificate, a full time not after now, one of two sources; the same record again is not a second", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: () => Promise.resolve(true),
+      authoriseService: (req) => req.header("x-service-cert") === "operator",
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(0, "127.0.0.1", () => resolve(s_));
+    });
+    const address = listening.address();
+    const base = `http://127.0.0.1:${String(typeof address === "object" && address !== null ? address.port : 0)}`;
+    const headers = { "content-type": "application/json", "x-service-cert": "operator" };
+    const caseRef = `case_${conversation.toLowerCase()}`;
+    const record = (body: unknown, target = caseRef, sent: Record<string, string> = headers): Promise<Response> =>
+      fetch(`${base}/internal/v1/cases/${target}/submission-by-hand`, { method: "POST", headers: sent, body: JSON.stringify(body) });
+    const same = { recordedBy: "specialist_vahid", submittedAt: SUBMITTED.toISOString(), source: "stated" };
+    try {
+      expect((await record(same, caseRef, { "content-type": "application/json" })).status, "the internal plane is not open").toBe(403);
+      // Against a case that does not exist, so a body that got past the
+      // checks would answer 404, not 400 (the P307 mutation round: against
+      // this case a different record is refused 400 anyway, and hid it).
+      const nowhere = "case_nothing_here";
+      expect((await record(same, nowhere)).status, "a well-formed record reaches the case").toBe(404);
+      expect((await record({ ...same, submittedAt: "2026-08-30" }, nowhere)).status, "a day is not a time").toBe(400);
+      expect((await record({ ...same, submittedAt: new Date(NOW.getTime() + 60_000).toISOString() }, nowhere)).status, "not after now").toBe(400);
+      expect((await record({ ...same, source: "reasoned" }, nowhere)).status, "no reasoned").toBe(400);
+      expect((await record({ ...same, recordedBy: " " }, nowhere)).status, "who recorded it").toBe(400);
+      expect((await record({ ...same, note: "x" }, nowhere)).status, "nothing else").toBe(400);
+      const again = await record(same);
+      expect(again.status).toBe(200);
+      expect(await again.json(), "the same record again: nothing new").toEqual({ recordedNow: false, heldBy: [], told: true });
+      expect((await record({ ...same, source: "observed" })).status, "a different record is refused").toBe(400);
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+    const records = (await new PostgresCaseStore(pool).read(makeCaseId(caseRef))).filter((event) => event.type === "SubmissionByHandRecorded");
+    expect(records, "still the one record").toHaveLength(1);
+  }, 120_000);
+});
+
+describeIfDatabase("a submission made by hand recorded before the yes (P307)", () => {
+  const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+  const FINISHED_NO_ACCOUNT = "That is the last of it. Nothing is left for me to do on your Gated University application.";
+
+  async function said(conversation: string): Promise<{ actor: string; content: string }[]> {
+    const rows = await pool.query<{ actor: string; content: string }>(
+      `SELECT e.actor, mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  it("at the yes: no account is owed, so the run completes at once, says so once, offers nothing, and takes no yes", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03072";
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step).toBe("authorise");
+      const runId = started.position.runId;
+      const before = await instance.driver.runFor(conversation);
+      if (before?.pending?.decision !== "authorise") expect.unreachable("the yes is what is pending");
+      const hash = before.pending.contentHash;
+
+      expect(
+        await instance.driver.recordSubmissionByHand({
+          caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
+          submittedAt: SUBMITTED,
+          source: "stated",
+          recordedBy: "specialist_vahid",
+        }),
+      ).toEqual({ ok: true, recordedNow: true, heldBy: [], told: true });
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.run.status).toBe("completed");
+      expect(reading?.pending ?? null, "no yes is offered for a form that will not be filled").toBeNull();
+      expect((await said(conversation)).filter((line) => line.content === FINISHED_NO_ACCOUNT), "said once").toHaveLength(1);
+      const yes = await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "authorise", contentHash: hash } });
+      expect(yes.ok, "a yes sent anyway is not taken").toBe(false);
+      const captured = (await new PostgresCaseStore(pool).read(makeCaseId(`case_${conversation.toLowerCase()}`))).filter(
+        (event) => event.type === "AuthorisationCaptured",
+      );
+      expect(captured).toHaveLength(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("in the interview: completed at once, and an answer after it is not met with another question", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03073";
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step).toBe("interview");
+      expect(
+        await instance.driver.recordSubmissionByHand({
+          caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
+          submittedAt: SUBMITTED,
+          source: "stated",
+          recordedBy: "specialist_vahid",
+        }),
+      ).toMatchObject({ ok: true, recordedNow: true });
+      expect((await instance.driver.runFor(conversation))?.run.status).toBe("completed");
+      const count = (await said(conversation)).length;
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: "Jane" },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      const after = await said(conversation);
+      expect(after.slice(count + 1).filter((line) => line.actor === "assistant"), "nothing more is asked").toEqual([]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
+describeIfDatabase("a submission made by hand whose account only a person can settle (P307)", () => {
+  // The by-hand twin of the P300 review's hold: an account creation whose
+  // outcome is not known is owed, and no student can be asked to take back an
+  // account that may not exist. Its message promises "I will tell you when it
+  // is finished"; this is the test that it does.
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03074";
+  const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+  const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+  const HELD =
+    "What is left of your Gated University application at Gated University is something I cannot settle " +
+    "on my own, so I have passed it to a member of the team. I will tell you when it is finished.";
+  const FINISHED_NO_ACCOUNT = "That is the last of it. Nothing is left for me to do on your Gated University application.";
+
+  async function assistantSaid(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("goes to a person, says so once, and when the person has settled it, says it is finished, once", async () => {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: `sr_${"0".repeat(31)}1`, handle: `sh_${"3".repeat(32)}` },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      // A creation begun and never finished: whether the account exists is not known.
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+
+      expect(
+        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+      ).toMatchObject({ ok: true, recordedNow: true });
+      const raised = await pool.query<{ intervention_id: string; target: string }>(
+        "SELECT intervention_id, checkpoint->>'target' AS target FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+        [runId],
+      );
+      expect(raised.rows.map((row) => row.target), "a person holds it, under the by-hand reason").toEqual(["specialist:submitted_by_hand_owed"]);
+      expect((await assistantSaid()).filter((content) => content === HELD), "said once").toHaveLength(1);
+      expect((await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status).toBe("escalated");
+
+      // What the person found, written to the ledger directly: there is no
+      // route for it yet (row 173). The portal made no account.
+      await runs.completeIntent(runRef, key, "failed_cleanly", NOW);
+      const [open] = raised.rows;
+      if (open === undefined) expect.unreachable("the hold's intervention is open");
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(open.intervention_id),
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Looked on the portal: no account was made.",
+          resolution: "Nothing is owed.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand-owed" },
+        didHappen: false,
+      });
+      for (let poll = 0; poll < 2; poll++) await instance.driver.advance({ runId, conversationId: conversation });
+      expect((await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status).toBe("completed");
+      expect((await assistantSaid()).filter((content) => content === FINISHED_NO_ACCOUNT), "the promise kept, once").toHaveLength(1);
+      expect((await assistantSaid()).some((content) => content.includes("moving again")), "no 'moving again'").toBe(false);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
+describeIfDatabase("the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand", () => {
+  const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+  const FIRST_BOX = `sr_${"0".repeat(31)}1`;
+  const FINISHED_NO_ACCOUNT = "That is the last of it. Nothing is left for me to do on your Gated University application.";
+
+  async function said(conversation: string): Promise<{ actor: string; content: string }[]> {
+    const rows = await pool.query<{ actor: string; content: string }>(
+      `SELECT e.actor, mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  async function statusOf(runId: string): Promise<string | undefined> {
+    return (await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status;
+  }
+
+  it("D2: a run the student stopped at the password box, recorded as submitted by hand, ends when they carry on, with no 'carrying on'", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03075";
+    await ownConversation(conversation);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await new ConversationEventStore(instance.pool).append({ conversationId: conversation, event: { kind: "secret_cancelled", requestId: FIRST_BOX } });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect(await statusOf(runId)).toBe("stopped_by_student");
+
+      expect(
+        await instance.driver.recordSubmissionByHand({
+          caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
+          submittedAt: SUBMITTED,
+          source: "stated",
+          recordedBy: "specialist_vahid",
+        }),
+      ).toMatchObject({ ok: true, recordedNow: true, heldBy: [] });
+      expect(await statusOf(runId), "the student's stop stands until they carry on").toBe("stopped_by_student");
+
+      const opensBefore = secure.opens.length;
+      const carried = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!carried.ok) expect.unreachable(`restart refused: ${carried.refusal.kind}`);
+      expect(carried.position.status, "nothing was owed: completed").toBe("completed");
+      expect(await statusOf(runId)).toBe("completed");
+      expect(secure.opens.length, "no password box opened").toBe(opensBefore);
+      const lines = (await said(conversation)).map((line) => line.content);
+      expect(lines.filter((content) => content === FINISHED_NO_ACCOUNT), "said once").toHaveLength(1);
+      expect(lines.some((content) => content.startsWith("Carrying on with your")), "no 'carrying on'").toBe(false);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03076";
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p307-dob', true) RETURNING id",
+    );
+    const student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    const say = async (what: string): Promise<void> => {
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const written = await new ConversationEventStore(instance.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+        await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      } finally {
+        await instance.pool.end();
+      }
+    };
+    let runId = "";
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", student);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", student);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", student);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iran", student);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(started.position.step).toBe("interview");
+      await instance.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await instance.pool.end();
+    }
+    // Three failed attempts, as P223's describe makes them: the run stops for a person.
+    await say("30/02/1989");
+    await say("31/11/1989");
+    await say("11 Aug 1989");
+    await say("no, that is wrong");
+    const stopping = buildInstance(connectionString(), opener());
+    try {
+      await stopping.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await stopping.pool.end();
+    }
+    expect(await statusOf(runId)).toBe("escalated");
+    const stop = await pool.query<{ intervention_id: string; target: string }>(
+      "SELECT intervention_id, checkpoint->>'target' AS target FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+      [runId],
+    );
+    expect(stop.rows[0]?.target).toBe("interview:identity.date_of_birth");
+
+    const recording = buildInstance(connectionString(), opener());
+    try {
+      expect(
+        await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+      ).toMatchObject({ ok: true, recordedNow: true, heldBy: [stop.rows[0]?.intervention_id] });
+    } finally {
+      await recording.pool.end();
+    }
+    const afterRecord = (await said(conversation)).length;
+    await say("11 August 1989");
+    expect((await said(conversation)).slice(afterRecord + 1).filter((line) => line.actor === "assistant"), "nothing asked while held").toEqual([]);
+
+    const resolving = buildInstance(connectionString(), opener());
+    try {
+      await resolving.driver.resolveIntervention({
+        interventionId: makeInterventionId(stop.rows[0]?.intervention_id ?? ""),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the log.", resolution: "Submitted by hand.", resolvedAt: NOW, outcome: "resume" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
+        didHappen: false,
+      });
+      const lines = (await said(conversation)).slice(afterRecord).map((line) => line.content);
+      expect(lines.some((content) => content.includes("it is moving again")), "no 'moving again'").toBe(false);
+      expect(lines.some((content) => content.includes("date of birth")), "no question asked again").toBe(false);
+      await resolving.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await resolving.pool.end();
+    }
+    expect(await statusOf(runId)).toBe("completed");
+    expect((await said(conversation)).filter((line) => line.content === FINISHED_NO_ACCOUNT)).toHaveLength(1);
+  }, 300_000);
+
+  it("D2, with an account owed: the student closed the sign-in box; when they carry on, the hand-back follows and nothing says 'carrying on'", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03078";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    await ownConversation(conversation);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    const boxes = async (): Promise<string[]> =>
+      (
+        await pool.query<{ request_id: string }>(
+          "SELECT request_id FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_requested' ORDER BY ordinal",
+          [conversation],
+        )
+      ).rows.map((row) => row.request_id);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const [creationBox] = await boxes();
+      if (creationBox === undefined) expect.unreachable("the creation's box was opened");
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({ conversationId: conversation, event: { kind: "secret_received", requestId: creationBox, handle: `sh_${"9".repeat(32)}` } });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: accountKey, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: creationBox } });
+      await signedInAtCreation(instance.pool, runRef);
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      // The session is gone: the run's next act is to ask for the password to sign back in.
+      await pool.query("DELETE FROM run_sessions WHERE run_id = $1", [runId]);
+      const asking = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asking.ok) expect.unreachable(`advance refused: ${asking.refusal.kind}`);
+      expect(asking.position.step).toBe("request_secret");
+      const signInBox = (await boxes()).at(-1);
+      if (signInBox === undefined || signInBox === creationBox) expect.unreachable("the sign-in box was opened");
+      await log.append({ conversationId: conversation, event: { kind: "secret_cancelled", requestId: signInBox } });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect(await statusOf(runId)).toBe("stopped_by_student");
+
+      expect(
+        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+      ).toMatchObject({ ok: true, recordedNow: true, heldBy: [] });
+      const opensBefore = secure.opens.length;
+      const carried = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!carried.ok) expect.unreachable(`restart refused: ${carried.refusal.kind}`);
+      expect(carried.position.status).toBe("running");
+      expect(carried.position.step).toBe("hand_over_account");
+      expect(secure.opens.length, "no password box opened").toBe(opensBefore);
+      const lines = (await said(conversation)).map((line) => line.content);
+      expect(lines.filter((content) => content.includes("has been recorded as submitted on the university's website")), "the hand-back, once").toHaveLength(1);
+      expect(lines.some((content) => content.startsWith("Carrying on with your")), "no 'carrying on'").toBe(false);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("R1: a record is refused while a runner holds work on the run, and taken once it has reported", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03077";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      await instance.driver.advance({ runId, conversationId: conversation });
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: FIRST_BOX, handle: `sh_${"8".repeat(32)}` },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: accountKey, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+      await pool.query("DELETE FROM work_leases");
+      const work = await instance.driver.claimWork({ holder: "runner-in-flight", leaseSeconds: 120 });
+      expect(work?.runId, "a runner holds a page of this run").toBe(runId);
+
+      const count = (await said(conversation)).length;
+      const refused = await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" });
+      expect(refused).toMatchObject({ ok: false, reason: "work_in_flight" });
+      expect((await new PostgresCaseStore(pool).read(caseRef)).filter((event) => event.type === "SubmissionByHandRecorded"), "nothing recorded").toHaveLength(0);
+      expect((await said(conversation)).length, "nothing said").toBe(count);
+
+      await pool.query("DELETE FROM work_leases WHERE run_id = $1", [runId]);
+      expect(
+        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+      ).toMatchObject({ ok: true, recordedNow: true });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+

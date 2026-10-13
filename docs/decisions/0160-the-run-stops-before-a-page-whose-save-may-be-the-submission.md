@@ -177,16 +177,22 @@ Mutations 01 to 11 and 13 to 17 were run together after the last change to the c
 
 - **His run stops before page 12, and the case rests escalated.** Part 1's pages are saved on the new
   account. `ready_to_submit` is not reached, and the account is not handed back while the run is
-  held. It ends one of three ways:
+  held. It ends one of four ways (three until P307):
   - **Lifted:** the hold's line is removed in a commit quoting his words that lift it, the service is
     restarted (the register is read at start), and a person resolves the stop `resume`.
   - **Abandoned:** a person resolves it `abandon`.
   - **Stopped by the student** (ADR-0053).
+  - **Submitted by hand, and recorded** (P307, ADR-0159 O10): a person runs
+    `pnpm run submission-by-hand`, and may then resolve the stop `resume` with the page still held.
+    The run opens no page, the account is handed back, and the run completes.
 
-  The last two wind the case down, and the handover becomes due.
-- **If he saves page 12 by hand, do not resume after a lift.** The case cannot yet record a save made
-  by hand (O10 in ADR-0159, built with decision 1 in P306), and a resume would save page 12 a second
-  time: possibly a second course choice. Abandon instead, or wait for O10.
+  Abandoned and stopped wind the case down, and the handover becomes due. A case recorded as
+  submitted by hand is not wound down, and its handover becomes due too.
+- **If he saves page 12 by hand without submitting, do not resume after a lift.** The case can
+  record a submission made by hand (P307), but not a page saved by hand, and a resume would save
+  page 12 a second time: possibly a second course choice. Abandon instead.
+  - *Corrected in P307:* this line said O10 was "built with decision 1 in P306". It was not. P306
+    left O10 unbuilt, and P307 built it.
 - **Latent, not reachable today** (row 180):
   - The runner itself does not refuse a held address; the plane never sends it there. The page-11
     road is guarded by the record test above.

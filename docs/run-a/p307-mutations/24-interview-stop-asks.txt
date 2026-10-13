@@ -1,0 +1,51 @@
+# P307 mutation 24-interview-stop-asks
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    // more, and is not "moving again". Its next advance hands the account back
+    // or completes it, and says so.
+    if (situated.state.inputs.submittedByHand !== undefined) return;
+
+# with:
+    // more, and is not "moving again". Its next advance hands the account back
+    // or completes it, and says so.
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (381 tests | 1 failed | 366 skipped) 4137ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 397ms
+   ✓ a submission made by hand whose account only a person can settle (P307) > goes to a person, says so once, and when the person has settled it, says it is finished, once 319ms
+   × the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 746ms
+     → no 'moving again': expected true to be false // Object.is equality
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D2, with an account owed: the student closed the sign-in box; when they carry on, the hand-back follows and nothing says 'carrying on' 356ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed | 366 skipped (381)
+   Start at  16:57:26
+   Duration  8.38s (transform 2.55s, setup 0ms, collect 3.84s, tests 4.14s, environment 0ms, prepare 72ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either
+AssertionError: no 'moving again': expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19726:100
+    19724|       });
+    19725|       const lines = (await said(conversation)).slice(afterRecord).map(…
+    19726|       expect(lines.some((content) => content.includes("it is moving ag…
+       |                                                                                                    ^
+    19727|       expect(lines.some((content) => content.includes("date of birth")…
+    19728|       await resolving.driver.advance({ runId, conversationId: conversa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

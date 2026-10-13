@@ -501,6 +501,25 @@ export interface CaseCancelled {
   readonly reason: string;
 }
 
+/**
+ * A person recorded that the application was submitted by hand, on the
+ * university's website (ADR-0159 O10, P307).
+ *
+ * ADR-0159's recommendation for O10, written by the agent, not by him: a
+ * person records a submission made by hand on the case, and the press path
+ * refuses any case that has one. Applied on his word of 2026-10-13: *"For the
+ * other eleven open points, apply your recommendations."* A fact about the
+ * outside world, so it says how it is known:
+ * `observed` (the person saw the portal say so) or `stated` (someone told
+ * them). There is no `reasoned`. Who recorded it is the event's actor.
+ */
+export interface SubmissionByHandRecorded {
+  readonly type: "SubmissionByHandRecorded";
+  /** When it was submitted, as the person established it. */
+  readonly submittedAt: Date;
+  readonly source: "observed" | "stated";
+}
+
 /** The union of every event payload. */
 export type CaseEventPayload =
   | CaseOpened
@@ -512,6 +531,7 @@ export type CaseEventPayload =
   | HandoffRequired
   | HandoffCompleted
   | HandoffDeclined
+  | SubmissionByHandRecorded
   | AuthorisationCaptured
   | AuthorisationVoided
   | OwnActRecorded

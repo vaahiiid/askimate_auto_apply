@@ -1,0 +1,60 @@
+# P307 mutation 09-not-due-back
+# file: packages/orchestrator/src/run.ts
+# replaced:
+  return evidence.applicationFilled || evidence.runStopped === true || submittedByHand
+    ? "handover_due"
+# with:
+  return evidence.applicationFilled || evidence.runStopped === true
+    ? "handover_due"
+# command: pnpm exec vitest run --project unit packages/orchestrator/src/account-created.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/orchestrator/src/account-created.test.ts (26 tests | 2 failed) 51ms
+   × where the account stands > is due back once a person records a submission made by hand: the run fills nothing more (ADR-0159 O10, P307) 10ms
+     → expected 'active' to be 'handover_due' // Object.is equality
+   × where the account stands > hands back before anything the form still lacks, once a person records a submission made by hand (the P307 review, R2) 5ms
+     → with it, nothing is asked about the form: the account goes back: expected 'interview' to be 'hand_over_account' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 24 passed (26)
+   Start at  16:55:17
+   Duration  1.73s (transform 828ms, setup 0ms, collect 1.31s, tests 51ms, environment 0ms, prepare 83ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/orchestrator/src/account-created.test.ts > where the account stands > is due back once a person records a submission made by hand: the run fills nothing more (ADR-0159 O10, P307)
+AssertionError: expected 'active' to be 'handover_due' // Object.is equality
+
+Expected: "handover_due"
+Received: "active"
+
+ ❯ packages/orchestrator/src/account-created.test.ts:321:91
+    319|     const BY_HAND = new Date("2026-10-13T09:00:00Z");
+    320|     // The mirror of a stopped run: the form will not be filled by us …
+    321|     expect(stageWith(evidence({ completed: ["registration_email"] }), …
+       |                                                                                           ^
+    322|     // And the registration question, still owed, is asked inside the …
+    323|     expect(stageWith(evidence(), OBSERVED, BY_HAND)).toBe("handover_du…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  packages/orchestrator/src/account-created.test.ts > where the account stands > hands back before anything the form still lacks, once a person records a submission made by hand (the P307 review, R2)
+AssertionError: with it, nothing is asked about the form: the account goes back: expected 'interview' to be 'hand_over_account' // Object.is equality
+
+Expected: "hand_over_account"
+Received: "interview"
+
+ ❯ packages/orchestrator/src/account-created.test.ts:341:103
+    339|     // Only the address is confirmed, so the form lacks everything els…
+    340|     expect(await stepFor(), "without the record, the form's gaps come …
+    341|     expect(await stepFor(BY_HAND), "with it, nothing is asked about th…
+       |                                                                                                       ^
+    342|   });
+    343| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

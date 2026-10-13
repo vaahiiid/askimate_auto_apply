@@ -242,6 +242,16 @@ export interface RunCoordinator {
     readonly caseId: CaseId;
     readonly review: HumanReviewRecord;
   }): Promise<{ readonly ok: true } | { readonly ok: false; readonly detail: string }>;
+  /** A person records that the application was submitted by hand (ADR-0159 O10, P307). */
+  recordSubmissionByHand(input: {
+    readonly caseId: CaseId;
+    readonly submittedAt: Date;
+    readonly source: "observed" | "stated";
+    readonly recordedBy: string;
+  }): Promise<
+    | { readonly ok: true; readonly recordedNow: boolean; readonly heldBy: readonly string[]; readonly told: boolean }
+    | { readonly ok: false; readonly reason: "no_case" | "refused" | "work_in_flight"; readonly detail: string }
+  >;
   /** Everything waiting for a specialist, oldest first. ADR-0048. */
   openInterventions(): Promise<readonly StoredIntervention[]>;
   /** Records a specialist's adjudication and lets the run continue. ADR-0048. */
@@ -650,6 +660,31 @@ function parseDeletionClosure(body: unknown): { closedBy: string; outcome: Delet
   if (outcome === "declined" && (reason === null || reason.trim().length === 0)) return null;
   if (outcome === "deleted" && hasReason) return null;
   return { closedBy, outcome, reason: outcome === "declined" ? reason : null };
+}
+
+/**
+ * A person's record of a submission made by hand (ADR-0159 O10, P307), or null.
+ *
+ * `submittedAt` is a full timestamp with its zone, and not after `now`: a
+ * record says what happened, and a date not yet come has not. `source` is
+ * `observed` (they saw the portal say so) or `stated` (someone told them);
+ * there is no `reasoned`, the rule his P302 decision set for portal facts.
+ */
+function parseSubmissionByHand(
+  body: unknown,
+  now: Date,
+): { recordedBy: string; submittedAt: Date; source: "observed" | "stated" } | null {
+  if (typeof body !== "object" || body === null) return null;
+  if (Object.keys(body).some((key) => !["recordedBy", "submittedAt", "source"].includes(key))) return null;
+  const recordedBy = readString(body, "recordedBy");
+  const at = readString(body, "submittedAt");
+  const source = readString(body, "source");
+  if (recordedBy === null || recordedBy.trim().length === 0 || recordedBy.length > 200) return null;
+  if (source !== "observed" && source !== "stated") return null;
+  if (at === null || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/u.test(at)) return null;
+  const submittedAt = new Date(at);
+  if (Number.isNaN(submittedAt.getTime()) || submittedAt.getTime() > now.getTime()) return null;
+  return { recordedBy, submittedAt, source };
 }
 
 export function createConversationRoutes(options: ConversationRoutesOptions): Router {
@@ -1918,6 +1953,51 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           return;
         }
         problem(res, "validation_failed", { pointers: ["/outcome"] });
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/cases/:caseId/submission-by-hand ─────────────────
+  //
+  // ADR-0159 O10 (P307). A person records that the application was submitted
+  // by hand on the portal. On the internal plane and the operator identity,
+  // as a review is: a person saying what they found. The student is told, and
+  // the run fills nothing more. 200 with `recordedNow: false` for the same
+  // record again; 400 for a different one, which a person settles.
+  router.post(
+    "/internal/v1/cases/:caseId/submission-by-hand",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const record = parseSubmissionByHand(req.body, options.now());
+        if (record === null) {
+          problem(res, "validation_failed", { pointers: ["/recordedBy", "/submittedAt", "/source"] });
+          return;
+        }
+        const done = await options.runs.recordSubmissionByHand({
+          caseId: makeCaseId(String(req.params["caseId"])),
+          ...record,
+        });
+        if (done.ok) {
+          res.status(200).json({ recordedNow: done.recordedNow, heldBy: done.heldBy, told: done.told });
+          return;
+        }
+        if (done.reason === "no_case") {
+          problem(res, "not_found");
+          return;
+        }
+        if (done.reason === "work_in_flight") {
+          problem(res, "work_in_flight");
+          return;
+        }
+        problem(res, "validation_failed", { pointers: ["/submittedAt", "/source"] });
       })().catch(next);
     },
   );

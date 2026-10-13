@@ -1,0 +1,46 @@
+# P307 mutation 27-recorded-beside-an-attempt
+# file: packages/domain/src/machine.ts
+# replaced:
+      if (applicationCase.submissionAttempted) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: "This system attempted a submission on this case;
+# with:
+      if (false) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: "This system attempted a submission on this case;
+# command: pnpm exec vitest run --project unit packages/domain/src/machine.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/domain/src/machine.test.ts (76 tests | 1 failed) 62ms
+   × a submission made by hand (ADR-0159 O10, P307) > is refused on a case this system attempted to submit: two submissions are for a person to reconcile 14ms
+     → expected "recorded beside an attempt of ours" not to be reached
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 75 passed (76)
+   Start at  16:57:49
+   Duration  636ms (transform 158ms, setup 0ms, collect 202ms, tests 62ms, environment 0ms, prepare 79ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/domain/src/machine.test.ts > a submission made by hand (ADR-0159 O10, P307) > is refused on a case this system attempted to submit: two submissions are for a person to reconcile
+AssertionError: expected "recorded beside an attempt of ours" not to be reached
+ ❯ packages/domain/src/machine.test.ts:1391:35
+    1389|     );
+    1390|     const decision = decide(attempted, { kind: "record_submission_by_h…
+    1391|     if (decision.accepted) expect.unreachable("recorded beside an atte…
+       |                                   ^
+    1392|     if (decision.refusal.kind !== "invalid_intent") expect.unreachable…
+    1393|     expect(decision.refusal.detail).toContain("attempted a submission"…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

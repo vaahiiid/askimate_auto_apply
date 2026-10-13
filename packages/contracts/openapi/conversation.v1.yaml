@@ -1045,6 +1045,68 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
+  /internal/v1/cases/{caseId}/submission-by-hand:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: recordSubmissionByHand
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: A person records that the application was submitted by hand.
+      description: >-
+        ADR-0159 O10, P307. A case event with the person as its actor, who is
+        ASSERTED, not authenticated, on the terms of a review. From it the run
+        fills nothing more, the press path refuses the case, the account falls
+        due back, and the student is told once. The same record again answers
+        200 with `recordedNow: false`; a different one is refused (400),
+        because two dates are a disagreement for a person to settle.
+        `heldBy` names the interventions still holding the run: the hand-back
+        waits for their resolution.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmissionByHand" }
+      responses:
+        "200":
+          description: Recorded, now or before.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [recordedNow, heldBy, told]
+                properties:
+                  recordedNow: { type: boolean }
+                  heldBy:
+                    type: array
+                    items: { type: string }
+                  told:
+                    type: boolean
+                    description: Whether the student has been told, in the conversation, now or before.
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >-
+            `work_in_flight`: a runner holds work on the run now, and the page it
+            is on may still be saved. Nothing was recorded; record it once the
+            runner has reported.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "503":
+          description: This deployment drives no runs.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
   /internal/v1/interventions:
     get:
       operationId: listInterventions
@@ -3572,6 +3634,7 @@ components:
         - specialist_reviewing
         - email_not_verified
         - not_for_this_applicant
+        - work_in_flight
         - rate_limited
         - internal_error
         - service_unavailable
@@ -3778,6 +3841,19 @@ components:
         closedBy: { type: string, minLength: 1, maxLength: 200 }
         outcome: { type: string, enum: [deleted, declined] }
         reason: { type: string, minLength: 1, maxLength: 2000 }
+
+    SubmissionByHand:
+      type: object
+      additionalProperties: false
+      description: >-
+        A person's record that the application was submitted by hand (ADR-0159
+        O10). `submittedAt` is not after the time it is recorded. `observed`:
+        they saw the portal say so; `stated`: someone told them.
+      required: [recordedBy, submittedAt, source]
+      properties:
+        recordedBy: { type: string, minLength: 1, maxLength: 200 }
+        submittedAt: { type: string, format: date-time }
+        source: { type: string, enum: [observed, stated] }
 
     OpenIntervention:
       type: object

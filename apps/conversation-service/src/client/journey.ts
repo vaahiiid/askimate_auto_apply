@@ -626,16 +626,19 @@ function drawPending(): void {
 
   // ADR-0053: available at every step, and carrying no hash. Offered because
   // the architecture says a stop button that only worked sometimes would not
-  // be one — not because a read mentioned it.
-  panel.append(
-    button(
-      "Stop this application",
-      () => {
-        void answer("cancel");
-      },
-      "quiet",
-    ),
-  );
+  // be one — not because a read mentioned it. Not on a completed run (P307):
+  // there is nothing left to stop, and the service refuses it.
+  if (view.run.run?.status !== "completed") {
+    panel.append(
+      button(
+        "Stop this application",
+        () => {
+          void answer("cancel");
+        },
+        "quiet",
+      ),
+    );
+  }
 }
 
 /** The secure step, in a cross-origin frame this page cannot read into. */
@@ -1108,6 +1111,9 @@ const CANNOT_REACH_THIS_PAGE: Readonly<Record<string, string>> = {
   // and the route refuses the missing field instead.
   unsupported_media_type:
     "one helper sets application/json, with no charset and no content-encoding",
+  // P307. Answered only by the internal route a person records a submission
+  // made by hand through; this page never calls it.
+  work_in_flight: "only the internal route that records a submission made by hand answers it",
 
   // ── P57 to P62: three entries that USED to be here ─────────────────────
   //

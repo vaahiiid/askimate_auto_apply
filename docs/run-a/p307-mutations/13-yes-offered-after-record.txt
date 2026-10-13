@@ -1,0 +1,48 @@
+# P307 mutation 13-yes-offered-after-record
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const pending = situation.ok && !heldAhead && !byHandAsksNothing
+# with:
+    const pending = situation.ok && !heldAhead
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (381 tests | 1 failed | 366 skipped) 3102ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 346ms
+   × a submission made by hand recorded before the yes (P307) > at the yes: no account is owed, so the run completes at once, says so once, offers nothing, and takes no yes 200ms
+     → no yes is offered for a form that will not be filled: expected { decision: 'authorise', …(1) } to be null
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 497ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed | 366 skipped (381)
+   Start at  16:55:49
+   Duration  7.02s (transform 2.41s, setup 0ms, collect 3.53s, tests 3.10s, environment 0ms, prepare 69ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand recorded before the yes (P307) > at the yes: no account is owed, so the run completes at once, says so once, offers nothing, and takes no yes
+AssertionError: no yes is offered for a form that will not be filled: expected { decision: 'authorise', …(1) } to be null
+
+- Expected: 
+null
+
++ Received: 
+Object {
+  "contentHash": "sha256:6109d64b76ab12a16002bb221d76050a169d48323a00b847401c82c95fe98aad",
+  "decision": "authorise",
+}
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19471:96
+    19469|       const reading = await instance.driver.runFor(conversation);
+    19470|       expect(reading?.run.status).toBe("completed");
+    19471|       expect(reading?.pending ?? null, "no yes is offered for a form t…
+       |                                                                                                ^
+    19472|       expect((await said(conversation)).filter((line) => line.content …
+    19473|       const yes = await instance.driver.recordDecision({ conversationI…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

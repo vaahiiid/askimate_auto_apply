@@ -123,6 +123,7 @@ export type {
   EventEnvelope,
   HandoffCompleted,
   HandoffDeclined,
+  SubmissionByHandRecorded,
   HandoffKind,
   HandoffRequired,
   HumanReviewCompleted,

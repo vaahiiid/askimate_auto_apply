@@ -27,7 +27,8 @@ import {
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 import type { ConfirmedProfile } from "@askimate/aas-profile";
 
-import { accountCreated, accountDeclared, beginRun } from "./run.js";
+import { DeterministicModelClient } from "@askimate/aas-llm";
+import { accountCreated, accountDeclared, beginRun, nextStep } from "./run.js";
 import type { HandoverEvidence, RunState } from "./run.js";
 
 const NOW = new Date("2026-08-31T10:00:00Z");
@@ -72,6 +73,8 @@ function withEmail(address: string): ConfirmedProfile {
 function stateWith(input: {
   readonly profile: ConfirmedProfile;
   readonly observed?: ObservedPortalAuthentication;
+  /** ADR-0159 O10 (P307): a person recorded a submission made by hand. */
+  readonly submittedByHand?: Date;
 }): RunState {
   return beginRun({
     inputs: {
@@ -83,6 +86,7 @@ function stateWith(input: {
       studentPresentAtCreation: true,
       ...(input.observed === undefined ? {} : { portalAuthentication: input.observed }),
       passwordDelivery: "askimate_secure_channel",
+      ...(input.submittedByHand === undefined ? {} : { submittedByHand: { submittedAt: input.submittedByHand } }),
     },
     profile: input.profile,
     interview: newInterview({
@@ -282,8 +286,9 @@ describe("where the account stands", () => {
   const stageWith = (
     handover: HandoverEvidence,
     observed: ObservedPortalAuthentication = OBSERVED,
+    submittedByHand?: Date,
   ): string | undefined =>
-    accountCreated(stateWith({ profile: withEmail(EMAIL), observed }), {
+    accountCreated(stateWith({ profile: withEmail(EMAIL), observed, ...(submittedByHand === undefined ? {} : { submittedByHand }) }), {
       accountId: "acct-1",
       now: NOW,
       handover,
@@ -308,6 +313,49 @@ describe("where the account stands", () => {
     expect(stageWith(evidence({ applicationFilled: true }))).toBe("handover_due");
     // A portal that verifies keeps its verification, and owes no answer.
     expect(stageWith(evidence({ completed: ["email_verification"] }), VERIFYING)).toBe("active");
+  });
+
+  it("is due back once a person records a submission made by hand: the run fills nothing more (ADR-0159 O10, P307)", () => {
+    const BY_HAND = new Date("2026-10-13T09:00:00Z");
+    // The mirror of a stopped run: the form will not be filled by us now.
+    expect(stageWith(evidence({ completed: ["registration_email"] }), OBSERVED, BY_HAND)).toBe("handover_due");
+    // And the registration question, still owed, is asked inside the hand-back, not before a fill that is not coming.
+    expect(stageWith(evidence(), OBSERVED, BY_HAND)).toBe("handover_due");
+    // Without the record, the same evidence is not due back: the field is what moves it.
+    expect(stageWith(evidence({ completed: ["registration_email"] }))).toBe("active");
+  });
+
+  it("hands back before anything the form still lacks, once a person records a submission made by hand (the P307 review, R2)", async () => {
+    const BY_HAND = new Date("2026-10-13T09:00:00Z");
+    const stepFor = async (submittedByHand?: Date): Promise<string> => {
+      const created = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED, ...(submittedByHand === undefined ? {} : { submittedByHand }) }), {
+        accountId: "acct-1",
+        now: NOW,
+        handover: evidence({ completed: ["registration_email"] }),
+      });
+      if (created === null) expect.unreachable("the account is derived");
+      return (await nextStep(created, new DeterministicModelClient())).kind;
+    };
+    // Only the address is confirmed, so the form lacks everything else.
+    expect(await stepFor(), "without the record, the form's gaps come first").toBe("interview");
+    expect(await stepFor(BY_HAND), "with it, nothing is asked about the form: the account goes back").toBe("hand_over_account");
+  });
+
+  it("hands back with words for an application already submitted, once a person records one (ADR-0159 O10, P307)", () => {
+    const text = (submittedByHand?: Date): string =>
+      accountCreated(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED, ...(submittedByHand === undefined ? {} : { submittedByHand }) }), {
+        accountId: "acct-1",
+        now: NOW,
+        handover: evidence({ completed: ["registration_email"] }),
+      })?.account?.handover?.presentedText ?? "";
+    const before = text();
+    const after = text(new Date("2026-10-13T09:00:00Z"));
+    expect(before).toContain("Please do not change the password until you have submitted your application.");
+    // His rule (ADR-0159): not until every submission is done, and change it after. After is now.
+    expect(after).not.toContain("until you have submitted");
+    expect(after).toContain("Your application has been submitted, so we advise you to change the password now");
+    expect(after).toContain("has been recorded as submitted on the university's website, and the account is yours.");
+    expect(after).not.toContain("is complete, and the account is yours.");
   });
 
   it("stays with the verification until the student says they did it", () => {

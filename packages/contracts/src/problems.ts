@@ -59,6 +59,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   secret_request_open: "A secure step is open on this conversation",
   already_applying: "You already have an application for this course and intake",
   specialist_reviewing: "Someone is checking part of your application, and will finish shortly",
+  work_in_flight: "A runner is working on this application now; nothing was recorded",
   email_not_verified: "Verify your email address, then sign in again",
   not_for_this_applicant: "This application target is approved for one account only, and not for yours",
   rate_limited: "Too many requests",
@@ -103,6 +104,9 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   // and it becomes ready without them doing anything. The title is what they
   // can act on, which is nothing, and saying so is the point.
   specialist_reviewing: 409,
+  // 409: the record is well formed and permitted; the world is not ready,
+  // and becomes ready when the runner reports (P307).
+  work_in_flight: 409,
   // 403: authenticated, and not permitted to open this step yet. Its own code
   // rather than a bare `forbidden` so a client can say what to do about it —
   // and the title is the instruction, because this is the one refusal on this
@@ -359,6 +363,7 @@ export function parseProblem(raw: unknown): Problem | null {
     case "email_not_verified":
     case "not_for_this_applicant":
     case "specialist_reviewing":
+    case "work_in_flight":
     case "internal_error":
     case "service_unavailable":
       return { ...base, code };

@@ -1,0 +1,50 @@
+# P307 mutation 25-record-during-work
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (before === undefined && runNow !== undefined && this.#options.leases !== undefined) {
+# with:
+    if (false) {
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (381 tests | 1 failed | 366 skipped) 3247ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 358ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 506ms
+   × the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > R1: a record is refused while a runner holds work on the run, and taken once it has reported 285ms
+     → expected { ok: true, recordedNow: true, …(2) } to match object { ok: false, reason: 'work_in_flight' }
+(3 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed | 366 skipped (381)
+   Start at  16:57:37
+   Duration  7.50s (transform 2.59s, setup 0ms, collect 3.83s, tests 3.25s, environment 0ms, prepare 79ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > R1: a record is refused while a runner holds work on the run, and taken once it has reported
+AssertionError: expected { ok: true, recordedNow: true, …(2) } to match object { ok: false, reason: 'work_in_flight' }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "ok": false,
+-   "reason": "work_in_flight",
++   "ok": true,
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19830:23
+    19828|       const count = (await said(conversation)).length;
+    19829|       const refused = await instance.driver.recordSubmissionByHand({ c…
+    19830|       expect(refused).toMatchObject({ ok: false, reason: "work_in_flig…
+       |                       ^
+    19831|       expect((await new PostgresCaseStore(pool).read(caseRef)).filter(…
+    19832|       expect((await said(conversation)).length, "nothing said").toBe(c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

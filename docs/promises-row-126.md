@@ -152,10 +152,17 @@ Promises written after P269's measurement, each shipped with its assertion. RDT 
 
 | P10 | entry-choice-offer.ts, `entryChoiceMessage` (P291) | *"…so they will not go in as they are; I will not shorten them for you."* | `entry-choice-offer.test.ts`, *promises nothing for a box too short*; and the validator refuses the words untruncated (`run-a-profile.test.ts` in the P291 patch: `unlistedDegree maxlength 28`; `validate.ts`: *"it must not be truncated on their behalf"*) |
 | P11 | ownership.ts, `renderRegistrationEmailQuestion` (P306) | *"One question before I fill in anything: … I will not fill in anything until you answer."* | RDT, the P306 describe: five polls stay `student_handoff`, the question is said once, no page is handed out and no page intent is recorded; then a "no" stops for a person, and only a "yes" leads to `execute` |
+| P12 | run-driver.ts, `submittedByHandMessage` (P307) | *"A member of the team has recorded that your … application was submitted on the university's website on … I will not fill in or submit anything more on it."* | RDT, the P307 describes: the record is refused while a runner holds work on the run, so no page in flight is saved after it is said; no work is handed out after the record, with the run read as `running`, on the hand-back and in the window after it with no page held; the press is refused (`submitted_by_hand`); a yes sent anyway is not taken; nothing is offered once completed; an interview stop resolved after the record asks nothing; an answer in the interview is not met with a question |
+| P13 | run-driver.ts, `submittedByHandHeldMessage` (P307) | *"…so I have passed it to a member of the team. I will tell you when it is finished."* | RDT, *a submission made by hand whose account only a person can settle*: the hold is raised under `specialist:submitted_by_hand_owed`, said once; when the person has settled it and resumed, *"That is the last of it"* is said, once |
 
 P10 was found by the same search over the lines P291 added. It returned two lines: P10, and P8's line, which the edit moved.
 
 P8 and P9 were found by `grep -nE "\bI will\b|\bI'll\b"` over the lines P290 added to `apps` and `packages`, test files and comments excluded, and the one new product file with student text; two lines.
+
+P12 and P13 were found by `git diff HEAD -U0 -- apps packages scripts`, test files, compiled output
+and comment lines excluded, grepped for `\bI will\b|\bI'll\b`: four lines. The other two are the
+stop's existing *"…and I will tell you when it is finished"*, moved by P307's edit to
+`stoppedRemainder`; the search finding them is its positive control.
 
 P11 was found by `git diff HEAD -U0 -- apps packages`, test files, compiled output and comment lines
 excluded, grepped for `\bI will\b|\bI'll\b`: three lines. The other two are the handover's existing

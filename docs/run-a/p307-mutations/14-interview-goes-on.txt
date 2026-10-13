@@ -1,0 +1,53 @@
+# P307 mutation 14-interview-goes-on
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (record.status === "completed") return null;
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (381 tests | 1 failed | 366 skipped) 3631ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 401ms
+   × a submission made by hand recorded before the yes (P307) > in the interview: completed at once, and an answer after it is not met with another question 249ms
+     → nothing more is asked: expected [ { actor: 'assistant', …(1) } ] to deeply equal []
+   ✓ a submission made by hand whose account only a person can settle (P307) > goes to a person, says so once, and when the person has settled it, says it is finished, once 328ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 520ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > R1: a record is refused while a runner holds work on the run, and taken once it has reported 328ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed | 366 skipped (381)
+   Start at  16:55:57
+   Duration  7.63s (transform 2.45s, setup 0ms, collect 3.60s, tests 3.63s, environment 0ms, prepare 92ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand recorded before the yes (P307) > in the interview: completed at once, and an answer after it is not met with another question
+AssertionError: nothing more is asked: expected [ { actor: 'assistant', …(1) } ] to deeply equal []
+
+- Expected
++ Received
+
+- Array []
++ Array [
++   Object {
++     "actor": "assistant",
++     "content": "I could not read an email address from \"Jane\". The university will send everything about your application to this address, so it needs to be your own personal email rather than anyone else's. What is your personal email address?",
++   },
++ ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19508:108
+    19506|       await instance.driver.answerStudent({ conversationId: conversati…
+    19507|       const after = await said(conversation);
+    19508|       expect(after.slice(count + 1).filter((line) => line.actor === "a…
+       |                                                                                                            ^
+    19509|     } finally {
+    19510|       await instance.pool.end();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

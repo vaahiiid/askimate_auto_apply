@@ -1,0 +1,22 @@
+# P307 mutation 12-future-time-taken
+# file: apps/conversation-service/src/routes.ts
+# replaced:
+ || submittedAt.getTime() > now.getTime()) return null;
+# with:
+) return null;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 0
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ✓ |unit| apps/conversation-service/src/run-driver.test.ts (374 tests | 366 skipped) 2300ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 480ms
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 329ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed | 366 skipped (374)
+   Start at  16:26:01
+   Duration  6.79s (transform 2.72s, setup 0ms, collect 4.05s, tests 2.30s, environment 0ms, prepare 82ms)
+

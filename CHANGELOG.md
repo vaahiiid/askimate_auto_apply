@@ -19,6 +19,61 @@ not shipped artefacts.
 
 ---
 
+## [0.300.0] — 2026-10-13
+
+**P307 — ADR-0159 O10: a submission made by hand, recorded on the case.** The run still presses
+nothing.
+
+- **His word** (ADR-0159): *"For the other eleven open points, apply your recommendations."* O10's:
+  a person records the observed submission on the case, and the press path refuses any case that
+  has one.
+- **The record.** A case event, `SubmissionByHandRecorded` (when, and `observed` or `stated`), with
+  the person as its actor, asserted as a review's is. It is written through
+  `POST /internal/v1/cases/{caseId}/submission-by-hand` or `pnpm run submission-by-hand`. The first
+  is kept. The same record again changes nothing. A different one is refused.
+- **What it does.**
+  - The `SUBMITTING` guard refuses the case first (`submitted_by_hand`), and a yes sent after the
+    record is refused.
+  - `claimWork` hands out no browser work for the case.
+  - The case is not walked along the spine, and nothing new is asked.
+  - The account falls due back, in words for an application already submitted: the password
+    advice is to change it now.
+  - An account only a person can settle goes to a person.
+  - Once nothing is owed, the run is `completed`, the first path that completes one, and the
+    student is told.
+- **The words.** The student is told once when it is recorded. A stop or an abandon after a record
+  says what was recorded, and that stopping does not withdraw it, never *"Nothing was submitted"*.
+- **His run.** With a record, the page-12 stop (ADR-0160) may be resolved `resume`. Nothing opens,
+  nothing says "moving again", and the account is handed back. `pnpm run interventions` says so.
+  ADR-0160's line that O10 was built in P306 is corrected: it was not.
+- **Choices beyond his words** (D7 to D12) and what is left (row 182) are in ADR-0159's Built
+  section for O10.
+- **Records:** ADR-0159 (Built: O10); ADR-0160 §3; row 180 (2) narrowed; row 182 opened; row 126's
+  list gains P12 and P13.
+- **Review.** One read-only reviewer. Every finding was checked against the code. Each fix was
+  written as a test seen to fail first.
+  - **Fixed:**
+    - a stop after the run completed crashed and left the case cancelled under a completed run;
+    - a run the student stopped at the password box could never be carried on after a record;
+    - an interview stop resolved after a record said "moving again" and asked again;
+    - a record made while a runner held a page let that page be saved after the student was told
+      nothing more would be, now refused as `work_in_flight` (a new problem code, 409);
+    - a gap in the form stood in front of the hand-back;
+    - the command said the student was told when it could not know.
+  - **Also fixed:**
+    - the event's comment called the recommendation his, which it is not;
+    - the event was not exported;
+    - a record beside a submission this system attempted is refused, for when the press exists.
+  - **Recorded** (row 182): what it left, and why.
+- **Mutations:** twenty-seven guards, each disabled on its own and run on the finished code. Every
+  run was red and every file restored byte for byte. Earlier rounds were green three times
+  (mutation 01 twice, 12 once), each showing a test that could not see its guard. The tests were
+  fixed, and those green runs are kept beside the red ones in `docs/run-a/p307-mutations/`.
+- **Census** (its own log: started 16:59:51, 662 s), on the finished tree: 176 files, **3,540
+  tests**, green, zero skipped.
+
+---
+
 ## [0.299.0] — 2026-10-13
 
 **P306 — ADR-0159 decision 1, built alone: no password reset before submission, and the

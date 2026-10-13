@@ -1,0 +1,49 @@
+# P307 mutation 07-old-hand-back-words
+# file: packages/orchestrator/src/run.ts
+# replaced:
+  return state.inputs.submittedByHand === undefined ? {} : { applicationSubmitted: true };
+# with:
+  return {};
+# command: pnpm exec vitest run --project unit packages/orchestrator/src/account-created.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/orchestrator/src/account-created.test.ts (26 tests | 1 failed) 58ms
+   × where the account stands > hands back with words for an application already submitted, once a person records one (ADR-0159 O10, P307) 13ms
+     → expected 'Your application to Gated University …' not to contain 'until you have submitted'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 25 passed (26)
+   Start at  16:55:04
+   Duration  1.94s (transform 953ms, setup 0ms, collect 1.48s, tests 58ms, environment 0ms, prepare 92ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/orchestrator/src/account-created.test.ts > where the account stands > hands back with words for an application already submitted, once a person records one (ADR-0159 O10, P307)
+AssertionError: expected 'Your application to Gated University …' not to contain 'until you have submitted'
+
+- Expected
++ Received
+
+- until you have submitted
++ Your application to Gated University is complete, and the account is yours.
++
++ Sign in at gated.portal.test with niloofar@example.test.
++
++ I do not keep your password, and I have closed the session I was using, so from here it is only you. Please do not change the password until you have submitted your application. After that, we advise you to change it, because it passed through our system on its way to the portal. If you ever lose your password, use "Forgot password" on that page.
++
++ Tell me when you are in, and I will close this off.
+
+ ❯ packages/orchestrator/src/account-created.test.ts:355:23
+    353|     expect(before).toContain("Please do not change the password until …
+    354|     // His rule (ADR-0159): not until every submission is done, and ch…
+    355|     expect(after).not.toContain("until you have submitted");
+       |                       ^
+    356|     expect(after).toContain("Your application has been submitted, so w…
+    357|     expect(after).toContain("has been recorded as submitted on the uni…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

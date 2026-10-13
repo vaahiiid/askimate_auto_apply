@@ -820,6 +820,12 @@ export function renderHandover(input: {
   readonly madeWithYourPassword?: true;
   /** The student has not yet said the registration e-mail arrived (`resetWordsFor`, P306). */
   readonly registrationEmailStillToDo?: true;
+  /**
+   * A person recorded that the application was submitted by hand (ADR-0159
+   * O10, P307). The words are then for an application already submitted:
+   * nothing is said to be done "before you submit".
+   */
+  readonly applicationSubmitted?: true;
 }): string {
   const left = input.leftToStudent ?? [];
   // ADR-0108, in Vahid's words: *"the student must be able to tell that we
@@ -829,6 +835,12 @@ export function renderHandover(input: {
   const ownActs =
     left.length === 0
       ? ""
+      : input.applicationSubmitted === true
+        ? // P307: too late to say "before you submit", and nothing here knows
+          // whether they were attached before it was. Said as what is known.
+          `I did not attach these, and I cannot tell whether they were attached before the ` +
+          `application was submitted:\n${left.map((act) => `  - ${act.text}`).join("\n")}\n\n` +
+          `If they were not, ${input.institutionName}'s admissions office can tell you how to send them.\n\n`
       : `Before you submit, attach these yourself on the portal — I did not attach them:\n` +
         `${left.map((act) => `  - ${act.text}`).join("\n")}\n\n` +
         `${left.some((act) => act.toldLater) ? `${input.institutionName} has been told these are coming later. ` : ""}` +
@@ -836,7 +848,9 @@ export function renderHandover(input: {
         `${input.institutionName} will treat the application as incomplete, and I will not know. ` +
         `When you have attached one, tell me here and I will record it.\n\n`;
   const state =
-    left.length === 0
+    input.applicationSubmitted === true
+      ? `Your application to ${input.institutionName} has been recorded as submitted on the university's website, and the account is yours.`
+      : left.length === 0
       ? `Your application to ${input.institutionName} is complete, and the account is yours.`
       : `Your application to ${input.institutionName} is filled as far as I can take it, and the account is yours.`;
   return (
@@ -913,6 +927,7 @@ function handoverMiddle(input: {
   readonly resetStillToDo?: true;
   readonly madeWithYourPassword?: true;
   readonly registrationEmailStillToDo?: true;
+  readonly applicationSubmitted?: true;
 }): string {
   if (input.approach === "generated_ephemeral") {
     return (
@@ -934,11 +949,18 @@ function handoverMiddle(input: {
         ? `If you ever lose your password, this portal's "Forgot password" was not seen to work, so ` +
           `${input.institutionName}'s admissions office is the way back in.`
         : `If you ever lose your password, ${whatAResetDoes(input.passwordResetSends)}`;
+    // P307: his rule applied to a submission already recorded. "Until every
+    // submission is done" is over, so the advice is "after": now.
+    const when =
+      input.applicationSubmitted === true
+        ? `Your application has been submitted, so we advise you to change the password now, ` +
+          `because it passed through our system on its way to the portal.`
+        : `Please do not change the password until you have submitted your application. After ` +
+          `that, we advise you to change it, because it passed through our system on its way to the ` +
+          `portal.`;
     const kept =
       `I do not keep your password, and I have closed the session I was using, so from here it is ` +
-      `only you. Please do not change the password until you have submitted your application. After ` +
-      `that, we advise you to change it, because it passed through our system on its way to the ` +
-      `portal. ${lost}`;
+      `only you. ${when} ${lost}`;
     return input.registrationEmailStillToDo === true
       ? `${kept}\n\nOne thing is left before I can close this off: has an e-mail from ` +
           `${input.institutionName}'s application portal reached ${input.email} since I created the ` +

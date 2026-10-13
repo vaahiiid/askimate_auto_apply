@@ -1,0 +1,138 @@
+# P307 mutation 04-by-hand-path-skipped
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const byHand = await this.#afterSubmissionByHand(input, situation);
+    if (byHand !== null) return byHand;
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (381 tests | 6 failed | 366 skipped) 2933ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 427ms
+   × a submission made by hand (P307, ADR-0159 O10) > once the student has it back the run is completed, says so once, and asks nothing more 162ms
+     → expected 'running' to be 'completed' // Object.is equality
+   × a submission made by hand recorded before the yes (P307) > at the yes: no account is owed, so the run completes at once, says so once, offers nothing, and takes no yes 118ms
+     → expected 'running' to be 'completed' // Object.is equality
+   × a submission made by hand recorded before the yes (P307) > in the interview: completed at once, and an answer after it is not met with another question 105ms
+     → expected 'running' to be 'completed' // Object.is equality
+   × a submission made by hand whose account only a person can settle (P307) > goes to a person, says so once, and when the person has settled it, says it is finished, once 169ms
+     → a person holds it, under the by-hand reason: expected [] to deeply equal [ 'specialist:submitted_by_hand_owed' ]
+   × the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D2: a run the student stopped at the password box, recorded as submitted by hand, ends when they carry on, with no 'carrying on' 156ms
+     → nothing was owed: completed: expected 'running' to be 'completed' // Object.is equality
+   × the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 405ms
+     → expected 'escalated' to be 'completed' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 9 passed | 366 skipped (381)
+   Start at  16:54:39
+   Duration  7.00s (transform 2.54s, setup 0ms, collect 3.69s, tests 2.93s, environment 0ms, prepare 67ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > once the student has it back the run is completed, says so once, and asks nothing more
+AssertionError: expected 'running' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19263:32
+    19261|       ).toEqual({ ok: true });
+    19262|       for (let poll = 0; poll < 3; poll++) await instance.driver.advan…
+    19263|       expect(await statusOf()).toBe("completed");
+       |                                ^
+    19264|       expect((await saidTo()).filter((content) => content === FINISHED…
+    19265|       const after = await instance.driver.runFor(conversation);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand recorded before the yes (P307) > at the yes: no account is owed, so the run completes at once, says so once, offers nothing, and takes no yes
+AssertionError: expected 'running' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19470:35
+    19468|       ).toEqual({ ok: true, recordedNow: true, heldBy: [], told: true …
+    19469|       const reading = await instance.driver.runFor(conversation);
+    19470|       expect(reading?.run.status).toBe("completed");
+       |                                   ^
+    19471|       expect(reading?.pending ?? null, "no yes is offered for a form t…
+    19472|       expect((await said(conversation)).filter((line) => line.content …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand recorded before the yes (P307) > in the interview: completed at once, and an answer after it is not met with another question
+AssertionError: expected 'running' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19500:72
+    19498|         }),
+    19499|       ).toMatchObject({ ok: true, recordedNow: true });
+    19500|       expect((await instance.driver.runFor(conversation))?.run.status)…
+       |                                                                        ^
+    19501|       const count = (await said(conversation)).length;
+    19502|       const written = await new ConversationEventStore(instance.pool).…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand whose account only a person can settle (P307) > goes to a person, says so once, and when the person has settled it, says it is finished, once
+AssertionError: a person holds it, under the by-hand reason: expected [] to deeply equal [ 'specialist:submitted_by_hand_owed' ]
+
+- Expected
++ Received
+
+- Array [
+-   "specialist:submitted_by_hand_owed",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19565:99
+    19563|         [runId],
+    19564|       );
+    19565|       expect(raised.rows.map((row) => row.target), "a person holds it,…
+       |                                                                                                   ^
+    19566|       expect((await assistantSaid()).filter((content) => content === H…
+    19567|       expect((await pool.query<{ status: string }>("SELECT status FROM…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D2: a run the student stopped at the password box, recorded as submitted by hand, ends when they carry on, with no 'carrying on'
+AssertionError: nothing was owed: completed: expected 'running' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19642:70
+    19640|       const carried = await instance.driver.start({ conversationId: co…
+    19641|       if (!carried.ok) expect.unreachable(`restart refused: ${carried.…
+    19642|       expect(carried.position.status, "nothing was owed: completed").t…
+       |                                                                      ^
+    19643|       expect(await statusOf(runId)).toBe("completed");
+    19644|       expect(secure.opens.length, "no password box opened").toBe(opens…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either
+AssertionError: expected 'escalated' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "escalated"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19732:35
+    19730|       await resolving.pool.end();
+    19731|     }
+    19732|     expect(await statusOf(runId)).toBe("completed");
+       |                                   ^
+    19733|     expect((await said(conversation)).filter((line) => line.content ==…
+    19734|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+

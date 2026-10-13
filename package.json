@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.299.0",
+  "version": "0.300.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -30,6 +30,7 @@
     "profile:seed": "tsx scripts/profile-seed.ts",
     "interventions": "tsx scripts/interventions.ts",
     "deletion-requests": "tsx scripts/deletion-requests.ts",
+    "submission-by-hand": "tsx scripts/submission-by-hand.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run reachability && pnpm run version:check && pnpm run test",
     "clean": "tsc --build --clean",

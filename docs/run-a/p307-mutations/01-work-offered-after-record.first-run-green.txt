@@ -1,0 +1,22 @@
+# P307 mutation 01-work-offered-after-record
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      if (foldedCase?.submittedByHand !== undefined) continue;
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 0
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ✓ |unit| apps/conversation-service/src/run-driver.test.ts (374 tests | 366 skipped) 2085ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 444ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed | 366 skipped (374)
+   Start at  16:24:50
+   Duration  6.47s (transform 2.72s, setup 0ms, collect 3.96s, tests 2.08s, environment 0ms, prepare 76ms)
+

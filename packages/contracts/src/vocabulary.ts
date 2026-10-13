@@ -316,6 +316,11 @@ export const PROBLEM_CODES = [
   // own code rather than `forbidden` so the student is told what it is, and
   // so the record shows a one-signature approval refusing, not a bug.
   "not_for_this_applicant",
+  // P307, ADR-0159 O10. A person tried to record a submission made by hand
+  // while a runner holds work on the run: the page it is on may still be
+  // saved after the record. Its own code so the person is told to wait for
+  // the report, not that their record was malformed.
+  "work_in_flight",
   "rate_limited",
   "internal_error",
   "service_unavailable",

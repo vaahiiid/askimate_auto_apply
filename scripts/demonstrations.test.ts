@@ -247,6 +247,9 @@ describe("the published demonstrations", () => {
         expect(refused.out).toContain("page_save_may_submit");
         expect(refused.out).toContain("only --abandon is taken");
         expect(refused.out).toContain("packages/catalogue/src/held-pages.ts");
+        // P307: a submission made by hand can be recorded, and then the stop resumed.
+        expect(refused.out).toContain("pnpm run submission-by-hand <caseId>");
+        expect(refused.out).not.toContain("cannot record that save yet");
         expect(refused.out).not.toContain("moving again");
       } finally {
         stub.kill();
@@ -276,6 +279,41 @@ describe("the published demonstrations", () => {
       const noReason = run("deletion-requests.ts", ["close", "ddr_x", "--by", "vahid", "--declined"], offline);
       expect(noReason.code).not.toBe(0);
       expect(noReason.out).toContain("--declined needs --reason");
+    });
+  });
+
+  describe("submission-by-hand", () => {
+    // P307, ADR-0159 O10. Recording one tells a student and stops their run
+    // filling, so the command refuses anything that does not say who, when
+    // and how it is known, before it reaches the service. The URL points at
+    // nothing: a refusal that needed the network would fail here, not pass.
+    const offline = { AAS_SERVICE_CERT: "operator", AAS_CONVERSATION_URL: "http://127.0.0.1:9" };
+    const AT = "2026-10-14T09:30:00Z";
+    it("REFUSES without the service credential, and names the boundary it protects", () => {
+      const bare = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--at", AT, "--observed"], { AAS_SERVICE_CERT: "" });
+      expect(bare.code).not.toBe(0);
+      expect(bare.out).toContain("AAS_SERVICE_CERT");
+      expect(bare.out).toContain("ADR-0048");
+    });
+    it("REFUSES a record without a case, a name, a full time, or exactly one of how it is known", () => {
+      const noCase = run("submission-by-hand.ts", ["--by", "vahid"], offline);
+      expect(noCase.code).not.toBe(0);
+      expect(noCase.out).toContain("Usage:");
+      const noName = run("submission-by-hand.ts", ["case_x", "--at", AT, "--observed"], offline);
+      expect(noName.code).not.toBe(0);
+      expect(noName.out).toContain("--by is required");
+      const noTime = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--observed"], offline);
+      expect(noTime.code).not.toBe(0);
+      expect(noTime.out).toContain("--at is required");
+      const dayOnly = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--at", "2026-10-14", "--observed"], offline);
+      expect(dayOnly.code, "a day without a time and zone is not taken").not.toBe(0);
+      expect(dayOnly.out).toContain("--at is required");
+      const neither = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--at", AT], offline);
+      expect(neither.code).not.toBe(0);
+      expect(neither.out).toContain("Say exactly one of --observed");
+      const both = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--at", AT, "--observed", "--stated"], offline);
+      expect(both.code).not.toBe(0);
+      expect(both.out).toContain("Say exactly one of --observed");
     });
   });
 
@@ -361,6 +399,8 @@ describe("the published demonstrations", () => {
     const GUARDED_HERE = [
       "extraction-demo", "interview-demo", "catalogue", "interventions", "deletion-requests", "inspect-discovery",
       "inspect:attached", "inspect-dependencies", "country-mappings",
+      // P307 — refuses without the credential, a name, a full time, or exactly one source.
+      "submission-by-hand",
     ];
 
     const unguarded = published.filter(

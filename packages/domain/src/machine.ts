@@ -129,6 +129,11 @@ export interface ApplicationCase {
    */
   readonly declinedHandoffs: readonly HandoffKind[];
   /**
+   * A person recorded that it was submitted by hand (ADR-0159 O10, P307). The
+   * first record is kept; a second is refused.
+   */
+  readonly submittedByHand?: { readonly submittedAt: Date; readonly source: "observed" | "stated" };
+  /**
    * The unresolved recovery escalation, if the case is paused on one.
    *
    * Carries the checkpoint, so a restarted worker or a specialist opening the
@@ -170,6 +175,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   const raisedHandoffs: HandoffKind[] = [];
   const completedHandoffs: HandoffKind[] = [];
   const declinedHandoffs: HandoffKind[] = [];
+  let submittedByHand: { readonly submittedAt: Date; readonly source: "observed" | "stated" } | undefined;
   let openEscalation: RecoveryEscalation | undefined;
   let submissionAttempted = false;
   let priorCaseId: CaseId | undefined = first.priorCaseId;
@@ -264,6 +270,10 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
           openHandoffToken = undefined;
           openHandoffKind = undefined;
         }
+        break;
+
+      case "SubmissionByHandRecorded":
+        submittedByHand ??= { submittedAt: event.submittedAt, source: event.source };
         break;
 
       case "HandoffDeclined":
@@ -405,6 +415,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     ...(preparedContentHash !== undefined ? { preparedContentHash } : {}),
     ...(openHandoffToken !== undefined ? { openHandoffToken } : {}),
     ...(openHandoffKind !== undefined ? { openHandoffKind } : {}),
+    ...(submittedByHand !== undefined ? { submittedByHand } : {}),
     ...(openEscalation !== undefined ? { openEscalation } : {}),
     ...(priorCaseId !== undefined ? { priorCaseId } : {}),
     ...(reapplication !== undefined ? { reapplication } : {}),
@@ -449,6 +460,8 @@ export type CaseIntent =
   | { readonly kind: "complete_handoff"; readonly handoffToken: string }
   /** The student's "no" to the open handoff, where a "no" is an answer (ADR-0159 O3). */
   | { readonly kind: "decline_handoff"; readonly handoffToken: string }
+  /** A person records that it was submitted by hand (ADR-0159 O10, P307). */
+  | { readonly kind: "record_submission_by_hand"; readonly submittedAt: Date; readonly source: "observed" | "stated" }
   | { readonly kind: "capture_authorisation"; readonly contentHash: string }
   | { readonly kind: "void_authorisation"; readonly reason: "content_changed" | "expired" | "student_revoked" }
   | { readonly kind: "attempt_submission" }
@@ -512,6 +525,7 @@ function guardContextOf(applicationCase: ApplicationCase): GuardContext {
     ...(applicationCase.preparedContentHash !== undefined
       ? { preparedContentHash: applicationCase.preparedContentHash }
       : {}),
+    ...(applicationCase.submittedByHand !== undefined ? { submittedByHand: true as const } : {}),
   };
 }
 
@@ -709,6 +723,34 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
       };
     }
 
+    case "record_submission_by_hand": {
+      // A fact, recorded once. A second record is refused rather than kept
+      // beside the first: two people establishing two dates is evidence of a
+      // disagreement, not a correction to be tidied away.
+      if (applicationCase.submittedByHand !== undefined) {
+        return {
+          accepted: false,
+          refusal: { kind: "invalid_intent", detail: "A submission by hand is already recorded on this case." },
+        };
+      }
+      // Waiting for the press (the P307 review): nothing attempts a submission
+      // today. Once something does, a record of one made by hand beside it is
+      // two submissions for a person to reconcile, not a fact to append.
+      if (applicationCase.submissionAttempted) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: "This system attempted a submission on this case; a person reconciles that with one made by hand.",
+          },
+        };
+      }
+      return {
+        accepted: true,
+        events: [{ type: "SubmissionByHandRecorded", submittedAt: intent.submittedAt, source: intent.source }],
+      };
+    }
+
     case "decline_handoff": {
       // The same checks as a completion: the open handoff, by its token, so a
       // stale client cannot answer a question the case is no longer asking.
@@ -745,6 +787,16 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
     }
 
     case "capture_authorisation":
+      // ADR-0159 O10 (P307): a yes is to fill and submit, and both are over.
+      if (applicationCase.submittedByHand !== undefined) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: "A person recorded this application as submitted by hand; there is nothing left to authorise.",
+          },
+        };
+      }
       if (applicationCase.state !== "AWAITING_STUDENT_AUTHORISATION") {
         return {
           accepted: false,

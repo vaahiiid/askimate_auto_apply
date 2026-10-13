@@ -1,0 +1,62 @@
+# P307 mutation 18-cli-old-held-advice
+# file: scripts/interventions.ts
+# replaced:
+          "If the application was SUBMITTED by hand, record that first, and then resume: the run\n" +
+          "fills nothing more and hands the account back (ADR-0159 O10):\n" +
+          "  pnpm run submission-by-hand <caseId> --by <your-name> --at <time> --observed|--stated\n" +
+
+# with:
+
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t interventions
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (22 tests | 1 failed | 19 skipped) 739ms
+   × the published demonstrations > interventions > says why a resume is refused on a held page, rather than only the refusal's code (P305) 457ms
+     → expected '\nRecording this as vahid. That name …' to contain 'pnpm run submission-by-hand <caseId>'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed | 19 skipped (22)
+   Start at  16:56:33
+   Duration  6.85s (transform 47ms, setup 0ms, collect 5.68s, tests 739ms, environment 0ms, prepare 79ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions > says why a resume is refused on a held page, rather than only the refusal's code (P305)
+AssertionError: expected '\nRecording this as vahid. That name …' to contain 'pnpm run submission-by-hand <caseId>'
+
+- Expected
++ Received
+
+- pnpm run submission-by-hand <caseId>
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++ The service refused this outcome, and recorded nothing.
++
++ A stop whose reason is page_save_may_submit is for a page that is held (ADR-0160): it
++ is not known whether saving that page sends the application. While the page is held,
++ only --abandon is taken. The hold is lifted by deleting its line in
++ packages/catalogue/src/held-pages.ts, on Vahid's words, and restarting the service;
++ then resolve the stop again.
++
++ If only the page was saved by hand, abandon instead: the case cannot record a page saved
++ by hand, and a resume would save the page a second time.
++
+
+ ❯ scripts/demonstrations.test.ts:251:29
+    249|         expect(refused.out).toContain("packages/catalogue/src/held-pag…
+    250|         // P307: a submission made by hand can be recorded, and then t…
+    251|         expect(refused.out).toContain("pnpm run submission-by-hand <ca…
+       |                             ^
+    252|         expect(refused.out).not.toContain("cannot record that save yet…
+    253|         expect(refused.out).not.toContain("moving again");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

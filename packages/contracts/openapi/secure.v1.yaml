@@ -864,6 +864,7 @@ components:
         - specialist_reviewing
         - email_not_verified
         - not_for_this_applicant
+        - work_in_flight
         - rate_limited
         - internal_error
         - service_unavailable

@@ -485,8 +485,8 @@ attribution of the target file is corrected.
   student acts on the website, which departs from his picture.
 - **O10. How a submission made by hand is recorded.** *Settled: the recommendation, applied at his word.* When the run gains the press, his case must
   not be pressed again (ADR-0006). *Recommended:* a person records the observed submission on the
-  case, and the press path refuses any case that has one. No route records it today. ADR-0156 left
-  the same question open.
+  case, and the press path refuses any case that has one. Until P307 no route recorded it, and
+  ADR-0156 left the same question open. **Built in P307** (below, "Built: O10").
 - **O11. Whether decision 1 reaches `generated_ephemeral`.** *Settled: the recommendation, applied at his word.* His words describe a password the
   student types. Under `generated_ephemeral` the reset is what displaces a credential of ours
   (`ownership.ts:306-315`). *Recommended:* decision 1 covers `student_chosen` only, and
@@ -880,3 +880,124 @@ from before P306, a "yes" to the question completed an open reset the student ne
 
 **What this costs, said again because it is now built:** on Sheffield the proof that the portal's
 e-mail reaches the student is their word, not the portal's reset observed working (§2, and §6 cost 7).
+
+## Built: O10, a submission made by hand (P307)
+
+His word: *"For the other eleven open points, apply your recommendations"*
+(`docs/run-a/p305-his-answers-on-adr-0159-as-sent.txt`). O10's recommendation, applied: *a person
+records the observed submission on the case, and the press path refuses any case that has one.*
+The run still presses nothing. What changes is that a submission made on the portal by hand, as
+his own run may end (§11 (ii)), can now be said on the case, and the run then acts on it.
+
+**What is built:**
+- **The record.** A case event, `SubmissionByHandRecorded`, holding when it was submitted and how
+  it is known: `observed` (the person saw the portal say so) or `stated` (someone told them). Its
+  actor is the person, asserted on the internal service credential as a review's is. It is
+  written through `POST /internal/v1/cases/{caseId}/submission-by-hand` or
+  `pnpm run submission-by-hand`. The first record is kept. The same record again changes nothing.
+  A different one is refused, because two dates are a disagreement for a person to settle.
+  - It is refused while a runner holds work on the run (`work_in_flight`, 409). Otherwise the page
+    in flight could be saved after the student is told nothing more will be.
+  - It is refused on a case this system attempted to submit. That cannot happen until the press
+    exists; when it does, two submissions are for a person to reconcile.
+- **The press path refuses it.** The `SUBMITTING` guard (`packages/domain/src/transitions.ts`)
+  refuses a case with a record before any other check, as `submitted_by_hand`. It is the gate every
+  road to a press shares. A "yes" sent after a record is refused too.
+- **The run fills nothing more.** `claimWork` hands out no browser work for the case: no page, no
+  sign-in, no creation. The case is not walked along the spine, since a hop towards `AUTHORISED`
+  would claim a yes and a fill that never happened. Nothing new is asked: no yes, no reading, no
+  choice. A completed run's interview answers nothing, and an interview stop resolved after a
+  record asks nothing again. The account's step comes before anything the form still lacks
+  (`nextStep`), so a gap in the form never stands in front of the hand-back.
+- **The account is due back.** Its stage becomes `handover_due` (`RunInputs.submittedByHand`, the
+  one source of the fact on the run). A registration question still owed is taken inside the
+  hand-back. The hand-back's words are for an application already submitted: it was *"recorded as
+  submitted on the university's website"*, and the password advice is to change it now. That is
+  his decision 1 rule applied to its own condition: *"not to change their password until every
+  submission is done, and advises them to change it after."* Documents the student still had to
+  attach are listed as what was not attached, with the admissions office as the way to send them.
+  "Before you submit" is no longer said.
+- **A person, where no student can take it back.** An account only a person can settle (a creation
+  whose outcome is not known, or one with no plan) is held for a person under
+  `specialist:submitted_by_hand_owed`.
+- **The end.** Once nothing is owed, the run is `completed`. It is the first path that completes a
+  run. The client's words for that status were already *"Your application is done here. There is
+  nothing more for me to do on it."*
+- **What the student is told.** When it is recorded, once: *"A member of the team has recorded that
+  your {institution} application was submitted on the university's website on {date}. I will not
+  fill in or submit anything more on it."* Then the hand-back, or the hold for a person
+  (*"… I will tell you when it is finished."*), and at the end, once: *"That is the last of it."*
+  Both promises have tests (row 126, P12 and P13).
+- **The stop's words.** A stop or an abandon after a record no longer says *"Nothing was
+  submitted."* It says what was recorded, and that stopping does not withdraw it. The sentences
+  changed are in `stoppedRemainder`, `heldForAPersonMessage` and `cancellationFinishedMessage`.
+- **His run's page-12 stop.** Once a submission is recorded, the held stop may be resolved
+  `resume`. Nothing says "moving again", the run opens no page, and the hand-back follows.
+  `pnpm run interventions` says so when it refuses a resume of a held page.
+
+**My choices, beyond his words, each his to overturn:**
+- **D7. The case keeps its state.** No new state, and not `SUBMITTED`. That would say this system
+  submitted it. The record is a fact beside the state, as §11 (ii) describes his case: *"The case
+  stays at `AUTHORISED`, its account at `handover_due`."*
+- **D8. A second, different record is refused, not replaced.**
+- **D9. `observed` or `stated`, no `reasoned`.** It is the shape of his rule on portal facts (P302),
+  applied here by me.
+- **D10. `completed` once nothing is owed**, and a finishing message.
+- **D11. A stop is still taken after a record** (ADR-0053: the stop is refused by nothing). It winds
+  down as before, in the words above.
+  - Once the run is `completed`, there is nothing left to stop. A stop is refused, and the client no
+    longer offers one.
+  - A student's own stop at the password box stands until they carry on. Then the run hands the
+    account back, or completes, and *"Carrying on … from where you left it"* is not said.
+- **D12. Every sentence is mine.**
+
+**Not built, and left as it was** (row 182):
+- **A page saved by hand without a submission** still cannot be recorded. ADR-0160 §3's advice
+  stands for that case: abandon, do not resume.
+- **A report already in flight.** Thirteen sentences in twelve message functions of `run-driver.ts`
+  still say *"nothing has been submitted"*. The count is from
+  `grep -nE "[Nn]othing has been submitted"` over the file, with its two comment lines left out.
+  - Three of them (`specialistMessage`, `contentRejectedMessage`, `blockedByTheFormMessage`) are
+    said only from `#stopForSpecialist`. A recorded case returns before that point, in both
+    `#decideOnce` and `#announceResumed`.
+  - The other nine are said on a runner's report: a failed or stopped creation, sign-in or page,
+    and the consent notice met.
+  - After a record no work is handed out, and a record is refused while a runner holds work.
+    `reportWork` refuses a report whose lease is no longer held. So those nine are reachable only
+    through a narrow race: a runner claims work after the record has checked the leases and before
+    it has written. Read in the code; no test makes the race.
+- **Who recorded it is asserted, not authenticated**, as for a review.
+- **The press**, and everything in §3 to §10 that it needs.
+- **What the review found and left, each recorded in row 182:**
+  - a password box open when the record is made stays open (the wind-down has the same gap);
+  - the date the student is told is the record's day in UTC;
+  - two identical records at the same instant: the second meets a write conflict;
+  - a failure in the advance inside the record answers 500 after the record and the message are
+    written;
+  - `answerStudent`'s interview branch carries no check of its own. It is read as unreachable for
+    a recorded case, and no test reaches it;
+  - a recorded case never concludes, so the student's next request for the same course and intake
+    is `already_applying`. That is ADR-0006's duplicate rule doing its job, and reapplying is
+    refused.
+
+**Proven:**
+- **Tests.** In the driver:
+  - his case replayed on the gated fixture;
+  - a stop after a record;
+  - a record before the yes, and one in the interview;
+  - a hold only a person can settle;
+  - the student's own stop, with and without an account owed;
+  - an interview stop;
+  - work in flight;
+  - the route.
+
+  Also the domain's tests, the orchestrator's, and the command's.
+- **Mutations.** Twenty-seven, each guard disabled on its own and run on the finished code. Every
+  run was red and every file restored byte for byte. The output is kept unedited in
+  `docs/run-a/p307-mutations/`.
+  - Earlier rounds were green three times: mutation 01 twice and 12 once. Each green run showed a
+    test that could not see the guard. The tests were fixed, and those green runs are kept beside
+    the red ones.
+- **Checked by a review.** One read-only reviewer found three defects and two risks, all fixed with
+  tests seen to fail first. The rest are recorded in row 182.
+

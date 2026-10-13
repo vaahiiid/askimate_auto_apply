@@ -91,6 +91,7 @@ import type {
   ApplicationCase,
   CaseIntent,
   CaseEventPayload,
+  EventActor,
   CaseState,
   CaseId,
   ConsequentialAction,
@@ -806,7 +807,12 @@ type StopConclusion =
 /** How a cancellation a person made begins, on the case log (P278): what tells it from a student's stop. */
 const ABANDONED_BY_A_PERSON = "A person abandoned the application";
 
-function abandonedMessage(entry: CatalogueEntry, hasAccount: boolean, conclusion: StopConclusion | null): string {
+function abandonedMessage(
+  entry: CatalogueEntry,
+  hasAccount: boolean,
+  conclusion: StopConclusion | null,
+  submittedByHand: Date | undefined,
+): string {
   const institution = entry.blueprint.institutionName;
   const opening =
     `Someone on the team has looked at your ${institution} application, and it cannot go on, so I ` +
@@ -814,11 +820,30 @@ function abandonedMessage(entry: CatalogueEntry, hasAccount: boolean, conclusion
   if (conclusion === null) {
     return opening + (hasAccount ? ` The account at ${institution} that was created in your name still exists.` : "");
   }
-  return `${opening} ${stoppedRemainder(institution, hasAccount, conclusion)}`;
+  return `${opening} ${stoppedRemainder(institution, hasAccount, conclusion, submittedByHand)}`;
+}
+
+/**
+ * What is said of submission when a case stops: nothing was submitted, or the
+ * record a person made that it was, by hand (ADR-0159 O10, P307). Until P307
+ * every stop said "Nothing was submitted", which a recorded submission makes
+ * untrue; a stop does not withdraw it, and nothing here can.
+ */
+function submittedWords(submittedByHand: Date | undefined): string {
+  return submittedByHand === undefined
+    ? `Nothing was submitted.`
+    : `A member of the team recorded that your application was submitted on the university's ` +
+        `website on ${dayOf(submittedByHand)}; stopping here does not withdraw it.`;
 }
 
 /** What a stopped application leaves, said the same way whoever stopped it (ADR-0053; P278). */
-function stoppedRemainder(institution: string, hasAccount: boolean, conclusion: StopConclusion): string {
+function stoppedRemainder(
+  institution: string,
+  hasAccount: boolean,
+  conclusion: StopConclusion,
+  submittedByHand: Date | undefined,
+): string {
+  const submitted = submittedWords(submittedByHand);
   const account = hasAccount
     ? `The account at ${institution} was created in your name and still exists — it is yours, and ` +
       `I will help you take control of it before we finish. Anything I already filled in on their ` +
@@ -830,18 +855,20 @@ function stoppedRemainder(institution: string, hasAccount: boolean, conclusion: 
   // "is still in my hands"; an account the student has told us they can sign
   // in to is not one either.
   const completion = conclusion.concluded
-    ? `Nothing was submitted, and nothing is outstanding — this application is closed. `
+    ? submittedByHand === undefined
+      ? `Nothing was submitted, and nothing is outstanding — this application is closed. `
+      : `Nothing is outstanding, and this application is closed here. ${submitted} `
     : conclusion.creationUncertain === true
       ? `It is stopped, but it is not finished: I was creating an account for you at ${institution}, ` +
         `and I do not yet know whether the university made it. A member of the team will find out, ` +
-        `and I will tell you when it is finished. Nothing was submitted. `
+        `and I will tell you when it is finished. ${submitted} `
       : conclusion.studentConfirmedAccess === true
         ? `It is stopped, but it is not finished: you have told me you can sign in to the account at ` +
           `${institution}, but I cannot yet show that it is fully back with you. I will tell you when ` +
-          `it is finished. Nothing was submitted. `
+          `it is finished. ${submitted} `
         : `It is stopped, but it is not finished: the account at ${institution} is still in my ` +
           `hands, and I have to give you control of it before we are done. I will come back to you ` +
-          `about that, and I will tell you when it is finished. Nothing was submitted. `;
+          `about that, and I will tell you when it is finished. ${submitted} `;
   return (
     `${account}${completion}If you want your data deleted rather than just ` +
     `stopped, tell me — that is a separate request and I will pass it to a person.`
@@ -857,12 +884,12 @@ function stoppedRemainder(institution: string, hasAccount: boolean, conclusion: 
  * account exists that may not. The promise — a member of the team has it — is
  * the open intervention, asserted by the driver's test (P300, row 170).
  */
-function heldForAPersonMessage(entry: CatalogueEntry): string {
+function heldForAPersonMessage(entry: CatalogueEntry, submittedByHand: Date | undefined): string {
   const institution = entry.blueprint.institutionName;
   return (
     `Your ${institution} application is stopped, but what is left of it at ${institution} is ` +
     `something I cannot settle on my own, so I have passed it to a member of the team. I will ` +
-    `tell you when it is finished. Nothing was submitted.`
+    `tell you when it is finished. ${submittedWords(submittedByHand)}`
   );
 }
 
@@ -870,6 +897,7 @@ function cancellationMessage(
   entry: CatalogueEntry,
   hasAccount: boolean,
   conclusion: StopConclusion,
+  submittedByHand: Date | undefined,
 ): string {
   const institution = entry.blueprint.institutionName;
   // Named, not enumerated. Every member of `outstanding` comes from
@@ -880,7 +908,7 @@ function cancellationMessage(
   // with it; the note on `#outstandingObligations` says so at the other end.
   return (
     `I have stopped work on your ${institution} application, and I will not start anything new ` +
-    `on it. ${stoppedRemainder(institution, hasAccount, conclusion)}`
+    `on it. ${stoppedRemainder(institution, hasAccount, conclusion, submittedByHand)}`
   );
 }
 
@@ -891,11 +919,50 @@ function cancellationMessage(
  * told "I will tell you when it is finished" is never told, and the case
  * concludes in a log they cannot read.
  */
-function cancellationFinishedMessage(entry: CatalogueEntry): string {
+function cancellationFinishedMessage(entry: CatalogueEntry, submittedByHand: Date | undefined): string {
   const institution = entry.blueprint.institutionName;
   return (
     `That is the last of it. The account at ${institution} is yours now, nothing is outstanding, ` +
-    `and your application there is closed. Nothing was submitted.`
+    `and your application there is closed${submittedByHand === undefined ? "" : " here"}. ${submittedWords(submittedByHand)}`
+  );
+}
+
+/**
+ * What the student is told when a person records that their application was
+ * submitted by hand (ADR-0159 O10, P307). Said once, when it is recorded.
+ *
+ * The promise in it, that nothing more is filled in or submitted, is kept by
+ * `claimWork` offering the case no browser work and by the domain refusing
+ * `SUBMITTING` on a case that holds the record; the driver's tests assert both.
+ */
+function submittedByHandMessage(entry: CatalogueEntry, submittedAt: Date): string {
+  return (
+    `A member of the team has recorded that your ${entry.blueprint.institutionName} application ` +
+    `was submitted on the university's website on ${dayOf(submittedAt)}. I will not fill in or ` +
+    `submit anything more on it.`
+  );
+}
+
+/**
+ * What the student reads when a case recorded as submitted by hand still owes
+ * something a person must settle (P307), the by-hand twin of
+ * `heldForAPersonMessage`. Its promise is kept by `submittedByHandFinishedMessage`.
+ */
+function submittedByHandHeldMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `What is left of your ${institution} application at ${institution} is something I cannot ` +
+    `settle on my own, so I have passed it to a member of the team. I will tell you when it is ` +
+    `finished.`
+  );
+}
+
+/** What the student reads when a case recorded as submitted by hand owes nothing more (P307). */
+function submittedByHandFinishedMessage(entry: CatalogueEntry, hadAccount: boolean): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `That is the last of it. ${hadAccount ? `The account at ${institution} is yours now, and n` : "N"}` +
+    `othing is left for me to do on your ${institution} application.`
   );
 }
 
@@ -3381,7 +3448,14 @@ export class RunDriver {
     // Told after, and only for a restart that carried on: a student who
     // hears "carrying on" about a run the Secure Plane could not reopen a box
     // for has been told something false.
-    if (restarting === true && decided.ok && decided.position.status === "running") {
+    if (
+      restarting === true &&
+      decided.ok &&
+      decided.position.status === "running" &&
+      // P307: a recorded case carries on to its hand-back, not "from where
+      // you left it"; the hand-back says what is left.
+      fold(await this.#options.stores.cases.read(caseId)).submittedByHand === undefined
+    ) {
       await this.#options.conversations.append({
         conversationId: input.conversationId,
         event: { kind: "message", actor: "assistant", content: restartMessage(entry) },
@@ -3908,6 +3982,10 @@ export class RunDriver {
     // P253, row 108: parts a document gave that the student said not to use.
     const setAside = new Set(await this.#options.readings?.setAsideFor(input.conversationId) ?? []);
     const startedAgainAfter = reopened === undefined || reopened === null ? 0 : (reopened.reopenedAfter ?? 0);
+    // ADR-0159 O10 (P307): a submission made by hand, from the case log, the
+    // one place it is recorded.
+    const caseEvents = await this.#options.stores.cases.read(input.caseId);
+    const byHand = caseEvents.length === 0 ? undefined : fold(caseEvents).submittedByHand;
 
     const base: RunState = withCheckpoint(
       beginRun({
@@ -3950,6 +4028,7 @@ export class RunDriver {
           studentPresentAtCreation: true,
           // P290, ADR-0155: what the student chose from the form's own lists.
           choices: (await this.#options.entryChoices?.forCase(input.caseId)) ?? [],
+          ...(byHand === undefined ? {} : { submittedByHand: { submittedAt: byHand.submittedAt } }),
         },
         profile: profileView,
         interview: interviewFrom({
@@ -4443,6 +4522,127 @@ export class RunDriver {
     return { ok: true };
   }
 
+  /**
+   * A person records that the application was submitted by hand (ADR-0159
+   * O10, P307).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * His case is the one this is for: the run stops before page 12 (ADR-0160),
+   * he may sign in and submit on the portal himself, and until P307 nothing
+   * could say so. The run would then have offered a fill on an application
+   * already submitted, and every stop would have said "Nothing was submitted".
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The record is a case event, with the person as its actor (the identity is
+   * ASSERTED, as a review's is: the call is admitted on the internal service
+   * credential). From it: `claimWork` offers the case no browser work, the
+   * domain refuses `SUBMITTING`, the account falls due back, and a held page
+   * may be released without "moving again" being said.
+   *
+   * The student is told once, the conversation log being the memory, so a
+   * retry after a crash between the record and the telling tells them, and a
+   * second retry says nothing. The same record twice is that retry; a
+   * different one is refused, because two dates are a disagreement for a
+   * person to settle, not a correction to apply. Then, where the run may move,
+   * it is advanced, so the hand-back starts now rather than at the next poll.
+   */
+  public async recordSubmissionByHand(input: {
+    readonly caseId: CaseId;
+    readonly submittedAt: Date;
+    readonly source: "observed" | "stated";
+    readonly recordedBy: string;
+  }): Promise<
+    | {
+        readonly ok: true;
+        readonly recordedNow: boolean;
+        /** The interventions still holding the run: the hand-back waits for their resolution. */
+        readonly heldBy: readonly string[];
+        /** Whether the student has been told, in the conversation. */
+        readonly told: boolean;
+      }
+    | { readonly ok: false; readonly reason: "no_case" | "refused" | "work_in_flight"; readonly detail: string }
+  > {
+    const events = await this.#options.stores.cases.read(input.caseId);
+    if (events.length === 0) return { ok: false, reason: "no_case", detail: `No case ${input.caseId}.` };
+    const held = fold(events);
+    const before = held.submittedByHand;
+    if (
+      before !== undefined &&
+      (before.submittedAt.getTime() !== input.submittedAt.getTime() || before.source !== input.source)
+    ) {
+      return {
+        ok: false,
+        reason: "refused",
+        detail:
+          `A submission by hand is already recorded on this case, on ${before.submittedAt.toISOString()} ` +
+          `(${before.source}). A different record is refused.`,
+      };
+    }
+    // A runner holding work on the run now (the review's R1): the page it is
+    // on may still be saved after the record, which would make "I will not
+    // fill in or submit anything more" untrue the moment it is said. Refused,
+    // and taken once the runner has reported or its lease has run out.
+    const runsOfCase = await this.#options.stores.runs.findByCase(input.caseId);
+    const runNow = runsOfCase[0];
+    if (before === undefined && runNow !== undefined && this.#options.leases !== undefined) {
+      const holding = await this.#options.leases.held(runNow.runId, this.#options.now());
+      if (holding !== null) {
+        return {
+          ok: false,
+          reason: "work_in_flight",
+          detail: `A runner holds work on run ${runNow.runId} now; record it once that work has reported.`,
+        };
+      }
+    }
+    if (before === undefined) {
+      const decision = decide(held, {
+        kind: "record_submission_by_hand",
+        submittedAt: input.submittedAt,
+        source: input.source,
+      });
+      if (!decision.accepted) return { ok: false, reason: "refused", detail: detailOf(decision.refusal) };
+      await this.#appendToCase(
+        input.caseId,
+        held.sequence,
+        decision.events,
+        { conversationId: "", caseId: input.caseId },
+        this.#options.now(),
+        { kind: "specialist", reviewerId: input.recordedBy },
+      );
+    }
+
+    const record = runNow;
+    const heldBy =
+      record === undefined
+        ? []
+        : ((await this.#options.interventions?.open()) ?? [])
+            .filter((open) => open.runId === record.runId)
+            .map((open) => String(open.interventionId));
+    const conversationId = await this.#options.bindings.conversationForCase(input.caseId);
+    if (conversationId === null) return { ok: true, recordedNow: before === undefined, heldBy, told: false };
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    const entry = bound === null || bound.blueprintId === null ? null : await this.#entryAdmitting(bound);
+    // Whether the student has been told, now or by an earlier call: what the
+    // person is told back, so the command never says it when it was not (the
+    // review).
+    let told = false;
+    if (entry !== null) {
+      const message = submittedByHandMessage(entry, input.submittedAt);
+      const said = await this.#options.conversations.since(conversationId, 0);
+      if (!said.some((event) => event.kind === "message" && event.content === message)) {
+        await this.#options.conversations.append({
+          conversationId,
+          event: { kind: "message", actor: "assistant", content: message },
+        });
+      }
+      told = true;
+    }
+    if (record !== undefined && record.status === "running") {
+      await this.advance({ runId: record.runId, conversationId });
+    }
+    return { ok: true, recordedNow: before === undefined, heldBy, told };
+  }
+
   /** Stamps and appends decided payloads. The one place case events are written. */
   async #appendToCase(
     caseId: CaseId,
@@ -4450,12 +4650,14 @@ export class RunDriver {
     payloads: readonly CaseEventPayload[],
     input: { readonly conversationId: string; readonly caseId: CaseId },
     now: Date,
+    /** Who did it, where it was not this system: a person's record (P307). */
+    actor?: EventActor,
   ): Promise<void> {
     const stamped = stamp({
       caseId,
       fromSequence,
       payloads,
-      actor: askimateActor(externalRef(input.conversationId === "" ? String(caseId) : input.conversationId)),
+      actor: actor ?? askimateActor(externalRef(input.conversationId === "" ? String(caseId) : input.conversationId)),
       now,
       nextEventId: (index) => `evt_${caseId}_${String(fromSequence + index + 1)}`,
     });
@@ -4636,7 +4838,12 @@ export class RunDriver {
       requiresSecureRequest(situation.step) &&
       situation.step.request.purpose === "portal_sign_in" &&
       (await this.#heldNextPage(entry, record, situation.state)) !== null;
-    const pending = situation.ok && !heldAhead
+    // ADR-0159 O10 (P307): after a submission by hand the one thing the
+    // student can still be asked is the account's: no yes, no reading, no
+    // choice for a form that will not be filled.
+    const byHandAsksNothing =
+      situation.ok && situation.state.inputs.submittedByHand !== undefined && handoffFor(situation.step) === null;
+    const pending = situation.ok && !heldAhead && !byHandAsksNothing
       ? await this.#pendingDecision(record.caseId, conversationId, situation.step, { entry, state: situation.state })
       : null;
     const run: RunPosition = {
@@ -5252,6 +5459,11 @@ export class RunDriver {
     // student who wants out while a person is looking at their application is
     // exactly who a stop button is for.
     if (input.decision.kind === "cancel") {
+      // A completed run has nothing left to stop (P307, the review's D1): the
+      // only path that completes one is a submission recorded by hand, and a
+      // cancellation would record a stop of an application already made, then
+      // fail to move a run that cannot leave `completed`.
+      if (record.status === "completed") return { ok: false, reason: "refused" };
       return await this.#cancel(input.conversationId, record, held);
     }
 
@@ -5721,7 +5933,7 @@ export class RunDriver {
         event: {
           kind: "message",
           actor: "assistant",
-          content: cancellationMessage(entry, accounts.length > 0, conclusion),
+          content: cancellationMessage(entry, accounts.length > 0, conclusion, winding.submittedByHand?.submittedAt),
         },
       });
     }
@@ -6789,6 +7001,9 @@ export class RunDriver {
     const runs = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
     const record = runs[0];
     if (record === undefined) return null;
+    // A completed run asks nothing more (P307: only a case recorded as
+    // submitted by hand completes one, and it said nothing more would be done).
+    if (record.status === "completed") return null;
     const situation = await this.#situation({
       entry,
       record,
@@ -8024,6 +8239,11 @@ export class RunDriver {
   ): Promise<{ readonly held: HeldPage; readonly pageRef: string } | null> {
     const register = this.#register();
     if (heldPagesOf(entry, register).length === 0) return null;
+    // Submitted by hand (ADR-0159 O10, P307): no page will be opened, so none
+    // is held in the way. Reached by a person's release of the held stop: the
+    // hold-before-release reads this, and without it the release is held again.
+    const caseEvents = await this.#options.stores.cases.read(record.caseId);
+    if (caseEvents.length > 0 && fold(caseEvents).submittedByHand !== undefined) return null;
     const plan = assess(state).plan;
     if (plan === null) return null;
     const attachments = await this.#heldAttachments(entry, plan, record.studentRef);
@@ -8160,10 +8380,15 @@ export class RunDriver {
       // Either the page this stop names, or any page of the entry: a hold
       // matched by address alone may name a page by another numbering than
       // the entry's (the second P305 review).
+      // Submitted by hand (ADR-0159 O10, P307): the run opens no page again,
+      // so resuming cannot reach the held one, and the stop may be closed.
+      const caseEvents = await this.#options.stores.cases.read(held.caseId);
+      const submittedByHand = caseEvents.length > 0 && fold(caseEvents).submittedByHand !== undefined;
       if (
-        entry === null ||
-        heldPageFor(entry, pageRef, page?.url, this.#register()) !== null ||
-        heldPagesOf(entry, this.#register()).length > 0
+        !submittedByHand &&
+        (entry === null ||
+          heldPageFor(entry, pageRef, page?.url, this.#register()) !== null ||
+          heldPagesOf(entry, this.#register()).length > 0)
       ) {
         throw new PageStillHeldError(input.interventionId, pageRef);
       }
@@ -8423,6 +8648,10 @@ export class RunDriver {
     if (conversationId === null) return;
     const situated = await this.#interviewSituation(conversationId);
     if (situated === null) return;
+    // P307, the review's D3: a case recorded as submitted by hand asks nothing
+    // more, and is not "moving again". Its next advance hands the account back
+    // or completes it, and says so.
+    if (situated.state.inputs.submittedByHand !== undefined) return;
     const begunAgain = new Map(situated.state.interview.attempts);
     begunAgain.delete(field);
     const answered: RunState = { ...situated.state, interview: { ...situated.state.interview, attempts: begunAgain } };
@@ -8500,6 +8729,7 @@ export class RunDriver {
     if (entry === null) return;
     const record = await this.#options.stores.runs.load(held.runId);
     const accounts = record === null ? [] : await this.#accountsOn(record, entry);
+    const theCase = fold(await this.#options.stores.cases.read(makeCaseId(held.caseId)));
     const conclusion =
       windingDown && record !== null
         ? await this.#concludeCancellation({
@@ -8507,13 +8737,17 @@ export class RunDriver {
             conversationId,
             caseId: makeCaseId(held.caseId),
             record,
-            held: fold(await this.#options.stores.cases.read(makeCaseId(held.caseId))),
+            held: theCase,
             now: this.#options.now(),
           })
         : null;
     await this.#options.conversations.append({
       conversationId,
-      event: { kind: "message", actor: "assistant", content: abandonedMessage(entry, accounts.length > 0, conclusion) },
+      event: {
+        kind: "message",
+        actor: "assistant",
+        content: abandonedMessage(entry, accounts.length > 0, conclusion, theCase.submittedByHand?.submittedAt),
+      },
     });
   }
 
@@ -8524,6 +8758,11 @@ export class RunDriver {
     if (bound === null || bound.blueprintId === null) return;
     const entry = await this.#entryAdmitting(bound);
     if (entry === null) return;
+    // Submitted by hand (ADR-0159 O10, P307): "moving again … picking up where
+    // I stopped" would be untrue. The record's own message told the student
+    // what is left, handing the account back, and the hand-back follows.
+    const recorded = await this.#options.stores.cases.read(held.caseId);
+    if (recorded.length > 0 && fold(recorded).submittedByHand !== undefined) return;
     // ── Re-planned before anything is said (P288, row 135) ─────────────
     //
     // Vahid: *"Row 135's resume message saying 'nothing will be repeated'
@@ -9059,7 +9298,12 @@ export class RunDriver {
       // review the wind-down raised only the student's handoff, so here it
       // raised nothing, the run stayed `running`, and the account was
       // nobody's — the state P278 quotes Vahid against.
-      if (handoffFor(situation.step) === null) return await this.#holdForAPerson(input, situation, conclusion.outstanding);
+      if (handoffFor(situation.step) === null) {
+        return await this.#holdForAPerson(input, situation, conclusion.outstanding, {
+          stopped: true,
+          submittedByHand: held.submittedByHand?.submittedAt,
+        });
+      }
       return stoppedAt(input.record.status);
     }
 
@@ -9071,7 +9315,7 @@ export class RunDriver {
       event: {
         kind: "message",
         actor: "assistant",
-        content: cancellationFinishedMessage(input.entry),
+        content: cancellationFinishedMessage(input.entry, held.submittedByHand?.submittedAt),
       },
     });
     return stoppedAt("abandoned");
@@ -9192,6 +9436,11 @@ export class RunDriver {
     },
     situation: { readonly state: RunState; readonly step: RunStep; readonly now: Date },
     outstanding: readonly string[],
+    /**
+     * Why it cannot close (P307): the student's stop, which may come after a
+     * recorded submission, or a recorded submission with no stop at all.
+     */
+    why: { readonly stopped: boolean; readonly submittedByHand: Date | undefined },
   ): Promise<RunOutcome> {
     const step = specialistHandoverOf(situation.step);
     await this.#raiseForSpecialist({
@@ -9200,10 +9449,12 @@ export class RunDriver {
       conversationId: input.conversationId,
       caseId: input.caseId,
       priority: "high",
-      target: "specialist:winding_down_owed",
+      target: why.stopped ? "specialist:winding_down_owed" : "specialist:submitted_by_hand_owed",
       encountered:
-        `The student's case is stopped and cannot close: ${outstanding.join("; ")}.` +
-        (step === null ? "" : ` ${step.detail}`),
+        (why.stopped
+          ? `The student's case is stopped and cannot close: ${outstanding.join("; ")}.`
+          : `A person recorded this application as submitted by hand, and the case cannot close: ` +
+            `${outstanding.join("; ")}.`) + (step === null ? "" : ` ${step.detail}`),
       expected:
         `A person finds out whether the account exists and, if it does, gets it back to the ` +
         `student; the case closes only once nothing is owed. While no handover can be planned, the ` +
@@ -9211,7 +9462,9 @@ export class RunDriver {
         `the entry signed again, or the student's confirmed address restored, then resume. For a ` +
         `creation whose outcome is not known there is no recorded way yet to say what was found ` +
         `(row 173).`,
-      message: heldForAPersonMessage(input.entry),
+      message: why.stopped
+        ? heldForAPersonMessage(input.entry, why.submittedByHand)
+        : submittedByHandHeldMessage(input.entry),
       now: situation.now,
     });
     const revision =
@@ -9239,6 +9492,118 @@ export class RunDriver {
     };
   }
 
+  /**
+   * What a case recorded as submitted by hand does next (ADR-0159 O10, P307).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * The wind-down's shape (ADR-0053), for the opposite reason: the
+   * application is not abandoned, it is done, and done by a person on the
+   * portal. So:
+   *
+   *   - the spine is not walked. A hop towards `AUTHORISED` from where the
+   *     case stood would claim a yes and a fill this system never had;
+   *   - nothing new is asked: no interview, no password, no approval;
+   *   - the account is handed back through the ordinary handoff, the words
+   *     being for an application already submitted (`renderHandover`);
+   *   - an account no student can be asked to take back goes to a person;
+   *   - once nothing is owed the run is `completed`, and the student told.
+   *
+   * Only a `running` run moves. A run a person holds, or the student stopped,
+   * waits for them as it would have, and moves here once released.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  async #afterSubmissionByHand(
+    given: {
+      readonly entry: CatalogueEntry;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+      /** The student carrying on a run they stopped (ADR-0116). */
+      readonly restarting?: boolean;
+    },
+    situation: { readonly state: RunState; readonly step: RunStep; readonly now: Date },
+  ): Promise<RunOutcome | null> {
+    const submittedByHand = situation.state.inputs.submittedByHand;
+    if (submittedByHand === undefined) return null;
+    // The student carrying on a run they stopped (the P307 review, D2): it is
+    // `running` again in its own write, as a restart always is, and then does
+    // what a recorded case does. Without this the stop stood for ever and the
+    // hand-back never began.
+    const input =
+      given.restarting === true && given.record.status === "stopped_by_student"
+        ? {
+            ...given,
+            record: {
+              ...given.record,
+              status: "running" as const,
+              revision: await this.#options.stores.runs.saveCheckpoint({
+                runId: given.record.runId,
+                checkpoint: given.record.checkpoint,
+                expectedRevision: given.record.revision,
+                status: "running",
+              }),
+            },
+          }
+        : given;
+    const at = (status: WorkflowStatus, revision: number): RunOutcome => ({
+      ok: true,
+      position: {
+        runId: input.record.runId,
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        status,
+        phase: input.record.checkpoint.phase,
+        step: situation.step.kind,
+        revision,
+        resumed: false,
+        concerns: [],
+      },
+    });
+    if (input.record.status !== "running") return at(input.record.status, input.record.revision);
+
+    const outstanding = await this.#outstandingObligations({
+      record: input.record,
+      entry: input.entry,
+      conversationId: input.conversationId,
+    });
+    if (outstanding.length > 0) {
+      await this.#raiseHandoff({
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        step: situation.step,
+        now: situation.now,
+      });
+      if (handoffFor(situation.step) === null) {
+        return await this.#holdForAPerson(input, situation, outstanding, {
+          stopped: false,
+          submittedByHand: submittedByHand.submittedAt,
+        });
+      }
+      return at(input.record.status, input.record.revision);
+    }
+
+    // Nothing owed. The first and only path that completes a run: "done
+    // here" is what the client says of `completed`, and here it is true.
+    // Said before the status is saved, the log being the memory: a crash
+    // between the two says nothing twice, and loses nothing (the review).
+    const accounts = await this.#accountsOn(input.record, input.entry);
+    const finished = submittedByHandFinishedMessage(input.entry, accounts.length > 0);
+    const said = await this.#options.conversations.since(input.conversationId, 0);
+    if (!said.some((event) => event.kind === "message" && event.content === finished)) {
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: { kind: "message", actor: "assistant", content: finished },
+      });
+    }
+    const revision = await this.#options.stores.runs.saveCheckpoint({
+      runId: input.record.runId,
+      checkpoint: input.record.checkpoint,
+      expectedRevision: input.record.revision,
+      status: "completed",
+    });
+    return at("completed", revision);
+  }
+
   async #decideOnce(input: {
     readonly entry: CatalogueEntry;
     readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
@@ -9262,6 +9627,14 @@ export class RunDriver {
     // conclude once it is.
     const stopped = await this.#windDown(input, situation);
     if (stopped !== null) return stopped;
+
+    // ── A case recorded as submitted by hand (ADR-0159 O10, P307) ────────
+    //
+    // The same shape as the wind-down, after it so a stop still winds down:
+    // no spine, nothing new; the account handed back; concluded once nothing
+    // is owed.
+    const byHand = await this.#afterSubmissionByHand(input, situation);
+    if (byHand !== null) return byHand;
 
     // ── The student's own stop (ADR-0116) ────────────────────────────────
     //
@@ -9673,8 +10046,12 @@ export class RunDriver {
       // Read from the CASE, not from the run's status: the run stays `running`
       // while it winds down, because the handover it still owes is real work.
       const caseEvents = await this.#options.stores.cases.read(record.caseId);
-      const caseState = caseEvents.length === 0 ? null : fold(caseEvents).state;
+      const foldedCase = caseEvents.length === 0 ? null : fold(caseEvents);
+      const caseState = foldedCase?.state ?? null;
       if (caseState === "WINDING_DOWN" || caseState === "CANCELLED") continue;
+      // ADR-0159 O10 (P307): submitted by hand, so nothing more is opened on
+      // the portal for it: no page, no sign-in, no creation.
+      if (foldedCase?.submittedByHand !== undefined) continue;
 
       // The orchestrator's answer, not the checkpoint's hint and not a list of
       // step kinds kept here — see `browserWorkFor`.

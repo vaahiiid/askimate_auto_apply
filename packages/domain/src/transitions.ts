@@ -135,6 +135,8 @@ export interface GuardContext {
   readonly authorisedContentHash?: string;
   /** Hash of the content as currently prepared. */
   readonly preparedContentHash?: string;
+  /** A person recorded that it was submitted by hand (ADR-0159 O10, P307). */
+  readonly submittedByHand?: true;
   /**
    * What this case still owes the student, if anything (ADR-0053 §1).
    *
@@ -163,6 +165,8 @@ export type TransitionRefusal =
   | { readonly kind: "mandatory_review_outstanding"; readonly detail: string; readonly triggers: readonly ReviewTrigger[] }
   | { readonly kind: "authorisation_missing"; readonly detail: string }
   | { readonly kind: "authorisation_stale"; readonly detail: string }
+  /** It was submitted by hand; the press path never submits it again (ADR-0159 O10, ADR-0006). */
+  | { readonly kind: "submitted_by_hand"; readonly detail: string }
   | {
       readonly kind: "obligations_outstanding";
       readonly detail: string;
@@ -281,6 +285,17 @@ export function checkTransition(from: CaseState, to: CaseState, context: GuardCo
 
   // ── Guard: authorisation must exist and still match (brief §7) ─────────
   if (to === "SUBMITTING") {
+    // ADR-0159 O10 (P307): the one gate every road to a press shares. A case
+    // a person recorded as submitted by hand is never submitted again.
+    if (context.submittedByHand === true) {
+      return {
+        permitted: false,
+        refusal: {
+          kind: "submitted_by_hand",
+          detail: "A person recorded that this application was submitted by hand; it is not submitted again.",
+        },
+      };
+    }
     if (context.authorisedContentHash === undefined) {
       return {
         permitted: false,

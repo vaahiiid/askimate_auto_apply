@@ -1,0 +1,47 @@
+# P307 mutation 21-stop-after-completed-taken
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      if (record.status === "completed") return { ok: false, reason: "refused" };
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (381 tests | 1 failed | 366 skipped) 4322ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 459ms
+   × a submission made by hand (P307, ADR-0159 O10) > takes no stop once completed: refused, the case and the run unchanged, nothing said (the P307 review, D1) 155ms
+     → Run run_case_01jbxq8z9wktq6m4h2npc00307_1 cannot go from completed to abandoned. In particular an uncertain run cannot become completed: "we do not know whether it happened" cannot become "it worked" without verification or a human.
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 332ms
+   ✓ a submission made by hand whose account only a person can settle (P307) > goes to a person, says so once, and when the person has settled it, says it is finished, once 353ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 797ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D2, with an account owed: the student closed the sign-in box; when they carry on, the hand-back follows and nothing says 'carrying on' 341ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > R1: a record is refused while a runner holds work on the run, and taken once it has reported 341ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed | 366 skipped (381)
+   Start at  16:56:58
+   Duration  8.32s (transform 2.41s, setup 0ms, collect 3.56s, tests 4.32s, environment 0ms, prepare 64ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > takes no stop once completed: refused, the case and the run unchanged, nothing said (the P307 review, D1)
+RunStatusError: Run run_case_01jbxq8z9wktq6m4h2npc00307_1 cannot go from completed to abandoned. In particular an uncertain run cannot become completed: "we do not know whether it happened" cannot become "it worked" without verification or a human.
+ ❯ PostgresWorkflowRunStore.saveCheckpoint packages/case-store/src/postgres-workflow.ts:154:17
+    152|         if (!canTransitionStatus(from, input.status)) {
+    153|           await client.query("ROLLBACK");
+    154|           throw new RunStatusError(input.runId, from, input.status);
+       |                 ^
+    155|         }
+    156|       }
+ ❯ RunDriver.#concludeCancellation apps/conversation-service/src/run-driver.ts:5825:5
+ ❯ RunDriver.#cancel apps/conversation-service/src/run-driver.ts:5921:26
+ ❯ RunDriver.recordDecision apps/conversation-service/src/run-driver.ts:5466:14
+ ❯ apps/conversation-service/src/run-driver.test.ts:19312:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

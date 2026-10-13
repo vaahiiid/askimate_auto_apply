@@ -109,8 +109,12 @@ async function call(path: string, init?: RequestInit): Promise<unknown> {
           "is not known whether saving that page sends the application. While the page is held,\n" +
           "only --abandon is taken. The hold is lifted by deleting its line in\n" +
           "packages/catalogue/src/held-pages.ts, on Vahid's words, and restarting the service;\n" +
-          "then resolve the stop again. If the page was saved by hand, abandon instead: the case\n" +
-          "cannot record that save yet, and a resume would save the page a second time.",
+          "then resolve the stop again.\n\n" +
+          "If the application was SUBMITTED by hand, record that first, and then resume: the run\n" +
+          "fills nothing more and hands the account back (ADR-0159 O10):\n" +
+          "  pnpm run submission-by-hand <caseId> --by <your-name> --at <time> --observed|--stated\n" +
+          "If only the page was saved by hand, abandon instead: the case cannot record a page saved\n" +
+          "by hand, and a resume would save the page a second time.",
       );
     }
     fail(`The service refused: ${code}`);

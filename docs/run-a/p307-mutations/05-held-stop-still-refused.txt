@@ -1,0 +1,68 @@
+# P307 mutation 05-held-stop-still-refused
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+        !submittedByHand &&
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (381 tests | 3 failed | 366 skipped) 2931ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 364ms
+   × a submission made by hand (P307, ADR-0159 O10) > the held stop is released after the record without 'moving again', and the account is handed back in words for a submitted application 79ms
+     → Intervention iv_d06fdb475272_001_07_1 stops the run before page-study, which is still held. Lift the hold first (its line in packages/catalogue/src/held-pages.ts, removed on his words, then a restart); until then only abandon is accepted.
+   × a submission made by hand (P307, ADR-0159 O10) > once the student has it back the run is completed, says so once, and asks nothing more 58ms
+     → expected "the account's question is pending" not to be reached
+   × a submission made by hand (P307, ADR-0159 O10) > offers no work in the window after the account is back and before the run completes (the P307 mutation round) 38ms
+     → the step would be browser work, or the sign-in before it: expected [ 'execute', 'sign_in', …(1) ] to include 'hand_over_account'
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 446ms
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 12 passed | 366 skipped (381)
+   Start at  16:54:48
+   Duration  6.60s (transform 2.25s, setup 0ms, collect 3.34s, tests 2.93s, environment 0ms, prepare 73ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > the held stop is released after the record without 'moving again', and the account is handed back in words for a submitted application
+PageStillHeldError: Intervention iv_d06fdb475272_001_07_1 stops the run before page-study, which is still held. Lift the hold first (its line in packages/catalogue/src/held-pages.ts, removed on his words, then a restart); until then only abandon is accepted.
+ ❯ RunDriver.resolveIntervention apps/conversation-service/src/run-driver.ts:8392:15
+    8390|           heldPagesOf(entry, this.#register()).length > 0)
+    8391|       ) {
+    8392|         throw new PageStillHeldError(input.interventionId, pageRef);
+       |               ^
+    8393|       }
+    8394|     }
+ ❯ apps/conversation-service/src/run-driver.test.ts:19221:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > once the student has it back the run is completed, says so once, and asks nothing more
+AssertionError: expected "the account's question is pending" not to be reached
+ ❯ apps/conversation-service/src/run-driver.test.ts:19258:68
+    19256|     try {
+    19257|       const reading = await instance.driver.runFor(conversation);
+    19258|       if (reading?.pending?.decision !== "confirm_handoff") expect.unr…
+       |                                                                    ^
+    19259|       expect(
+    19260|         await instance.driver.recordDecision({ conversationId: convers…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > offers no work in the window after the account is back and before the run completes (the P307 mutation round)
+AssertionError: the step would be browser work, or the sign-in before it: expected [ 'execute', 'sign_in', …(1) ] to include 'hand_over_account'
+ ❯ apps/conversation-service/src/run-driver.test.ts:19285:118
+    19283|       try {
+    19284|         const position = await reading.driver.runFor(conversation);
+    19285|         expect(["execute", "sign_in", "request_secret"], "the step wou…
+       |                                                                                                                      ^
+    19286|       } finally {
+    19287|         await reading.pool.end();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

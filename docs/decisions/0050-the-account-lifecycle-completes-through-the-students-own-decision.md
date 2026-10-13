@@ -19,6 +19,11 @@
 > O11). §4's table row *"`student_chosen` NOTHING in the flow ever emails them"* is wrong for
 > Sheffield, whose registration sends an e-mail (its AUTH 4): what was missing was a check that it
 > arrived. The comment in `ownership.ts` now says so.
+>
+> **Built in P307 (ADR-0159 O10):** a submission a person records as made by hand is a third fact
+> with the consequence of a filled or a stopped run: the account becomes `handover_due`. The
+> hand-back's words then say the application was recorded as submitted, and the password advice
+> is to change it now. Once nothing is owed, the run is `completed`.
 
 ## Context
 
