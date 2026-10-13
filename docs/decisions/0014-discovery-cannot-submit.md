@@ -2,11 +2,12 @@
 
 **Status:** **Accepted** — implementing Vahid's Phase 3 authorisation, 2026-08-26
 
-> **Proposed amendment, not agreed (P304, 2026-10-13):** [ADR-0159](./0159-the-run-presses-the-final-submit-on-the-students-own-confirmation-per-university.md) quotes his
-> decision of 2026-10-13, *"The run must press the final submit"*, and proposes a design for it
-> that is mine, not his: among other things, this ladder's third rung for one work kind only, and a
-> signed token the runner cannot make (its §8). His sentence below stays in force. Whose word each
-> live press needs is his to say (its O15). Until he approves, this ADR stands as written.
+> **Amended by [ADR-0159](./0159-the-run-presses-the-final-submit-on-the-students-own-confirmation-per-university.md), approved 2026-10-13, not built (P305):** it carries his
+> decision of 2026-10-13, *"The run must press the final submit"*, and a design for it that is mine,
+> applied at his word: among other things, this ladder's third rung for one work kind only, and a
+> signed token the runner cannot make (its §8). His sentence below stays in force, and in his words
+> *"a press on any other student's case stays a hard stop until ADR-0157 is built."* His build order
+> puts the press after decision 1, so until it is built this ADR describes the code as it is.
 
 ## The requirement
 

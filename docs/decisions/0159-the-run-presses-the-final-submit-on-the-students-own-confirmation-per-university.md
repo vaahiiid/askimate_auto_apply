@@ -1,7 +1,9 @@
 # ADR-0159 — The run presses the final submit on the student's own confirmation for each university, and no password reset comes before submission
 
-**Status:** Proposed · written 2026-10-13 (P304) for Vahid's approval, at his request in his own
-words · **not agreed by Vahid, so nothing here is built** · would amend
+**Status:** Accepted · approved by Vahid on 2026-10-13, in his own words (below): five of its open
+points answered by him, the other eleven applied as recommended at his word · written 2026-10-13
+(P304) for his approval, at his request · **nothing here is built yet**; his build order is
+decision 1 alone first, the press later · amends
 [ADR-0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md) §3, §4, §5
 and §7, [ADR-0014](./0014-discovery-cannot-submit.md) (the capability ladder and the token),
 [ADR-0007](./0007-agent-led-conversational-intake.md) (a legal declaration as a handoff),
@@ -14,9 +16,9 @@ the student is told, [ADR-0101](./0101-the-yes-comes-first-and-a-runner-is-signe
 words, [ADR-0144](./0144-we-create-the-account-the-student-does-not.md)'s "nothing submitted",
 [ADR-0058](./0058-a-case-opens-from-an-offer-the-student-accepted.md)'s "nothing submits at all",
 ADR-0104 and ADR-0107 if O8 goes that way, and the run phases on the wire
-(`packages/contracts/src/runs.ts`); would answer the question ADR-0156 left open (*"the student
+(`packages/contracts/src/runs.ts`); answers the question ADR-0156 left open (*"the student
 submits, and no state records it"*); and carries his words superseding his decision of 2026-10-13
-on row 177, whose reach and timing are O12
+on row 177, read as O12 says, at his word
 
 ## His picture and his decisions, in his words (2026-10-13)
 
@@ -51,9 +53,109 @@ Saved whole as sent:
 >
 > *For my own run: I will press the final submit myself the first time, so row 80 gets observed."*
 
+## Approved, with his answers, in his words (2026-10-13)
+
+Saved whole as sent:
+[`docs/run-a/p305-his-answers-on-adr-0159-as-sent.txt`](../run-a/p305-his-answers-on-adr-0159-as-sent.txt).
+
+> *"My answers on ADR-0159.*
+>
+> *O1: agreed. Tell the student not to change the password as soon as the account exists; hand the
+> account back after its last press.*
+>
+> *O3: agreed. The student confirms in chat that Sheffield's registration e-mail arrived. If not,
+> stop for a person before any press.*
+>
+> *O5: I choose the confirmation AFTER the fill, not before. The student confirms what the portal
+> actually stored, read back from the portal's own summary page, together with the exact
+> declaration text. If the session has expired by then, ask for the password once more. This also
+> answers your cost "nobody reads what the portal stored before it is sent". Resolve the conflict
+> with ADR-0158 ordering (a) on this basis.*
+>
+> *O12: your reading is right.*
+>
+> *O15: a press on any other student's case stays a hard stop until ADR-0157 is built.*
+>
+> *Your proposed offset is accepted: a person reads the outcome of the first press under each newly
+> signed version.*
+>
+> *Before any press on any university, its declaration text must be read. If it says the applicant
+> completed the form personally, the run does not press there; record it as a per-university
+> check.*
+>
+> *For the other eleven open points, apply your recommendations and list what you applied in one
+> line each. Record ADR-0159 as accepted with these answers.*
+>
+> *Build order: decision 1 alone first. The press comes later.*
+>
+> *BEFORE MY LIVE RUN: find out whether saving page 12 (the course choice) is itself the
+> submission. Read studyprogrammetaught.js (row 82) and anything else that shows it, read-only.
+> Until this is known, my run must stop before saving page 12.*
+>
+> *Also fix README.md:33 while you are there."*
+
+### What his answers settle
+
+- **O1, as recommended.** The student is told not to change the password as soon as the account
+  exists, and the account is handed back after its last press.
+- **O3, as recommended.** The student confirms in chat that Sheffield's registration e-mail arrived.
+  If it did not, the run stops for a person before any press.
+- **O5: his choice is (B), confirm after the fill**, with three things (B) did not say:
+  - the student confirms what the portal stored, read back from the portal's own summary page;
+  - they confirm it together with the exact declaration text;
+  - if the session has expired by then, the password is asked for once more.
+
+  O5 below is rewritten to say so. In his words, this also answers cost 2, *"nobody reads what the
+  portal stored before it is sent"*; §6 now says what it still leaves.
+- **ADR-0158's ordering (a): the conflict is resolved.** The conflict was that (A) kept "once" only
+  if ADR-0158 did not take ordering (a), whose fill signs in again after the preview. Under his O5, a
+  second password ask is accepted when a session has expired, so (a)'s second sign-in no longer
+  conflicts with this ADR. That is the resolution "on this basis". I read his words as resolving the
+  conflict, not as choosing (a): which ordering ADR-0158 takes is still his (ADR-0158 §4).
+- **O12, my reading,** in his words *"your reading is right"*.
+- **O15, in his words:** a press on any other student's case stays a hard stop until ADR-0157 is
+  built.
+- **The offset in §6 is accepted:** a person reads the outcome of the first press under each newly
+  signed version.
+- **A per-university check, his rule:** before any press on any university, its declaration text is
+  read. If it says the applicant completed the form personally, the run does not press there (§10
+  row 2).
+- **Build order:** decision 1 alone first (§2), the press later.
+- **Before his live run:** whether saving page 12, the course choice, is itself the submission is
+  found out, read-only. Until it is known, his run stops before saving page 12 (row 80; §12).
+
+### Applied at his word: the other eleven, one line each
+
+His words: *"For the other eleven open points, apply your recommendations and list what you applied
+in one line each."* The recommendations are mine; his words adopt them.
+
+- **O2:** changing the password after submission is advice; the case concludes without it, and the
+  record says the advice was given.
+- **O4:** "once" means once per account, per sitting, and never across accounts, which would store
+  the password.
+- **O6:** the confirmation record holds the declaration verbatim, the time and the student's
+  session, and what was confirmed by its hash, not its text.
+- **O7:** one confirmation and one button per press; until claim 9 is observed, no press on an
+  account where another case has a saved choice not yet pressed; settled together with row 81.
+- **O8:** no press while the student owes any act on that application; on Sheffield, either the run
+  uploads the documents itself (a separate decision, revisiting ADR-0104) or the press waits for the
+  student's uploads.
+- **O9:** terms against sharing the password, or against a third party operating the account, stop
+  the run on that portal, fill included; a declaration of personal completion, a typed-name
+  signature, or terms against a third party pressing submit mean the run fills but does not press.
+- **O10:** a person records a submission made by hand on the case, and the press path refuses any
+  case that has one.
+- **O11:** decision 1 covers `student_chosen` only; `generated_ephemeral` keeps its reset.
+- **O13:** every attestation in the form is in the confirmation, verbatim and hashed, and the student
+  confirms each; otherwise there is no press.
+- **O14:** `CONFIRMED` stays the portal's confirmation; `decide` accepts `complete_handoff` on a
+  terminal case reached from a press; every terminal state checks for an account still owed.
+- **O16:** his own run takes way (i), decision 1 built alone first, which is also his build order.
+
 Everything below that is not inside a quotation of his is mine: a reading, a design or a
-recommendation. Every point his words do not settle is listed in §5, O1 to O16, as **open, and his
-to say**. Nothing in this ADR is recorded as his decision except the quotation above.
+recommendation. Every point his first message did not settle was listed in §5, O1 to O16, as
+open and his to say, and his answers above now settle all sixteen. Nothing in this ADR is recorded
+as his decision except the quotations of his two messages and what they settle.
 
 ## 1 · Why this exists
 
@@ -198,8 +300,9 @@ The second telling that O1 recommends, after the run's last press, belongs to th
    endpoint with the signed method; every other write is aborted and recorded.
 
    The separation is the guard and the work kind, not a different browser. `SubmittableSession`
-   extends `FillableSession` (`apps/browser-runner/src/session.ts:172`), and under O5's (A) the fill
-   and the press share one signed-in context.
+   extends `FillableSession` (`apps/browser-runner/src/session.ts:172`). Under his O5 the press comes
+   after the student's confirmation, in the same signed-in context if it is still held, or signed in
+   again if not.
 5. **At the press, the live page must match what was confirmed, byte for byte.** Before pressing,
    the runner checks:
    - the page is the signed page;
@@ -234,11 +337,13 @@ and at a page the fill was sent back to, but not at a submit. Every challenge is
 named stop and a handoff, never bypassed (ADR-0007). Until decision 3 is taken, a portal that shows
 a CAPTCHA or a second factor at submit is not one the run presses on.
 
-## 5 · Open, and his to say
+## 5 · The points his first message left open, now settled
 
-Each item has my recommendation. None is his decision until he writes it.
+Each item had my recommendation. His answers of 2026-10-13 settle all sixteen: O1, O3, O5, O12
+and O15 in his own words, and the other eleven by his word to apply the recommendation. Each item
+says which. The text is kept as he read it, except O5, which is rewritten to his choice.
 
-- **O1. Where the handover sits relative to the press.**
+- **O1. Where the handover sits relative to the press.** *Settled in his words: agreed.*
   - **His words:** the handover *"tells the student not to change their password until every
     submission is done"*. They do not say when the account counts as handed back.
   - **My inference:** the message reaches the student while submissions are still outstanding.
@@ -254,10 +359,10 @@ Each item has my recommendation. None is his decision until he writes it.
     The split departs from his wording: he wrote that the handover tells it. I also read "every
     submission" as every submission on that account, because a student's other universities are
     other accounts. Under this, `ready_to_submit` stops being the end of a run.
-- **O2. Whether changing the password after submission gates the case, or is advice only.** His word
+- **O2. Whether changing the password after submission gates the case, or is advice only.** *Settled: the recommendation, applied at his word.* His word
   is "advises". *Recommended:* advice. The case concludes without it, and the record says the advice
   was given.
-- **O3. What replaces the reset's proof that mail reaches the student.**
+- **O3. What replaces the reset's proof that mail reaches the student.** *Settled in his words: agreed.*
   - **What ADR-0050 says:** §4 rejected dropping it: *"the risk still exists and only the check
     would be gone."*
   - **His own words:** in ADR-0110 he kept it *"for an account we created on their behalf, where the
@@ -270,9 +375,10 @@ Each item has my recommendation. None is his decision until he writes it.
     nothing on the website, and rests on a stated fact. It is weaker than today's: "it arrived" is a
     statement, where a sign-in after a reset depends on the mail. If it did not arrive, the run
     stops for a person before any press. That is the case row 174 shows to be real.
-- **O4. "Once": per account, or per student.** *Recommended:* per account, per sitting. Across
+- **O4. "Once": per account, or per student.** *Settled: the recommendation, applied at his word.* *Recommended:* per account, per sitting. Across
   accounts it cannot be done without storing the password (§2).
-- **O5. When the confirmation happens, given the five-minute hold.** A signed-in session is held in
+- **O5. When the confirmation happens, given the five-minute hold.** *Settled in his words: (B),
+  after the fill, read back from the portal's own summary page.* A signed-in session is held in
   memory for at most five idle minutes (`SECURE_HOLD_CEILING_SECONDS = 300`). His words in ADR-0101
   forbid widening it quietly. ADR-0101 §2 also releases the hold *"when the run's last page is
   saved"*. There are three ways:
@@ -294,7 +400,23 @@ Each item has my recommendation. None is his decision until he writes it.
 
   Its cost is that the student confirms the plan, not the portal's stored record, so the read-back
   before the press (§6, cost 2) matters more.
-- **O6. What "the exact text confirmed" records.** *Recommended:* the record holds:
+
+  **Not taken. His choice, 2026-10-13: (B).** In his words: *"I choose the confirmation AFTER the
+  fill, not before. The student confirms what the portal actually stored, read back from the
+  portal's own summary page, together with the exact declaration text. If the session has expired
+  by then, ask for the password once more."* So:
+  1. The run fills the application.
+  2. It reads back the portal's own summary page.
+  3. The student confirms that read-back, together with the exact declaration text.
+  4. If the session has expired by then, the password is asked for once more.
+  5. Then the press.
+
+  ADR-0101 §2 stays as it is: the hold is released at the last save, and a later press signs in
+  again. "Once" (O4) therefore means once per sitting, with one more ask when a session has expired
+  before the press. On Sheffield, the summary page counts repeating entries and omits a job's
+  duties (§6, cost 2), so what the student confirms is what that page shows, not everything the
+  portal stored.
+- **O6. What "the exact text confirmed" records.** *Settled: the recommendation, applied at his word.* *Recommended:* the record holds:
   - the declaration verbatim (the university's words, as ADR-0131 keeps a notice);
   - the confirmation's time and the student's authenticated session;
   - the preview by its content hash, not its text.
@@ -302,7 +424,7 @@ Each item has my recommendation. None is his decision until he writes it.
   ADR-0059 never writes the preview down, because it is the student's personal data. If he means
   the preview's text too, ADR-0059 is amended. The record then becomes personal data with a
   retention period that ADR-0023 says is determined, not invented.
-- **O7. A confirmation per university, or per press, and the course choices.** Sheffield is stated,
+- **O7. A confirmation per university, or per press, and the course choices.** *Settled: the recommendation, applied at his word.* Sheffield is stated,
   not observed, to take up to three course choices (S2). His description when he chose the target
   says *"each submitted separately"*, each with *"its own explicit Submit button"*
   (`docs/target-sheffield-pgt.md:198`, `:194`). Whether that is so is unobserved claim 9 (counted
@@ -311,7 +433,7 @@ Each item has my recommendation. None is his decision until he writes it.
   per-course submission key (ADR-0006) cannot express. *Recommended:* one confirmation and one button
   per press. Until claim 9 is observed, the run refuses a press on any account where another case
   has a saved choice not yet pressed. Decided together with row 81.
-- **O8. Acts left to the student on the website.**
+- **O8. Acts left to the student on the website.** *Settled: the recommendation, applied at his word.*
   - **The conflict:** the signed Sheffield mapping hands six document slots to the student:
     certificate, transcript and four translations (ADR-0104, ADR-0107). Today the run tells the
     portal "I will upload later". His picture has the student do nothing on the website before
@@ -320,7 +442,7 @@ Each item has my recommendation. None is his decision until he writes it.
   - **What that means on Sheffield:** either the run uploads those documents itself, a separate
     decision that revisits ADR-0104, or the press waits for the student's uploads.
   - **Unknown:** whether Sheffield accepts a submission with documents to follow.
-- **O9. A portal where the run must not act.** His words of 2026-09-23 on the password hold apply:
+- **O9. A portal where the run must not act.** *Settled: the recommendation, applied at his word, with his own rule on the declaration (§10 row 2).* His words of 2026-09-23 on the password hold apply:
   *"If the clause is there, your position is mine: we do not build the hold."*
   (`docs/decision-sheet-holding-the-students-password.md:9-10`). *Recommended:*
   - **The run stops on that portal entirely, fill included,** if its terms say the password must not
@@ -333,18 +455,18 @@ Each item has my recommendation. None is his decision until he writes it.
 
   Either way the student's confirmation would not make those things true. And either way the
   student acts on the website, which departs from his picture.
-- **O10. How a submission made by hand is recorded.** When the run gains the press, his case must
+- **O10. How a submission made by hand is recorded.** *Settled: the recommendation, applied at his word.* When the run gains the press, his case must
   not be pressed again (ADR-0006). *Recommended:* a person records the observed submission on the
   case, and the press path refuses any case that has one. No route records it today. ADR-0156 left
   the same question open.
-- **O11. Whether decision 1 reaches `generated_ephemeral`.** His words describe a password the
+- **O11. Whether decision 1 reaches `generated_ephemeral`.** *Settled: the recommendation, applied at his word.* His words describe a password the
   student types. Under `generated_ephemeral` the reset is what displaces a credential of ours
   (`ownership.ts:306-315`). *Recommended:* decision 1 covers `student_chosen` only, and
   `generated_ephemeral` keeps its reset.
-- **O12. What "supersedes my earlier decision on row 177" reaches, and from when.** My reading is in
+- **O12. What "supersedes my earlier decision on row 177" reaches, and from when.** *Settled in his words: "your reading is right".* My reading is in
   §2. *Recommended:* that reading. Row 177's third part, reads never opening a reset page, stands.
   Decision 1 is his decision now, and the code changes when he approves the build.
-- **O13. Attestations inside the form.**
+- **O13. Attestations inside the form.** *Settled: the recommendation, applied at his word.*
   - **The case:** Sheffield's page 3 has `passportNameConfirmation`, and the signed mapping leaves
     it empty (§10 row 3). Such a box is either submitted unticked, or ticked by the run without the
     student having confirmed it.
@@ -352,7 +474,7 @@ Each item has my recommendation. None is his decision until he writes it.
     never tick it for them"* false.
   - *Recommended:* every attestation in the form is in the confirmation, verbatim and hashed, and
     the student confirms each. Otherwise there is no press.
-- **O14. Where a case rests after the press.** `CONFIRMED` and `FAILED_PERMANENT` are terminal
+- **O14. Where a case rests after the press.** *Settled: the recommendation, applied at his word.* `CONFIRMED` and `FAILED_PERMANENT` are terminal
   (`transitions.ts:108-110`). `decide` refuses `complete_handoff` on a terminal case
   (`machine.ts:503-514`), and only `CANCELLED` checks for an account still owed
   (`transitions.ts:253`). So a case that reaches either after a press could never hand its account
@@ -361,7 +483,7 @@ Each item has my recommendation. None is his decision until he writes it.
   - `decide` accepts `complete_handoff` on a terminal case reached from a press. Today its terminal
     check refuses it (`machine.ts:507`).
   - Every terminal state checks for an account still owed, as `CANCELLED` does.
-- **O15. Whose word each live press needs.**
+- **O15. Whose word each live press needs.** *Settled in his words: a press on any other student's case stays a hard stop until ADR-0157 is built.*
   - *Recommended:* his own word for the run's first live press, which would be on his own account.
   - Whether later presses on his account need his word each time is his to say.
   - `run.ts:380-383` holds an older plan, *"from Vahid for the first real one, and from the student
@@ -369,7 +491,7 @@ Each item has my recommendation. None is his decision until he writes it.
   - A press on any other student's case processes a real student's personal data. That is a
     separate hard stop, which neither this ADR nor his word on his own press lifts. It needs his
     own words, and ADR-0157's rule that every authentication fact is observed first.
-- **O16. His own run (§11).** Which of the three ways.
+- **O16. His own run (§11).** *Settled: way (i), applied at his word, and his build order says the same.* Which of the three ways.
 
 ## 6 · What it costs in safety, honestly
 
@@ -393,7 +515,7 @@ These are the costs, each with what would reduce it and what it still leaves:
 | | Today | Lost | What would reduce it (proposed, not built), and what it still leaves |
 |---|---|---|---|
 | 1 | A runner bug cannot submit. Nothing implements `submit` (`grep 'implements SubmittableSession'` finds nothing). | A bug that sends a control down the press path becomes a real submission. | §3 items 2, 4, 5 and 9. On the fill path, forbid the signed submit endpoint (blocker 53), **if** the per-university check finds it distinct from every save and navigation endpoint (§10 row 18). The file's own header calls telling a save from a submit by its request "guesswork" (`preparation-safety.ts:34-39`). **Leaves:** one path on which a submission is possible by design. |
-| 2 | A person reads the portal's own record before anything is sent. Run A's record calls his hand read of `summary.do` *"the check that matters more than any of them"* (`docs/what-run-a-proved.md:45`). | Nobody reads what the portal stored before the press. The preview is the plan, not the portal, and the two have differed before (ADR-0106). | Just before each press, read back the stored application against the confirmed content. Any difference means no press and a person. **Leaves:** on Sheffield, repeating entries are counted, not read, and `summary.do` omits a job's duties, so the read-back needs edit-view reads, which are not built. |
+| 2 | A person reads the portal's own record before anything is sent. Run A's record calls his hand read of `summary.do` *"the check that matters more than any of them"* (`docs/what-run-a-proved.md:45`). | Nobody reads what the portal stored before the press. The preview is the plan, not the portal, and the two have differed before (ADR-0106). | His O5: the student confirms what the portal stored, read back from its own summary page, with the declaration. Just before the press, the page is read again, and any difference from what was confirmed means no press and a person. **Leaves:** on Sheffield, the summary page counts repeating entries and omits a job's duties, so those are not confirmed against the portal; reading them needs edit-view reads, which are not built. |
 | 3 | The student makes the declaration on the university's page. ADR-0007: *"Brief §7 requires these and forbids bypassing them. They cannot legitimately be automated"*. | Software makes it, on the student's confirmation. This departs from the brief as ADR-0007 reads it. ADR-0007 also warns against removing a handoff *"in the name of 'the student must never do manual work'"*, which is close to decision 2's stated reason. | §3 items 1, 2 and 5; O9; O13; §10. **Leaves:** if a declaration says the applicant did something themselves, a confirmation does not make it true. |
 | 4 | The student can fix a saved field on the website before submitting. | The student never sees the form, and a submitted application is not changed (ADR-0156). | Refuse the press while any correction, withdrawal or student-owned act is open. A correction voids that university's confirmation. **Leaves:** a mistake neither the student nor the read-back sees is submitted. |
 | 5 | Nothing irreversible happens in bulk. | One signed mapping serves every student on a portal (ADR-0157), so a wrong mapping is submitted for everyone it reaches. A wrong mapping gives a preview and a portal record that agree, so neither the read-back nor the live-page match catches it. | Before any press for a student other than him: ADR-0157's preview marks built (they make the student a second reader), and its rule that every fact is observed extended to the `SubmissionModel`. The independent first-press read above. Within one student, §3 item 6. **Leaves:** the student, reading the preview, is the last reader of a mapping error. |
@@ -514,7 +636,7 @@ Layer by layer:
 | Blueprint | `SubmissionModel` has no declaration and no form action; Sheffield's entry has none (`handoffPoints: []`). | A reviewed, signed `SubmissionModel`: page, control, form action and method, declaration, attestations. |
 | Network | `forbiddenEndpoints` always empty (blocker 53). | Fill paths: the signed submit endpoint forbidden, where §10 row 18 finds it distinct. Press path: exactly one write, to the signed endpoint. |
 | Domain | `SUBMITTING` reachable by a generic transition; checks only the fill yes; stale check cannot fire; no review re-check. | Only the confirmation-bound intent reaches `SUBMITTING`; it requires the new confirmation event; all of cost 8 fixed first. |
-| Orchestrator | Last step `ready_to_submit`; spine ends at `AUTHORISED` (`durable.ts:83-94`). | Under O5 (A): the confirmation comes with the preview, before the fill. Then the fill, the press, reading the outcome, and the handover (O1). |
+| Orchestrator | Last step `ready_to_submit`; spine ends at `AUTHORISED` (`durable.ts:83-94`). | Under his O5: the fill; the portal's summary page read back; the student's confirmation of it with the declaration; the press, signing in again if the session has expired; reading the outcome; the handover (O1). |
 
 ## 9 · What it changes in row 80
 
@@ -583,7 +705,7 @@ Sheffield's status is from the map. S2, S4 and S5 are the stated facts listed in
 | # | Check | Passes when | Sheffield today |
 |---|---|---|---|
 | 1 | Terms of use: may the password be shared? May someone other than the applicant, or software, operate the account? Who may press submit? | All three allow it. A "no" to sharing or to operating stops the run on that portal, fill included (O9). | Unread. The captured Part 2 page links no terms; it links a privacy notice, unread. |
-| 2 | The declaration's exact text. Is it first person? Does it say the applicant completed the form personally? Is it a tick box, a typed name, the button alone, or a dialog? One per application or per choice? | It asserts nothing the student's confirmation cannot make true (O9). | Unread. The record calling it "first person" (`docs/the-agent-portal-possibility.md:37`) cites no read. |
+| 2 | The declaration's exact text. Is it first person? Does it say the applicant completed the form personally? Is it a tick box, a typed name, the button alone, or a dialog? One per application or per choice? | Read before any press. If it says the applicant completed the form personally, the run does not press there (his rule, 2026-10-13). Nor may it assert anything else the student's confirmation cannot make true (O9). | Unread. The record calling it "first person" (`docs/the-agent-portal-possibility.md:37`) cites no read. |
 | 3 | Any attestation inside the form, beyond the final declaration. | Each is in the confirmation (O13). | One on page 3, which the signed mapping leaves empty: `passportNameConfirmation`, labelled *"Tick to confirm that you have entered your names and date of birth as they appear in your passport. This is to ensure you are able to get a student visa if you need to apply for one:"* (the signed entry's blueprint). |
 | 4 | An agent or representative route. Must a third party use it? Must help be declared? | No route is required of us, and any required notice is made. | A route exists, found by a site search and not read on the portal. Unread: the Agent Representation Authority Form and the "Notification of Use of Services of a Recognised Agent" form (row 58). |
 | 5 | Fee or payment at submit, and who pays. | No payment at submit, or payment is a handoff to the cardholder. | Stated, not observed: "no application fee for PGT master's" (S5). |
@@ -633,15 +755,19 @@ His words: *"I will press the final submit myself the first time, so row 80 gets
   holds it.
 - **(iii) Run as it stands, with the reset.** He presses the reset. Decision 1 now says not to.
 
-*Recommended:* (i). It is small, and his run then meets his decision 1, built.
+*Recommended:* (i). It is small, and his run then meets his decision 1, built. **Settled: (i)**,
+applied at his word, and his build order says the same: *"decision 1 alone first."* And his words
+add a stop: *"Until this is known, my run must stop before saving page 12."*
 
 **Cost:** nothing metered on this path, unless the stack runs with `AAS_LOCAL_READER_MODEL=bedrock`.
 Then one CV reading is sixty-eight model calls (`docs/run-a/p298-plan.md:106-108`).
 
-## 12 · Recommended order, if he approves
+## 12 · Order, as he approved it
 
 1. **Decision 1, built alone** (§2), with O10's recording route. Tests are seen red first.
 2. **Before his live run:**
+   - whether saving page 12 is itself the submission, found out read-only, and until it is known,
+     a stop before saving page 12 (his words);
    - his answer on what a read prints on a page with no country box;
    - the capture order of §9;
    - his decision on the page-12 risk (§11).
@@ -665,5 +791,6 @@ Then one CV reading is sixty-eight model calls (`docs/run-a/p298-plan.md:106-108
 
 ## Not built
 
-Nothing. This is a proposal. The code, the signed entry and every record still say that the run
-stops at `ready_to_submit`, and that the reset comes before the handover on Sheffield.
+Nothing yet. It is accepted, and the build follows his order: decision 1 alone first, the press
+later. Until then the code, the signed entry and every record still say that the run stops at
+`ready_to_submit`, and that the reset comes before the handover on Sheffield.
