@@ -95,6 +95,11 @@ where that matters.
     Only then is the run `ready_to_submit` (`run.ts:852-859`, `:608-609`; `ownership.ts:299-304`).
     *His acts.*
 
+    **P304, 2026-10-13:** his decision 1 says *"No password reset before submission"* and *"This
+    supersedes my earlier decision on row 177"*. What that reaches, and from when, is ADR-0159 O12.
+    ADR-0159 is proposed, and nothing is built until he approves, so the code still asks for the
+    reset here. ADR-0159 §11 gives three ways.
+
 ## What is left out, and why
 
 These are not gates on the path to `ready_to_submit` for his own run on a new account:

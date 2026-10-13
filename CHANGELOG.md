@@ -19,6 +19,39 @@ not shipped artefacts.
 
 ---
 
+## [0.297.0] — 2026-10-13
+
+**P304 — his product picture and three decisions, written as a Proposed ADR for his approval.
+Nothing is built.**
+
+- **Saved as sent:** his message of 2026-10-13
+  (`docs/run-a/p304-his-product-picture-and-decisions-as-sent.txt`, committed alone in `cf124806`).
+- **ADR-0159, proposed:** *the run presses the final submit on the student's own confirmation for
+  each university, and no password reset comes before submission.* It quotes his message whole and
+  records nothing else as his. It covers:
+  - what decision 1 removes, and what it costs: on Sheffield, the reset is the only checked proof
+    that mail reaches the student (ADR-0050 §4);
+  - what decision 1 looks like built alone, before any press exists;
+  - a design for decision 2, with nothing built. A press needs a new confirmation event, because
+    every yes given so far was given under "Nothing is submitted by this";
+  - ten safety costs, each with what would compensate;
+  - the latent defects a press would make reachable;
+  - what changes in ADR-0050 §3, §4, §5 and §7, in each layer of the submit guard, and in row 80;
+  - a twenty-one-row check per university, each row with what passes it, and Sheffield's status;
+  - sixteen points his words leave open, each with a recommendation, all his to say.
+- **Notes, not amendments:** ADR-0050 and ADR-0014 each carry a note that ADR-0159 proposes to
+  change them, and that until he approves, they stand as written.
+- **Rows:** row 80 and row 177 carry his words of 2026-10-13. His words supersede his earlier
+  decision on row 177 and name no part of it. What they reach, and from when, is ADR-0159 O12, and
+  the code still asks for the reset until ADR-0159 is approved and built. **Row 179** is new: three
+  records describe the capture's scrubbed markup as Sheffield's own.
+- **His own run** still meets the reset at the handover. ADR-0159 §11 gives three ways, his to
+  choose. The P302 list's item 12 says so.
+- **Review:** three reviewers (attribution to him, citations, honesty and completeness) found 50 points between them, several found by more than one. Each was checked against its source and applied, except one sub-point, declined: a "Proposed:" prefix on the title, since this repository's titles state the decision and the status line says Proposed. One adjacent stale line was found and is reported, not fixed: `README.md:33` still counts 141 ADRs.
+- **Census** (its own log: started 10:53:12, 685 s), run on the tree after the records and before the review fixes, which changed documents only: 174 files, **3,450 tests**, green, as before. After the fixes, the record tests: 508 of 508.
+
+---
+
 ## [0.296.0] — 2026-10-13
 
 **P303 — the sheet signed at his word: AUTH 3, 5, 6, 7 and 8 by their real source, in the entry his

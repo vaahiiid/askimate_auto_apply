@@ -4906,6 +4906,50 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P304 — the run presses the final submit, proposed
+
+*2026-10-13.* He set out what the product is: a student chats with us, and for a university we have
+onboarded we apply without them doing anything on its website until the final submission is done.
+He made three decisions:
+- no password reset before submission;
+- the run presses the final submit, after the student confirms each university separately;
+- CAPTCHA and a second factor wait until we reach them.
+
+He asked for them as a Proposed ADR, saying honestly what they cost. ADR-0159 is that ADR, and
+nothing in it is built.
+
+What it says, in short:
+- **What the change costs.** Today nothing can submit, and several layers make sure of it. Under
+  his decision, one path can. On that path, the check that refuses anything reading as a submission
+  can no longer be the last line, because it would refuse the very press the path exists for.
+- **What else is lost.**
+  - Nobody reads what the portal stored before it is sent.
+  - The declaration is pressed by software on the student's word.
+  - On Sheffield, the one checked proof that mail reaches the student becomes a statement.
+  - Every check proposed for the press reads one signed record, so one wrong signature defeats
+    them all.
+- **What would compensate.** Each loss has a proposed control, and every one is unbuilt.
+- **What it would make reachable.** Five defects that cannot fire today, because nothing asks to
+  submit, would become reachable. One of them lets a second submission past the duplicate guard.
+  And every yes a student has given so far, under "Nothing is submitted by this", would satisfy
+  today's submit guard, so a press needs a new confirmation of its own.
+- **What must be checked per university** before the run may press there: twenty-one rows. For
+  Sheffield, most are unread.
+
+Sixteen points his words leave open are listed with a recommendation each, and they are his to
+answer. The largest:
+- where the handover sits relative to the press;
+- what replaces the proof that mail reaches the student;
+- whether the student confirms before the fill or after it, because a five-minute session hold
+  decides whether "types the password once" can hold.
+
+His own run still meets the reset, because nothing is built yet. The ADR gives three ways through,
+his to choose.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P303 — signed
 
 *2026-10-13.* He approved the sheet in one message, and it was applied and signed in one commit,

@@ -5,6 +5,12 @@
 **Amends:** [ADR-0020](./0020-the-account-belongs-to-the-student.md) §3 ·
 **Related:** ADR-0004, ADR-0008, ADR-0014, ADR-0031, ADR-0041, ADR-0047, ADR-0048, ADR-0049
 
+> **Proposed amendment, not agreed (P304, 2026-10-13):** [ADR-0159](./0159-the-run-presses-the-final-submit-on-the-students-own-confirmation-per-university.md) carries his
+> decisions of 2026-10-13: no password reset before submission, and the run presses the final submit
+> on the student's own confirmation. It would change §3, §4, §5 and §7 (its §7). Until he approves it,
+> this ADR stands as written, and the reset in §4 is still what the code asks for. What his words
+> superseding row 177 reach, and from when, is its O12.
+
 ## Context
 
 P11 gave the run driver the case machine and gave the student a way to make the

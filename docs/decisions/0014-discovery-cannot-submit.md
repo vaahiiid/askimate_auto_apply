@@ -2,6 +2,12 @@
 
 **Status:** **Accepted** — implementing Vahid's Phase 3 authorisation, 2026-08-26
 
+> **Proposed amendment, not agreed (P304, 2026-10-13):** [ADR-0159](./0159-the-run-presses-the-final-submit-on-the-students-own-confirmation-per-university.md) quotes his
+> decision of 2026-10-13, *"The run must press the final submit"*, and proposes a design for it
+> that is mine, not his: among other things, this ladder's third rung for one work kind only, and a
+> signed token the runner cannot make (its §8). His sentence below stays in force. Whose word each
+> live press needs is his to say (its O15). Until he approves, this ADR stands as written.
+
 ## The requirement
 
 > Discovery and inspection should remain clearly separated from actual submission. Do not submit a
