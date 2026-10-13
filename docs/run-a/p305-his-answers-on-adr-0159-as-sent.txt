@@ -1,0 +1,23 @@
+My answers on ADR-0159.
+
+O1: agreed. Tell the student not to change the password as soon as the account exists; hand the account back after its last press.
+
+O3: agreed. The student confirms in chat that Sheffield's registration e-mail arrived. If not, stop for a person before any press.
+
+O5: I choose the confirmation AFTER the fill, not before. The student confirms what the portal actually stored, read back from the portal's own summary page, together with the exact declaration text. If the session has expired by then, ask for the password once more. This also answers your cost "nobody reads what the portal stored before it is sent". Resolve the conflict with ADR-0158 ordering (a) on this basis.
+
+O12: your reading is right.
+
+O15: a press on any other student's case stays a hard stop until ADR-0157 is built.
+
+Your proposed offset is accepted: a person reads the outcome of the first press under each newly signed version.
+
+Before any press on any university, its declaration text must be read. If it says the applicant completed the form personally, the run does not press there; record it as a per-university check.
+
+For the other eleven open points, apply your recommendations and list what you applied in one line each. Record ADR-0159 as accepted with these answers.
+
+Build order: decision 1 alone first. The press comes later.
+
+BEFORE MY LIVE RUN: find out whether saving page 12 (the course choice) is itself the submission. Read studyprogrammetaught.js (row 82) and anything else that shows it, read-only. Until this is known, my run must stop before saving page 12.
+
+Also fix README.md:33 while you are there.
