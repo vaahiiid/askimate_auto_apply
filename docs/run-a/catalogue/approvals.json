@@ -1,10 +1,10 @@
 [
   {
-    "contentHash": "sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7",
+    "contentHash": "sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-10-12T16:30:36Z",
+    "approvedAt": "2026-10-13T09:48:06Z",
     "ownAccountOnly": { "studentId": "5774ff16-ff9c-424a-882f-42d0f304968b" },
-    "note": "Approved by Vahid: grade row from read R (Iran, twenty-point scale, institution Not in list) and the preview labels from read L."
+    "note": "Approved by Vahid: AUTH 3, 5, 6, 7 and 8 recorded by their real source; AUTH 5 on Run A's observation alone; AUTH 7 in my words of 2026-10-12; AUTH 8 reasoned from the design, not observed."
   }
 ]

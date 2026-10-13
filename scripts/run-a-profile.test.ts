@@ -256,7 +256,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     return parsed.value;
   }
 
-  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs", () => {
+  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs, and AUTH 3, 5, 6, 7 and 8 by their real source (P300, P301, P302)", () => {
     const { blueprint, mappingSet } = drafts();
     const value = entry();
     // P154: signed. The drafts in docs/captures stay drafts (the record of the
@@ -273,6 +273,51 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.portalAuthentication?.portalHost).toBe("www.sheffield.ac.uk");
     expect(value.portalAuthentication?.applicantChoosesPassword).toBe(true);
     expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
+
+    // ── P300, row 169: each fact by its real source ──────────────────────
+    // Held in this test rather than a new one, so the patch moves no count
+    // in the census and the signing commit carries nothing but the patch.
+    // Vahid, 2026-10-12: "record each of AUTH 3, 5, 6 and 8 by its real
+    // source: observed (name the read), stated by me (quote me), or reasoned
+    // from the design. Nothing reasoned may be recorded as observed. AUTH 8 is
+    // reasoned."
+    const sources = entry().portalAuthentication?.sources;
+    const kinds = (key: keyof NonNullable<typeof sources>): readonly string[] | undefined => sources?.[key]?.map((source) => source.kind);
+    expect(Object.keys(sources ?? {}).sort()).toEqual(["captchaPresent", "credentialsCanBeHandedBack", "mfaOrOtpRequired", "passwordResetAvailable", "passwordlessAvailable"]);
+    expect(kinds("credentialsCanBeHandedBack"), "AUTH 8 is reasoned, and only reasoned").toEqual(["reasoned"]);
+    expect(kinds("passwordlessAvailable")).toEqual(["observed", "observed"]);
+    expect(kinds("captchaPresent")).toEqual(["observed", "observed", "observed", "observed"]);
+    // P302, his words (docs/run-a/p302-his-decisions-as-sent.txt): "AUTH 5: I
+    // cannot confirm the exact words of 2026-09-11. Rebuild AUTH 5 to rest on
+    // Run A's observation alone." So no stated source, and Run A's is the one.
+    expect(kinds("mfaOrOtpRequired"), "AUTH 5 rests on Run A's observation alone").toEqual(["observed"]);
+    expect(sources?.mfaOrOtpRequired?.[0]?.kind === "observed" ? sources.mfaOrOtpRequired[0].read : "").toMatch(/^Run A \(docs\/what-run-a-proved\.md\)/u);
+    expect(JSON.stringify(sources), "his 2026-09-11 words are quoted nowhere in the sources").not.toContain("I signed in again later");
+    const DRAFT = join(ROOT, "docs", "captures", "sheffield-pgt-2026-09-10", "portal-authentication.draft.json");
+    const draft = JSON.parse(readFileSync(DRAFT, "utf8")) as { $comment: string[]; sources?: unknown };
+    // Every observed source names the read it rests on: a capture's run, or Run A's record.
+    for (const [key, list] of Object.entries(sources ?? {})) {
+      for (const source of list) {
+        if (source.kind === "observed") expect(source.read, key).toMatch(/attached-sheffield-pgt-september-direct-|docs\/what-run-a-proved\.md/u);
+      }
+    }
+    // ── P301: AUTH 7, as he tried it on 2026-10-12 ────────────────────────
+    // "Record AUTH 7 as observed, with exactly this." His paragraph, read from
+    // the saved message as the test runs, so one changed character is red.
+    const HIS_AUTH7 = readFileSync(join(ROOT, "docs", "run-a", "p301-his-auth7-as-sent.txt"), "utf8").split("\n")[2];
+    expect(HIS_AUTH7?.endsWith("I am changing it now."), "the paragraph, whole").toBe(true);
+    expect(kinds("passwordResetAvailable"), "his own try: stated, in his words").toEqual(["stated"]);
+    expect(sources?.passwordResetAvailable?.[0]).toEqual({ kind: "stated", by: "Vahid Mohammadi", on: "2026-10-12", words: HIS_AUTH7 });
+    expect(value.portalAuthentication?.passwordResetAvailable).toBe(true);
+    expect(value.portalAuthentication?.passwordResetSends, "what Sheffield's reset sends: a new password, not a link").toBe("new_password_in_plain_text");
+    // The draft it came from carries the same sources and, now that AUTH 7 is
+    // tried, the same facts: two files, held equal.
+    expect(draft.sources).toEqual(sources);
+    const facts = draft as unknown as Record<string, unknown>;
+    const signed = value.portalAuthentication as unknown as Record<string, unknown>;
+    for (const key of ["applicantChoosesPassword", "portalIssuesCredential", "passwordlessAvailable", "emailVerificationRequired", "mfaOrOtpRequired", "captchaPresent", "passwordResetAvailable", "credentialsCanBeHandedBack", "passwordResetSends"]) {
+      expect(facts[key], key).toEqual(signed[key]);
+    }
   });
 
   it("locates every page's SAVE by what that page's own read showed — name where no id was ever read (P176)", () => {
@@ -444,12 +489,24 @@ describe("the catalogue entry for Run A (P152)", () => {
     //                     asked: "Record the country a read was made under in
     //                     the reads record itself" (0.2.34 / 0.3.46), P294
     //                     (signed, 34760af4)
-    //   sha256:546b2948…  11 October, THIS one — from his reads R and L:
+    //   sha256:546b2948…  11 October — from his reads R and L:
     //                     the grade's list after GPA 20 with the institution's
     //                     escape and Iran, its prompt, and the row he asked
     //                     for, "build the grade row from R for my signature";
     //                     two escape boxes labelled with the page's own words
-    //                     (0.2.35 / 0.3.47), P296
+    //                     (0.2.35 / 0.3.47), P296 (signed, 8f51a599)
+    //   sha256:31770fb8…  12 October — AUTH 3, 5, 6 and 8 recorded by their
+    //                     real source (0.2.36 / 0.3.48), P300; never signed,
+    //                     withdrawn when his AUTH 7 result arrived
+    //   sha256:e74ade25…  12 October — the same, and AUTH 7 as he
+    //                     tried it: "Record AUTH 7 as observed, with exactly
+    //                     this", his words its source, and what Sheffield's
+    //                     reset sends (0.2.36 / 0.3.48), P301; never signed,
+    //                     withdrawn at his word, "Do not sign P300's sheet"
+    //   sha256:2a4ae5a9…  13 October, THIS one — the same, with AUTH 5
+    //                     resting on Run A's observation alone, as he asked:
+    //                     "I cannot confirm the exact words of 2026-09-11"
+    //                     (0.2.36 / 0.3.48), P302
     //
     // The `degree` mapping reads `awardTitle` — the part the registry now
     // holds, stated by the student and distinct from `level` — onto the
@@ -465,7 +522,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     // P283 and P284 moved it again, for step 2 of his own run, delivered as a patch he
     // applies and signs in ONE commit with approvals.json — so main never
     // holds an entry that is not signed, and this test is never red there.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
     expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
     if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
@@ -485,7 +542,7 @@ describe("the catalogue entry for Run A (P152)", () => {
       ownAccountOnly?: { studentId: string };
     }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
-    expect(approvals[0]?.contentHash).toBe("sha256:546b2948c7e721ed3f6e28f800ec486bf595554f38456936a0074c68d2b24ab7");
+    expect(approvals[0]?.contentHash).toBe("sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0");
     expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
     // The four spellings of Iran, from the entry itself: unchanged by this
     // edit, and the reason the countries' signature was spent.
@@ -652,7 +709,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     // it. Nothing typed here came from a map's guess.
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.35, mapping set 0.3.47, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.36, mapping set 0.3.48, reviewed by Vahid Mohammadi.");
     expect(output).toContain("How do you want to study?*: Full Time");
     expect(output).toContain('(sent as "MGT:Management and International Business")');
     expect(output).toContain("MSC, Master of Science");

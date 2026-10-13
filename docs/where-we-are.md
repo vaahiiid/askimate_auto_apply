@@ -4906,6 +4906,17 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P303 — signed
+
+*2026-10-13.* He approved the sheet in one message, and it was applied and signed in one commit,
+the printed hash checked against the one he named. The entry his run loads now records where each
+authentication fact came from. Sheffield's reset is recorded as he found it, and the handover now
+tells a student so. The first item of the list before his live run is done; the other eleven stand.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P302 — his decisions, and the list before his live run
 
 *2026-10-13.* His decisions that had not reached the session arrived in one message, in his own

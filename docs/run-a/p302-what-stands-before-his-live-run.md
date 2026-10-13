@@ -20,7 +20,8 @@ where that matters.
 
 ## The list, in the order the run meets it
 
-1. **His signature on the rebuilt sheet** (`docs/run-a/p300-for-signature.md`, `sha256:2a4ae5a9…`).
+1. **Done 2026-10-13 (P303): signed at his word, `sha256:2a4ae5a9…`.** As written before it:
+   **his signature on the rebuilt sheet** (`docs/run-a/p300-for-signature.md`, `sha256:2a4ae5a9…`).
    Sign it before his yes on the preview, because a signature after it asks for the yes again. The
    run does not wait on it: the signed entry `546b2948…` admits his account today.
    *His act.*

@@ -144,7 +144,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.35");
+    expect(blueprint.version).toBe("0.2.36");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -459,8 +459,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.35");
-    expect(mappingSet.version).toBe("0.3.47");
+    expect(blueprint.version).toBe("0.2.36");
+    expect(mappingSet.version).toBe("0.3.48");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -662,37 +662,43 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.instructions.find((i) => i.fieldRef === "newemail")?.value.kind).toBe("confirmed");
   });
 
-  it("record AUTH 7 as not observed, so the chooser refuses and names that one question; observed, it would pick student_chosen (P92, P299)", () => {
-    // AUTH 4 and 5 could not be settled by a page that was read. They are
-    // settled by Vahid's direct statement of 2026-09-11 — observed by him,
-    // not by a run — and the file says so in its comment, because until P300
-    // the type carried no per-fact provenance. For this entry only, in his words:
-    // "this is Sheffield's behaviour, not a property of direct portals."
+  it("record AUTH 7 as he tried it — it works and replaces the password at once — so the chooser picks student_chosen, and set back to unobserved it refuses naming that one question (P92, P299, P301, P302)", () => {
+    // AUTH 4 and 5 could not be settled by a page that was read. AUTH 4 is
+    // settled by Vahid's own observations, and the file says so in its
+    // comment, because until P300 the type carried no per-fact provenance.
+    // AUTH 5 rests on Run A's sign-ins alone (P302, his words: "I cannot
+    // confirm the exact words of 2026-09-11. Rebuild AUTH 5 to rest on Run
+    // A's observation alone."). For this entry only, in his words: "this is
+    // Sheffield's behaviour, not a property of direct portals."
     const observed = facts();
     expect(observed.applicantChoosesPassword).toBe(true);
     expect(observed.emailVerificationRequired).toBe(false);
     expect(observed.mfaOrOtpRequired).toBe(false);
-    // AUTH 7 was recorded as true and never observed (row 152). Vahid,
-    // 2026-10-12: "it was never observed, so it must not be recorded as true.
-    // Record it as not observed until someone tries it."
-    expect(observed.passwordResetAvailable).toBe("unobserved");
-    const refused = chooseApproach({ observed, studentPresentAtCreation: true });
+    // AUTH 7 was recorded as true and never observed (row 152), then as not
+    // observed (P299). Vahid tried it on 2026-10-12 (P301): "Record AUTH 7 as
+    // observed, with exactly this." It works, and it replaces the password at
+    // once with one e-mailed in plain text: what the reset sends is recorded
+    // beside it, because the handover tells the student so.
+    expect(observed.passwordResetAvailable).toBe(true);
+    expect(observed.passwordResetSends).toBe("new_password_in_plain_text");
+    const chosen = chooseApproach({ observed, studentPresentAtCreation: true });
+    expect(chosen.chosen).toBe(true);
+    if (chosen.chosen) expect(chosen.plan.approach).toBe("student_chosen");
+    // Set back to unobserved, the chooser refuses, naming that one question.
+    const refused = chooseApproach({ observed: { ...observed, passwordResetAvailable: "unobserved" }, studentPresentAtCreation: true });
     if (refused.chosen) expect.unreachable("an unobserved fact must refuse");
     expect(refused.refusal.kind).toBe("unobserved");
     if (refused.refusal.kind === "unobserved") {
       expect(refused.refusal.questions).toEqual(["Does 'Forgot password' work, and does the reset go to the account's own address?"]);
     }
-    const ifTried = chooseApproach({ observed: { ...observed, passwordResetAvailable: true }, studentPresentAtCreation: true });
-    expect(ifTried.chosen).toBe(true);
-    if (ifTried.chosen) expect(ifTried.plan.approach).toBe("student_chosen");
   });
 
   it.each([["emailVerificationRequired"], ["mfaOrOtpRequired"]] as const)(
     "still REFUSES when %s alone is set back to unobserved — the refusal bites, it has not merely stopped firing",
     (fact) => {
       // "An unobserved answer is not a no." Proved on each of the two facts
-      // his statement settled, one at a time, against the committed file —
-      // with AUTH 7 as if tried, so that this fact is the one refusing.
+      // no page read settled, one at a time, against the committed file —
+      // with AUTH 7 true (as he tried it), so that this fact is the one refusing.
       const observed = { ...facts(), passwordResetAvailable: true, [fact]: "unobserved" as const };
       const choice = chooseApproach({ observed, studentPresentAtCreation: true });
       expect(choice.chosen).toBe(false);

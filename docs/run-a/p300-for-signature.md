@@ -1,8 +1,16 @@
 # AUTH 3, 5, 6, 7 and 8 by their real source: one patch, one signature (P300, P301, P302)
 
-**Status: built, not signed.** Nothing here is on `main` as entry content. The batch is the patch
+**Status: signed, at his word of 2026-10-13** (saved as sent:
+[`p303-his-approval-as-sent.txt`](./p303-his-approval-as-sent.txt)): *"I approve the patch in
+docs/run-a/p300-for-signature.patch, whose entry hashes to
+sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0. Apply it and sign it as
+docs/run-a/p300-for-signature.md says"*. Applied and signed in one commit (P303). The printed hash
+was the one in his message, `sha256:2a4ae5a9…`, compared before the commit. approvedAt `2026-10-13T09:48:06Z`. His
+note: *"Approved by Vahid: AUTH 3, 5, 6, 7 and 8 recorded by their real source; AUTH 5 on Run A's observation alone; AUTH 7 in my words of 2026-10-12; AUTH 8 reasoned from the design, not observed."*
+
+What follows is the sheet as he signed it. The batch was the patch
 [`p300-for-signature.patch`](./p300-for-signature.patch), applied and signed in one commit, so
-`main` never holds an entry no approval covers.
+`main` never held an entry no approval covers.
 
 It applies on top of the P301 commit, which teaches the catalogue to read `passwordResetSends`.
 - **On `main` with P300 but without P301,** the parser refuses the patched entry loudly, naming

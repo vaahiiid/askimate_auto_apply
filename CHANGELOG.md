@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.296.0] — 2026-10-13
+
+**P303 — the sheet signed at his word: AUTH 3, 5, 6, 7 and 8 by their real source, in the entry his
+run loads.**
+
+- **Signed** `docs/run-a/p300-for-signature.patch` at his word
+  (`docs/run-a/p303-his-approval-as-sent.txt`). The entry hashes to `sha256:2a4ae5a9…`, the hash
+  in his message, compared before the commit. The approval admits his account only, approvedAt
+  `2026-10-13T09:48:06Z`, with his note. The patch and the approval are in one commit.
+- **Changed** what Sheffield's handover says of a reset: the signed entry records what its reset
+  sends, so the student is told the reset replaces the password at once and the new one arrives by
+  e-mail, in plain text.
+- **Closed** rows 152 and 169.
+
+---
+
 ## [0.295.0] — 2026-10-13
 
 **P302 — his decisions of 2026-10-13, in his words: the sheet rebuilt with AUTH 5 on Run A alone,

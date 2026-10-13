@@ -50,6 +50,57 @@
   "emailVerificationRequired": false,
   "mfaOrOtpRequired": false,
   "captchaPresent": false,
-  "passwordResetAvailable": "unobserved",
-  "credentialsCanBeHandedBack": true
+  "passwordResetAvailable": true,
+  "credentialsCanBeHandedBack": true,
+  "passwordResetSends": "new_password_in_plain_text",
+  "sources": {
+    "passwordlessAvailable": [
+      {
+        "kind": "observed",
+        "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): the entry page, read twice, and forgottenPassword.do. The login form takes an email and a password, and the only other route is a reset. Pages after sign-in were not read for it."
+      },
+      {
+        "kind": "observed",
+        "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same forms and signals as the read of 2026-09-11."
+      }
+    ],
+    "mfaOrOtpRequired": [
+      {
+        "kind": "observed",
+        "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in, through the consent path, to the account the reads use, with that account's e-mail and a password typed once through the secure box; it read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
+      }
+    ],
+    "captchaPresent": [
+      {
+        "kind": "observed",
+        "read": "The signed-in read of 2026-09-10, run attached-sheffield-pgt-september-direct-2026-09-10T16-13-23-186Z (docs/captures/sheffield-pgt-2026-09-10, P81): eleven pages, no CAPTCHA signal. Google Tag Manager was refused."
+      },
+      {
+        "kind": "observed",
+        "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): no CAPTCHA script, iframe, widget or marker on the entry page or forgottenPassword.do. Google Tag Manager was refused, so a CAPTCHA a tag would inject could not have loaded."
+      },
+      {
+        "kind": "observed",
+        "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same signals, no CAPTCHA."
+      },
+      {
+        "kind": "observed",
+        "read": "Run A, attempts 4 (2026-09-21) and 10 (2026-09-22) (docs/what-run-a-proved.md; P178 in docs/state-of-the-system.md): the runner reads the page for a CAPTCHA before and after signing in and as it fills (apps/browser-runner/src/sign-in.ts, fill-application.ts). Attempt 4 saved the personal, contact and nationality pages and attempt 10 the education, employment and equal opportunities pages, six pages of Part 1 between them, and neither met one. Registration, submitted, was not observed for it."
+      }
+    ],
+    "passwordResetAvailable": [
+      {
+        "kind": "stated",
+        "by": "Vahid Mohammadi",
+        "on": "2026-10-12",
+        "words": "\"Forgot password\" works, but it does not send a reset link. Sheffield immediately generates a new password, replacing the old one, and e-mails it in plain text to the account's e-mail address, with a recommendation to sign in and change it. I am changing it now."
+      }
+    ],
+    "credentialsCanBeHandedBack": [
+      {
+        "kind": "reasoned",
+        "from": "AUTH 1 and the design: the password is the student's own, chosen at registration and never held by AskiMate (ADR-0020, ADR-0101), and nothing seen on the portal would prevent the student taking control (docs/captures/sheffield-pgt-2026-09-11-entry/README.md, AUTH 8: 'settled by AUTH 1, not by a page'). No account has been handed back on this portal, so nothing has observed it."
+      }
+    ]
+  }
 }

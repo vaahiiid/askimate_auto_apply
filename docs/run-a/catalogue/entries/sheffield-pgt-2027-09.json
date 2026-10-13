@@ -41,11 +41,62 @@
     "mfaOrOtpRequired": false,
     "captchaPresent": false,
     "passwordResetAvailable": true,
-    "credentialsCanBeHandedBack": true
+    "credentialsCanBeHandedBack": true,
+    "passwordResetSends": "new_password_in_plain_text",
+    "sources": {
+      "passwordlessAvailable": [
+        {
+          "kind": "observed",
+          "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): the entry page, read twice, and forgottenPassword.do. The login form takes an email and a password, and the only other route is a reset. Pages after sign-in were not read for it."
+        },
+        {
+          "kind": "observed",
+          "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same forms and signals as the read of 2026-09-11."
+        }
+      ],
+      "mfaOrOtpRequired": [
+        {
+          "kind": "observed",
+          "read": "Run A (docs/what-run-a-proved.md): sign-in held on every attempt from 4 (2026-09-21) to 10 (2026-09-22). The runner signed in, through the consent path, to the account the reads use, with that account's e-mail and a password typed once through the secure box; it read the page for a second factor after pressing sign in (apps/browser-runner/src/sign-in.ts), and reached the form each time. Registration was not observed by a run."
+        }
+      ],
+      "captchaPresent": [
+        {
+          "kind": "observed",
+          "read": "The signed-in read of 2026-09-10, run attached-sheffield-pgt-september-direct-2026-09-10T16-13-23-186Z (docs/captures/sheffield-pgt-2026-09-10, P81): eleven pages, no CAPTCHA signal. Google Tag Manager was refused."
+        },
+        {
+          "kind": "observed",
+          "read": "The signed-out read of 2026-09-11, run attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z (docs/captures/sheffield-pgt-2026-09-11-entry): no CAPTCHA script, iframe, widget or marker on the entry page or forgottenPassword.do. Google Tag Manager was refused, so a CAPTCHA a tag would inject could not have loaded."
+        },
+        {
+          "kind": "observed",
+          "read": "The runner's read of the login page of 2026-09-18, run attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z (docs/captures/sheffield-pgt-2026-09-18-login-as-runner), signed out with tags allowed: the same signals, no CAPTCHA."
+        },
+        {
+          "kind": "observed",
+          "read": "Run A, attempts 4 (2026-09-21) and 10 (2026-09-22) (docs/what-run-a-proved.md; P178 in docs/state-of-the-system.md): the runner reads the page for a CAPTCHA before and after signing in and as it fills (apps/browser-runner/src/sign-in.ts, fill-application.ts). Attempt 4 saved the personal, contact and nationality pages and attempt 10 the education, employment and equal opportunities pages, six pages of Part 1 between them, and neither met one. Registration, submitted, was not observed for it."
+        }
+      ],
+      "passwordResetAvailable": [
+        {
+          "kind": "stated",
+          "by": "Vahid Mohammadi",
+          "on": "2026-10-12",
+          "words": "\"Forgot password\" works, but it does not send a reset link. Sheffield immediately generates a new password, replacing the old one, and e-mails it in plain text to the account's e-mail address, with a recommendation to sign in and change it. I am changing it now."
+        }
+      ],
+      "credentialsCanBeHandedBack": [
+        {
+          "kind": "reasoned",
+          "from": "AUTH 1 and the design: the password is the student's own, chosen at registration and never held by AskiMate (ADR-0020, ADR-0101), and nothing seen on the portal would prevent the student taking control (docs/captures/sheffield-pgt-2026-09-11-entry/README.md, AUTH 8: 'settled by AUTH 1, not by a page'). No account has been handed back on this portal, so nothing has observed it."
+        }
+      ]
+    }
   },
   "blueprint": {
     "blueprintId": "bp-sheffield-pgt-september-direct",
-    "version": "0.2.35",
+    "version": "0.2.36",
     "status": "reviewed",
     "institutionName": "University of Sheffield",
     "courseName": "MSc Management and International Business",
@@ -30759,12 +30810,12 @@
         "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
         "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
         "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
-        "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
+        "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code? NONE on the pages read — OBSERVED by the signed-out read of 2026-09-11 and the runner's read of the login page of 2026-09-18; no page after sign-in was read for it (P300; each read named in portalAuthentication.sources.passwordlessAvailable)",
         "AUTH 4 — Must the email be verified before the form is reachable? NO (Vahid, 2026-10-01, three observations on one account: registration 2026-09-11 went straight into the form with one acknowledgement e-mail and no link clicked; sign-in 2026-09-18; two signed-in reads 2026-09-25)",
-        "AUTH 5 — Is MFA or a one-time code required, and where?",
-        "AUTH 6 — Is a CAPTCHA present, and where?",
-        "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
-        "AUTH 8 — Can control be handed back cleanly?",
+        "AUTH 5 — Is MFA or a one-time code required, and where? NOT AT SIGN-IN — OBSERVED by Run A's sign-ins, attempts 4 to 10 (2026-09-21 to 2026-09-22); registration not observed by a run. It does not rest on his statement of 2026-09-11, whose exact words he cannot confirm (P302; portalAuthentication.sources.mfaOrOtpRequired)",
+        "AUTH 6 — Is a CAPTCHA present, and where? NONE on the pages read — OBSERVED by the signed-in read of 2026-09-10, the signed-out read of 2026-09-11 (Google Tag Manager refused on both), the runner's read of the login page of 2026-09-18 and Run A's attempts 4 and 10; registration submitted not observed (P300; portalAuthentication.sources.captchaPresent)",
+        "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address? YES, AND IT REPLACES THE PASSWORD AT ONCE — STATED by Vahid, 2026-10-12, who tried it on the account used for the reads: no reset link is sent; Sheffield generates a new password, replacing the old one, and e-mails it in plain text to the account's address. The run never presses it (P301; portalAuthentication.sources.passwordResetAvailable, portalAuthentication.passwordResetSends)",
+        "AUTH 8 — Can control be handed back cleanly? YES — REASONED FROM THE DESIGN, NOT OBSERVED: from AUTH 1, the password is the student's own and never held here (ADR-0020, ADR-0101); no account has been handed back on this portal (P300; portalAuthentication.sources.credentialsCanBeHandedBack)",
         "PART 2, read 2026-09-25 (581070e): the overview's only two links out of Part 1 are plain <a href> GETs, studyprogrammetaught.do and studyprogrammeresearch.do — no form, no button — so opening Part 2 commits nothing. The taught page's own form POSTs to itself with saveBtn and backBtn, the shape of every Part 1 page, and carries NO submit-the-application control. WHERE THE FINAL SUBMISSION IS remains UNREAD: the overview's HTML was not kept, and nothing read shows what appears once a course choice is saved. Vahid pressed nothing.",
         "PART 2, the research route (studyprogrammeresearch.do): UNREAD by his word — a row, not a phase.",
         "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
@@ -30852,10 +30903,10 @@
       "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
     ],
     "mappingSetId": "map-sheffield-pgt-2027-09",
-    "version": "0.3.47",
+    "version": "0.3.48",
     "status": "reviewed",
     "blueprintId": "bp-sheffield-pgt-september-direct",
-    "blueprintVersion": "0.2.35",
+    "blueprintVersion": "0.2.36",
     "authoredBy": "Vahid Mohammadi",
     "authoredAt": "2026-09-11T12:00:00Z",
     "mappings": [
