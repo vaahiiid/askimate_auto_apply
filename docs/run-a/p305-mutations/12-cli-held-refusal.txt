@@ -1,0 +1,50 @@
+# P305 mutation 12-cli-held-refusal
+# file: scripts/interventions.ts
+# replaced:
+      path.endsWith("/resolution") &&
+# with:
+      path.endsWith("/resolution") && false &&
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t says why a resume is refused
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (20 tests | 1 failed | 19 skipped) 498ms
+   × the published demonstrations > interventions > says why a resume is refused on a held page, rather than only the refusal's code (P305) 494ms
+     → expected '\nRecording this as vahid. That name …' to contain 'recorded nothing'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions > says why a resume is refused on a held page, rather than only the refusal's code (P305)
+AssertionError: expected '\nRecording this as vahid. That name …' to contain 'recorded nothing'
+
+- Expected
++ Received
+
+- recorded nothing
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++ The service refused: validation_failed
++
+
+ ❯ scripts/demonstrations.test.ts:246:29
+    244|         );
+    245|         expect(refused.code).not.toBe(0);
+    246|         expect(refused.out).toContain("recorded nothing");
+       |                             ^
+    247|         expect(refused.out).toContain("page_save_may_submit");
+    248|         expect(refused.out).toContain("only --abandon is taken");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  13:48:33
+   Duration  7.21s (transform 40ms, setup 0ms, collect 6.31s, tests 498ms, environment 0ms, prepare 80ms)
+

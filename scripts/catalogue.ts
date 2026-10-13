@@ -45,6 +45,7 @@ import { resolve } from "node:path";
 
 import {
   canonicalText,
+  heldPagesIn,
   labelledHash,
   loadCatalogueDirectory,
   parseReviewedEntryText,
@@ -120,7 +121,15 @@ export function previewText(entry: Entry, fixture: ProfileFixture): string {
       ...plan.blockers.map((b) => `  - ${b.kind}: ${b.fieldRef}${"detail" in b ? ` — ${b.detail}` : ""}`),
     ].join("\n");
   }
-  const preview = buildPreview(entry.blueprint, plan, new Map(), { portalHost: entry.portalAuthentication?.portalHost ?? new URL(entry.blueprint.authentication.loginUrl ?? "https://unknown.invalid/").host });
+  // P305 review: the review tool's preview says what the run's preview says,
+  // the held pages included (ADR-0160), or it would list page 12 as typed.
+  const preview = buildPreview(
+    entry.blueprint,
+    plan,
+    new Map(),
+    { portalHost: entry.portalAuthentication?.portalHost ?? new URL(entry.blueprint.authentication.loginUrl ?? "https://unknown.invalid/").host },
+    heldPagesIn(String(entry.blueprint.blueprintId), entry.blueprint.pages),
+  );
   if (!preview.built) {
     process.exitCode = 1;
     return [...header, `No preview: ${preview.refusal.kind}`].join("\n");

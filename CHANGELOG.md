@@ -19,6 +19,78 @@ not shipped artefacts.
 
 ---
 
+## [0.298.0] — 2026-10-13
+
+**P305 — ADR-0159 accepted with his answers; page 12 held until it is known whether saving it is the
+submission (ADR-0160).**
+
+- **Saved as sent:** his answers of 2026-10-13
+  (`docs/run-a/p305-his-answers-on-adr-0159-as-sent.txt`, committed alone in `dd4a45cb`).
+- **ADR-0159, accepted at his word** (`48b3342f`):
+  - O1, O3, O12 and O15 are recorded in his words.
+  - O5 is his choice: the confirmation comes after the fill, read back from the portal's own summary
+    page, with the password asked once more if the session has expired.
+  - The conflict with ADR-0158's ordering (a) is resolved on that basis. The ordering itself stays
+    his to choose.
+  - The offset, and his rule on a declaration of personal completion, are recorded.
+  - The other eleven points are applied as recommended, one line each.
+  - O7 no longer calls the target file's "each submitted separately" his words.
+  - Nothing is built. His build order is decision 1 alone first.
+- **ADR-0159, corrected after the review** (this commit):
+  - Three parts stay his and say so: whether O5's signed-in session is kept to the press (the first
+    text said ADR-0101 §2 stays as it is, as if his words decided it; that is withdrawn), O7's part
+    decided with row 81, and O15's presses on his own account.
+  - O6's and O9's one-line entries are restored to P304's words. Hashing the read-back is marked as
+    my adaptation.
+  - Five citations that P305's own code moved are updated.
+- **The read:** whether saving page 12 is the submission is not known, and the repository cannot
+  settle it (ADR-0160 §1). `studyprogrammetaught.js` has never been in the repository, and what the
+  server does with the POST cannot be read from any client file. His own words of 2026-09-11 (*"It is
+  the page where submission actually happens"*) and Sheffield's page as he transcribed it point
+  different ways, and both are statements.
+- **ADR-0160, the stop.** His words ask for a stop before saving page 12. The stop is placed before
+  the page is opened at all, which is the ADR's choice and his to overturn (§5).
+  - Page 12 is held in a register outside the signed entry (`packages/catalogue/src/held-pages.ts`),
+    matched by page or by address, the address compared loosely.
+  - Every road to the page is held: the claim (the next page, and every address the work carries),
+    `#nextPage`, the resume path (no password asked, no sign-in handed out), and a person's resume,
+    refused while the page is held (`PageStillHeldError`).
+  - The student is told once, and a person asked once, with a new reason, `page_save_may_submit`.
+    The preview says so under the page, in the run and in the review tool.
+  - A record test fails if the register stops naming page 12 by both keys, or if page 11, whose save
+    continues to page 12, gains a mapping.
+  - The specialist command says why a resume is refused on a held page, and that nothing was
+    recorded, rather than only the refusal's code.
+  - A resume holds the run before releasing it, so no runner can meet the hold in between and tell
+    the student twice. The position a student's screen reads says a person is needed, not a
+    password, when the resume sign-in would lead to the held page.
+  - Each guard was disabled on its own and the tests went red. The eighteen runs are kept unedited
+    in `docs/run-a/p305-mutations/`, each run after the last change to the code it covers.
+  - Lifting it takes a deleted line, a restart and a resolved stop. If he saves page 12 by hand, the
+    case cannot record it yet, so do not resume after a lift (§3).
+- **Row 180, opened:** five places the hold rests on something other than a check.
+- **Rows 80 and 82** brought up to date: ADR-0159 is accepted, the question now stands before
+  `ready_to_submit`, and page 12's funding boxes are mapped.
+- **README.md:33** counts the ADRs again: 160, all accepted, with ADR-0160. The ADR status test now
+  checks that count and the standing account's.
+- **Two reviews.**
+  - The first, of the uncommitted work, had three reviewers: the stop, its bypasses, and the
+    records. A second reader verified each finding. Of 29 findings, 25 held and 4 did not, and the
+    verifiers found 8 more. Every one that held was fixed except a save made by hand after a lift,
+    which waits on O10 (P306) and is recorded (ADR-0160 §3, row 180).
+  - The second, of the fixes, found 8 more, none high. Seven were fixed. Four of those have a test
+    seen to fail without the fix (mutations 13 to 17). The page numbering, the disclosure line and
+    the ADR's wording rest on reading. A narrow password-box ordering, and an interview stop's
+    "moving again" before the hold, are recorded in row 180, not fixed.
+  - The first full census found the committed preview (`docs/run-a/what-will-be-typed.md`) without
+    the held line, which the review tool now prints. It is the command's output again, unedited.
+- **Census** (its own log: started 14:04:19, 661 s), run on the finished tree: 176 files, **3,497
+  tests**, green, zero skipped. The first census (13:34:20, 728 s) passed 3,486 of 3,487; the one
+  red was the committed preview without the held line, fixed as above. A second was stopped when the
+  second review's fixes began, before it finished.
+
+---
+
 ## [0.297.0] — 2026-10-13
 
 **P304 — his product picture and three decisions, written as a Proposed ADR for his approval.

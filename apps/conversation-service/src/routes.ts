@@ -93,7 +93,7 @@ import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
 import type { RunOutcome, RunReading, RunRefusal, WorkDocumentRefusal } from "./run-driver.js";
-import { NothingToHaveHappenedError } from "./run-driver.js";
+import { NothingToHaveHappenedError, PageStillHeldError } from "./run-driver.js";
 import type { DataDeletionRequest, DeletionOutcome } from "./data-deletion-request-store.js";
 import type { ClaimedReading, ReadingReport, WorkDocument } from "@askimate/aas-contracts";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
@@ -2030,6 +2030,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
             // done. `didHappen: true` there is a claim about nothing, and the
             // record would say more than what happened (P257).
             problem(res, "validation_failed", { pointers: ["/didHappen"] });
+            return;
+          }
+          if (error instanceof PageStillHeldError) {
+            // P305 review, ADR-0160: a held page's stop is not resumed past.
+            // The hold is lifted by deleting its line, on his words, and a
+            // restart; until then the only outcome taken is `abandon`.
+            problem(res, "validation_failed", { pointers: ["/outcome"] });
             return;
           }
           throw error;

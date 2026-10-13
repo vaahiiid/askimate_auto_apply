@@ -1,0 +1,63 @@
+# P305 mutation 15-address-other-blueprint
+# file: packages/catalogue/src/held-pages.ts
+# replaced:
+  if (!ownBlueprint) return false;
+
+# with:
+
+# command: pnpm exec vitest run --project unit packages/catalogue/src/held-pages.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/catalogue/src/held-pages.test.ts (27 tests | 5 failed) 34ms
+   × a held page > does not hold about:blank on another blueprint 12ms
+     → expected { blueprintId: 'bp-a-portal', …(5) } to be null
+   × a held page > does not hold a mailto address on another blueprint 2ms
+     → expected { blueprintId: 'bp-a-portal', …(5) } to be null
+   × a held page > does not hold a file address on another blueprint 2ms
+     → expected { blueprintId: 'bp-a-portal', …(5) } to be null
+   × a held page > does not hold a path with no host on another blueprint 1ms
+     → expected { blueprintId: 'bp-a-portal', …(5) } to be null
+   × a held page > does not hold a bare file name on another blueprint 2ms
+     → expected { blueprintId: 'bp-a-portal', …(5) } to be null
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 22 passed (27)
+   Start at  14:01:50
+   Duration  536ms (transform 45ms, setup 0ms, collect 71ms, tests 34ms, environment 0ms, prepare 105ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/catalogue/src/held-pages.test.ts > a held page > does not hold about:blank on another blueprint
+ FAIL |unit|  packages/catalogue/src/held-pages.test.ts > a held page > does not hold a mailto address on another blueprint
+ FAIL |unit|  packages/catalogue/src/held-pages.test.ts > a held page > does not hold a file address on another blueprint
+ FAIL |unit|  packages/catalogue/src/held-pages.test.ts > a held page > does not hold a path with no host on another blueprint
+ FAIL |unit|  packages/catalogue/src/held-pages.test.ts > a held page > does not hold a bare file name on another blueprint
+AssertionError: expected { blueprintId: 'bp-a-portal', …(5) } to be null
+
+- Expected: 
+null
+
++ Received: 
+Object {
+  "because": "a test reason",
+  "blueprintId": "bp-a-portal",
+  "pageName": "the course choice page",
+  "pageRef": "page-course",
+  "source": "a test",
+  "url": "https://portal.test/apply/course.do",
+}
+
+ ❯ packages/catalogue/src/held-pages.test.ts:98:84
+     96|     ["a bare file name", "course.do"],
+     97|   ])("does not hold %s on another blueprint", (_how, url) => {
+     98|     expect(heldPageOf("bp-another-blueprint", { pageRef: "page-9", url…
+       |                                                                                    ^
+     99|   });
+    100| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+

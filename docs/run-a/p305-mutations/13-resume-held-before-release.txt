@@ -1,0 +1,43 @@
+# P305 mutation 13-resume-held-before-release
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (heldFirst !== null) {
+# with:
+    if (heldFirst !== null && false) {
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 1 failed | 349 skipped) 1403ms
+   × a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again' 151ms
+     → never released, so never written: expected 10 to be 8 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed | 349 skipped (359)
+   Start at  14:01:36
+   Duration  5.39s (transform 2.35s, setup 0ms, collect 3.56s, tests 1.40s, environment 0ms, prepare 73ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again'
+AssertionError: never released, so never written: expected 10 to be 8 // Object.is equality
+
+- Expected
++ Received
+
+- 8
++ 10
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18638:74
+    18636|     // the hold too and tell the student a second time (the second P305
+    18637|     // review): the run was never written back to `running` at all.
+    18638|     expect(status.rows[0]?.revision, "never released, so never written…
+       |                                                                          ^
+    18639|   }, 120_000);
+    18640| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

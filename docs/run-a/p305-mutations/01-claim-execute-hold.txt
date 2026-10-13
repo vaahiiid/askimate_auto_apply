@@ -1,0 +1,39 @@
+# P305 mutation 01-claim-execute-hold
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      if (heldNext !== null) {
+        await this.#holdBeforePage({ entry, record, conversationId, held: heldNext.held
+# with:
+      if (heldNext !== null && false) {
+        await this.#holdBeforePage({ entry, record, conversationId, held: heldNext.held
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 1 failed | 349 skipped) 1589ms
+   ✓ a held page is never handed out (P305, ADR-0160) > stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated 334ms
+   × a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held 129ms
+     → no sign-in is handed out: expected 'run_case_01jbxq8z9wktq6m4h2npc00305_1' not to be 'run_case_01jbxq8z9wktq6m4h2npc00305_1' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed | 349 skipped (359)
+   Start at  14:00:18
+   Duration  5.92s (transform 2.61s, setup 0ms, collect 3.91s, tests 1.59s, environment 0ms, prepare 80ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held
+AssertionError: no sign-in is handed out: expected 'run_case_01jbxq8z9wktq6m4h2npc00305_1' not to be 'run_case_01jbxq8z9wktq6m4h2npc00305_1' // Object.is equality
+ ❯ apps/conversation-service/src/run-driver.test.ts:18558:57
+    18556|     await pool.query("DELETE FROM run_sessions WHERE run_id = $1", [ru…
+    18557|     const work = await claimHeld();
+    18558|     expect(work?.runId, "no sign-in is handed out").not.toBe(runId);
+       |                                                         ^
+    18559|     expect(await openHolds()).toHaveLength(1);
+    18560|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

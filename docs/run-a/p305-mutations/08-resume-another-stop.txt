@@ -1,0 +1,66 @@
+# P305 mutation 08-resume-another-stop
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (situated !== null && situated.record.runId === held.runId) {
+      const heldNext = await this.#heldNextPage(
+# with:
+    if (false && situated !== null && situated.record.runId === held.runId) {
+      const heldNext = await this.#heldNextPage(
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 2 failed | 349 skipped) 1199ms
+   × a held page is never handed out (P305, ADR-0160) > a person resuming another stop while the run reads running (a lost escalation) still hears the hold, not 'moving again' 100ms
+     → no 'moving again': expected true to be false // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > takes an abandon of the held stop 79ms
+     → expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed | 349 skipped (359)
+   Start at  14:01:16
+   Duration  5.35s (transform 2.46s, setup 0ms, collect 3.70s, tests 1.20s, environment 0ms, prepare 75ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > a person resuming another stop while the run reads running (a lost escalation) still hears the hold, not 'moving again'
+AssertionError: no 'moving again': expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18675:101
+    18673|       await instance.pool.end();
+    18674|     }
+    18675|     expect((await saidTo()).some((content) => content.includes(MOVING_…
+       |                                                                                                     ^
+    18676|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18677|     const status = await pool.query<{ status: string }>("SELECT status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > takes an abandon of the held stop
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18702:80
+    18700|     }
+    18701|     expect(await openHolds()).toHaveLength(0);
+    18702|     expect((await saidTo()).some((content) => content.includes(MOVING_…
+       |                                                                                ^
+    18703|   }, 120_000);
+    18704| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

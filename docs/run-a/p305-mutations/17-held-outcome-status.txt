@@ -1,0 +1,41 @@
+# P305 mutation 17-held-outcome-status
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+return heldOutcome(input.record, input.conversationId, step, status);
+# with:
+return heldOutcome(input.record, input.conversationId, step, input.record.status);
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 1 failed | 349 skipped) 1375ms
+   ✓ a held page is never handed out (P305, ADR-0160) > stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated 315ms
+   × a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held 125ms
+     → expected 'running' to be 'escalated' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed | 349 skipped (359)
+   Start at  14:01:55
+   Duration  5.82s (transform 2.60s, setup 0ms, collect 3.94s, tests 1.38s, environment 0ms, prepare 70ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held
+AssertionError: expected 'running' to be 'escalated' // Object.is equality
+
+Expected: "escalated"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18587:39
+    18585|       if (!outcome.ok) expect.unreachable(`advance refused: ${outcome.…
+    18586|       expect(outcome.position.step, "the resume path would ask for the…
+    18587|       expect(outcome.position.status).toBe("escalated");
+       |                                       ^
+    18588|     } finally {
+    18589|       await instance.pool.end();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

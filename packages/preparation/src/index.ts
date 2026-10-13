@@ -13,6 +13,7 @@ export type {
   PreviewDeployment,
   PreviewDocument,
   PreviewEntry,
+  HeldPreviewPage,
   PreviewHandoff,
   PreviewRefusal,
   PreviewResult,

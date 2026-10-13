@@ -1,0 +1,132 @@
+# P305 mutation 04-escalated-save
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (input.record.status === "running") {
+      try {
+# with:
+    if (input.record.status === "running" && false) {
+      try {
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 6 failed | 349 skipped) 1296ms
+   × a held page is never handed out (P305, ADR-0160) > stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated 333ms
+     → expected 'running' to be 'escalated' // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > meeting the hold again while the run is still running raises nothing new and says nothing new 62ms
+     → expected 'running' to be 'escalated' // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held 70ms
+     → expected 'running' to be 'escalated' // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held 80ms
+     → expected 'running' to be 'escalated' // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again' 77ms
+     → held again at once: expected 'running' to be 'escalated' // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > a person resuming another stop while the run reads running (a lost escalation) still hears the hold, not 'moving again' 77ms
+     → held again: expected 'running' to be 'escalated' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 4 passed | 349 skipped (359)
+   Start at  14:00:48
+   Duration  5.21s (transform 2.35s, setup 0ms, collect 3.48s, tests 1.30s, environment 0ms, prepare 72ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated
+AssertionError: expected 'running' to be 'escalated' // Object.is equality
+
+Expected: "escalated"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18503:36
+    18501|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18502|     const status = await pool.query<{ status: string }>("SELECT status…
+    18503|     expect(status.rows[0]?.status).toBe("escalated");
+       |                                    ^
+    18504|   }, 300_000);
+    18505| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > meeting the hold again while the run is still running raises nothing new and says nothing new
+AssertionError: expected 'running' to be 'escalated' // Object.is equality
+
+Expected: "escalated"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18523:36
+    18521|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18522|     const status = await pool.query<{ status: string }>("SELECT status…
+    18523|     expect(status.rows[0]?.status).toBe("escalated");
+       |                                    ^
+    18524|   }, 120_000);
+    18525| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held
+AssertionError: expected 'running' to be 'escalated' // Object.is equality
+
+Expected: "escalated"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18562:36
+    18560|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18561|     const status = await pool.query<{ status: string }>("SELECT status…
+    18562|     expect(status.rows[0]?.status).toBe("escalated");
+       |                                    ^
+    18563|   }, 120_000);
+    18564| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held
+AssertionError: expected 'running' to be 'escalated' // Object.is equality
+
+Expected: "escalated"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18587:39
+    18585|       if (!outcome.ok) expect.unreachable(`advance refused: ${outcome.…
+    18586|       expect(outcome.position.step, "the resume path would ask for the…
+    18587|       expect(outcome.position.status).toBe("escalated");
+       |                                       ^
+    18588|     } finally {
+    18589|       await instance.pool.end();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again'
+AssertionError: held again at once: expected 'running' to be 'escalated' // Object.is equality
+
+Expected: "escalated"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18634:58
+    18632|       [runId],
+    18633|     );
+    18634|     expect(status.rows[0]?.status, "held again at once").toBe("escalat…
+       |                                                          ^
+    18635|     // Held BEFORE it was released, so no runner polling in between co…
+    18636|     // the hold too and tell the student a second time (the second P305
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > a person resuming another stop while the run reads running (a lost escalation) still hears the hold, not 'moving again'
+AssertionError: held again: expected 'running' to be 'escalated' // Object.is equality
+
+Expected: "escalated"
+Received: "running"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18678:50
+    18676|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18677|     const status = await pool.query<{ status: string }>("SELECT status…
+    18678|     expect(status.rows[0]?.status, "held again").toBe("escalated");
+       |                                                  ^
+    18679|   }, 120_000);
+    18680| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+

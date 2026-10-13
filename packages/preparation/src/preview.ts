@@ -174,6 +174,21 @@ export interface PreviewPage {
   readonly title: string;
   /** Filled once per entry of a list (ADR-0103, gap 3). */
   readonly repeats: boolean;
+  /**
+   * The run stops before this page and does not open it (P305, ADR-0160).
+   *
+   * Outside the content hash on purpose: a hold takes work away from the run
+   * and never adds to what the student authorises. It is said under the page,
+   * because "This is exactly what will be entered" would otherwise be untrue
+   * of it.
+   */
+  readonly held?: true;
+}
+
+/** A page the run will stop before, as the preview is told of it (P305, ADR-0160). */
+export interface HeldPreviewPage {
+  readonly pageRef: string;
+  readonly pageName: string;
 }
 
 /**
@@ -330,6 +345,8 @@ export function buildPreview(
   plan: FillPlan,
   documents: ReadonlyMap<string, PreviewDocument>,
   deployment?: PreviewDeployment,
+  /** Pages the run will stop before (P305, ADR-0160). Absent or empty: none. */
+  heldPages: readonly HeldPreviewPage[] = [],
 ): PreviewResult {
   if (plan.blockers.length > 0) {
     return {
@@ -557,6 +574,7 @@ export function buildPreview(
       pageRef: page.pageRef,
       title: page.title,
       repeats: page.repeats !== undefined,
+      ...(heldPages.some((held) => held.pageRef === page.pageRef) ? { held: true as const } : {}),
     }));
 
   const credentials: PreviewCredential[] = plan.credentials.map((credential) => ({
@@ -867,6 +885,15 @@ export function renderPreview(preview: SubmissionPreview): string {
     if (pageEntries.length === 0 && pageOwn.length === 0 && pageUnmapped.length === 0 && repeat === undefined) continue;
 
     lines.push(`${page.title}:`);
+    // P305, ADR-0160: said first under the page, because the sentence at the
+    // top ("exactly what will be entered") is not true of it while it is held.
+    if (page.held === true) {
+      lines.push(
+        "  Held: I will stop before this page and not open it, because it is not yet known whether " +
+          "saving it sends your application to the university. What is listed here is not entered " +
+          "until a person has looked at it.",
+      );
+    }
     if (page.repeats) {
       // ADR-0103 gap 3: each entry of a repeating page under its own heading,
       // in the order the student gave them, every field of it.

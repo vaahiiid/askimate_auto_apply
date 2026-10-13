@@ -1,0 +1,62 @@
+# P305 mutation 14-status-read-held-ahead
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      (await this.#heldNextPage(entry, record, situation.state)) !== null;
+# with:
+      (await this.#heldNextPage(entry, record, situation.state)) !== null && false;
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 2 failed | 349 skipped) 1463ms
+   ✓ a held page is never handed out (P305, ADR-0160) > stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated 309ms
+   × a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held 109ms
+     → the position names a person, not a password: expected 'request_secret' to be 'specialist' // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again' 75ms
+     → never released, so never written: expected 8 to be 7 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed | 349 skipped (359)
+   Start at  14:01:43
+   Duration  5.45s (transform 2.36s, setup 0ms, collect 3.53s, tests 1.46s, environment 0ms, prepare 94ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held
+AssertionError: the position names a person, not a password: expected 'request_secret' to be 'specialist' // Object.is equality
+
+Expected: "specialist"
+Received: "request_secret"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18582:80
+    18580|       // waiting for a password it will never ask for (the second P305…
+    18581|       const reading = await instance.driver.runFor(conversation);
+    18582|       expect(reading?.run.step, "the position names a person, not a pa…
+       |                                                                                ^
+    18583|       expect(reading?.pending ?? null, "and offers nothing to answer")…
+    18584|       const outcome = await instance.driver.advance({ runId, conversat…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again'
+AssertionError: never released, so never written: expected 8 to be 7 // Object.is equality
+
+- Expected
++ Received
+
+- 7
++ 8
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18638:74
+    18636|     // the hold too and tell the student a second time (the second P305
+    18637|     // review): the run was never written back to `running` at all.
+    18638|     expect(status.rows[0]?.revision, "never released, so never written…
+       |                                                                          ^
+    18639|   }, 120_000);
+    18640| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

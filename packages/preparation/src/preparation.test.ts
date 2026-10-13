@@ -1308,3 +1308,44 @@ describe("a page filled once per item, in the preview (P96)", () => {
     expect(none.contentHash).not.toBe(one.contentHash);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// P305, ADR-0160: a page the run will stop before, said under that page
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a held page, in the preview (P305)", () => {
+  const HELD = [{ pageRef: "page-course", pageName: "the course choice page" }] as const;
+
+  function heldPreview(): SubmissionPreview {
+    const result = buildPreview(FIXTURE_BLUEPRINT, planFor(), DOCUMENTS, undefined, HELD);
+    if (!result.built) expect.unreachable(`expected a preview: ${result.refusal.kind}`);
+    return result.preview;
+  }
+
+  it("says, under the held page, that the run stops before it and why", () => {
+    const shown = renderPreview(heldPreview()).split("\n");
+    const heading = shown.indexOf("Course and documents:");
+    expect(heading, "the held page is listed").toBeGreaterThanOrEqual(0);
+    expect(shown[heading + 1]).toBe(
+      "  Held: I will stop before this page and not open it, because it is not yet known whether " +
+        "saving it sends your application to the university. What is listed here is not entered " +
+        "until a person has looked at it.",
+    );
+  });
+
+  it("says nothing of a hold under a page that is not held", () => {
+    const shown = renderPreview(heldPreview()).split("\n");
+    const heading = shown.indexOf("Personal details:");
+    expect(heading).toBeGreaterThanOrEqual(0);
+    expect(shown[heading + 1]?.startsWith("  Held:")).toBe(false);
+    expect(shown.filter((line) => line.startsWith("  Held:"))).toHaveLength(1);
+  });
+
+  it("does not move the content hash: a hold takes work away and never adds to what is authorised", () => {
+    expect(heldPreview().contentHash).toBe(previewFor().contentHash);
+  });
+
+  it("says nothing of a hold when no page is held", () => {
+    expect(renderPreview(previewFor())).not.toContain("Held:");
+  });
+});

@@ -35,7 +35,7 @@
  * run directory, and this repository has none that is not a fixture.
  */
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -223,6 +223,34 @@ describe("the published demonstrations", () => {
         AAS_CONVERSATION_URL: "http://127.0.0.1:4000",
       });
       expect(withValue.out).not.toContain("BEGIN CERTIFICATE");
+    });
+
+    it("says why a resume is refused on a held page, rather than only the refusal's code (P305)", async () => {
+      // A stand-in service, in its own process because `run` blocks this one:
+      // it answers every request as the service answers a resume of a stop
+      // whose page is held (ADR-0160).
+      const stub = spawn(process.execPath, [
+        "-e",
+        "require('node:http').createServer((q, s) => { s.writeHead(422, { 'content-type': 'application/problem+json' });" +
+          " s.end(JSON.stringify({ code: 'validation_failed', pointers: ['/outcome'] })); })" +
+          ".listen(0, '127.0.0.1', function () { console.log(this.address().port); });",
+      ]);
+      try {
+        const port = await new Promise<string>((done) => stub.stdout.once("data", (chunk: Buffer) => done(chunk.toString().trim())));
+        const refused = run(
+          "interventions.ts",
+          ["resolve", "iv_held", "--specialist", "vahid", "--did-not-happen", "--actions", "looked", "--resolution", "resume"],
+          { AAS_SERVICE_CERT: "operator", AAS_CONVERSATION_URL: `http://127.0.0.1:${port}` },
+        );
+        expect(refused.code).not.toBe(0);
+        expect(refused.out).toContain("recorded nothing");
+        expect(refused.out).toContain("page_save_may_submit");
+        expect(refused.out).toContain("only --abandon is taken");
+        expect(refused.out).toContain("packages/catalogue/src/held-pages.ts");
+        expect(refused.out).not.toContain("moving again");
+      } finally {
+        stub.kill();
+      }
     });
   });
 

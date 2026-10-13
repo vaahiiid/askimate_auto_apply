@@ -92,6 +92,27 @@ async function call(path: string, init?: RequestInit): Promise<unknown> {
           "you disagree with what is recorded, raise it rather than re-submitting.",
       );
     }
+    // P305, ADR-0160: a held page's stop is refused anything but an abandon
+    // while its page is held. "validation_failed" alone would leave the
+    // person who typed it guessing why.
+    const pointers =
+      typeof body === "object" && body !== null ? (body as Record<string, unknown>)["pointers"] : undefined;
+    if (
+      code === "validation_failed" &&
+      path.endsWith("/resolution") &&
+      Array.isArray(pointers) &&
+      pointers.includes("/outcome")
+    ) {
+      fail(
+        "The service refused this outcome, and recorded nothing.\n\n" +
+          "A stop whose reason is page_save_may_submit is for a page that is held (ADR-0160): it\n" +
+          "is not known whether saving that page sends the application. While the page is held,\n" +
+          "only --abandon is taken. The hold is lifted by deleting its line in\n" +
+          "packages/catalogue/src/held-pages.ts, on Vahid's words, and restarting the service;\n" +
+          "then resolve the stop again. If the page was saved by hand, abandon instead: the case\n" +
+          "cannot record that save yet, and a resume would save the page a second time.",
+      );
+    }
     fail(`The service refused: ${code}`);
   }
   return body;

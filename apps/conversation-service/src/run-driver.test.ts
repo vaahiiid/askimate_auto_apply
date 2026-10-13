@@ -81,6 +81,7 @@ import {
   offerFor,
   renderOffer,
   targetOf,
+  type HeldPage,
   type ReviewedTarget,
 } from "@askimate/aas-catalogue";
 import { migrate } from "@askimate/aas-migrate";
@@ -380,6 +381,8 @@ function buildInstance(
   clock: () => Date = () => NOW,
   /** The vault the driver deletes through (P235); the never-contacted S3 one when absent. */
   vault: DocumentVault | null = null,
+  /** P305, ADR-0160: the held-page register; the kept one (`HELD_PAGES`) when absent. */
+  heldPages: readonly HeldPage[] | null = null,
 ): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
@@ -453,6 +456,7 @@ function buildInstance(
       }),
     },
     ...(notifier === null ? {} : { notifier }),
+    ...(heldPages === null ? {} : { heldPages }),
     // Readable in a failing test's output, and DIFFERENT on every raise —
     // which is what production does (`randomUUID`) and what the store's
     // idempotency is for. It used to be a pure function of the key, so the
@@ -18349,4 +18353,352 @@ describeIfDatabase("an escape read to lead nowhere is never offered, nor explain
       await instance.pool.end();
     }
   }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P305, ADR-0160 — a held page is never handed out
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Vahid, 2026-10-13: *"Until this is known, my run must stop before saving
+// page 12."* The gated portal's course page, `page-study`, stands in for
+// Sheffield's page 12: it is the last page, as page 12 is, and the test holds
+// it the way the kept register holds page 12.
+describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00305";
+  let runId = "";
+  const HOLD: readonly HeldPage[] = [
+    {
+      blueprintId: "bp-gated-portal",
+      pageRef: "page-study",
+      url: "https://gated.portal.test/study",
+      pageName: "the course choice page",
+      because: "a test hold standing in for his words of 2026-10-13",
+      source: "docs/run-a/p305-his-answers-on-adr-0159-as-sent.txt",
+    },
+  ];
+  const HELD_MESSAGE =
+    "I have stopped before the course choice page of your Gated University application, and I will " +
+    "not open it while it is not known whether saving that page sends your application to the " +
+    "university. A member of the team has been asked to look at it, and nothing more happens on your " +
+    "application until then.";
+  const MOVING_AGAIN = "it is moving again";
+
+  function held(secure: ReturnType<typeof opener> = opener()): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), secure, CATALOGUE, "wired", null, () => NOW, null, HOLD);
+  }
+
+  async function openHolds(): Promise<{ intervention_id: string; reason: string }[]> {
+    return (
+      await pool.query<{ intervention_id: string; reason: string }>(
+        "SELECT intervention_id, reason FROM interventions WHERE run_id = $1 AND resolved_at IS NULL ORDER BY raised_at",
+        [runId],
+      )
+    ).rows;
+  }
+
+  async function saidTo(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function claimHeld(): Promise<ClaimedWork | null> {
+    const instance = held();
+    try {
+      return await instance.driver.claimWork({ holder: "runner-held", leaseSeconds: 120 });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("names the hold under the held page, in the preview the student reads before the yes", async () => {
+    await ownConversation(conversation);
+    const instance = held();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step).toBe("authorise");
+      runId = started.position.runId;
+      // What the student reads, as the preview route serves it.
+      const preview = await instance.driver.previewFor(runId, conversation);
+      if (preview === null) expect.unreachable("the run awaits the student's yes");
+      const lines = preview.presentedText.split("\n");
+      const page = GATED_ENTRY.blueprint.pages.find((candidate) => candidate.pageRef === "page-study");
+      const heading = lines.indexOf(`${page?.title ?? "?"}:`);
+      expect(heading, "the held page is in the preview").toBeGreaterThanOrEqual(0);
+      expect(lines[heading + 1]).toMatch(/^ {2}Held: I will stop before this page and not open it/);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated", async () => {
+    // Everything before the fill, as `which page a multi-page run does next` does it.
+    const instance = held();
+    try {
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      const secret = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!secret.ok) expect.unreachable(`advance refused: ${secret.refusal.kind}`);
+      expect(secret.position.step).toBe("request_secret");
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: `sr_${"0".repeat(31)}1`, handle: `sh_${"f".repeat(32)}` },
+      });
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step).toBe("create_account");
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: accountKey, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+
+      // The first page is not held, and is offered and saved as usual.
+      await pool.query("DELETE FROM work_leases");
+      const first = await instance.driver.claimWork({ holder: "runner-held", leaseSeconds: 120 });
+      expect(first?.runId).toBe(runId);
+      expect(first?.formUrl, "the first page, which is not held").toBe("https://gated.portal.test/apply");
+      const pageKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "advance_portal_page",
+        target: await targetForPage("page-application", ownerOf(conversation)),
+      });
+      await runs.completeIntent(runRef, pageKey, "succeeded", NOW);
+      await pool.query("DELETE FROM work_leases");
+    } finally {
+      await instance.pool.end();
+    }
+
+    const work = await claimHeld();
+    expect(work?.runId, "the held page is handed to nobody").not.toBe(runId);
+    const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+    expect(leases.rows, "no lease on the held page").toHaveLength(0);
+    const studyTarget = await targetForPage("page-study", ownerOf(conversation));
+    const intent = await new PostgresWorkflowRunStore(pool).findIntent(
+      makeRunId(runId),
+      idempotencyKeyFor({ runId: makeRunId(runId), action: "advance_portal_page", target: studyTarget }),
+    );
+    expect(intent, "no intent: nothing on the held page was begun").toBeNull();
+    const raised = await pool.query<{ reason: string }>(
+      "SELECT reason FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+      [runId],
+    );
+    expect(raised.rows.map((row) => row.reason), "a person is asked, once, and why").toEqual(["page_save_may_submit"]);
+    expect((await saidTo()).filter((content) => content === HELD_MESSAGE), "the student is told, once").toHaveLength(1);
+    const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(status.rows[0]?.status).toBe("escalated");
+  }, 300_000);
+
+  it("an escalated held run is not offered again", async () => {
+    const again = await claimHeld();
+    expect(again?.runId).not.toBe(runId);
+    const raised = await pool.query("SELECT 1 FROM interventions WHERE run_id = $1", [runId]);
+    expect(raised.rows).toHaveLength(1);
+    expect((await saidTo()).filter((content) => content === HELD_MESSAGE)).toHaveLength(1);
+  }, 120_000);
+
+  it("meeting the hold again while the run is still running raises nothing new and says nothing new", async () => {
+    // As if the escalated save had lost a race and the run were polled again
+    // (the P305 review: the second poll never reached the hold before).
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    const again = await claimHeld();
+    expect(again?.runId).not.toBe(runId);
+    expect(await openHolds(), "the one open intervention, not a second").toHaveLength(1);
+    expect((await saidTo()).filter((content) => content === HELD_MESSAGE), "told once").toHaveLength(1);
+    const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(status.rows[0]?.status).toBe("escalated");
+  }, 120_000);
+
+  it("refuses to resume past the held page while it is held, and says nothing", async () => {
+    const [hold] = await openHolds();
+    if (hold === undefined) expect.unreachable("the hold's intervention is open");
+    const instance = held();
+    try {
+      await expect(
+        instance.driver.resolveIntervention({
+          interventionId: makeInterventionId(hold.intervention_id),
+          resolution: {
+            specialistId: "specialist_vahid",
+            actionsTaken: "Read the hold.",
+            resolution: "Trying to move it on.",
+            resolvedAt: NOW,
+            outcome: "resume",
+          },
+          reusability: { scope: "this_case_only", kind: "guidance", signature: "held" },
+          didHappen: false,
+        }),
+      ).rejects.toThrow(/still held/u);
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await openHolds(), "still open").toHaveLength(1);
+    expect((await saidTo()).some((content) => content.includes(MOVING_AGAIN)), "no 'moving again'").toBe(false);
+  }, 120_000);
+
+  it("hands out no sign-in on the resume path when the next page is held", async () => {
+    // The session is gone and the password the creation used is still on the
+    // log as received: the run's next work would be to sign back in.
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM run_sessions WHERE run_id = $1", [runId]);
+    const work = await claimHeld();
+    expect(work?.runId, "no sign-in is handed out").not.toBe(runId);
+    expect(await openHolds()).toHaveLength(1);
+    expect((await saidTo()).filter((content) => content === HELD_MESSAGE)).toHaveLength(1);
+    const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(status.rows[0]?.status).toBe("escalated");
+  }, 120_000);
+
+  it("asks for no password on the resume path when the next page is held", async () => {
+    // The session is gone (the five-minute ceiling, a restart): the run's next
+    // step would be to ask for the password to sign back in.
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM run_sessions WHERE run_id = $1", [runId]);
+    const secure = opener();
+    const instance = held(secure);
+    try {
+      // The creation's password is spent, as the Secure Plane's outbox says
+      // after a creation; without this the run would believe it still had one.
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_consumed", requestId: `sr_${"0".repeat(31)}1` },
+      });
+      // Read before the worker holds it: the position does not say it is
+      // waiting for a password it will never ask for (the second P305 review).
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.run.step, "the position names a person, not a password").toBe("specialist");
+      expect(reading?.pending ?? null, "and offers nothing to answer").toBeNull();
+      const outcome = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!outcome.ok) expect.unreachable(`advance refused: ${outcome.refusal.kind}`);
+      expect(outcome.position.step, "the resume path would ask for the password").toBe("request_secret");
+      expect(outcome.position.status).toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+    expect(secure.opens, "no password box was opened").toHaveLength(0);
+    expect(await openHolds()).toHaveLength(1);
+    expect((await saidTo()).filter((content) => content === HELD_MESSAGE)).toHaveLength(1);
+  }, 120_000);
+
+  it("a person resuming another stop just before the held page hears the hold, not 'moving again'", async () => {
+    // A second, ordinary stop on the same run, copied from the hold's row
+    // under another reason and key.
+    const [hold] = await openHolds();
+    if (hold === undefined) expect.unreachable("the hold's intervention is open");
+    await pool.query(
+      `INSERT INTO interventions (intervention_id, run_id, idempotency_key, case_id, student_ref, reason, priority,
+                                  encountered, expected, checkpoint, context, raised_at, announced_at, lifecycle)
+       SELECT 'iv_p305_another_stop', run_id, idempotency_key || ':another', case_id, student_ref,
+              'information_unobtainable', priority, encountered, expected,
+              jsonb_set(checkpoint::jsonb, '{target}', '"page-application"'), context, raised_at, announced_at, lifecycle
+         FROM interventions WHERE intervention_id = $1`,
+      [hold.intervention_id],
+    );
+    const before = await pool.query<{ revision: string }>("SELECT revision FROM workflow_runs WHERE run_id = $1", [runId]);
+    const instance = held();
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId("iv_p305_another_stop"),
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Looked at the other stop.",
+          resolution: "Nothing landed.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "other" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await saidTo()).some((content) => content.includes(MOVING_AGAIN)), "no 'moving again'").toBe(false);
+    expect((await saidTo()).filter((content) => content === HELD_MESSAGE), "the hold's one telling").toHaveLength(1);
+    const status = await pool.query<{ status: string; revision: string }>(
+      "SELECT status, revision FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(status.rows[0]?.status, "held again at once").toBe("escalated");
+    // Held BEFORE it was released, so no runner polling in between could meet
+    // the hold too and tell the student a second time (the second P305
+    // review): the run was never written back to `running` at all.
+    expect(status.rows[0]?.revision, "never released, so never written").toBe(before.rows[0]?.revision);
+  }, 120_000);
+
+  it("a person resuming another stop while the run reads running (a lost escalation) still hears the hold, not 'moving again'", async () => {
+    // The hold's write to `escalated` can lose a race and be caught (ADR-0160
+    // §2). The run then reads `running` with stops open, and a resume finds no
+    // person-held run to hold before release: the hold after release, in
+    // `#announceResumed`, is the one that answers (the second P305 review).
+    const [hold] = await openHolds();
+    if (hold === undefined) expect.unreachable("the hold's intervention is open");
+    await pool.query(
+      `INSERT INTO interventions (intervention_id, run_id, idempotency_key, case_id, student_ref, reason, priority,
+                                  encountered, expected, checkpoint, context, raised_at, announced_at, lifecycle)
+       SELECT 'iv_p305_lost_escalation', run_id, idempotency_key || ':lost', case_id, student_ref,
+              'information_unobtainable', priority, encountered, expected,
+              jsonb_set(checkpoint::jsonb, '{target}', '"page-application"'), context, raised_at, announced_at, lifecycle
+         FROM interventions WHERE intervention_id = $1`,
+      [hold.intervention_id],
+    );
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    const instance = held();
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId("iv_p305_lost_escalation"),
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Looked at the other stop.",
+          resolution: "Nothing landed.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "lost" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await saidTo()).some((content) => content.includes(MOVING_AGAIN)), "no 'moving again'").toBe(false);
+    expect((await saidTo()).filter((content) => content === HELD_MESSAGE), "still the hold's one telling").toHaveLength(1);
+    const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(status.rows[0]?.status, "held again").toBe("escalated");
+  }, 120_000);
+
+  it("takes an abandon of the held stop", async () => {
+    const [hold] = await openHolds();
+    if (hold === undefined) expect.unreachable("the hold's intervention is open");
+    const instance = held();
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(hold.intervention_id),
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Read the hold.",
+          resolution: "Set aside while the page is not known.",
+          resolvedAt: NOW,
+          outcome: "abandon",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "held" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await openHolds()).toHaveLength(0);
+    expect((await saidTo()).some((content) => content.includes(MOVING_AGAIN))).toBe(false);
+  }, 120_000);
 });

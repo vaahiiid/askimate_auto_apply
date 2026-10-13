@@ -4906,6 +4906,40 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P305 — accepted, and page 12 held
+
+*2026-10-13.* He answered ADR-0159's open points, and it is accepted. He chose to have the student
+confirm after the fill, against what the portal itself stored, read from its own summary page. He
+put decision 1 first. And before his live run he asked one question: is saving page 12, the course
+choice, already the submission?
+
+The repository cannot say. The page's own script was never captured. The form posts to itself, and
+what Sheffield does with that post cannot be read from anything in the browser. Nothing observed
+shows that the save submits, and nothing observed shows that it does not.
+
+So the run now stops before page 12. His words ask for a stop before saving it; I placed the stop
+earlier, before the page is opened at all, and that part is mine and his to overturn. Opening and
+filling it would run code nobody has read, and its Back button submits too. A person is asked, the student is
+told why, and the preview says so under the page before the yes. What would settle it is his own
+reads: the script saved from his browser, and the overview and summary as they stand. The agent does
+not touch the portal.
+
+The review found that the first version of the stop promised more than it checked. Had a person
+resumed the stop, the run would have told him it was moving again, asked for his password and
+signed in, before the hold caught it a second time. The run could also ask for the password on its way
+back to the held page. Both are closed now, and undoing each closing turns the tests red. The review
+also found my own choice, not opening the page at all, written under his word in six places. They
+now say which part is his. A second review, of those fixes, found a race that could still tell the
+student twice, and smaller things; the race is closed, and what was not fixed is in row 180.
+
+What the hold still rests on, rather than a check, is row 180. One part of it matters for his run:
+if he saves page 12 by hand, the case cannot record it yet, so the run must not be resumed after
+the hold is lifted.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P304 — the run presses the final submit, proposed
 
 *2026-10-13.* He set out what the product is: a student chats with us, and for a university we have

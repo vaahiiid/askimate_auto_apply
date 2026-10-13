@@ -1,0 +1,45 @@
+# P305 mutation 11-page-before-held-mapped
+# file: scripts/held-pages-match-the-signed-entry.test.ts
+# replaced:
+    const mapped = new Set(entry.mappingSet.mappings.map((mapping) => mapping.fieldRef));
+# with:
+    const mapped = new Set([...entry.mappingSet.mappings.map((mapping) => mapping.fieldRef), "other1Desc"]);
+# command: pnpm exec vitest run --project unit scripts/held-pages-match-the-signed-entry.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/held-pages-match-the-signed-entry.test.ts (4 tests | 1 failed) 18ms
+   × the held-page register against the signed Sheffield entry > lets no page whose save continues to a held page be filled, so the run never lands on it 12ms
+     → a filled page whose save lands on a held page: expected [ 'page11' ] to deeply equal []
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed (4)
+   Start at  14:01:33
+   Duration  1.48s (transform 663ms, setup 0ms, collect 1.04s, tests 18ms, environment 0ms, prepare 91ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/held-pages-match-the-signed-entry.test.ts > the held-page register against the signed Sheffield entry > lets no page whose save continues to a held page be filled, so the run never lands on it
+AssertionError: a filled page whose save lands on a held page: expected [ 'page11' ] to deeply equal []
+
+- Expected
++ Received
+
+- Array []
++ Array [
++   "page11",
++ ]
+
+ ❯ scripts/held-pages-match-the-signed-entry.test.ts:63:97
+     61|         page.sections.some((section) => section.fields.some((field) =>…
+     62|     );
+     63|     expect(before.map((page) => page.pageRef), "a filled page whose sa…
+       |                                                                                                 ^
+     64|     expect(
+     65|       entry.blueprint.pages.filter((page) => page.nextPageRef === "pag…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

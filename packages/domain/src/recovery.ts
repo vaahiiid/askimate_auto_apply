@@ -99,7 +99,19 @@ export type RecoveryReason =
    * action from a crash after it. It is the reason a run stops rather than
    * retrying, so it needs its own word.
    */
-  | "unverified_consequential_action";
+  | "unverified_consequential_action"
+  /**
+   * The next page is held: whether saving it is the submission is not known.
+   *
+   * Added 2026-10-13 with P305, for the same reason P10 added the one above:
+   * none of the others says it. Nothing went wrong and nothing is uncertain
+   * about what happened. Vahid's words ask for a stop before the page is
+   * saved: *"Until this is known, my run must stop before saving page 12."*
+   * The run stops before the page is opened at all; that is ADR-0160 §2's
+   * choice, not his words, and his to overturn (§5).
+   * (`packages/catalogue/src/held-pages.ts`.)
+   */
+  | "page_save_may_submit";
 
 /** Resolution outcomes as a closed set, so a wire parser cannot invent one. */
 export const RESOLUTION_OUTCOMES = ["resume", "route_fallback", "abandon"] as const;
@@ -116,6 +128,7 @@ export const RECOVERY_REASONS = [
   "timeout_exhausted",
   "information_unobtainable",
   "unverified_consequential_action",
+  "page_save_may_submit",
 ] as const satisfies readonly RecoveryReason[];
 
 /**

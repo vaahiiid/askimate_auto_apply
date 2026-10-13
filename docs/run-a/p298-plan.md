@@ -67,7 +67,7 @@ offered*), so a skipped page is never opened and never saved.
 | 9 · Equal opportunities | 14 | 2 | fills two boxes, saves | the other twelve are left as the form has them |
 | 10 · Marketing | 10 | 0 | **skipped** | whether Sheffield lets Part 1 finish with it unsaved |
 | 11 · Other documents | 10 | 0 | **skipped** | the same |
-| 12 · Course choice (Part 2) | 9 | 8 | fills and saves; **never run before** | the start-date list that loads after the qualification was never read and is not in the blueprint (the entry's own note); if the form needs it to save, the page will not save, and what the run does then on this page has not been seen |
+| 12 · Course choice (Part 2) | 9 | 8 | fills and saves; **never run before**. *P305: held, the run stops before it and does not open it (ADR-0160), until whether saving it is the submission is known* | the start-date list that loads after the qualification was never read and is not in the blueprint (the entry's own note); if the form needs it to save, the page will not save, and what the run does then on this page has not been seen |
 
 Page 6 (English) is skipped the same way (row 147). On your account it was saved empty by hand
 before. Whether Part 1 completes on a fresh account with pages 6, 10 and 11 never saved is
@@ -99,6 +99,11 @@ Three layers, none of them a promise about the live form:
 2. Continue your conversation. At education, answer what it asks, or resolve its stops as before.
    With P296's patch signed (P299), the run asks one question fewer than before.
 3. Let it run through pages 8, 9 and 12. Part 2 has never been filled by the run: watch it.
+   **P305:** the run now stops before page 12. The stop before *saving* it is his word (*"Until
+   this is known, my run must stop before saving page 12"*); stopping before *opening* it is
+   ADR-0160 §2's choice, his to overturn. It tells him so, and a person is asked. Step 4 is not
+   reached while page 12 is held. If he saves page 12 by hand, the case cannot yet record it, so
+   do not resume after a lift: ADR-0160 §3.
 4. At `ready_to_submit`, stop. Open the portal yourself and read its overview before pressing
    anything. The overview is where the final submission is expected, and that has never been read.
    If you are willing, keep its HTML: that read closes row 80.

@@ -82,6 +82,7 @@ import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import type {
   AuthorisablePreview,
   AuthorisationRecord,
+  HeldPreviewPage,
   PreviewAttachment,
   PreviewDocument,
   SubmissionPreview,
@@ -109,6 +110,13 @@ export interface RunInputs {
    * driver's fact, as it is for every other host on a step.
    */
   readonly portalHost?: string;
+  /**
+   * Pages the run will stop before and not open (P305, ADR-0160), named so the
+   * preview can say so under each. The driver's fact, read from the register
+   * kept outside the signed entry; the orchestrator only passes it on. Outside
+   * the content hash: a hold takes work away and never adds to the yes.
+   */
+  readonly heldPages?: readonly HeldPreviewPage[];
   /**
    * What discovery observed about the portal's authentication.
    *
@@ -462,6 +470,7 @@ export function assess(state: RunState): RunAssessment {
     plan,
     state.inputs.documents,
     state.inputs.portalHost === undefined ? undefined : { portalHost: state.inputs.portalHost },
+    state.inputs.heldPages ?? [],
   );
 
   return {

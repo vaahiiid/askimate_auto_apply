@@ -64,10 +64,10 @@ where that matters.
    measured. *His act.*
 8. **The intervention of 3 October**, if still open: resolve it after the corrections. He chose to
    leave it open until the correction route existed (row 134), and an escalated run waits for a
-   person (`run-driver.ts:5719-5726`). *His act.*
+   person (`run-driver.ts:5825-5832` at P305's commit; `:5719-5726` when written). *His act.*
 9. **The mandatory financial-evidence review.** Sheffield's entry maps `finance.funding`, a financial
    field, so the run stops for a human review before the preview
-   (`run-driver.ts:11106`; `packages/domain/src/transitions.ts:222-237`). He is the only reviewer.
+   (`run-driver.ts:11408-11409` at P305's commit; `:11106` when written; `packages/domain/src/transitions.ts:222-237`). He is the only reviewer.
    It is recorded through `POST /internal/v1/cases/:caseId/review` (`routes.ts:1893-1923`), and the
    review intervention is resolved. No runbook step covers it today. *His act; a runbook step is
    mine to write.*
@@ -87,6 +87,11 @@ where that matters.
     opens with 6, 10 and 11 unsaved is unobserved. If it does not open, the fill returns
     `needs_the_student`, and each retry asks for his password again. Nothing visible caps that loop;
     that is not measured. *A measurement only his run makes.*
+
+    **P305:** the run stops before page 12 until whether saving it is the submission is known. The
+    stop before *saving* is his word; stopping before *opening* is ADR-0160 §2's choice, his to
+    overturn. What would settle it is ADR-0160 §4, his reads.
+
 12. **The handover, two confirmations in order.**
     - First the reset, which he kept: Sheffield's "Forgot password", pressed by him, replaces the
       password and e-mails a new one in plain text.

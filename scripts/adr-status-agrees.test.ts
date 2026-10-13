@@ -259,6 +259,26 @@ describe("an ADR and the index that lists it", () => {
     }
   });
 
+  it("states the same count in the root README and the standing account's opening paragraph", () => {
+    // P305: README.md said "141 ADRs · all 141 Accepted" against 159 files for
+    // weeks, and then claimed to be "counted by" this test, which never read
+    // it. Now it does, and so does the standing account's opening count.
+    const total = files.size;
+    const accepted = [...files.values()].filter((status) => status === "Accepted").length;
+    const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+    const headline = /\| \*\*Decisions\*\* \| (\d+) ADRs · all (\d+) Accepted/u.exec(readme);
+    expect(headline, "README.md has its 'N ADRs · all N Accepted' row").not.toBeNull();
+    expect(Number(headline?.[1]), "README.md's ADR count").toBe(total);
+    expect(Number(headline?.[2]), "README.md's Accepted count").toBe(accepted);
+    const opening = readFileSync(join(ROOT, "docs", "state-of-the-system.md"), "utf8");
+    const words = inWords(total);
+    expect(words, `no spelling for ${String(total)}`).toBeDefined();
+    expect(
+      opening.includes(`${words ?? ""} architecture decision records`),
+      `state-of-the-system.md does not say "${words ?? ""} architecture decision records"`,
+    ).toBe(true);
+  });
+
   it("is reading real files and a real index", () => {
     // The vacuity guard. A glob that matched nothing, or a row regex that
     // parsed nothing, would satisfy every assertion above without being about

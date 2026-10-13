@@ -1,0 +1,119 @@
+# P305 mutation 01b-claim-execute-and-carried-holds
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      if (heldNext !== null) {
+        await this.#holdBeforePage({ entry, record, conversationId, held: heldNext.held
+# with:
+      if (heldNext !== null && false) {
+        await this.#holdBeforePage({ entry, record, conversationId, held: heldNext.held
+# replaced:
+      if (carried !== null) {
+# with:
+      if (carried !== null && false) {
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 5 failed | 349 skipped) 1628ms
+   × a held page is never handed out (P305, ADR-0160) > stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated 455ms
+     → the held page is handed to nobody: expected 'run_case_01jbxq8z9wktq6m4h2npc00305_1' not to be 'run_case_01jbxq8z9wktq6m4h2npc00305_1' // Object.is equality
+   × a held page is never handed out (P305, ADR-0160) > an escalated held run is not offered again 19ms
+     → expected [] to have a length of 1 but got +0
+   × a held page is never handed out (P305, ADR-0160) > meeting the hold again while the run is still running raises nothing new and says nothing new 23ms
+     → the one open intervention, not a second: expected [] to have a length of 1 but got +0
+   × a held page is never handed out (P305, ADR-0160) > refuses to resume past the held page while it is held, and says nothing 3ms
+     → expected "the hold's intervention is open" not to be reached
+   × a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held 20ms
+     → expected [] to have a length of 1 but got +0
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 5 passed | 349 skipped (359)
+   Start at  14:00:26
+   Duration  6.51s (transform 2.68s, setup 0ms, collect 4.38s, tests 1.63s, environment 0ms, prepare 88ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > stops before the held page: no lease, no intent, one person asked, the student told once, the run escalated
+AssertionError: the held page is handed to nobody: expected 'run_case_01jbxq8z9wktq6m4h2npc00305_1' not to be 'run_case_01jbxq8z9wktq6m4h2npc00305_1' // Object.is equality
+ ❯ apps/conversation-service/src/run-driver.test.ts:18487:66
+    18485| 
+    18486|     const work = await claimHeld();
+    18487|     expect(work?.runId, "the held page is handed to nobody").not.toBe(…
+       |                                                                  ^
+    18488|     const leases = await pool.query("SELECT 1 FROM work_leases WHERE r…
+    18489|     expect(leases.rows, "no lease on the held page").toHaveLength(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > an escalated held run is not offered again
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18510:25
+    18508|     expect(again?.runId).not.toBe(runId);
+    18509|     const raised = await pool.query("SELECT 1 FROM interventions WHERE…
+    18510|     expect(raised.rows).toHaveLength(1);
+       |                         ^
+    18511|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18512|   }, 120_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > meeting the hold again while the run is still running raises nothing new and says nothing new
+AssertionError: the one open intervention, not a second: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18520:74
+    18518|     const again = await claimHeld();
+    18519|     expect(again?.runId).not.toBe(runId);
+    18520|     expect(await openHolds(), "the one open intervention, not a second…
+       |                                                                          ^
+    18521|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18522|     const status = await pool.query<{ status: string }>("SELECT status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > refuses to resume past the held page while it is held, and says nothing
+AssertionError: expected "the hold's intervention is open" not to be reached
+ ❯ apps/conversation-service/src/run-driver.test.ts:18528:36
+    18526|   it("refuses to resume past the held page while it is held, and says …
+    18527|     const [hold] = await openHolds();
+    18528|     if (hold === undefined) expect.unreachable("the hold's interventio…
+       |                                    ^
+    18529|     const instance = held();
+    18530|     try {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18559:31
+    18557|     const work = await claimHeld();
+    18558|     expect(work?.runId, "no sign-in is handed out").not.toBe(runId);
+    18559|     expect(await openHolds()).toHaveLength(1);
+       |                               ^
+    18560|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18561|     const status = await pool.query<{ status: string }>("SELECT status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+

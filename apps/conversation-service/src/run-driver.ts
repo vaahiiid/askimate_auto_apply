@@ -210,7 +210,7 @@ import type {
   WorkReport,
 } from "@askimate/aas-contracts";
 import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
-import { admits, type Admission } from "@askimate/aas-catalogue";
+import { HELD_PAGES, admits, heldPageOf, heldPagesIn, type Admission, type HeldPage } from "@askimate/aas-catalogue";
 import { CV_LIST_FIELDS, SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { WorkFailure } from "@askimate/aas-contracts";
 import type { ClaimedReading, ReadingReport, WireEntryReading, WireFieldValue, WirePartialReading } from "@askimate/aas-contracts";
@@ -1313,6 +1313,85 @@ function challengeEncountered(
  * volunteer in a chat window; what the student needs is that a person is
  * looking and that nothing is lost.
  */
+/**
+ * What the student reads when the run stops before a held page (P305, ADR-0160).
+ *
+ * Each clause is something the code makes true now, and a test asserts it: the
+ * run will not open the page (no work is handed out for it while it is held),
+ * a person has been asked (an intervention is raised before this is said), and
+ * nothing more happens (the run is escalated, and an escalated run is offered
+ * no work). It says nothing about the page's past: the P305 review found that
+ * "nothing on it has been saved" was a claim no code checked.
+ */
+function heldPageMessage(entry: CatalogueEntry, held: HeldPage): string {
+  return (
+    `I have stopped before ${held.pageName} of your ${entry.blueprint.institutionName} application, ` +
+    `and I will not open it while it is not known whether saving that page sends your application ` +
+    `to the university. A member of the team has been asked to look at it, and nothing more happens ` +
+    `on your application until then.`
+  );
+}
+
+/** Every address a unit of work would open, as the payload carries them. */
+function carriedAddressesOf(carries: Partial<Pick<ClaimedWork, "formUrl" | "login" | "registration" | "repeat">> & Record<string, unknown>): readonly string[] {
+  const urls: string[] = [];
+  if (typeof carries.formUrl === "string") urls.push(carries.formUrl);
+  const login = carries.login as { readonly url?: unknown } | undefined;
+  if (typeof login?.url === "string") urls.push(login.url);
+  const registration = carries.registration as { readonly url?: unknown } | undefined;
+  if (typeof registration?.url === "string") urls.push(registration.url);
+  const repeat = carries.repeat as { readonly recorded?: { readonly url?: unknown } } | undefined;
+  if (typeof repeat?.recorded?.url === "string") urls.push(repeat.recorded.url);
+  return urls;
+}
+
+/** The position a run held before a page reports (P305 review). */
+function heldOutcome(
+  record: Awaited<ReturnType<WorkflowRunStore["start"]>>,
+  conversationId: string,
+  step: RunStep,
+  /** The status the hold left the run in, read back, not assumed (the second P305 review). */
+  status: WorkflowStatus,
+): RunOutcome {
+  return {
+    ok: true,
+    position: {
+      runId: record.runId,
+      caseId: record.caseId,
+      conversationId,
+      status,
+      phase: record.checkpoint.phase,
+      step: step.kind,
+      revision: record.revision,
+      resumed: false,
+      concerns: [],
+    },
+  };
+}
+
+/** The hold on this page of this entry, by ref or by address; null when it is not held. */
+function heldPageFor(
+  entry: CatalogueEntry,
+  pageRef: string,
+  formUrl: string | undefined,
+  register: readonly HeldPage[],
+): HeldPage | null {
+  const page = entry.blueprint.pages.find((candidate) => candidate.pageRef === pageRef);
+  const blueprintId = String(entry.blueprint.blueprintId);
+  return (
+    heldPageOf(blueprintId, { pageRef, ...(page?.url === undefined ? {} : { url: page.url }) }, register) ??
+    (formUrl === undefined ? null : heldPageOf(blueprintId, { pageRef, url: formUrl }, register))
+  );
+}
+
+/** Every page of this entry the register holds, as the preview is told of them. */
+function heldPagesOf(
+  entry: CatalogueEntry,
+  register: readonly HeldPage[],
+): readonly { readonly pageRef: string; readonly pageName: string }[] {
+  return heldPagesIn(String(entry.blueprint.blueprintId), entry.blueprint.pages, register);
+}
+
 function reviewMessage(entry: CatalogueEntry): string {
   return (
     `Before I show you your ${entry.blueprint.institutionName} application to approve, a member ` +
@@ -1935,6 +2014,23 @@ function partReadingsOf(
  * is nothing a person could have found done. The route answers this as a
  * validation failure on `/didHappen`.
  */
+/**
+ * A `resume` or `route_fallback` of a held page's stop while the page is still
+ * held (P305 review, ADR-0160). The hold is lifted by deleting its line in
+ * `packages/catalogue/src/held-pages.ts`, on his words, and restarting the
+ * service, never by a resolution; until then only `abandon` is taken.
+ */
+export class PageStillHeldError extends Error {
+  public constructor(interventionId: string, pageRef: string) {
+    super(
+      `Intervention ${interventionId} stops the run before ${pageRef}, which is still held. Lift the ` +
+        `hold first (its line in packages/catalogue/src/held-pages.ts, removed on his words, then a ` +
+        `restart); until then only abandon is accepted.`,
+    );
+    this.name = "PageStillHeldError";
+  }
+}
+
 export class NothingToHaveHappenedError extends Error {
   public constructor(interventionId: string) {
     super(
@@ -2839,6 +2935,15 @@ export interface RunDriverOptions {
    * did before P10.
    */
   readonly interventions?: InterventionStore;
+  /**
+   * Pages to hold IN ADDITION to the kept register (P305, ADR-0160).
+   *
+   * Added to `HELD_PAGES`, never in place of it, so no caller can drop a kept
+   * hold, by leaving the option out or by passing an empty list. Tests add
+   * their own to hold a fixture page. A hold only takes work away; it never
+   * permits anything.
+   */
+  readonly heldPages?: readonly HeldPage[];
   /**
    * What the student holds in the vault, by type. ADR-0097 (P64).
    *
@@ -3784,6 +3889,9 @@ export class RunDriver {
           // deployment (P74). The preview's destination, and so part of the
           // hash the student's authorisation covers.
           ...(deployment === undefined ? {} : { portalHost: deployment.portalHost }),
+          // P305, ADR-0160: the pages the run will stop before, so the preview
+          // says so under each. Outside the hash; a hold only takes work away.
+          heldPages: heldPagesOf(input.entry, this.#register()),
           // What the student holds, named in the preview they authorise
           // (ADR-0097). Read now, from the metadata store, and never kept.
           documents: previewDocumentsOf(
@@ -4483,7 +4591,17 @@ export class RunDriver {
       caseId: record.caseId,
       studentRef: record.studentRef,
     });
-    const pending = situation.ok
+    // A sign-in on the resume path whose next page is held is never asked for
+    // (`#decideOnce` holds it), so the position does not say it is waiting
+    // for a password in the moments before the worker holds the run (the
+    // second P305 review). It says a person is needed, which is what follows.
+    const heldAhead =
+      situation.ok &&
+      !isHeldByAPerson(record.status) &&
+      requiresSecureRequest(situation.step) &&
+      situation.step.request.purpose === "portal_sign_in" &&
+      (await this.#heldNextPage(entry, record, situation.state)) !== null;
+    const pending = situation.ok && !heldAhead
       ? await this.#pendingDecision(record.caseId, conversationId, situation.step, { entry, state: situation.state })
       : null;
     const run: RunPosition = {
@@ -4508,7 +4626,7 @@ export class RunDriver {
       //
       // The refusal case reports it too, for the reason it always has: an
       // unusable mapping set is a specialist's problem.
-      step: isHeldByAPerson(record.status) || !situation.ok ? "specialist" : situation.step.kind,
+      step: isHeldByAPerson(record.status) || !situation.ok || heldAhead ? "specialist" : situation.step.kind,
       revision: record.revision,
       // Never `false`. This read did not start anything, and a client that
       // saw `resumed: false` from a GET could reasonably conclude it had.
@@ -4801,6 +4919,9 @@ export class RunDriver {
       plan,
       previewDocumentsOf(held_documents ?? []),
       deploymentOf(entry),
+      // The preview as the student read it, held line and all: this is the
+      // text the disclosure records as presented (the second P305 review).
+      heldPagesOf(entry, this.#register()),
     );
     if (!preview.built) return { ok: false, refusal: "content_changed" };
     if (preview.preview.contentHash !== captured.contentHash) return { ok: false, refusal: "content_changed" };
@@ -7581,6 +7702,10 @@ export class RunDriver {
     readonly conversationId: string;
     readonly caseId: CaseId;
     readonly priority: "high" | "critical";
+    /** Why a person is needed. `information_unobtainable` when absent, as it always was. */
+    readonly reason?: RecoveryReason;
+    /** The page concerned, so the notice and the checkpoint can name it. */
+    readonly page?: string;
     /** What could not be obtained. Also the idempotency key's target. */
     readonly target: string;
     readonly encountered: string;
@@ -7606,7 +7731,7 @@ export class RunDriver {
       caseId: input.caseId,
       studentRef: input.record.studentRef,
       escalation: {
-        reason: "information_unobtainable",
+        reason: input.reason ?? "information_unobtainable",
         priority: input.priority,
         encountered: input.encountered,
         expected: input.expected,
@@ -7617,6 +7742,7 @@ export class RunDriver {
           phase: input.record.checkpoint.phase,
           pagesCompleted: [],
           capturedAt: input.now,
+          ...(input.page === undefined ? {} : { page: input.page }),
         },
         raisedAt: input.now,
       },
@@ -7625,6 +7751,7 @@ export class RunDriver {
         portal: portalOf(input.entry),
         courseId: makeCourseId(input.entry.courseRef),
         blueprintVersion: blueprintVersion(input.entry.blueprint.version),
+        ...(input.page === undefined ? {} : { page: input.page }),
       },
     });
     const held = await interventions.find(raised.interventionId);
@@ -7635,6 +7762,121 @@ export class RunDriver {
       });
       await interventions.markAnnounced(raised.interventionId, input.now);
     }
+  }
+
+  /**
+   * Stops a run before a held page (P305, ADR-0160), and says so once.
+   *
+   * The same shape as `#pauseForReview`: an intervention a person can pick up,
+   * one message to the student, and the run `escalated`. The intervention is
+   * idempotent while it is open, so a runner polling the held run every few
+   * seconds raises one and tells the student once. Without an intervention
+   * store the page is still never handed out (the caller skips it); the run
+   * then stops silently, as every stop did before P10.
+   */
+  async #holdBeforePage(input: {
+    readonly entry: CatalogueEntry;
+    readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    readonly conversationId: string;
+    readonly held: HeldPage;
+    readonly pageRef: string;
+    readonly now: Date;
+  }): Promise<WorkflowStatus> {
+    if (this.#options.interventions === undefined) return input.record.status;
+    await this.#raiseForSpecialist({
+      entry: input.entry,
+      record: input.record,
+      conversationId: input.conversationId,
+      caseId: input.record.caseId,
+      priority: "high",
+      reason: "page_save_may_submit",
+      page: input.pageRef,
+      target: `held:${input.pageRef}`,
+      encountered:
+        `The next page, ${input.pageRef} (${input.held.url}), is held: whether saving it submits the ` +
+        `application is not known. In the words kept in ${input.held.source}: "${input.held.because}"`,
+      expected:
+        `What shows whether saving this page submits the application, and the hold's line removed ` +
+        `from packages/catalogue/src/held-pages.ts in a commit quoting the words that lift it, before ` +
+        `this page is handed out.`,
+      message: heldPageMessage(input.entry, input.held),
+      now: input.now,
+    });
+    if (input.record.status === "running") {
+      try {
+        await this.#options.stores.runs.saveCheckpoint({
+          runId: input.record.runId,
+          checkpoint: input.record.checkpoint,
+          expectedRevision: input.record.revision,
+          status: "escalated",
+        });
+        return "escalated";
+      } catch (error) {
+        // Another writer moved the run first. The raise above is idempotent
+        // while it is open, so the next poll re-reads and holds again without
+        // a second intervention or a second message; failing the whole poll
+        // here would withhold other runs' work for nothing (the P305 review).
+        if (!(error instanceof Error) || error.name !== "RunConcurrencyError") throw error;
+      }
+    }
+    return input.record.status;
+  }
+
+  /**
+   * The hold a resume would meet, decided BEFORE the run is released (the
+   * second P305 review).
+   *
+   * Released first and held after, a runner polling in between meets the hold
+   * as well, and both tell the student. Held while a person still holds the
+   * run, no runner is offered it at all. A run that would stop for a person
+   * for another reason first (P288, row 135) is left to `#announceResumed`,
+   * which says that stop.
+   */
+  async #heldOnResume(held: StoredIntervention): Promise<{
+    readonly entry: CatalogueEntry;
+    readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    readonly conversationId: string;
+    readonly held: HeldPage;
+    readonly pageRef: string;
+  } | null> {
+    const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+    if (conversationId === null) return null;
+    const situated = await this.#interviewSituation(conversationId);
+    if (situated?.record.runId !== held.runId) return null;
+    if (!isHeldByAPerson(situated.record.status)) return null;
+    if ((specialistHandoverOf(situated.step) ?? contentHandoverOf(situated.step)) !== null) return null;
+    const next = await this.#heldNextPage(situated.entry, situated.record, situated.state);
+    if (next === null) return null;
+    return { entry: situated.entry, record: situated.record, conversationId, held: next.held, pageRef: next.pageRef };
+  }
+
+  /** The kept register, plus any holds this driver was given (P305, ADR-0160). */
+  #register(): readonly HeldPage[] {
+    return [...HELD_PAGES, ...(this.#options.heldPages ?? [])];
+  }
+
+  /**
+   * The hold on the page this run would fill next, or null (the P305 review).
+   *
+   * The claim is not the only road to a held page: a person resuming the run,
+   * or the resume path asking for a password to sign back in, both move the
+   * run towards it. Each asks this first, so none of them says "moving again"
+   * or asks for a password when the only work left is held.
+   */
+  async #heldNextPage(
+    entry: CatalogueEntry,
+    record: Awaited<ReturnType<WorkflowRunStore["start"]>>,
+    state: RunState,
+  ): Promise<{ readonly held: HeldPage; readonly pageRef: string } | null> {
+    const register = this.#register();
+    if (heldPagesOf(entry, register).length === 0) return null;
+    const plan = assess(state).plan;
+    if (plan === null) return null;
+    const attachments = await this.#heldAttachments(entry, plan, record.studentRef);
+    const next = await this.#nextPage(record.runId, entry, plan, attachments);
+    if (next === null) return null;
+    const held = heldPageFor(entry, next.page.pageRef, next.page.url, register);
+    return held === null ? null : { held, pageRef: next.page.pageRef };
   }
 
   /**
@@ -7747,6 +7989,32 @@ export class RunDriver {
       );
     }
 
+    // ── A held page is not resumed past (P305 review, ADR-0160) ────────
+    //
+    // A resolution cannot lift a hold: the hold is a line in the register,
+    // lifted by deleting it, on his words, and restarting the service. While
+    // it stands, `resume` would tell the student it is moving again and stop
+    // them a moment later. Only `abandon` is taken here.
+    if (held.escalation.reason === "page_save_may_submit" && input.resolution.outcome !== "abandon") {
+      const pageRef = held.escalation.checkpoint.target.startsWith("held:")
+        ? held.escalation.checkpoint.target.slice("held:".length)
+        : (held.escalation.checkpoint.page ?? "");
+      const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+      const bound = conversationId === null ? null : await this.#options.bindings.caseFor(conversationId);
+      const entry = bound === null || bound.blueprintId === null ? null : await this.#entryAdmitting(bound);
+      const page = entry?.blueprint.pages.find((candidate) => candidate.pageRef === pageRef);
+      // Either the page this stop names, or any page of the entry: a hold
+      // matched by address alone may name a page by another numbering than
+      // the entry's (the second P305 review).
+      if (
+        entry === null ||
+        heldPageFor(entry, pageRef, page?.url, this.#register()) !== null ||
+        heldPagesOf(entry, this.#register()).length > 0
+      ) {
+        throw new PageStillHeldError(input.interventionId, pageRef);
+      }
+    }
+
     // ── The fact first, in the one place that holds facts ──────────────
     //
     // Before the intervention is marked resolved, not after (P257). Until
@@ -7795,6 +8063,16 @@ export class RunDriver {
     // so the run released below can only wind down. Released before the case
     // could say so, it would be offered the work it was abandoned at.
     const windingDown = input.resolution.outcome === "abandon" ? await this.#abandonTheCase(held) : false;
+
+    // ── A held next page is held before the run is released (the second P305 review) ──
+    const heldFirst =
+      input.resolution.outcome === "abandon" || held.escalation.checkpoint.target.startsWith("interview:")
+        ? null
+        : await this.#heldOnResume(held);
+    if (heldFirst !== null) {
+      await this.#holdBeforePage({ ...heldFirst, now: this.#options.now() });
+      return resolved;
+    }
 
     const record = await this.#options.stores.runs.load(held.runId);
     if (record !== null && record.status !== "running") {
@@ -8087,6 +8365,26 @@ export class RunDriver {
       );
       if (stopped !== null) return;
     }
+    // ── A held next page stops it again, before anything is said (P305 review) ──
+    //
+    // The same class as row 135: "it is moving again … nothing will be
+    // repeated", then the hold's stop a poll later. The hold is raised NOW,
+    // so the student hears one true message and the person who resumed sees
+    // the new intervention straight away.
+    if (situated !== null && situated.record.runId === held.runId) {
+      const heldNext = await this.#heldNextPage(situated.entry, situated.record, situated.state);
+      if (heldNext !== null) {
+        await this.#holdBeforePage({
+          entry: situated.entry,
+          record: situated.record,
+          conversationId,
+          held: heldNext.held,
+          pageRef: heldNext.pageRef,
+          now: this.#options.now(),
+        });
+        return;
+      }
+    }
     await this.#options.conversations.append({
       conversationId,
       event: { kind: "message", actor: "assistant", content: resumeMessage(entry) },
@@ -8274,11 +8572,19 @@ export class RunDriver {
 
     for (const page of entry.blueprint.pages) {
       const fields = page.sections.flatMap((section) => section.fields);
+      // A held page is the run's next page even with nothing to fill on it, or
+      // with a credential field on it, so the run can never count itself
+      // filled past it (the P305 reviews). Only a page already recorded as
+      // saved is passed below, because that save has happened.
+      const isHeld = heldPageFor(entry, page.pageRef, page.url, this.#register()) !== null;
       // A page with a credential field is a registration page: the Secure Plane
       // filled the password and account creation submitted it, so it is done
       // before `execute` is ever reached and is not the fill's to do.
-      if (fields.some((field) => credentialFields.has(field.fieldRef))) continue;
-      if (!fields.some((field) => wanted.has(field.fieldRef))) continue;
+      if (!isHeld && fields.some((field) => credentialFields.has(field.fieldRef))) continue;
+      if (!fields.some((field) => wanted.has(field.fieldRef))) {
+        if (isHeld) return { page };
+        continue;
+      }
 
       const onThisPage = new Set(fields.map((f) => f.fieldRef));
 
@@ -8803,6 +9109,30 @@ export class RunDriver {
     // the run stops, its secret is spent, the step says "ask again", and a
     // box opened on a run nobody automatic may move. So the box waits for
     // the person, the same as everything else about the run.
+    // ── No password for a run whose next page is held (P305 review) ──────
+    //
+    // The resume path asks for the password to sign back in before the claim
+    // ever meets the held page. Asked first, the student would type a password
+    // for a sign-in that leads straight to a stop. So a sign-in ask is held
+    // here, with the same intervention and message the claim would raise.
+    if (
+      requiresSecureRequest(step) &&
+      step.request.purpose === "portal_sign_in" &&
+      !isHeldByAPerson(input.record.status)
+    ) {
+      const heldNext = await this.#heldNextPage(input.entry, input.record, situation.state);
+      if (heldNext !== null) {
+        const status = await this.#holdBeforePage({
+          entry: input.entry,
+          record: input.record,
+          conversationId: input.conversationId,
+          held: heldNext.held,
+          pageRef: heldNext.pageRef,
+          now: this.#options.now(),
+        });
+        return heldOutcome(input.record, input.conversationId, step, status);
+      }
+    }
     if (requiresSecureRequest(step) && !isHeldByAPerson(input.record.status)) {
       const opened = await this.#options.bindings.withConversationLock(
         input.conversationId,
@@ -9223,20 +9553,70 @@ export class RunDriver {
         kind === "sign_in" || kind === "create_account"
           ? ((await this.#options.consents?.choiceFor(String(record.studentRef), detail.portalHost))?.choice ?? null)
           : null;
+      const nextPage = plan === null ? null : await this.#nextPage(record.runId, entry, plan, attachments);
+
+      // ── A held page is never handed out (P305, ADR-0160) ───────────────
+      //
+      // Vahid, 2026-10-13: *"Until this is known, my run must stop before
+      // saving page 12."* Checked here, before the payload, the lease and the
+      // intent, so a held page leaves no lease, no intent and no "uncertain"
+      // behind, and no payload that cannot be built lets it slip past: the
+      // runner is never sent to it, so it never opens it, never fills it (its
+      // handlers were never captured, row 82) and never presses either of its
+      // submits. The run stops and says so, once. A sign-in on the resume path
+      // is held the same way, so no password is asked for a run whose next page
+      // is held (`#decideOnce` holds the ask itself).
+      const register = this.#register();
+      // The entry's own page reference throughout, never the register's: a
+      // hold matched by address may number the page differently (the second
+      // P305 review), and the stop must name the page the run would open.
+      const heldExecute =
+        kind === "execute" && nextPage !== null
+          ? heldPageFor(entry, nextPage.page.pageRef, nextPage.page.url, register)
+          : null;
+      const heldNext =
+        heldExecute !== null && nextPage !== null
+          ? { held: heldExecute, pageRef: nextPage.page.pageRef }
+          : kind === "sign_in"
+            ? await this.#heldNextPage(entry, record, situation.state)
+            : null;
+      if (heldNext !== null) {
+        await this.#holdBeforePage({ entry, record, conversationId, held: heldNext.held, pageRef: heldNext.pageRef, now });
+        continue;
+      }
+
       const payload = workPayloadFor(
         entry,
         {
           kind,
           account,
           plan,
-          page:
-            plan === null ? null : await this.#nextPage(record.runId, entry, plan, attachments),
+          page: nextPage,
           attachments,
           consentChoice,
         },
         detail.portalHost,
       );
       if (payload === null) continue;
+      // Every address the work would open, whatever its kind: a held address
+      // reached by another road (a listing, a login page, a page a blueprint
+      // renumbered) is held too (the P305 review, latent).
+      let carried: { readonly held: HeldPage; readonly pageRef: string } | null = null;
+      for (const url of carriedAddressesOf(payload.carries)) {
+        const hold = heldPageFor(entry, payload.pageRef ?? "", url, register);
+        if (hold === null) continue;
+        // Named by the entry's own page at that address when it has one, as
+        // every other road names it (the second P305 review).
+        carried = {
+          held: hold,
+          pageRef: entry.blueprint.pages.find((page) => page.url === url)?.pageRef ?? payload.pageRef ?? hold.pageRef,
+        };
+        break;
+      }
+      if (carried !== null) {
+        await this.#holdBeforePage({ entry, record, conversationId, held: carried.held, pageRef: carried.pageRef, now });
+        continue;
+      }
       const { portalHost } = payload;
 
       const leaseId =

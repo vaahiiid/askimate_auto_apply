@@ -93,6 +93,7 @@ Other documents:
   Left empty: Document Description:; File:; Document Description:; File:; Document Description:; File:; Document Description:; File:; Document Description:; File:
   Nothing you told us goes into these boxes, and the form does not require them.
 Course choice — Part 2, one taught course; the research route is unread:
+  Held: I will stop before this page and not open it, because it is not yet known whether saving it sends your application to the university. What is listed here is not entered until a person has looked at it.
   How do you want to study?*: Full Time
       (set by AskiMate: Vahid, 2026-09-25, in his words for the target file: 'the applicant intends to study full time, on campus.' Application metadata — how this application is made, not a fact about the student — recorded in targets/sheffield-pgt-2026-09.json.)
   Show courses starting between:*: August 2027 to July 2028  (sent as "2027")

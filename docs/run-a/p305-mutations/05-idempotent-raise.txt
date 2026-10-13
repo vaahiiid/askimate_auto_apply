@@ -1,0 +1,169 @@
+# P305 mutation 05-idempotent-raise
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      target: `held:${input.pageRef}`,
+# with:
+      target: `held:${input.pageRef}:${String(Math.random())}`,
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 7 failed | 349 skipped) 1199ms
+   × a held page is never handed out (P305, ADR-0160) > meeting the hold again while the run is still running raises nothing new and says nothing new 97ms
+     → the one open intervention, not a second: expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+   × a held page is never handed out (P305, ADR-0160) > refuses to resume past the held page while it is held, and says nothing 26ms
+     → still open: expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+   × a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held 48ms
+     → expected [ { …(2) }, { …(2) }, { …(2) } ] to have a length of 1 but got 3
+   × a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held 104ms
+     → expected [ { …(2) }, { …(2) }, { …(2) }, …(1) ] to have a length of 1 but got 4
+   × a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again' 53ms
+     → the hold's one telling: expected [ …(5) ] to have a length of 1 but got 5
+   × a held page is never handed out (P305, ADR-0160) > a person resuming another stop while the run reads running (a lost escalation) still hears the hold, not 'moving again' 66ms
+     → still the hold's one telling: expected [ …(6) ] to have a length of 1 but got 6
+   × a held page is never handed out (P305, ADR-0160) > takes an abandon of the held stop 65ms
+     → expected [ { …(2) }, { …(2) }, { …(2) }, …(2) ] to have a length of +0 but got 5
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 3 passed | 349 skipped (359)
+   Start at  14:00:55
+   Duration  5.24s (transform 2.44s, setup 0ms, collect 3.59s, tests 1.20s, environment 0ms, prepare 85ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > meeting the hold again while the run is still running raises nothing new and says nothing new
+AssertionError: the one open intervention, not a second: expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18520:74
+    18518|     const again = await claimHeld();
+    18519|     expect(again?.runId).not.toBe(runId);
+    18520|     expect(await openHolds(), "the one open intervention, not a second…
+       |                                                                          ^
+    18521|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18522|     const status = await pool.query<{ status: string }>("SELECT status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > refuses to resume past the held page while it is held, and says nothing
+AssertionError: still open: expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18548:45
+    18546|       await instance.pool.end();
+    18547|     }
+    18548|     expect(await openHolds(), "still open").toHaveLength(1);
+       |                                             ^
+    18549|     expect((await saidTo()).some((content) => content.includes(MOVING_…
+    18550|   }, 120_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > hands out no sign-in on the resume path when the next page is held
+AssertionError: expected [ { …(2) }, { …(2) }, { …(2) } ] to have a length of 1 but got 3
+
+- Expected
++ Received
+
+- 1
++ 3
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18559:31
+    18557|     const work = await claimHeld();
+    18558|     expect(work?.runId, "no sign-in is handed out").not.toBe(runId);
+    18559|     expect(await openHolds()).toHaveLength(1);
+       |                               ^
+    18560|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18561|     const status = await pool.query<{ status: string }>("SELECT status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > asks for no password on the resume path when the next page is held
+AssertionError: expected [ { …(2) }, { …(2) }, { …(2) }, …(1) ] to have a length of 1 but got 4
+
+- Expected
++ Received
+
+- 1
++ 4
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18592:31
+    18590|     }
+    18591|     expect(secure.opens, "no password box was opened").toHaveLength(0);
+    18592|     expect(await openHolds()).toHaveLength(1);
+       |                               ^
+    18593|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+    18594|   }, 120_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > a person resuming another stop just before the held page hears the hold, not 'moving again'
+AssertionError: the hold's one telling: expected [ …(5) ] to have a length of 1 but got 5
+
+- Expected
++ Received
+
+- 1
++ 5
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18629:102
+    18627|     }
+    18628|     expect((await saidTo()).some((content) => content.includes(MOVING_…
+    18629|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+       |                                                                                                      ^
+    18630|     const status = await pool.query<{ status: string; revision: string…
+    18631|       "SELECT status, revision FROM workflow_runs WHERE run_id = $1",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > a person resuming another stop while the run reads running (a lost escalation) still hears the hold, not 'moving again'
+AssertionError: still the hold's one telling: expected [ …(6) ] to have a length of 1 but got 6
+
+- Expected
++ Received
+
+- 1
++ 6
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18676:108
+    18674|     }
+    18675|     expect((await saidTo()).some((content) => content.includes(MOVING_…
+    18676|     expect((await saidTo()).filter((content) => content === HELD_MESSA…
+       |                                                                                                            ^
+    18677|     const status = await pool.query<{ status: string }>("SELECT status…
+    18678|     expect(status.rows[0]?.status, "held again").toBe("escalated");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > takes an abandon of the held stop
+AssertionError: expected [ { …(2) }, { …(2) }, { …(2) }, …(2) ] to have a length of +0 but got 5
+
+- Expected
++ Received
+
+- 0
++ 5
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18701:31
+    18699|       await instance.pool.end();
+    18700|     }
+    18701|     expect(await openHolds()).toHaveLength(0);
+       |                               ^
+    18702|     expect((await saidTo()).some((content) => content.includes(MOVING_…
+    18703|   }, 120_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+

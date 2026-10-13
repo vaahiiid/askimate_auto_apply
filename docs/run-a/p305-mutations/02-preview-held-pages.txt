@@ -1,0 +1,43 @@
+# P305 mutation 02-preview-held-pages
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+          heldPages: heldPagesOf(input.entry, this.#register()),
+# with:
+          heldPages: [],
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a held page is never handed out
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (359 tests | 1 failed | 349 skipped) 1335ms
+   × a held page is never handed out (P305, ADR-0160) > names the hold under the held page, in the preview the student reads before the yes 194ms
+     → expected '  Level of study: Postgraduate  (sent…' to match /^ {2}Held: I will stop before this pa…/
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed | 349 skipped (359)
+   Start at  14:00:34
+   Duration  5.39s (transform 2.45s, setup 0ms, collect 3.59s, tests 1.33s, environment 0ms, prepare 73ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a held page is never handed out (P305, ADR-0160) > names the hold under the held page, in the preview the student reads before the yes
+AssertionError: expected '  Level of study: Postgraduate  (sent…' to match /^ {2}Held: I will stop before this pa…/
+
+- Expected: 
+/^ {2}Held: I will stop before this page and not open it/
+
++ Received: 
+"  Level of study: Postgraduate  (sent as \"pg\")"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18438:34
+    18436|       const heading = lines.indexOf(`${page?.title ?? "?"}:`);
+    18437|       expect(heading, "the held page is in the preview").toBeGreaterTh…
+    18438|       expect(lines[heading + 1]).toMatch(/^ {2}Held: I will stop befor…
+       |                                  ^
+    18439|     } finally {
+    18440|       await instance.pool.end();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
