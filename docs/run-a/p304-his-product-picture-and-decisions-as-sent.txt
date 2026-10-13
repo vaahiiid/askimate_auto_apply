@@ -1,0 +1,13 @@
+My product picture, in my own words: a student of any nationality chats with us and is interviewed, and for a university we have onboarded, like Sheffield, we apply without them doing anything in the process. Wherever we are unsure, we ask in chat. Until the final submission is done, the student does nothing at all on the university's website.
+
+My decisions:
+
+1. No password reset before submission. The student types the password once in the secure box; we never store it. This supersedes my earlier decision on row 177 and amends ADR-0050. The handover tells the student not to change their password until every submission is done, and advises them to change it after. If they change it earlier and the run cannot sign in, the run asks them once in chat for the new password, then hands to a person.
+
+2. The run must press the final submit. A student who chooses ten universities must not have to press ten submits. Design: one review session in chat with, for each university, its full preview and the exact declaration text from its submit page. The student confirms each university separately, with its own button, because each declaration is theirs. Each confirmation is recorded with its time and the exact text confirmed. Only then does the run press that university's final submit, on a separate allow-listed control, never by any other path.
+
+3. CAPTCHA and second factor: later, when we reach them.
+
+Write this as a Proposed ADR for my approval. Say honestly what it costs in safety, and what it changes in ADR-0050, the submit guard and row 80. Say what must be checked per university about submitting on a student's behalf. Nothing is built until I approve.
+
+For my own run: I will press the final submit myself the first time, so row 80 gets observed.
