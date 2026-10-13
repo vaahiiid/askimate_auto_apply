@@ -4906,6 +4906,30 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P306 — no reset before submission
+
+*2026-10-13.* Decision 1, built alone, as he ordered: *"decision 1 alone first. The press comes
+later."*
+
+An account the run makes with the student's own password, on a portal that never checks the
+address, no longer ends with a reset. On Sheffield a reset replaces the password he decided the
+student keeps. Instead, right after the account is made, the student is asked whether the
+registration e-mail reached them, and nothing is filled until they answer. A "yes" is the proof that
+the portal's e-mail reaches them; it is their word, weaker than the reset was, and the ADR says so.
+A "no" stops the run for a person. When the person resumes, the question is asked again, once.
+
+The question and the handover tell the student not to change the password until they have
+submitted, and advise changing it after. If a sign-in is refused, the message now says to type a
+changed password into the secure box, never as a message here.
+
+The run still presses nothing. The student still submits on the university's website. His run is
+still held before page 12 (ADR-0160), and the next phase is O10: recording a submission made by
+hand, which that hold now needs.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P305 — accepted, and page 12 held
 
 *2026-10-13.* He answered ADR-0159's open points, and it is accepted. He chose to have the student

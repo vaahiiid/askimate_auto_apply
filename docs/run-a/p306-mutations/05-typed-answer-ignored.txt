@@ -1,0 +1,51 @@
+# P306 mutation 05-typed-answer-ignored
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (handoffFor(situated.step) === "registration_email") {
+      const email
+# with:
+    if (false) {
+      const email
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t the registration e-mail question
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 1 failed | 359 skipped) 1942ms
+   ✓ the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 450ms
+   × the registration e-mail question (P306, ADR-0159 O3) > answers a typed message by pointing at the buttons, and records nothing 106ms
+     → expected 'I have created your account on Gated …' to contain 'Please answer with one of the two but…'
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 355ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 359 skipped (366)
+   Start at  15:25:03
+   Duration  6.44s (transform 2.64s, setup 0ms, collect 4.10s, tests 1.94s, environment 0ms, prepare 67ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > answers a typed message by pointing at the buttons, and records nothing
+AssertionError: expected 'I have created your account on Gated …' to contain 'Please answer with one of the two but…'
+
+- Expected
++ Received
+
+- Please answer with one of the two buttons under my question
++ I have created your account on Gated University's application portal (gated.portal.test), registered to your e-mail address, niloofar@example.test. The account is yours.
++
++ Please do not change its password until you have submitted your application. After that, we advise you to change it, because the password passed through our system on its way to the portal.
++
++ One question before I fill in anything: has an e-mail from Gated University's application portal reached niloofar@example.test since I created the account? If you cannot see it, please look in your spam or junk folder too. I will not fill in anything until you answer.
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18884:37
+    18882|       await instance.driver.answerStudent({ conversationId: conversati…
+    18883|     });
+    18884|     expect((await saidTo()).at(-1)).toContain(BUTTONS);
+       |                                     ^
+    18885|     const types = await caseTypes();
+    18886|     expect(types.filter((type) => type === "HandoffCompleted" || type …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

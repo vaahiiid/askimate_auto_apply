@@ -537,11 +537,21 @@ function drawPending(): void {
       confirm_handoff: "Done — I have completed that",
     };
     const hashed = pending;
+    // P306, ADR-0159 O3: a handoff question with two answers gets both, the
+    // same weight, with the server's own words; "no" is `decline_handoff`.
+    const twoAnswers = hashed.decision === "confirm_handoff" ? hashed.labels : undefined;
     panel.append(
-      button(labels[hashed.decision], () => {
+      button(twoAnswers?.yes ?? labels[hashed.decision], () => {
         void answer(hashed.decision, hashed.contentHash);
       }),
     );
+    if (twoAnswers !== undefined) {
+      panel.append(
+        button(twoAnswers.no, () => {
+          void answer("decline_handoff", hashed.contentHash);
+        }),
+      );
+    }
     // P230, ADR-0148 §6–7: a list's playback offers each entry as the thing
     // that might be wrong. A press corrects THAT entry; the rest stay.
     if (hashed.decision === "confirm_value" && hashed.entries !== undefined) {

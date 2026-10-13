@@ -1,0 +1,54 @@
+# P306 mutation 01-no-recorded-as-yes
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+        : input.decision.kind === "decline_handoff"
+          ? this.#declineIntent(
+# with:
+        : false
+          ? this.#declineIntent(
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t the registration e-mail question
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 2 failed | 359 skipped) 1953ms
+   ✓ the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 572ms
+   × the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing 135ms
+     → expected [ 'CaseOpened', …(6) ] to include 'HandoffDeclined'
+   × the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills 5ms
+     → expected "the stop is open" not to be reached
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 424ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 5 passed | 359 skipped (366)
+   Start at  15:24:30
+   Duration  6.27s (transform 2.53s, setup 0ms, collect 3.91s, tests 1.95s, environment 0ms, prepare 70ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing
+AssertionError: expected [ 'CaseOpened', …(6) ] to include 'HandoffDeclined'
+ ❯ apps/conversation-service/src/run-driver.test.ts:18892:31
+    18890|     const { contentHash } = await pendingHash();
+    18891|     expect(await decide("decline_handoff", contentHash)).toEqual({ ok:…
+    18892|     expect(await caseTypes()).toContain("HandoffDeclined");
+       |                               ^
+    18893|     expect(await advanceStep()).toBe("specialist");
+    18894|     expect(await advanceStep()).toBe("specialist");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills
+AssertionError: expected "the stop is open" not to be reached
+ ❯ apps/conversation-service/src/run-driver.test.ts:18914:36
+    18912|     );
+    18913|     const stop = open.rows[0]?.intervention_id;
+    18914|     if (stop === undefined) expect.unreachable("the stop is open");
+       |                                    ^
+    18915|     await withInstance((instance) =>
+    18916|       instance.driver.resolveIntervention({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

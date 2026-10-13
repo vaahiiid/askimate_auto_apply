@@ -122,6 +122,7 @@ export type {
   EventActor,
   EventEnvelope,
   HandoffCompleted,
+  HandoffDeclined,
   HandoffKind,
   HandoffRequired,
   HumanReviewCompleted,
@@ -141,7 +142,7 @@ export type {
   UnmappedRecorded,
   PortalAccountDeclared,
 } from "./events.js";
-export { HANDOFF_KINDS, REQUEST_CHANNELS, isEventOfType } from "./events.js";
+export { DECLINABLE_HANDOFF_KINDS, HANDOFF_KINDS, REQUEST_CHANNELS, isEventOfType } from "./events.js";
 
 export type { InformationSource, Task, TaskKind, TaskOwner, TaskStatus } from "./tasks.js";
 export {

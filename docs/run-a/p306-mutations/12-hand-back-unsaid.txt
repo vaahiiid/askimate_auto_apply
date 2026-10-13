@@ -1,0 +1,43 @@
+# P306 mutation 12-hand-back-unsaid
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      if (message === null || held.openHandoffKind !== kind) return;
+# with:
+      if (true) return;
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a stop while the registration e-mail question is open
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 1 failed | 364 skipped) 1277ms
+   × a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 575ms
+     → the hand-back is said, once: expected [] to have a length of 1 but got +0
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 364 skipped (366)
+   Start at  15:25:45
+   Duration  5.62s (transform 2.69s, setup 0ms, collect 3.89s, tests 1.28s, environment 0ms, prepare 74ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it
+AssertionError: the hand-back is said, once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18989:55
+    18987| 
+    18988|       const handBack = (await assistantSaid()).filter((content) => con…
+    18989|       expect(handBack, "the hand-back is said, once").toHaveLength(1);
+       |                                                       ^
+    18990|       const reading = await instance.driver.runFor(conversation);
+    18991|       const pending = reading?.pending;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

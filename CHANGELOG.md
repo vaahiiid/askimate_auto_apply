@@ -19,6 +19,49 @@ not shipped artefacts.
 
 ---
 
+## [0.299.0] — 2026-10-13
+
+**P306 — ADR-0159 decision 1, built alone: no password reset before submission, and the
+registration e-mail asked in chat.** The run still presses no final submit; the student submits.
+
+- **His words** (ADR-0159): *"No password reset before submission. The student types the password
+  once in the secure box; we never store it."* O3: *"The student confirms in chat that Sheffield's
+  registration e-mail arrived. If not, stop for a person before any press."*
+- **The gate.** For an account the run creates with the student's own password, on a portal that
+  never verifies the address, the handover's proof of receipt is the student's word that the
+  registration e-mail arrived (`studentConfirmedRegistrationEmail`), not the reset. A password we
+  generated keeps its reset (O11). Verifying portals, declared accounts, `passwordless` and
+  `portal_issued` are unchanged.
+- **The question.** Asked right after the account is made, with two buttons. Nothing is filled
+  until it is answered. A "yes" is a completed handoff. A "no" is a new event, `HandoffDeclined`, and
+  the run stops for a person, saying why. A person's resume asks again, once, with one sentence
+  saying why. A typed message gets one reply pointing at the buttons and records nothing.
+- **The words.** The question and the handover say not to change the password until the
+  application is submitted, and advise changing it after (O1). The handover no longer says "you
+  sign in the same way you have been" of an account we made. ADR-0120's two messages after a
+  refused sign-in now say to type a changed password into the secure box, never as a message.
+- **The wire.** A new student decision, `decline_handoff`. A pending `confirm_handoff` that is a
+  two-answer question carries `labels`. The client shows both buttons, and its status line for a
+  handoff is now true of every kind.
+- **Choices beyond his words, each his to overturn,** are listed in ADR-0159's Built section (D1 to
+  D5). Not built: D6 (a retry frame for the password box), O10 (P307), the press.
+- **Records:** ADR-0159 Built; notes on ADR-0050 §4 and ADR-0120; row 177; row 181 opened; row 126's
+  list gains P11, the question's promise, with its test.
+- **Review.** One read-only reviewer, each finding re-verified end to end. Four findings:
+  - **Fixed:** a stop while the question stood left the hand-back unsaid, while its yes/no could be
+    pressed over text never shown. And on a log from before P306, a "yes" completed an open reset the
+    student never did. Both now have tests.
+  - **Recorded, his to say** (row 181): a "no" that stays true has no way out, and logs from before
+    P306 are asked again.
+  - **Recorded, latent** (row 181): words that would be untrue under a delivery no entry uses.
+- **Mutations:** fourteen guards each disabled on its own; every run red, every file restored byte for
+  byte, kept unedited in `docs/run-a/p306-mutations/`.
+- **Census** (its own log: started 15:30:20, 689 s), on the finished tree: 176 files, **3,515
+  tests**, green, zero skipped. A first census was stopped, unfinished, when the review's fixes
+  began.
+
+---
+
 ## [0.298.0] — 2026-10-13
 
 **P305 — ADR-0159 accepted with his answers; page 12 held until it is known whether saving it is the

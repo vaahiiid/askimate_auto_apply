@@ -74,6 +74,8 @@ export type PendingDecision =
       readonly contentHash: string;
       /** P230: on a list's playback, the entries a student can say are wrong. */
       readonly entries?: readonly { readonly index: number; readonly label: string }[];
+      /** P306: a handoff question with two answers; "no" sends `decline_handoff` with the same hash. */
+      readonly labels?: { readonly yes: string; readonly no: string };
     }
   /**
    * ADR-0131. The sign-in met the portal's consent banner and the student has

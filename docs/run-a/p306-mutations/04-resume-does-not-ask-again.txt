@@ -1,0 +1,45 @@
+# P306 mutation 04-resume-does-not-ask-again
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const askedAgain = input.resolution.outcome === "abandon" ? false : await this.#askRegistrationAgain(held);
+# with:
+    const askedAgain = false;
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t the registration e-mail question
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 1 failed | 359 skipped) 2004ms
+   ✓ the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 499ms
+   × the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills 124ms
+     → why, once: expected [] to have a length of 1 but got +0
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 395ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 359 skipped (366)
+   Start at  15:24:55
+   Duration  6.53s (transform 2.65s, setup 0ms, collect 4.02s, tests 2.00s, environment 0ms, prepare 92ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills
+AssertionError: why, once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18930:76
+    18928|     );
+    18929|     const said = await saidTo();
+    18930|     expect(said.filter((content) => content === ASKED_AGAIN), "why, on…
+       |                                                                            ^
+    18931|     expect(said.filter((content) => content.includes(QUESTION)), "aske…
+    18932|     expect(said.at(-1), "the question last").toContain(QUESTION);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

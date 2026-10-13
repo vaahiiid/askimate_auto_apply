@@ -1,0 +1,109 @@
+# P306 mutation 02-no-without-hash
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (message === null || hashOfText(message) !== decision.contentHash) {
+      return { ok: false, reason: "content_changed" };
+    }
+    return { ok: true, intent: { kind: "decline_handoff"
+# with:
+    if (message === null) {
+      return { ok: false, reason: "content_changed" };
+    }
+    return { ok: true, intent: { kind: "decline_handoff"
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t the registration e-mail question
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 4 failed | 359 skipped) 2070ms
+   ✓ the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 530ms
+   × the registration e-mail question (P306, ADR-0159 O3) > refuses a stale hash for the yes and for the no 114ms
+     → expected { ok: true } to deeply equal { Object (ok, reason) }
+   × the registration e-mail question (P306, ADR-0159 O3) > answers a typed message by pointing at the buttons, and records nothing 83ms
+     → expected 'I have created your account on Gated …' to contain 'Please answer with one of the two but…'
+   × the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing 38ms
+     → expected "a confirm_handoff is pending, not undefined" not to be reached
+   × the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills 2ms
+     → expected "the stop is open" not to be reached
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 524ms
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 3 passed | 359 skipped (366)
+   Start at  15:24:38
+   Duration  6.77s (transform 2.83s, setup 0ms, collect 4.20s, tests 2.07s, environment 0ms, prepare 80ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > refuses a stale hash for the yes and for the no
+AssertionError: expected { ok: true } to deeply equal { Object (ok, reason) }
+
+- Expected
++ Received
+
+  Object {
+-   "ok": false,
+-   "reason": "content_changed",
++   "ok": true,
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18873:52
+    18871|     const stale = `sha256:${"0".repeat(64)}`;
+    18872|     expect(await decide("confirm_handoff", stale)).toEqual({ ok: false…
+    18873|     expect(await decide("decline_handoff", stale)).toEqual({ ok: false…
+       |                                                    ^
+    18874|   }, 120_000);
+    18875| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > answers a typed message by pointing at the buttons, and records nothing
+AssertionError: expected 'I have created your account on Gated …' to contain 'Please answer with one of the two but…'
+
+- Expected
++ Received
+
+- Please answer with one of the two buttons under my question
++ I have created your account on Gated University's application portal (gated.portal.test), registered to your e-mail address, niloofar@example.test. The account is yours.
++
++ Please do not change its password until you have submitted your application. After that, we advise you to change it, because the password passed through our system on its way to the portal.
++
++ One question before I fill in anything: has an e-mail from Gated University's application portal reached niloofar@example.test since I created the account? If you cannot see it, please look in your spam or junk folder too. I will not fill in anything until you answer.
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18884:37
+    18882|       await instance.driver.answerStudent({ conversationId: conversati…
+    18883|     });
+    18884|     expect((await saidTo()).at(-1)).toContain(BUTTONS);
+       |                                     ^
+    18885|     const types = await caseTypes();
+    18886|     expect(types.filter((type) => type === "HandoffCompleted" || type …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing
+AssertionError: expected "a confirm_handoff is pending, not undefined" not to be reached
+ ❯ apps/conversation-service/src/run-driver.test.ts:18814:59
+    18812|       const reading = await instance.driver.runFor(conversation);
+    18813|       const pending = reading?.pending;
+    18814|       if (pending?.decision !== "confirm_handoff") expect.unreachable(…
+       |                                                           ^
+    18815|       return pending;
+    18816|     });
+ ❯ withInstance apps/conversation-service/src/run-driver.test.ts:18804:14
+ ❯ apps/conversation-service/src/run-driver.test.ts:18890:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills
+AssertionError: expected "the stop is open" not to be reached
+ ❯ apps/conversation-service/src/run-driver.test.ts:18914:36
+    18912|     );
+    18913|     const stop = open.rows[0]?.intervention_id;
+    18914|     if (stop === undefined) expect.unreachable("the stop is open");
+       |                                    ^
+    18915|     await withInstance((instance) =>
+    18916|       instance.driver.resolveIntervention({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

@@ -11,6 +11,14 @@
 > becomes the student's confirmation that Sheffield's registration e-mail arrived (its O3). Until
 > decision 1 is built, which his build order puts first, the reset in §4 is still what the code
 > asks for. His words superseding row 177 replace its first part (its O12, *"your reading is right"*).
+>
+> **Built in P306 (decision 1 alone):** for an account the run creates with the password the student
+> chose, on a portal that never verifies the address, §4's substitution is now the student's word
+> that the registration e-mail arrived (`studentConfirmedRegistrationEmail`), asked right after
+> creation, not the reset. A "no" stops for a person. A password we generated keeps the reset (its
+> O11). §4's table row *"`student_chosen` NOTHING in the flow ever emails them"* is wrong for
+> Sheffield, whose registration sends an e-mail (its AUTH 4): what was missing was a check that it
+> arrived. The comment in `ownership.ts` now says so.
 
 ## Context
 

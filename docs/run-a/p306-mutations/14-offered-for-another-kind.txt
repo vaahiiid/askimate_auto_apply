@@ -1,0 +1,51 @@
+# P306 mutation 14-offered-for-another-kind
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      if (open !== undefined && message !== null && folded?.openHandoffKind === handoffFor(step)) {
+# with:
+      if (open !== undefined && message !== null) {
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a stop while the registration e-mail question is open
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 1 failed | 364 skipped) 1360ms
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 594ms
+   × a stop while the registration e-mail question is open (P306 review) > a log from before P306 with a reset still open: no yes/no is offered, and a yes completes no reset (the P306 review, F2) 267ms
+     → nothing offered for a handoff the step is not asking about: expected { decision: 'confirm_handoff', …(2) } to be null
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 364 skipped (366)
+   Start at  15:26:00
+   Duration  5.93s (transform 2.81s, setup 0ms, collect 4.15s, tests 1.36s, environment 0ms, prepare 86ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stop while the registration e-mail question is open (P306 review) > a log from before P306 with a reset still open: no yes/no is offered, and a yes completes no reset (the P306 review, F2)
+AssertionError: nothing offered for a handoff the step is not asking about: expected { decision: 'confirm_handoff', …(2) } to be null
+
+- Expected: 
+null
+
++ Received: 
+Object {
+  "contentHash": "sha256:87268b66edba910110c8c42eae2eae9715bb8aac79633724a683baa38d862b35",
+  "decision": "confirm_handoff",
+  "labels": Object {
+    "no": "No, it has not arrived",
+    "yes": "Yes, it has arrived",
+  },
+}
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19041:102
+    19039|       expect(asked.position.step).toBe("student_handoff");
+    19040|       const reading = await instance.driver.runFor(old);
+    19041|       expect(reading?.pending ?? null, "nothing offered for a handoff …
+       |                                                                                                      ^
+    19042|       const anyHash = `sha256:${"1".repeat(64)}`;
+    19043|       expect(await instance.driver.recordDecision({ conversationId: ol…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

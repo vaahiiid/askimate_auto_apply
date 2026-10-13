@@ -1208,9 +1208,44 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(intents.rows).toEqual([{ action: "create_portal_account", outcome: "succeeded" }]);
   }, 300_000);
 
+  it("asks whether the registration e-mail arrived before anything is filled, and takes the student's yes (P306)", async () => {
+    // ADR-0159 decision 1 and O3. Vahid, 2026-10-13: *"The student confirms
+    // in chat that Sheffield's registration e-mail arrived. If not, stop for
+    // a person before any press."* This portal never verifies the address and
+    // the student chose the password, so their word is the proof of receipt,
+    // asked now rather than a reset at the end.
+    const advanced = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
+      },
+    );
+    expect(advanced.status).toBe(200);
+    expect(((await advanced.json()) as { step: string }).step, "asked, not filled").toBe("student_handoff");
+    const read = await recordingFetch(`${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`, { headers: { cookie: devCookie } });
+    const pending = ((await read.json()) as {
+      pending: { decision: string; contentHash: string; labels?: { yes: string; no: string } } | null;
+    }).pending;
+    if (pending === null) expect.unreachable("the question is pending");
+    expect(pending.decision).toBe("confirm_handoff");
+    expect(pending.labels, "a question with two answers").toEqual({ yes: "Yes, it has arrived", no: "No, it has not arrived" });
+    const answered = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ kind: "confirm_handoff", contentHash: pending.contentHash }),
+      },
+    );
+    expect(answered.status, "yes, it arrived").toBe(204);
+  }, 300_000);
+
   it("advances to the FILL, and offers it to a runner as work", async () => {
-    // The account exists and the yes was given before it (ADR-0101), so the
-    // next thing is the form itself.
+    // The account exists, the yes was given before it (ADR-0101), and the
+    // student has said the registration e-mail arrived (P306), so the next
+    // thing is the form itself.
     const advanced = await recordingFetch(
       `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
       {
@@ -1650,11 +1685,12 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // until P12 no account could reach `handed_over` because nothing moved an
     // account's stage at all.
     //
-    // Two confirmations, not one, because two INDEPENDENT facts are being
-    // established: this portal never verified the address, so the student
-    // proves they receive at it through the portal's own reset (ADR-0050), and
-    // separately says they can sign in. One confirmation covering both would
-    // record a reset they never did.
+    // Two INDEPENDENT facts, each a confirmation: this portal never verified
+    // the address, so the student proves they receive at it — since P306 by
+    // saying the registration e-mail arrived, asked right after creation
+    // (ADR-0159 O3; the portal's own reset until then, ADR-0050) — and
+    // separately says they can sign in, here. One confirmation covering both
+    // would record a fact they never stated.
     // ═══════════════════════════════════════════════════════════════════
     const cases = new PostgresCaseStore(conversationPool);
     const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
@@ -1715,17 +1751,16 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       return (await response.json()) as { step: string };
     };
 
-    // 1 — the reset, which is how they prove they receive mail at the address
-    //     on a portal that never verified it.
+    // That they are actually in. No reset is asked (P306): the registration
+    // e-mail was their proof of receipt, answered before the fill.
     expect(await confirm(), "the student's own session").toBe(204);
-    expect((await advance()).step, "one down, one to go").toBe("hand_over_account");
-
-    // 2 — and that they are actually in.
-    expect(await confirm()).toBe(204);
 
     const logged = await cases.read(caseRef);
     const completed = logged.filter((event) => event.type === "HandoffCompleted");
-    expect(completed, "both, recorded by the domain").toHaveLength(2);
+    expect(
+      completed.map((event) => event.handoffKind),
+      "both facts, recorded by the domain, and no reset",
+    ).toEqual(["registration_email", "account_handover"]);
 
     expect((await advance()).step, "handed back; now it is finished").toBe("ready_to_submit");
     expect(portal.submissions(), "and STILL not submitted — ADR-0014").toEqual([]);

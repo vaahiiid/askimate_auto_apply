@@ -53,9 +53,13 @@ export {
   checkHandoverComplete,
   mayConcludeCase,
   outstandingHandoverItems,
+  outstandingHandoverKeys,
+  owesRegistrationEmail,
   studentHandoverItems,
   prepareAccountCreation,
   renderAccountCreationRequest,
   renderHandover,
+  renderRegistrationEmailNotReceived,
+  renderRegistrationEmailQuestion,
   resetWordsFor,
 } from "./ownership.js";

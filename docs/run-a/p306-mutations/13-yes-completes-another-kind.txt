@@ -1,0 +1,47 @@
+# P306 mutation 13-yes-completes-another-kind
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (open === undefined || asked === null || held.openHandoffKind !== asked) return { ok: false, reason: "not_asked" };
+# with:
+    if (open === undefined || asked === null) return { ok: false, reason: "not_asked" };
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t a stop while the registration e-mail question is open
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 1 failed | 364 skipped) 1204ms
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 487ms
+   × a stop while the registration e-mail question is open (P306 review) > a log from before P306 with a reset still open: no yes/no is offered, and a yes completes no reset (the P306 review, F2) 277ms
+     → expected { Object (ok, reason) } to deeply equal { ok: false, reason: 'not_asked' }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 364 skipped (366)
+   Start at  15:25:53
+   Duration  5.64s (transform 2.71s, setup 0ms, collect 3.99s, tests 1.20s, environment 0ms, prepare 85ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stop while the registration e-mail question is open (P306 review) > a log from before P306 with a reset still open: no yes/no is offered, and a yes completes no reset (the P306 review, F2)
+AssertionError: expected { Object (ok, reason) } to deeply equal { ok: false, reason: 'not_asked' }
+
+- Expected
++ Received
+
+  Object {
+    "ok": false,
+-   "reason": "not_asked",
++   "reason": "content_changed",
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19043:153
+    19041|       expect(reading?.pending ?? null, "nothing offered for a handoff …
+    19042|       const anyHash = `sha256:${"1".repeat(64)}`;
+    19043|       expect(await instance.driver.recordDecision({ conversationId: ol…
+       |                                                                                                                                                         ^
+    19044|       const after = await cases.read(caseRef);
+    19045|       expect(after.filter((event) => event.type === "HandoffCompleted"…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

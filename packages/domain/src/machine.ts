@@ -26,6 +26,7 @@ import type {
   RequestEvidence, OwnAct } from "./events.js";
 import type { CaseId, ExternalRef } from "./ids.js";
 import type { SubmissionIdentity } from "./idempotency.js";
+import { DECLINABLE_HANDOFF_KINDS } from "./events.js";
 import { decideReapplication } from "./reapplication.js";
 import type { ReapplicationActor, ReapplicationInstruction } from "./reapplication.js";
 import type { RecoveryEscalation, RecoveryResolution } from "./recovery.js";
@@ -119,6 +120,15 @@ export interface ApplicationCase {
    */
   readonly completedHandoffs: readonly HandoffKind[];
   /**
+   * Every handoff the student answered "no", in order (ADR-0159 O3, P306).
+   *
+   * Apart from `completedHandoffs` on purpose: a "no" to the registration
+   * e-mail is the opposite of proof of receipt, and a reader that counted it
+   * as done would hand an account back on the strength of an e-mail that never
+   * arrived.
+   */
+  readonly declinedHandoffs: readonly HandoffKind[];
+  /**
    * The unresolved recovery escalation, if the case is paused on one.
    *
    * Carries the checkpoint, so a restarted worker or a specialist opening the
@@ -159,6 +169,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   let openHandoffKind: HandoffKind | undefined;
   const raisedHandoffs: HandoffKind[] = [];
   const completedHandoffs: HandoffKind[] = [];
+  const declinedHandoffs: HandoffKind[] = [];
   let openEscalation: RecoveryEscalation | undefined;
   let submissionAttempted = false;
   let priorCaseId: CaseId | undefined = first.priorCaseId;
@@ -249,6 +260,14 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         // bookkeeping disagrees would lose the evidence rather than the
         // inconsistency.
         completedHandoffs.push(event.handoffKind);
+        if (openHandoffToken === event.handoffToken) {
+          openHandoffToken = undefined;
+          openHandoffKind = undefined;
+        }
+        break;
+
+      case "HandoffDeclined":
+        declinedHandoffs.push(event.handoffKind);
         if (openHandoffToken === event.handoffToken) {
           openHandoffToken = undefined;
           openHandoffKind = undefined;
@@ -367,6 +386,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     activeTriggers: [...activeTriggers],
     raisedHandoffs,
     completedHandoffs,
+    declinedHandoffs,
     completedReviews,
     submissionAttempted,
     // ADR-0108: what the student owes, in the order it was recorded.
@@ -427,6 +447,8 @@ export type CaseIntent =
       readonly expiresAt: Date;
     }
   | { readonly kind: "complete_handoff"; readonly handoffToken: string }
+  /** The student's "no" to the open handoff, where a "no" is an answer (ADR-0159 O3). */
+  | { readonly kind: "decline_handoff"; readonly handoffToken: string }
   | { readonly kind: "capture_authorisation"; readonly contentHash: string }
   | { readonly kind: "void_authorisation"; readonly reason: "content_changed" | "expired" | "student_revoked" }
   | { readonly kind: "attempt_submission" }
@@ -684,6 +706,41 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
       return {
         accepted: true,
         events: [{ type: "HandoffCompleted", handoffToken: open, handoffKind: kind }],
+      };
+    }
+
+    case "decline_handoff": {
+      // The same checks as a completion: the open handoff, by its token, so a
+      // stale client cannot answer a question the case is no longer asking.
+      const open = applicationCase.openHandoffToken;
+      const kind = applicationCase.openHandoffKind;
+      if (open === undefined || kind === undefined) {
+        return {
+          accepted: false,
+          refusal: { kind: "invalid_intent", detail: "There is no open handoff to answer." },
+        };
+      }
+      if (open !== intent.handoffToken) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: `This case is waiting on handoff ${open}, not ${intent.handoffToken}.`,
+          },
+        };
+      }
+      if (!(DECLINABLE_HANDOFF_KINDS as readonly HandoffKind[]).includes(kind)) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: `Handoff ${open} (${kind}) cannot be answered "no"; only ${DECLINABLE_HANDOFF_KINDS.join(", ")} can.`,
+          },
+        };
+      }
+      return {
+        accepted: true,
+        events: [{ type: "HandoffDeclined", handoffToken: open, handoffKind: kind }],
       };
     }
 

@@ -49,7 +49,9 @@ const STEP_WORDS = {
   execute: "I'm entering your application on the university's website.",
   create_account: "I'm creating your account on the university's website.",
   request_secret: "I need your password for the university's website. Use the secure box; I never see what you type.",
-  student_handoff: "It's over to you on the university's website for a moment.",
+  // P306: true of every handoff, the registration e-mail question included,
+  // which asks about an inbox, not about the website.
+  student_handoff: "I'm waiting for your answer to my last message before I go on.",
   ready_to_submit: "Your application is entered and ready for you to submit.",
   hand_over_account: "I'm handing your account on the university's website over to you.",
   sign_in: "I'm signing in to your account on the university's website.",

@@ -1,0 +1,49 @@
+# P306 mutation 11-old-handover-words
+# file: packages/account/src/ownership.ts
+# replaced:
+  if (input.madeWithYourPassword === true) {
+# with:
+  if (false) {
+# command: pnpm exec vitest run --project unit packages/account/src/account.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/account/src/account.test.ts (74 tests | 1 failed) 77ms
+   × handover > tells a student whose account we made with their own password not to change it until they submit, and never that they sign in 'the same way you have been' (ADR-0159 O1, P306) 22ms
+     → expected 'Your application to University of She…' to contain 'Please do not change the password unt…'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 73 passed (74)
+   Start at  15:25:43
+   Duration  1.09s (transform 432ms, setup 0ms, collect 590ms, tests 77ms, environment 0ms, prepare 79ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/account/src/account.test.ts > handover > tells a student whose account we made with their own password not to change it until they submit, and never that they sign in 'the same way you have been' (ADR-0159 O1, P306)
+AssertionError: expected 'Your application to University of She…' to contain 'Please do not change the password unt…'
+
+- Expected
++ Received
+
+- Please do not change the password until you have submitted your application.
++ Your application to University of Sheffield is complete, and the account is yours.
++
++ Sign in at www.sheffield.ac.uk with student@example.test.
++
++ I have never had a password for this account and I do not have one now — you sign in the same way you have been. I have closed the session I was using, so from here it is only you. If you ever lose your password, resetting it with "Forgot password" on that page replaces your password at once, and the new one arrives by e-mail, in plain text, at the address the account is registered with. Sign in with it and change it straight away, as that e-mail asks you to.
++
++ Tell me with the buttons below whether it has arrived.
+
+ ❯ packages/account/src/account.test.ts:874:20
+    872|     // The registration answer still owed inside the hand-back (a stop…
+    873|     const asking = renderHandover({ ...base, madeWithYourPassword: tru…
+    874|     expect(asking).toContain("Please do not change the password until …
+       |                    ^
+    875|     expect(asking).toContain("we advise you to change it");
+    876|     expect(asking).toContain("has an e-mail from University of Sheffie…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

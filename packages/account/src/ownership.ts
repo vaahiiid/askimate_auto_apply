@@ -61,6 +61,19 @@ export type AccountStage =
    * The run waits. It does not read their email — see the file header.
    */
   | "awaiting_email_verification"
+  /**
+   * Created by us with the student's own password, on a portal that never
+   * verifies the address, and the student has not yet said whether the
+   * portal's registration e-mail reached them (ADR-0159 O3, P306). Nothing is
+   * filled until they answer.
+   */
+  | "awaiting_registration_email"
+  /**
+   * The student said the registration e-mail did NOT arrive. Vahid,
+   * 2026-10-13: *"If not, stop for a person before any press."* A person
+   * looks; the run fills nothing meanwhile.
+   */
+  | "registration_email_not_received"
   /** Usable for the application. Still not the student's to control. */
   | "active"
   /** The application is done; control has not yet gone back. */
@@ -152,6 +165,18 @@ export interface HandoverChecklist {
   /** The student has been told the account exists, where it is, and how to get in. */
   readonly studentInformed: boolean;
   /**
+   * The student SAID the portal's registration e-mail reached them (ADR-0159
+   * O3, P306).
+   *
+   * The proof of receipt for an account we made with the student's own
+   * password on a portal that never verifies the address. Vahid, 2026-10-13:
+   * *"No password reset before submission"*, and O3: *"The student confirms in
+   * chat that Sheffield's registration e-mail arrived. If not, stop for a
+   * person before any press."* A statement, not an observation, and weaker
+   * than the reset it replaces there; the ADR says so.
+   */
+  readonly studentConfirmedRegistrationEmail: boolean;
+  /**
    * The student has used the portal's own password reset and set their own
    * password.
    *
@@ -212,6 +237,7 @@ export type HandoverCheck =
 const CHECKLIST_LABELS: Readonly<Record<keyof HandoverChecklist, string>> = {
   emailVerifiedByPortal: "the portal has verified the student's own email address",
   studentInformed: "the student has been told the account exists and where it is",
+  studentConfirmedRegistrationEmail: "the student has said the portal's registration e-mail reached them",
   passwordResetCompleted: "the student has set their own password via the portal's reset flow",
   temporaryCredentialDestroyed: "any temporary credential we held has been destroyed",
   askimateRetainsNoAccess:
@@ -255,14 +281,27 @@ const CHECKLIST_LABELS: Readonly<Record<keyof HandoverChecklist, string>> = {
  *   `passwordless`         they sign in with an emailed link or code
  *   `portal_issued`        the portal emails them the credential
  *   `generated_ephemeral`  `passwordResetCompleted` is already required
- *   `student_chosen`       NOTHING in the flow ever emails them  ← the gap
+ *   `student_chosen`       nothing in the flow is CHECKED to reach them  ← the gap
+ *
+ * (Written first as "nothing in the flow ever emails them". Sheffield's
+ * registration sends an e-mail (its AUTH 4); what was missing was a check that
+ * it arrived, not the e-mail.)
  *
  * So on a non-verifying portal this substitutes the portal's own password
  * reset for the portal's own verification. Vahid decided that, 2026-09-01, over
  * the alternatives of dropping the item outright (which removes the check while
- * leaving the risk) and leaving the deadlock in place. The count of proofs of
- * receipt stays at one, and it is still the PORTAL's email that provides it —
- * only the mechanism changes. See ADR-0050.
+ * leaving the risk) and leaving the deadlock in place. See ADR-0050.
+ *
+ * For `student_chosen` his decision of 2026-10-13 (ADR-0159, decision 1, O3)
+ * replaces the reset with the student's word that the registration e-mail
+ * arrived: *"No password reset before submission."* On Sheffield a reset
+ * replaces the password the student chose (his AUTH 7), so the reset could no
+ * longer be the proof for the password he decided the student keeps. The
+ * count of proofs stays at one; it is now a statement, not the portal's own
+ * e-mail observed doing its work. `generated_ephemeral` keeps its reset (O11):
+ * there is still a password of ours to displace. `passwordless` and
+ * `portal_issued` are unchanged (outside O11, and unreachable on the one entry
+ * there is).
  */
 function applicableItems(input: {
   readonly approach: AuthenticationApproach;
@@ -301,7 +340,9 @@ function applicableItems(input: {
   const items: (keyof HandoverChecklist)[] = input.portalVerifiesEmail
     ? ["emailVerifiedByPortal", ...always]
     : // The substitution. Not an exemption: an item is REPLACED, not removed.
-      ["passwordResetCompleted", ...always];
+      input.approach === "student_chosen"
+      ? ["studentConfirmedRegistrationEmail", ...always]
+      : ["passwordResetCompleted", ...always];
 
   // Only the approach where we held a secret has a secret to displace and
   // destroy. `passwordResetCompleted` may already be present by substitution,
@@ -420,12 +461,86 @@ function outstandingKeys(account: PortalAccount): readonly (keyof HandoverCheckl
 export function studentHandoverItems(account: PortalAccount): readonly string[] {
   const theirs: readonly (keyof HandoverChecklist)[] = [
     "emailVerifiedByPortal",
+    "studentConfirmedRegistrationEmail",
     "passwordResetCompleted",
     "studentConfirmedAccess",
   ];
   return outstandingKeys(account)
     .filter((key) => theirs.includes(key))
     .map((key) => CHECKLIST_LABELS[key]);
+}
+
+/**
+ * The applicable items this account has not satisfied, as keys (P306).
+ *
+ * For a reader that must choose by item rather than by label: matching a
+ * label's words is how "reset flow" came to decide which handoff was next.
+ */
+export function outstandingHandoverKeys(account: PortalAccount): readonly (keyof HandoverChecklist)[] {
+  return outstandingKeys(account);
+}
+
+/**
+ * Does an account made under this plan owe the student's word that the
+ * registration e-mail arrived (ADR-0159 O3)?
+ *
+ * Read from `applicableItems`, so the rule stays in one place (ADR-0041).
+ */
+export function owesRegistrationEmail(
+  plan: AuthenticationPlan,
+  createdBy: PortalAccount["createdBy"],
+): boolean {
+  return applicableItems({
+    approach: plan.approach,
+    createdBy,
+    portalVerifiesEmail: plan.basedOn.emailVerificationRequired === true,
+  }).includes("studentConfirmedRegistrationEmail");
+}
+
+/**
+ * The question asked right after we create an account with the student's own
+ * password on a portal that never verifies the address (ADR-0159 O1, O3; P306).
+ *
+ * His words are the instruction and the advice (O1: *"Tell the student not to
+ * change the password as soon as the account exists"*; decision 1: *"advises
+ * them to change it after"*) and the question (O3). The sentences are mine.
+ * "I will not fill in anything until you answer" is a promise, and a test
+ * holds it: the run hands out no page while this is asked.
+ */
+export function renderRegistrationEmailQuestion(input: {
+  readonly institutionName: string;
+  readonly portalHost: string;
+  readonly email: string;
+}): string {
+  return (
+    `I have created your account on ${input.institutionName}'s application portal ` +
+    `(${input.portalHost}), registered to your e-mail address, ${input.email}. The account is yours.\n\n` +
+    `Please do not change its password until you have submitted your application. After that, we ` +
+    `advise you to change it, because the password passed through our system on its way to the portal.\n\n` +
+    `One question before I fill in anything: has an e-mail from ${input.institutionName}'s ` +
+    `application portal reached ${input.email} since I created the account? If you cannot see it, ` +
+    `please look in your spam or junk folder too. I will not fill in anything until you answer.`
+  );
+}
+
+/**
+ * What the student hears after answering that the registration e-mail did not
+ * arrive (ADR-0159 O3, P306). Said with the stop for a person, once.
+ *
+ * Promises nothing of a person beyond what is done when it is said: the stop
+ * raises the intervention before this is appended.
+ */
+export function renderRegistrationEmailNotReceived(input: {
+  readonly institutionName: string;
+  readonly email: string;
+}): string {
+  return (
+    `Thank you for telling me. Without that e-mail I cannot be sure that what ${input.institutionName} ` +
+    `sends to ${input.email} reaches you, and that address is your way back into the account if you ` +
+    `ever lose its password. So I have stopped here, and a member of the team has been asked to look ` +
+    `at it. The account stays yours; please do not change its password in the meantime. Nothing has ` +
+    `been submitted.`
+  );
 }
 
 /**
@@ -642,10 +757,18 @@ function resetBeforeCreation(sends: PasswordResetSends | undefined): string {
 export function resetWordsFor(
   plan: AuthenticationPlan,
   createdBy: PortalAccount["createdBy"],
+  /**
+   * The checklist as it stands, where there is one (P306): the words read
+   * what is still owed, not only what the plan says applies, so an answered
+   * question is not asked again in the text.
+   */
+  checklist?: HandoverChecklist,
 ): {
   readonly passwordResetSends?: PasswordResetSends;
   readonly passwordResetSeenNotToWork?: true;
   readonly resetStillToDo?: true;
+  readonly madeWithYourPassword?: true;
+  readonly registrationEmailStillToDo?: true;
 } {
   const owed =
     plan.approach !== "generated_ephemeral" &&
@@ -658,6 +781,11 @@ export function resetWordsFor(
     ...(plan.basedOn.passwordResetSends === undefined ? {} : { passwordResetSends: plan.basedOn.passwordResetSends }),
     ...(plan.basedOn.passwordResetAvailable === false ? { passwordResetSeenNotToWork: true as const } : {}),
     ...(owed ? { resetStillToDo: true as const } : {}),
+    // ADR-0159 (P306): an account we made with the password the student chose.
+    ...(plan.approach === "student_chosen" && createdBy !== "student" ? { madeWithYourPassword: true as const } : {}),
+    ...(owesRegistrationEmail(plan, createdBy) && checklist?.studentConfirmedRegistrationEmail !== true
+      ? { registrationEmailStillToDo: true as const }
+      : {}),
   };
 }
 
@@ -688,6 +816,10 @@ export function renderHandover(input: {
   readonly passwordResetSeenNotToWork?: true;
   /** The reset is still owed before the handover is complete (`resetWordsFor`). */
   readonly resetStillToDo?: true;
+  /** We made the account with the password the student chose (`resetWordsFor`, P306). */
+  readonly madeWithYourPassword?: true;
+  /** The student has not yet said the registration e-mail arrived (`resetWordsFor`, P306). */
+  readonly registrationEmailStillToDo?: true;
 }): string {
   const left = input.leftToStudent ?? [];
   // ADR-0108, in Vahid's words: *"the student must be able to tell that we
@@ -712,9 +844,11 @@ export function renderHandover(input: {
     `Sign in at ${input.portalHost} with ${input.email}.\n\n` +
     `${ownActs}` +
     `${handoverMiddle(input)}\n\n` +
-    (input.resetStillToDo === true && input.approach !== "generated_ephemeral"
-      ? `Tell me when you have done that and you are in, and I will close this off.`
-      : `Tell me when you are in, and I will close this off.`)
+    (input.registrationEmailStillToDo === true && input.madeWithYourPassword === true
+      ? `Tell me with the buttons below whether it has arrived.`
+      : input.resetStillToDo === true && input.approach !== "generated_ephemeral"
+        ? `Tell me when you have done that and you are in, and I will close this off.`
+        : `Tell me when you are in, and I will close this off.`)
   );
 }
 
@@ -777,12 +911,39 @@ function handoverMiddle(input: {
   readonly passwordResetSends?: PasswordResetSends;
   readonly passwordResetSeenNotToWork?: true;
   readonly resetStillToDo?: true;
+  readonly madeWithYourPassword?: true;
+  readonly registrationEmailStillToDo?: true;
 }): string {
   if (input.approach === "generated_ephemeral") {
     return (
       `Please set your own password now: ${whatAResetDoes(input.passwordResetSends)} Once you ` +
       `have done that, the temporary password I used is gone and only you can get into the account.`
     );
+  }
+
+  // ── An account we made with the password the student chose (ADR-0159, P306) ──
+  //
+  // "I have never had a password … you sign in the same way you have been" is
+  // untrue of it: the student has never signed in, and the password passed
+  // through us to make the account. Vahid, 2026-10-13: *"The handover tells
+  // the student not to change their password until every submission is done,
+  // and advises them to change it after."* The words are mine.
+  if (input.madeWithYourPassword === true) {
+    const lost =
+      input.passwordResetSeenNotToWork === true
+        ? `If you ever lose your password, this portal's "Forgot password" was not seen to work, so ` +
+          `${input.institutionName}'s admissions office is the way back in.`
+        : `If you ever lose your password, ${whatAResetDoes(input.passwordResetSends)}`;
+    const kept =
+      `I do not keep your password, and I have closed the session I was using, so from here it is ` +
+      `only you. Please do not change the password until you have submitted your application. After ` +
+      `that, we advise you to change it, because it passed through our system on its way to the ` +
+      `portal. ${lost}`;
+    return input.registrationEmailStillToDo === true
+      ? `${kept}\n\nOne thing is left before I can close this off: has an e-mail from ` +
+          `${input.institutionName}'s application portal reached ${input.email} since I created the ` +
+          `account? If you cannot see it, please look in your spam or junk folder too.`
+      : kept;
   }
 
   const neverHeld =

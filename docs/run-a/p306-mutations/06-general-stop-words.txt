@@ -1,0 +1,47 @@
+# P306 mutation 06-general-stop-words
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      message:
+        ownWords ??
+# with:
+      message:
+        (undefined as string | undefined) ??
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t the registration e-mail question
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 1 failed | 359 skipped) 2081ms
+   ✓ the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 466ms
+   × the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing 251ms
+     → said once: expected [] to have a length of 1 but got +0
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 388ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 359 skipped (366)
+   Start at  15:25:11
+   Duration  6.29s (transform 2.54s, setup 0ms, collect 3.74s, tests 2.08s, environment 1ms, prepare 88ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing
+AssertionError: said once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18900:97
+    18898|     );
+    18899|     expect(open.rows.map((row) => row.checkpoint.target)).toEqual(["sp…
+    18900|     expect((await saidTo()).filter((content) => content.startsWith(NOT…
+       |                                                                                                 ^
+    18901|     expect((await saidTo()).some((content) => content.includes("I will…
+    18902|     const status = await pool.query<{ status: string }>("SELECT status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

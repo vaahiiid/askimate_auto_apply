@@ -127,12 +127,15 @@ describe("the account a creation produced", () => {
     );
     expect(after?.account?.stage).toBe("awaiting_email_verification");
 
-    // And where discovery observed it is not needed, the account is usable.
+    // And where discovery observed it is not needed, the account made with
+    // the student's own password waits for their word that the registration
+    // e-mail arrived instead (ADR-0159 O3, P306); until P306 it was usable at
+    // once.
     const straight = accountCreated(
       stateWith({ profile: withEmail(EMAIL), observed: OBSERVED }),
       { accountId: "acct-1", now: NOW },
     );
-    expect(straight?.account?.stage).toBe("active");
+    expect(straight?.account?.stage).toBe("awaiting_registration_email");
   });
 
   it("produces NOTHING without a confirmed email", () => {
@@ -194,7 +197,8 @@ describe("the account a creation produced", () => {
     // 172). What it must not do is state as fact that it was not handed back.
     const handedBack: HandoverEvidence = {
       raised: ["account_handover"],
-      completed: ["account_handover", "email_verification", "password_reset"],
+      // P306: the registration answer is the proof for this account now.
+      completed: ["account_handover", "email_verification", "password_reset", "registration_email"],
       askimateRetainsNoAccess: true,
       applicationFilled: true,
       runStopped: true,
@@ -228,19 +232,26 @@ describe("the account a creation produced", () => {
     expect(untried, "a portal nobody has tried is told nothing of it").not.toContain("replaces your password");
   });
 
-  it("the handover of an account we made, on a portal that never e-mailed the student, says the reset is owed now — as the list beside it does (P301's review)", () => {
-    // ADR-0050 §4 asks for the portal's reset before such an account is
-    // handed back. The text said it was for a lost password while the list
-    // sent with it asked for it now. Whether the requirement should stand on
-    // Sheffield is Vahid's (row 177); the text and the list now agree.
+  it("the handover of an account we made with the student's own password, on a portal that never verifies, asks no reset and says not to change the password before submitting (ADR-0159, P306)", () => {
+    // Until P306 this asked for the portal's reset (ADR-0050 §4, P301's
+    // review). Vahid, 2026-10-13: *"1. No password reset before submission
+    // ... The handover tells the student not to change their password until
+    // every submission is done, and advises them to change it after."*
     const sheffield: ObservedPortalAuthentication = { ...OBSERVED, passwordResetSends: "new_password_in_plain_text" };
     const created = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: sheffield }), { accountId: "acct-1", now: NOW });
     const told = created?.account?.handover?.presentedText ?? "";
-    expect(outstandingHandoverItems(created?.account ?? expect.unreachable("an account")).join(" ")).toContain("reset");
-    expect(told).toContain("One thing is left before I can close this off");
-    expect(told).toContain("replaces your password at once");
-    expect(told).not.toContain("If you ever lose your password");
-    // The student's own account owes no reset (ADR-0110), and is not told one is owed.
+    expect(outstandingHandoverItems(created?.account ?? expect.unreachable("an account")).join(" ")).not.toContain("reset");
+    expect(told).not.toContain("please use it once on that page");
+    expect(told).toContain("Please do not change the password until you have submitted your application.");
+    expect(told, "the registration answer is still owed here").toContain("Tell me with the buttons below whether it has arrived.");
+    // Answered, the hand-back closes as any other.
+    const answered = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: sheffield }), {
+      accountId: "acct-1",
+      now: NOW,
+      handover: { raised: [], completed: ["registration_email"], askimateRetainsNoAccess: false, applicationFilled: true },
+    });
+    expect(answered?.account?.handover?.presentedText ?? "").toContain("Tell me when you are in, and I will close this off.");
+    // The student's own account owes no proof (ADR-0110), and keeps its words.
     const declared = accountDeclared(stateWith({ profile: withEmail(EMAIL), observed: sheffield }), { accountId: "acct-1", declaredAt: NOW, now: NOW });
     const theirs = declared?.account?.handover?.presentedText ?? "";
     expect(theirs).not.toContain("One thing is left");
@@ -283,6 +294,22 @@ describe("where the account stands", () => {
     emailVerificationRequired: true,
   };
 
+  it("asks whether the registration e-mail arrived before anything is filled, on an account we made with the student's own password (ADR-0159 O3, P306)", () => {
+    // This fixture is the shape decision 1 is about: the student chose the
+    // password, and the portal never verifies the address.
+    expect(stageWith(evidence()), "right after creation").toBe("awaiting_registration_email");
+    expect(stageWith(evidence({ completed: ["registration_email"] })), "answered yes").toBe("active");
+    expect(stageWith(evidence({ declined: ["registration_email"] })), "answered no").toBe("registration_email_not_received");
+    // A person resumed: the declined question is open again, and asked again.
+    expect(stageWith(evidence({ declined: ["registration_email"], open: "registration_email" }))).toBe("awaiting_registration_email");
+    // A stopped run, or a log filled before this build, takes the question
+    // inside the hand-back rather than sticking on it.
+    expect(stageWith(evidence({ runStopped: true }))).toBe("handover_due");
+    expect(stageWith(evidence({ applicationFilled: true }))).toBe("handover_due");
+    // A portal that verifies keeps its verification, and owes no answer.
+    expect(stageWith(evidence({ completed: ["email_verification"] }), VERIFYING)).toBe("active");
+  });
+
   it("stays with the verification until the student says they did it", () => {
     expect(stageWith(evidence(), VERIFYING)).toBe("awaiting_email_verification");
     expect(stageWith(evidence({ completed: ["email_verification"] }), VERIFYING)).toBe("active");
@@ -297,25 +324,29 @@ describe("where the account stands", () => {
     // filled means asking the student to change the password we are about to
     // sign in with.
     // ═══════════════════════════════════════════════════════════════════
-    expect(stageWith(evidence({ applicationFilled: false }))).toBe("active");
-    expect(stageWith(evidence({ applicationFilled: true }))).toBe("handover_due");
+    // Answered "yes" to the registration e-mail (P306), so only the fill decides.
+    expect(stageWith(evidence({ applicationFilled: false, completed: ["registration_email"] }))).toBe("active");
+    expect(stageWith(evidence({ applicationFilled: true, completed: ["registration_email"] }))).toBe("handover_due");
   });
 
   it("reaches handed_over only when every applicable item is a FACT", () => {
-    // This portal does not verify email, so the proof of receipt is the
-    // portal's own password reset (ADR-0050). Three of the four items are
-    // student-side and each is a completed handoff.
+    // This portal does not verify email, and the student chose the password,
+    // so the proof of receipt is their word that the registration e-mail
+    // arrived (ADR-0159 O3, P306; the portal's reset until then, ADR-0050).
+    // Each student-side item is a completed handoff.
     const nearly = evidence({
       applicationFilled: true,
       raised: ["account_handover"],
-      completed: ["password_reset"],
+      completed: ["registration_email"],
       askimateRetainsNoAccess: true,
     });
     expect(stageWith(nearly), "they have not said they are in").toBe("handover_due");
 
     expect(
-      stageWith({ ...nearly, completed: ["password_reset", "account_handover"] }),
+      stageWith({ ...nearly, completed: ["registration_email", "account_handover"] }),
     ).toBe("handed_over");
+    // A reset is no proof for it any more: with the reset and no answer, it is not handed back.
+    expect(stageWith({ ...nearly, completed: ["password_reset", "account_handover"] })).toBe("handover_due");
   });
 
   it("will NOT hand over while a lease is still open", () => {
@@ -399,10 +430,13 @@ describe("the account the student declared (ADR-0110)", () => {
       expect(outstanding.join("; ")).not.toContain("verified the student's own email");
       expect(outstanding.join("; ")).toContain("confirmed they can sign in");
     }
-    // And an account WE made still owes the substitute proof (ADR-0050 stands).
+    // And an account WE made still owes the substitute proof (ADR-0050 stands):
+    // with the student's own password, their word on the registration e-mail
+    // (ADR-0159 O3, P306), not the reset.
     const ours = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED }), { accountId: "acct-2", now: NOW });
     if (ours?.account === undefined) expect.unreachable("an account should have been produced");
-    expect(outstandingHandoverItems(ours.account).join("; ")).toContain("reset flow");
+    expect(outstandingHandoverItems(ours.account).join("; ")).toContain("registration e-mail reached them");
+    expect(outstandingHandoverItems(ours.account).join("; ")).not.toContain("reset flow");
   });
 
   it("is due back once the application is filled, as any account is", () => {

@@ -1,0 +1,47 @@
+# P306 mutation 07-no-yes-no-labels
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+          ...(handoffFor(step) === "registration_email" ? { labels: REGISTRATION_EMAIL_LABELS } : {}),
+# with:
+          ...({}),
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t the registration e-mail question
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 1 failed | 359 skipped) 2341ms
+   × the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 684ms
+     → expected undefined to deeply equal { yes: 'Yes, it has arrived', …(1) }
+   ✓ a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 421ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 359 skipped (366)
+   Start at  15:25:19
+   Duration  7.07s (transform 2.85s, setup 0ms, collect 4.20s, tests 2.34s, environment 0ms, prepare 96ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands
+AssertionError: expected undefined to deeply equal { yes: 'Yes, it has arrived', …(1) }
+
+- Expected: 
+Object {
+  "no": "No, it has not arrived",
+  "yes": "Yes, it has arrived",
+}
+
++ Received: 
+undefined
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18867:28
+    18865|     expect(intents.rows, "no page was opened").toHaveLength(0);
+    18866|     const pending = await pendingHash();
+    18867|     expect(pending.labels).toEqual({ yes: "Yes, it has arrived", no: "…
+       |                            ^
+    18868|   }, 300_000);
+    18869| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

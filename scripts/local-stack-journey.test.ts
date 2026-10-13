@@ -419,7 +419,19 @@ describeIfBoth("the journey through the five processes the local-stack script st
 
     // From here every move is the processes': the worker advances, the runner
     // claims and performs (account, then the pages), the agent types the
-    // password over CDP into the runner's browser. This file only reads.
+    // password over CDP into the runner's browser. This file only reads,
+    // and answers the one question the student is asked on the way (P306):
+    // whether the portal's registration e-mail arrived. Before the answer,
+    // nothing is filled.
+    const asked = await untilPhase("awaiting_student_handoff", 300_000);
+    expect(asked.run?.step).toBe("student_handoff");
+    expect(asked.pending?.decision).toBe("confirm_handoff");
+    expect(portal.application(EMAIL)?.givenName ?? null, "nothing filled before the answer").toBeNull();
+    const yes = await asStudent(`/v1/conversations/${conversation}/runs/${runId}/decision`, {
+      method: "POST",
+      body: { kind: "confirm_handoff", contentHash: asked.pending?.contentHash ?? "" },
+    });
+    expect(yes.status, await yes.clone().text()).toBe(204);
     const handing = await untilPhase("handing_over", 300_000);
     expect(handing.run?.step).toBe("hand_over_account");
     expect(handing.pending?.decision).toBe("confirm_handoff");
@@ -448,7 +460,7 @@ describeIfBoth("the journey through the five processes the local-stack script st
     expect(runnerLog, "the word Run A's failure hid behind").not.toContain("turn: worked");
   }, 420_000);
 
-  it("the student takes the account back, twice confirmed; the run finishes ready to submit, and nothing was submitted", async () => {
+  it("the student takes the account back, confirmed once (no reset since P306); the run finishes ready to submit, and nothing was submitted", async () => {
     const confirm = async (): Promise<void> => {
       const read = await readRun();
       expect(read.pending?.decision).toBe("confirm_handoff");
@@ -458,11 +470,8 @@ describeIfBoth("the journey through the five processes the local-stack script st
       });
       expect(response.status, await response.clone().text()).toBe(204);
     };
-    await confirm();
-    // The worker advances past the first confirmation and asks the second.
-    await expect
-      .poll(async () => (await readRun()).pending?.contentHash, { timeout: 90_000, interval: 1_000 })
-      .not.toBe((await readRun()).pending?.contentHash);
+    // That they are in. The registration e-mail, answered before the fill,
+    // was the proof of receipt (P306); no reset is asked.
     await confirm();
     const finished = await untilPhase("ready_to_submit", 90_000);
     expect(finished.run?.step).toBe("ready_to_submit");

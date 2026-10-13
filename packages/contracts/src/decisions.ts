@@ -57,6 +57,7 @@ import { closedSetParser } from "./vocabulary.js";
 export const STUDENT_DECISIONS = [
   "authorise",
   "confirm_handoff",
+  "decline_handoff",
   "confirm_value",
   "cancel",
   "attached_myself",
@@ -88,7 +89,13 @@ export const parseStudentDecisionKind = closedSetParser(STUDENT_DECISIONS);
  */
 export type StudentDecision =
   | {
-      readonly kind: "authorise" | "confirm_handoff" | "confirm_value";
+      /**
+       * `decline_handoff` (P306, ADR-0159 O3) is the student's "no" to a
+       * question asked as a handoff: today only whether the portal's
+       * registration e-mail arrived. It carries the same hash as the "yes",
+       * for the same reason.
+       */
+      readonly kind: "authorise" | "confirm_handoff" | "decline_handoff" | "confirm_value";
       /**
        * The hash of the content they were shown.
        *

@@ -1,6 +1,14 @@
 # ADR-0120 — A failed sign-in is tried twice, then stops for a person; the student is told which attempt failed, and told when a wrong password cannot be told from a portal fault
 
 **Status:** Accepted · 2026-09-16 · closes the sign-in half of blocker 26 · applies 0114 to the resume path of 0101 §3 · continues 0116 (a cancel is the student's stop, unchanged)
+
+> **P306, ADR-0159 decision 1:** *"If they change it earlier and the run cannot sign in, the run asks
+> them once in chat for the new password, then hands to a person."* That is this ADR's rule, and its
+> two messages now say so. After a refused sign-in, or one that reported nothing, the first says to
+> type a changed or newly issued password into the secure box, never as a message; the second says
+> not to send one as a message while a person looks. Not on a robots refusal or a runner fault,
+> which no password explains (row 33). The Built text below still says *"the first of two"*; the
+> words have said no ordinal since P163.
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-16. **Built in P151**, the same day; see *Built* below.
 
 ## Context

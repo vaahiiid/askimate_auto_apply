@@ -1,0 +1,149 @@
+# P306 mutation 03-fill-before-the-answer
+# file: packages/orchestrator/src/run.ts
+# replaced:
+    if (!evidence.applicationFilled && evidence.runStopped !== true) return "awaiting_registration_email";
+
+# with:
+
+# command: pnpm exec vitest run apps/conversation-service/src/run-driver.test.ts -t the registration e-mail question
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (366 tests | 7 failed | 359 skipped) 1419ms
+   × the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 363ms
+     → expected 'execute' to be 'student_handoff' // Object.is equality
+   × the registration e-mail question (P306, ADR-0159 O3) > refuses a stale hash for the yes and for the no 44ms
+     → expected { ok: false, reason: 'not_asked' } to deeply equal { Object (ok, reason) }
+   × the registration e-mail question (P306, ADR-0159 O3) > answers a typed message by pointing at the buttons, and records nothing 86ms
+     → expected 'Your application is ready. Before any…' to contain 'Please answer with one of the two but…'
+   × the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing 63ms
+     → expected "a confirm_handoff is pending, not undefined" not to be reached
+   × the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills 3ms
+     → expected "the stop is open" not to be reached
+   × a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it 200ms
+     → expected 'request_secret' to be 'student_handoff' // Object.is equality
+   × a stop while the registration e-mail question is open (P306 review) > a log from before P306 with a reset still open: no yes/no is offered, and a yes completes no reset (the P306 review, F2) 206ms
+     → expected 'request_secret' to be 'student_handoff' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 359 skipped (366)
+   Start at  15:24:47
+   Duration  5.88s (transform 2.75s, setup 0ms, collect 4.06s, tests 1.42s, environment 0ms, prepare 73ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands
+AssertionError: expected 'execute' to be 'student_handoff' // Object.is equality
+
+Expected: "student_handoff"
+Received: "execute"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18859:70
+    18857| 
+    18858|     // "I will not fill in anything until you answer." — five polls, a…
+    18859|     for (let poll = 0; poll < 5; poll++) expect(await advanceStep()).t…
+       |                                                                      ^
+    18860|     expect((await saidTo()).filter((content) => content.includes(QUEST…
+    18861|     expect((await caseTypes()).filter((type) => type === "HandoffRequi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > refuses a stale hash for the yes and for the no
+AssertionError: expected { ok: false, reason: 'not_asked' } to deeply equal { Object (ok, reason) }
+
+- Expected
++ Received
+
+  Object {
+    "ok": false,
+-   "reason": "content_changed",
++   "reason": "not_asked",
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18872:52
+    18870|   it("refuses a stale hash for the yes and for the no", async () => {
+    18871|     const stale = `sha256:${"0".repeat(64)}`;
+    18872|     expect(await decide("confirm_handoff", stale)).toEqual({ ok: false…
+       |                                                    ^
+    18873|     expect(await decide("decline_handoff", stale)).toEqual({ ok: false…
+    18874|   }, 120_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > answers a typed message by pointing at the buttons, and records nothing
+AssertionError: expected 'Your application is ready. Before any…' to contain 'Please answer with one of the two but…'
+
+Expected: "Please answer with one of the two buttons under my question"
+Received: "Your application is ready. Before anything is entered on the university's website, please read it through and check every answer is right — it is exactly what will be sent. Nothing is submitted by this system either way; approving it lets me fill the form in for you."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18884:37
+    18882|       await instance.driver.answerStudent({ conversationId: conversati…
+    18883|     });
+    18884|     expect((await saidTo()).at(-1)).toContain(BUTTONS);
+       |                                     ^
+    18885|     const types = await caseTypes();
+    18886|     expect(types.filter((type) => type === "HandoffCompleted" || type …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a 'no' stops for a person once, says why once, and hands out nothing
+AssertionError: expected "a confirm_handoff is pending, not undefined" not to be reached
+ ❯ apps/conversation-service/src/run-driver.test.ts:18814:59
+    18812|       const reading = await instance.driver.runFor(conversation);
+    18813|       const pending = reading?.pending;
+    18814|       if (pending?.decision !== "confirm_handoff") expect.unreachable(…
+       |                                                           ^
+    18815|       return pending;
+    18816|     });
+ ❯ withInstance apps/conversation-service/src/run-driver.test.ts:18804:14
+ ❯ apps/conversation-service/src/run-driver.test.ts:18890:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the registration e-mail question (P306, ADR-0159 O3) > a person's resume asks again, once, with why; and a 'yes' then fills
+AssertionError: expected "the stop is open" not to be reached
+ ❯ apps/conversation-service/src/run-driver.test.ts:18914:36
+    18912|     );
+    18913|     const stop = open.rows[0]?.intervention_id;
+    18914|     if (stop === undefined) expect.unreachable("the stop is open");
+       |                                    ^
+    18915|     await withInstance((instance) =>
+    18916|       instance.driver.resolveIntervention({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stop while the registration e-mail question is open (P306 review) > says the hand-back once, and binds the yes/no to it
+AssertionError: expected 'request_secret' to be 'student_handoff' // Object.is equality
+
+Expected: "student_handoff"
+Received: "request_secret"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18982:35
+    18980|       const asked = await instance.driver.advance({ runId, conversatio…
+    18981|       if (!asked.ok) expect.unreachable(`advance refused: ${asked.refu…
+    18982|       expect(asked.position.step).toBe("student_handoff");
+       |                                   ^
+    18983| 
+    18984|       // The student stops while the question stands.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stop while the registration e-mail question is open (P306 review) > a log from before P306 with a reset still open: no yes/no is offered, and a yes completes no reset (the P306 review, F2)
+AssertionError: expected 'request_secret' to be 'student_handoff' // Object.is equality
+
+Expected: "student_handoff"
+Received: "request_secret"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19039:35
+    19037|       const asked = await instance.driver.advance({ runId: oldRun, con…
+    19038|       if (!asked.ok) expect.unreachable(`advance refused: ${asked.refu…
+    19039|       expect(asked.position.step).toBe("student_handoff");
+       |                                   ^
+    19040|       const reading = await instance.driver.runFor(old);
+    19041|       expect(reading?.pending ?? null, "nothing offered for a handoff …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+

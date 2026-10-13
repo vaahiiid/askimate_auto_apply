@@ -201,10 +201,20 @@ export interface HumanReviewCompleted {
  *                         one as the other would put a claim about identity in
  *                         the audit log that nobody made.
  *   `password_reset`      they set their own password through the PORTAL's own
- *                         reset flow. Required where we held a credential, and
- *                         also where the portal never verified the address —
- *                         there it is the only proof they receive mail at it
- *                         (ADR-0050).
+ *                         reset flow. Required where we held a credential, and,
+ *                         for an account the run created with a generated
+ *                         password, where the portal never verified the
+ *                         address (ADR-0050).
+ *   `registration_email`  they SAID the portal's registration e-mail reached
+ *                         them. ADR-0159 O3, Vahid 2026-10-13: *"The student
+ *                         confirms in chat that Sheffield's registration
+ *                         e-mail arrived. If not, stop for a person before any
+ *                         press."* It replaces the reset as the proof of
+ *                         receipt for an account the run created with the
+ *                         student's own password on a portal that never
+ *                         verifies the address. A statement, weaker than the
+ *                         reset was, and the only handoff a student may answer
+ *                         "no" (`HandoffDeclined`).
  *   `account_handover`    they confirmed they can sign in, which is the one
  *                         handover item that cannot be observed from outside
  *                         (ADR-0020 §3).
@@ -220,9 +230,19 @@ export const HANDOFF_KINDS = [
   "password_reset",
   "account_handover",
   "final_submission",
+  "registration_email",
 ] as const;
 
 export type HandoffKind = (typeof HANDOFF_KINDS)[number];
+
+/**
+ * The handoffs a student may answer "no" (ADR-0159 O3, P306).
+ *
+ * One today. A "no" to anything else (a handover, a reset) is not an answer
+ * the case knows what to do with, and accepting it would close a question
+ * nobody then asks again.
+ */
+export const DECLINABLE_HANDOFF_KINDS = ["registration_email"] as const satisfies readonly HandoffKind[];
 
 /** Execution paused for something only the student can do. */
 export interface HandoffRequired {
@@ -237,6 +257,19 @@ export interface HandoffRequired {
    */
   readonly handoffToken: string;
   readonly expiresAt: Date;
+}
+
+/**
+ * The student answered "no" to a handoff that can be declined (P306).
+ *
+ * Closes the open handoff, so another can be raised, and is remembered apart
+ * from a completion: a "no" to the registration e-mail is not proof of
+ * receipt, and the account stage reads it as a stop for a person.
+ */
+export interface HandoffDeclined {
+  readonly type: "HandoffDeclined";
+  readonly handoffToken: string;
+  readonly handoffKind: HandoffKind;
 }
 
 export interface HandoffCompleted {
@@ -478,6 +511,7 @@ export type CaseEventPayload =
   | HumanReviewCompleted
   | HandoffRequired
   | HandoffCompleted
+  | HandoffDeclined
   | AuthorisationCaptured
   | AuthorisationVoided
   | OwnActRecorded

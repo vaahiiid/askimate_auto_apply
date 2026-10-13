@@ -821,10 +821,62 @@ Then one CV reading is sixty-eight model calls (`docs/run-a/p298-plan.md:106-108
 - **Other students:** nothing here reaches another student's case. That stays a hard stop until his
   own words lift it (O15).
 
-## Not built
+## Built: decision 1 alone (P306)
 
-Nothing of this ADR yet. It is accepted, and the build follows his order: decision 1 alone first,
-the press later. Until then the code and the signed entry still have the run stop at
-`ready_to_submit`, and the reset come before the handover on Sheffield. One thing is built beside it
-(ADR-0160, P305): his run now stops before page 12 while it is not known whether saving that page is
-the submission, so it does not reach `ready_to_submit` while the page is held.
+His build order: *"decision 1 alone first. The press comes later."* So the run still presses no
+final submit; the student still submits on the university's website after the handover.
+
+**What his words decide, and what is built to them:**
+- **No reset before submission** for an account the run creates with the password the student
+  chose, on a portal that never verifies the address (Sheffield). The handover checklist's
+  `passwordResetCompleted` is replaced there by `studentConfirmedRegistrationEmail`
+  (`packages/account/src/ownership.ts`, `applicableItems`). A password we generated keeps its reset
+  (O11). A portal that verifies keeps its verification. An account the student declared owes
+  neither (ADR-0110). `passwordless` and `portal_issued` are unchanged.
+- **O3, the registration e-mail, asked in chat.** Right after the account is made, the student is
+  asked whether the portal's registration e-mail reached them, with two buttons, "Yes" and "No".
+  A "yes" is a completed handoff, `registration_email`. A "no" is a new event, `HandoffDeclined`,
+  and the run stops for a person (`registration_email_not_received`).
+- **O1, the telling.** The question and the handover both say not to change the password until the
+  application is submitted, and advise changing it after (decision 1's words).
+- **A changed password.** ADR-0120's two messages, after a refused sign-in, now say to type a
+  changed or newly issued password into the secure box, never as a message.
+
+**My choices, beyond his words, each his to overturn:**
+- **D1. The fill waits for the answer.** Nothing is filled into an account whose way back has not
+  been shown to reach the student. The cost: a second password box if the answer comes after the
+  five idle minutes.
+- **D2. The shape of the "no".** A `decline_handoff` decision, accepted only for this question; the
+  stop for a person; and, when a person resumes, the question opened again and asked again, with
+  one sentence saying why. Read from the case, never from the stop's reason.
+- **D3. No new portal fact.** The question does not claim the portal sends an e-mail. A portal that
+  sends none produces a "no", which goes to a person.
+- **D4. A typed message while the question stands** gets one fixed reply pointing at the buttons,
+  and records nothing. No model reads "yes" or "no" into a fact about the account.
+- **D5. Every sentence is mine.** His are the instruction and the advice of O1, the question of
+  O3, and decision 1's words on a changed password.
+- **The words a stopped run hears.** A stopped or filled run takes the question inside the
+  hand-back, rather than being held on a question about filling.
+
+**Not built:**
+- **D6**, a retry frame for the password box after a refused sign-in. Its explanation still says
+  *"This is the only reason I would ever ask for it a second time"*, untrue on a retry (row 181).
+- **O10**, recording a submission made by hand: P307.
+- **The press**, and everything in §3 to §10 that it needs.
+- Until the press, the code and the signed entry still have the run stop at `ready_to_submit`. And
+  ADR-0160 holds his run before page 12, so it does not reach `ready_to_submit` while that page is
+  held.
+
+**Open, and his to say** (row 181):
+- **A "no" that stays true.** If the e-mail never arrives, a person can only ask again or abandon,
+  and an abandoned case still owes the account, so it waits for a person. Nothing records that
+  mail reaches the student by other means. How a case ends there is his to say.
+- **Accounts made before P306.** Whether a completed reset counts as their proof of receipt. Until
+  he says, such an account is asked the registration question.
+
+**Checked by a review** of the build, which found two defects, both fixed before the commit: a stop
+while the question stood left the hand-back unsaid while its yes/no could be pressed; and on a log
+from before P306, a "yes" to the question completed an open reset the student never did.
+
+**What this costs, said again because it is now built:** on Sheffield the proof that the portal's
+e-mail reaches the student is their word, not the portal's reset observed working (§2, and §6 cost 7).

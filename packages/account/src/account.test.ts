@@ -17,9 +17,12 @@ import {
   checkHandoverComplete,
   mayConcludeCase,
   outstandingHandoverItems,
+  owesRegistrationEmail,
   prepareAccountCreation,
   renderAccountCreationRequest,
   renderHandover,
+  resetWordsFor,
+  studentHandoverItems,
   type HandoverChecklist,
   type PortalAccount,
 } from "./ownership.js";
@@ -565,6 +568,7 @@ describe("creating an account on the student's behalf", () => {
 const COMPLETE: HandoverChecklist = {
   emailVerifiedByPortal: true,
   studentInformed: true,
+  studentConfirmedRegistrationEmail: true,
   passwordResetCompleted: true,
   temporaryCredentialDestroyed: true,
   askimateRetainsNoAccess: true,
@@ -574,6 +578,7 @@ const COMPLETE: HandoverChecklist = {
 const NOTHING_DONE: HandoverChecklist = {
   emailVerifiedByPortal: false,
   studentInformed: false,
+  studentConfirmedRegistrationEmail: false,
   passwordResetCompleted: false,
   temporaryCredentialDestroyed: false,
   askimateRetainsNoAccess: false,
@@ -668,7 +673,7 @@ describe("handover", () => {
     ]);
   });
 
-  it("substitutes the reset flow where the portal does not verify the address", () => {
+  it("substitutes the reset flow where the portal does not verify the address, for a password we generated", () => {
     // ═══════════════════════════════════════════════════════════════════
     // ADR-0050. `emailVerifiedByPortal` is the only external proof the student
     // can RECEIVE at the account's address. A portal that never verifies has
@@ -686,26 +691,69 @@ describe("handover", () => {
     };
 
     // Verification cannot be the proof here, and saying it happened does not
-    // help: the item is not on the list at all.
-    const claimed = handover(
-      { ...NOTHING_DONE, emailVerifiedByPortal: true, studentInformed: true,
-        askimateRetainsNoAccess: true, studentConfirmedAccess: true },
-      "student_chosen",
-      nonVerifying,
-    );
-    if (claimed.complete) expect.unreachable("the reset has not happened");
-    expect(claimed.refusal.outstanding).toEqual([
-      "the student has set their own password via the portal's reset flow",
-    ]);
+    // help: the item is not on the list at all. ADR-0159 O11 keeps the reset
+    // for a password we generated; for one the student chose, see below.
+    for (const approach of ["passwordless", "portal_issued"] as const) {
+      const claimed = handover(
+        { ...NOTHING_DONE, emailVerifiedByPortal: true, studentInformed: true,
+          askimateRetainsNoAccess: true, studentConfirmedAccess: true },
+        approach,
+        nonVerifying,
+      );
+      if (claimed.complete) expect.unreachable("the reset has not happened");
+      expect(claimed.refusal.outstanding, approach).toEqual([
+        "the student has set their own password via the portal's reset flow",
+      ]);
+      // And with the reset done it completes, with no verification anywhere.
+      const done = handover(
+        { ...NOTHING_DONE, passwordResetCompleted: true, studentInformed: true,
+          askimateRetainsNoAccess: true, studentConfirmedAccess: true },
+        approach,
+        nonVerifying,
+      );
+      expect(done.complete, `${approach}: the reset stands in for the verification`).toBe(true);
+    }
+  });
 
-    // And with the reset done it completes, with no verification anywhere.
-    const done = handover(
-      { ...NOTHING_DONE, passwordResetCompleted: true, studentInformed: true,
-        askimateRetainsNoAccess: true, studentConfirmedAccess: true },
-      "student_chosen",
-      nonVerifying,
-    );
-    expect(done.complete, "the reset stands in for the verification").toBe(true);
+  it("asks a student who chose their own password whether the registration e-mail arrived, not for a reset (ADR-0159, P306)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-10-13: *"1. No password reset before submission. The
+    // student types the password once in the secure box; we never store it."*
+    // And O3: *"The student confirms in chat that Sheffield's registration
+    // e-mail arrived. If not, stop for a person before any press."* On a
+    // portal that never verifies the address, the proof of receipt for an
+    // account we made with the student's own password is their word that the
+    // registration e-mail reached them. A statement, weaker than the reset.
+    // ═══════════════════════════════════════════════════════════════════
+    const nonVerifying: ObservedPortalAuthentication = { ...PASSWORD_PORTAL, emailVerificationRequired: false };
+    const rest = { studentInformed: true, askimateRetainsNoAccess: true, studentConfirmedAccess: true };
+
+    const resetOnly = handover({ ...NOTHING_DONE, ...rest, passwordResetCompleted: true }, "student_chosen", nonVerifying);
+    if (resetOnly.complete) expect.unreachable("a reset is not what is asked now");
+    expect(resetOnly.refusal.outstanding).toEqual(["the student has said the portal's registration e-mail reached them"]);
+
+    const said = handover({ ...NOTHING_DONE, ...rest, studentConfirmedRegistrationEmail: true }, "student_chosen", nonVerifying);
+    expect(said.complete, "their word that the e-mail arrived, and no reset").toBe(true);
+
+    // A password we generated keeps its reset (O11), whatever was said.
+    const ours = handover({ ...NOTHING_DONE, ...rest, studentConfirmedRegistrationEmail: true, temporaryCredentialDestroyed: true }, "generated_ephemeral", nonVerifying);
+    if (ours.complete) expect.unreachable("generated_ephemeral keeps the reset");
+    expect(ours.refusal.outstanding).toEqual(["the student has set their own password via the portal's reset flow"]);
+
+    // On a portal that verifies, the verification stays the proof.
+    const verifying = handover({ ...NOTHING_DONE, ...rest, studentConfirmedRegistrationEmail: true }, "student_chosen", PASSWORD_PORTAL);
+    if (verifying.complete) expect.unreachable("the address is unverified");
+    expect(verifying.refusal.outstanding).toEqual(["the portal has verified the student's own email address"]);
+  });
+
+  it("owes the registration answer only for an account we made with the student's own password on a portal that never verifies", () => {
+    const nonVerifying: ObservedPortalAuthentication = { ...PASSWORD_PORTAL, emailVerificationRequired: false };
+    expect(owesRegistrationEmail(planWith("student_chosen", nonVerifying), "askimate_on_behalf")).toBe(true);
+    expect(owesRegistrationEmail(planWith("student_chosen", nonVerifying), "student"), "ADR-0110: theirs owes no proof").toBe(false);
+    expect(owesRegistrationEmail(planWith("student_chosen", PASSWORD_PORTAL), "askimate_on_behalf")).toBe(false);
+    expect(owesRegistrationEmail(planWith("generated_ephemeral", nonVerifying), "askimate_on_behalf")).toBe(false);
+    // And the reset words stop calling a reset owed there.
+    expect(resetWordsFor(planWith("student_chosen", nonVerifying), "askimate_on_behalf").resetStillToDo).toBeUndefined();
   });
 
   it("does NOT drop the verification where the portal DOES verify", () => {
@@ -819,6 +867,31 @@ describe("handover", () => {
     expect(owed).not.toContain("Tell me when you are in, and");
   });
 
+  it("tells a student whose account we made with their own password not to change it until they submit, and never that they sign in 'the same way you have been' (ADR-0159 O1, P306)", () => {
+    const base = { institutionName: "University of Sheffield", portalHost: "www.sheffield.ac.uk", email: "student@example.test", approach: "student_chosen", passwordResetSends: "new_password_in_plain_text" } as const;
+    // The registration answer still owed inside the hand-back (a stopped run).
+    const asking = renderHandover({ ...base, madeWithYourPassword: true, registrationEmailStillToDo: true });
+    expect(asking).toContain("Please do not change the password until you have submitted your application.");
+    expect(asking).toContain("we advise you to change it");
+    expect(asking).toContain("has an e-mail from University of Sheffield's application portal reached student@example.test");
+    expect(asking).toContain("Tell me with the buttons below whether it has arrived.");
+    expect(asking, "untrue of an account we made").not.toContain("same way you have been");
+    expect(asking, "no reset is asked for").not.toContain('please use it once on that page');
+    // Answered: no question, and the ordinary close.
+    const answered = renderHandover({ ...base, madeWithYourPassword: true });
+    expect(answered).not.toContain("has an e-mail from");
+    expect(answered).toContain("Please do not change the password until you have submitted your application.");
+    expect(answered).toContain("If you ever lose your password,");
+    expect(answered).toContain("Tell me when you are in, and I will close this off.");
+    // The student's own account keeps its words (ADR-0110).
+    expect(renderHandover(base)).toContain("same way you have been");
+    // And the words are chosen from the plan and the checklist, by one function.
+    const nonVerifying = { ...PASSWORD_PORTAL, emailVerificationRequired: false, passwordResetSends: "new_password_in_plain_text" } as const;
+    expect(resetWordsFor(planWith("student_chosen", nonVerifying), "askimate_on_behalf")).toMatchObject({ madeWithYourPassword: true, registrationEmailStillToDo: true });
+    expect(resetWordsFor(planWith("student_chosen", nonVerifying), "askimate_on_behalf", { ...NOTHING_DONE, studentConfirmedRegistrationEmail: true })).not.toHaveProperty("registrationEmailStillToDo");
+    expect(resetWordsFor(planWith("student_chosen", nonVerifying), "student")).not.toHaveProperty("madeWithYourPassword");
+  });
+
   it("does not tell a student before creation that the reset is a link where it is not (P301's review)", () => {
     const base = { institutionName: "University of Sheffield", portalHost: "www.sheffield.ac.uk", email: "student@example.test", approach: "generated_ephemeral" } as const;
     const sheffield = renderAccountCreationRequest({ ...base, passwordResetSends: "new_password_in_plain_text" });
@@ -923,6 +996,13 @@ describe("finishing a case", () => {
 
   it("lists what is outstanding on an account nobody has started handing back", () => {
     expect(outstandingHandoverItems(account("handover_due"))).toHaveLength(6);
+  });
+
+  it("shows the student the registration answer while it is owed (P306)", () => {
+    const nonVerifying: ObservedPortalAuthentication = { ...PASSWORD_PORTAL, emailVerificationRequired: false };
+    const ours: PortalAccount = { ...account("handover_due"), authentication: planWith("student_chosen", nonVerifying) };
+    expect(studentHandoverItems(ours)).toContain("the student has said the portal's registration e-mail reached them");
+    expect(studentHandoverItems(ours).join(" ")).not.toContain("reset flow");
   });
 
   it("derives that list from the same gate that closes the case", () => {

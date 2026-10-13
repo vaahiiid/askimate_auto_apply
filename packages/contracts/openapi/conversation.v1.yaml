@@ -1926,6 +1926,18 @@ components:
             For `authorise` this is the same value `GET .../runs/{runId}/preview`
             returns; the preview route is how the student reads WHAT they are
             authorising, and this is how a client knows that it must.
+        labels:
+          type: object
+          additionalProperties: false
+          required: ["yes", "no"]
+          description: >-
+            P306. Present only on a `confirm_handoff` that is a question with
+            two answers (whether the registration e-mail arrived): the "yes"
+            sends `confirm_handoff`, the "no" sends `decline_handoff`, both with
+            this hash.
+          properties:
+            "yes": { type: string, minLength: 1, maxLength: 80 }
+            "no": { type: string, minLength: 1, maxLength: 80 }
         entries:
           type: array
           minItems: 1
@@ -2150,14 +2162,20 @@ components:
       properties:
         kind:
           type: string
-          enum: [authorise, confirm_handoff, confirm_value]
+          enum: [authorise, confirm_handoff, decline_handoff, confirm_value]
+          description: >-
+            `decline_handoff` (P306, ADR-0159 O3) is the student's "no" to a
+            question asked as a handoff — today only whether the portal's
+            registration e-mail arrived — and carries the same hash as the
+            "yes".
         contentHash:
           type: string
           pattern: "^sha256:[0-9a-f]{64}$"
           description: >-
             The hash of what the student was shown when they were asked —
             the preview for `authorise`, the handover message for
-            `confirm_handoff`, the deterministic playback for `confirm_value`.
+            `confirm_handoff` and `decline_handoff`, the deterministic playback
+            for `confirm_value`.
             Confirming something they can no longer see is confirming something
             else, so a mismatch is refused rather than recorded.
 

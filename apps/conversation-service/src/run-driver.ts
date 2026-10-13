@@ -486,6 +486,12 @@ export type PendingDecision =
        * per entry, answered by `correct_entry` with the same hash.
        */
       readonly entries?: readonly { readonly index: number; readonly label: string }[];
+      /**
+       * P306, ADR-0159 O3. On a `confirm_handoff` that is a question with two
+       * answers (whether the registration e-mail arrived): the "yes" sends
+       * `confirm_handoff`, the "no" sends `decline_handoff`, both with this hash.
+       */
+      readonly labels?: { readonly yes: string; readonly no: string };
     }
   /**
    * P225, ADR-0146. The student's answer read more than one way and the
@@ -1166,8 +1172,23 @@ function signInFailedOnceMessage(entry: CatalogueEntry, failure: WorkFailure | n
     `sign me in: ${signInFailureInWords(failure)}. Once can be chance, so I will try again; if ` +
     `it fails again I will stop and someone will look at it. I do not keep your password, so I ` +
     `will open the secure box again for you to type your password again — check it carefully, ` +
-    `since I cannot. Nothing has been submitted.`
+    `since I cannot.${changedPasswordWords(failure)} Type it only into the secure box, never as a ` +
+    `message here. Nothing has been submitted.`
   );
+}
+
+/**
+ * ADR-0159 decision 1 (P306). Vahid, 2026-10-13: *"If they change it earlier
+ * and the run cannot sign in, the run asks them once in chat for the new
+ * password, then hands to a person."* The ask is the secure box (ADR-0026),
+ * never a message. Said only where a changed password could be why: a refused
+ * sign-in, or one that reported nothing. Not on a robots refusal or a runner
+ * fault (row 33), which no password explains.
+ */
+function changedPasswordWords(failure: WorkFailure | null): string {
+  return failure === null || failure === "portal_refused"
+    ? " If you have changed your password on their portal, or asked the portal for a new one, type the new one."
+    : "";
 }
 
 /**
@@ -1183,6 +1204,10 @@ function signInStoppedMessage(entry: CatalogueEntry, failure: WorkFailure | null
     `did not sign me in: ${signInFailureInWords(failure)}. It has now failed twice in a row, ` +
     `so I have stopped rather than keep trying, and passed your application to a member of ` +
     `the team, who will look at what the portal is doing and tell you what happens next. ` +
+    (failure === null || failure === "portal_refused"
+      ? `If you have changed your password on their portal, or asked the portal for a new one, ` +
+        `please do not send it here as a message. `
+      : "") +
     `Nothing you have given me is lost, and nothing has been submitted.`
   );
 }
@@ -1344,6 +1369,12 @@ function carriedAddressesOf(carries: Partial<Pick<ClaimedWork, "formUrl" | "logi
   if (typeof repeat?.recorded?.url === "string") urls.push(repeat.recorded.url);
   return urls;
 }
+
+/**
+ * The two answers to whether the registration e-mail arrived (P306, ADR-0159
+ * O3). Words on buttons, mine; the question is his.
+ */
+const REGISTRATION_EMAIL_LABELS = { yes: "Yes, it has arrived", no: "No, it has not arrived" } as const;
 
 /** The position a run held before a page reports (P305 review). */
 function heldOutcome(
@@ -2799,7 +2830,7 @@ export type DecisionRefusalReason =
   /**
    * A specialist is holding the run, so it cannot be advanced yet (P40).
    *
-   * Refuses `authorise` and `confirm_handoff` — the two decisions that MOVE
+   * Refuses `authorise`, `confirm_handoff` and `decline_handoff` — the decisions that MOVE
    * the application. `cancel` is deliberately not among them: ADR-0053 says a
    * stop button that only worked at certain steps would not be one, and a
    * student who wants out while a person is looking is exactly somebody a stop
@@ -4191,6 +4222,10 @@ export class RunDriver {
       // `running` while it winds down, because handing the account back is
       // real work it is still doing.
       runStopped: held?.state === "WINDING_DOWN" || held?.state === "CANCELLED",
+      // ADR-0159 O3 (P306): a "no" stops for a person; a question asked again
+      // after a person's resume is open, and is asked, not stopped on.
+      declined: held?.declinedHandoffs ?? [],
+      ...(held?.openHandoffKind === undefined ? {} : { open: held.openHandoffKind }),
     };
   }
 
@@ -4759,10 +4794,17 @@ export class RunDriver {
       // `not_asked`. `handoffHashFor` omitted it and got away with it for the
       // same reason, which is not a reason.
       const events = await this.#options.stores.cases.read(caseId);
-      const open = events.length === 0 ? undefined : fold(events).openHandoffToken;
+      const folded = events.length === 0 ? null : fold(events);
+      const open = folded?.openHandoffToken;
       const message = handoffMessageOf(step);
-      if (open !== undefined && message !== null) {
-        return { decision: "confirm_handoff", contentHash: hashOfText(message) };
+      // Offered only for the handoff the step asks about (the P306 review),
+      // the same rule the route applies, so nothing is offered that it refuses.
+      if (open !== undefined && message !== null && folded?.openHandoffKind === handoffFor(step)) {
+        return {
+          decision: "confirm_handoff",
+          contentHash: hashOfText(message),
+          ...(handoffFor(step) === "registration_email" ? { labels: REGISTRATION_EMAIL_LABELS } : {}),
+        };
       }
       return null;
     }
@@ -5213,10 +5255,14 @@ export class RunDriver {
       return await this.#cancel(input.conversationId, record, held);
     }
 
+    // Three hashed kinds reach here, and each is named: a "no" that fell to the
+    // handoff branch would be recorded as a "yes" (P306).
     const intent =
       input.decision.kind === "authorise"
         ? this.#authorisationIntent(situation.step, input.decision)
-        : this.#handoffIntent(situation.step, held, input.decision);
+        : input.decision.kind === "decline_handoff"
+          ? this.#declineIntent(situation.step, held, input.decision)
+          : this.#handoffIntent(situation.step, held, input.decision);
     if (!intent.ok) return this.#refusal(intent.reason, record.status);
 
     const decided = decide(held, intent.intent);
@@ -5347,13 +5393,45 @@ export class RunDriver {
     | { readonly ok: false; readonly reason: DecisionRefusalReason } {
     const open = held.openHandoffToken;
     const asked = handoffFor(step);
-    if (open === undefined || asked === null) return { ok: false, reason: "not_asked" };
+    // The open handoff must be the one the step asks about (the P306 review):
+    // a case log from before P306 can hold an open reset while the step asks
+    // about the registration e-mail, and a "yes" to the question would then
+    // complete the reset, recording one the student never did.
+    if (open === undefined || asked === null || held.openHandoffKind !== asked) return { ok: false, reason: "not_asked" };
 
     const message = handoffMessageOf(step);
     if (message === null || hashOfText(message) !== decision.contentHash) {
       return { ok: false, reason: "content_changed" };
     }
     return { ok: true, intent: { kind: "complete_handoff", handoffToken: open } };
+  }
+
+  /**
+   * The student's "no" to a question asked as a handoff (ADR-0159 O3, P306).
+   *
+   * The same two checks as `#handoffIntent`, the open token and the hash of
+   * what they were shown, and one more: only a question that can be answered
+   * "no" takes one. Today that is whether the portal's registration e-mail
+   * arrived; the domain refuses any other kind as well, and this refuses it
+   * first, by name, as `not_asked`.
+   */
+  #declineIntent(
+    step: RunStep,
+    held: ApplicationCase,
+    decision: Extract<StudentDecision, { contentHash: string }>,
+  ):
+    | { readonly ok: true; readonly intent: CaseIntent }
+    | { readonly ok: false; readonly reason: DecisionRefusalReason } {
+    const open = held.openHandoffToken;
+    const asked = handoffFor(step);
+    if (open === undefined || asked !== "registration_email" || held.openHandoffKind !== "registration_email") {
+      return { ok: false, reason: "not_asked" };
+    }
+    const message = handoffMessageOf(step);
+    if (message === null || hashOfText(message) !== decision.contentHash) {
+      return { ok: false, reason: "content_changed" };
+    }
+    return { ok: true, intent: { kind: "decline_handoff", handoffToken: open } };
   }
 
   /**
@@ -6085,6 +6163,27 @@ export class RunDriver {
     // open, and his address was read as a date and discarded. The step is
     // still required to be an interview step — that is what `situated`
     // says — but WHICH question is answered is the record's to say.
+    // ── The registration e-mail question takes its answer from a button (P306) ──
+    //
+    // Whether the e-mail arrived is a fact about the student's account, and
+    // no model reads a typed "yes" or "no" into one (ADR-0159 O3). The message
+    // is kept on the log as they sent it, records nothing, and is answered
+    // once, pointing at the two buttons.
+    if (handoffFor(situated.step) === "registration_email") {
+      const email = situated.state.account === undefined ? null : unwrapConfirmed(situated.state.account.email);
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content:
+            `Please answer with one of the two buttons under my question: whether the e-mail from ` +
+            `${situated.entry.blueprint.institutionName}'s application portal has reached ` +
+            `${email ?? "your e-mail address"}.`,
+        },
+      });
+      return;
+    }
     if (interviewActionOf(situated.step) === null) return;
     const answering = answeredQuestion(await this.#options.conversations.since(input.conversationId, 0));
     if (answering === null) return;
@@ -7569,6 +7668,7 @@ export class RunDriver {
     const content = contentHandoverOf(step);
     const handover = specialistHandoverOf(step) ?? content;
     if (handover === null) return null;
+    const ownWords = specialistHandoverOf(step)?.say;
 
     // ── P290, ADR-0155: what the student can settle, they are asked first ──
     const asked = content === null ? await this.#offerTheirChoice(input, step, state) : null;
@@ -7588,14 +7688,18 @@ export class RunDriver {
       expected:
         `A specialist reviews the case and the reviewed artefacts behind it, and either supplies ` +
         `what is missing or stops the application. This run cannot proceed on its own.`,
+      // A step that carries its own words for the student says them (P306:
+      // the registration e-mail did not arrive). Chosen by whether the step
+      // carries words, never by its reason (ADR-0065 §4).
       message:
-        content !== null
+        ownWords ??
+        (content !== null
           ? contentRejectedMessage(input.entry)
           : (blockedByTheFormMessage(input.entry, this.#planBlockers(input.entry, state), {
               afterResolution: input.afterResolution === true,
               exactEntries: this.#exactEntries(input.entry, state),
               anySaved: (await this.#savedPages(input.record.runId)).size > 0,
-            }) ?? specialistMessage(input.entry, input.afterResolution === true)),
+            }) ?? specialistMessage(input.entry, input.afterResolution === true))),
       now,
     });
 
@@ -7820,6 +7924,56 @@ export class RunDriver {
       }
     }
     return input.record.status;
+  }
+
+  /**
+   * Opens the registration e-mail question again, and asks it once, when the
+   * student's "no" is what a person has just looked at (ADR-0159 O3, P306).
+   *
+   * Reads the CASE, never the intervention's target (ADR-0065: no routing off
+   * a reason or a string): a declined, unanswered question that is not open is
+   * the fact that matters. Returns whether it asked.
+   */
+  async #askRegistrationAgain(held: StoredIntervention): Promise<boolean> {
+    const events = await this.#options.stores.cases.read(held.caseId);
+    if (events.length === 0) return false;
+    const folded = fold(events);
+    if (
+      !folded.declinedHandoffs.includes("registration_email") ||
+      folded.completedHandoffs.includes("registration_email") ||
+      folded.openHandoffToken !== undefined
+    ) {
+      return false;
+    }
+    const reopened = decide(folded, {
+      kind: "require_handoff",
+      handoffKind: "registration_email",
+      handoffToken: handoffTokenFor({ caseId: held.caseId, kind: "registration_email" }),
+      expiresAt: new Date(this.#options.now().getTime() + NEVER_MIND_THE_CLOCK_MS),
+    });
+    if (!reopened.accepted || reopened.events.length === 0) return false;
+    const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+    if (conversationId === null) return false;
+    await this.#appendToCase(held.caseId, folded.sequence, reopened.events, { conversationId, caseId: held.caseId }, this.#options.now());
+    const situated = await this.#interviewSituation(conversationId);
+    const question = situated === null ? null : handoffMessageOf(situated.step);
+    if (situated === null || question === null || handoffFor(situated.step) !== "registration_email") return true;
+    await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
+      await this.#options.conversations.append({
+        conversationId,
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content: `Someone on the team has looked at your ${situated.entry.blueprint.institutionName} application, so I am asking you again.`,
+        },
+      });
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content: question },
+      });
+      return null;
+    });
+    return true;
   }
 
   /**
@@ -8074,6 +8228,13 @@ export class RunDriver {
       return resolved;
     }
 
+    // ── The registration e-mail, asked again after a person looked (P306) ──
+    //
+    // A "no" stopped the run for a person. Resumed, the same "no" would stop
+    // it again at once, for ever. So the question is opened again here,
+    // before the run is released, and asked once with a sentence saying why.
+    const askedAgain = input.resolution.outcome === "abandon" ? false : await this.#askRegistrationAgain(held);
+
     const record = await this.#options.stores.runs.load(held.runId);
     if (record !== null && record.status !== "running") {
       // An abandon the case could not take (already concluded, or a state the
@@ -8099,7 +8260,7 @@ export class RunDriver {
     // and are not passed on: what the student reads is what happened.
     if (input.resolution.outcome === "abandon") {
       await this.#announceAbandoned(held, windingDown);
-    } else {
+    } else if (!askedAgain) {
       const target = held.escalation.checkpoint.target;
       if (target.startsWith("interview:")) await this.#askAgainAfterResolution(held, target.slice("interview:".length));
       else await this.#announceResumed(held);
@@ -8196,11 +8357,31 @@ export class RunDriver {
       // so it carries a date far enough out to be obviously not a deadline.
       expiresAt: new Date(input.now.getTime() + NEVER_MIND_THE_CLOCK_MS),
       });
-    if (!decision.accepted || decision.events.length === 0) return;
+    if (!decision.accepted) return;
+
+    const message = handoffMessageOf(input.step);
+    if (decision.events.length === 0) {
+      // ── Already open, and its words may have changed under it (P306 review) ──
+      //
+      // The registration question is open when the student stops; the step
+      // becomes the hand-back, awaiting the same handoff, so the same token,
+      // and the raise writes nothing. Until P306's review that also said
+      // nothing: the student was never shown the hand-back, while the yes/no
+      // they could press was hashed over it. The confirmation must be over the
+      // message they read (ADR-0050), so the open handoff's current words are
+      // said once, the log being the memory, as `#askConsentChoice` does.
+      if (message === null || held.openHandoffKind !== kind) return;
+      const said = await this.#options.conversations.since(input.conversationId, 0);
+      if (said.some((event) => event.kind === "message" && event.content === message)) return;
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: { kind: "message", actor: "assistant", content: message },
+      });
+      return;
+    }
 
     await this.#appendToCase(input.caseId, held.sequence, decision.events, input, input.now);
 
-    const message = handoffMessageOf(input.step);
     if (message === null) return;
     await this.#options.conversations.append({
       conversationId: input.conversationId,

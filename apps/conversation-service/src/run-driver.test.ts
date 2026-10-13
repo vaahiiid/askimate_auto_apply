@@ -100,7 +100,7 @@ import {
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
 import { FIELD_SPECS, isList, nextAction, newInterview, receiveAnswer } from "@askimate/aas-interview";
-import { attachmentIntentTarget, pageAttachmentsOf, pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
+import { attachmentIntentTarget, handoffTokenFor, pageAttachmentsOf, pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
 import { buildPreview } from "@askimate/aas-preparation";
 
 import { createConversationApp } from "./app.js";
@@ -341,6 +341,52 @@ function cookieFor(subject: string): string {
  */
 async function signedInAtCreation(pool: pg.Pool, runId: string): Promise<void> {
   await new RunSessionStore(pool).record({ runId, holder: "runner-seed", now: NOW });
+  await registrationEmailAnswered(pool, runId);
+}
+
+/**
+ * The student's "yes" to whether the registration e-mail arrived (ADR-0159 O3,
+ * P306), written to the case the way their button writes it: the question
+ * raised, and completed.
+ *
+ * Since P306 an account the run creates with the student's own password, on a
+ * portal that never verifies the address — the gated fixture is exactly that —
+ * fills nothing until this is answered. A group about what comes after the
+ * account seeds the answer beside the creation, as it seeds the session.
+ */
+async function registrationEmailAnswered(pool: pg.Pool, runId: string): Promise<void> {
+  const owned = await pool.query<{ case_id: string }>("SELECT case_id FROM workflow_runs WHERE run_id = $1", [runId]);
+  const caseId = owned.rows[0]?.case_id;
+  if (caseId === undefined) expect.unreachable(`no run ${runId}`);
+  const caseRef = makeCaseId(caseId);
+  const cases = new PostgresCaseStore(pool);
+  const existing = await cases.read(caseRef);
+  if (fold(existing).completedHandoffs.includes("registration_email")) return;
+  const token = handoffTokenFor({ caseId, kind: "registration_email" });
+  const actor = { kind: "student" as const, externalRef: externalRef("student:seed") };
+  await cases.append(caseRef, existing.length, [
+    {
+      eventId: makeEventId(`evt_${caseId}_registration_asked`),
+      caseId: caseRef,
+      sequence: existing.length + 1,
+      occurredAt: NOW,
+      actor,
+      type: "HandoffRequired",
+      handoffKind: "registration_email",
+      handoffToken: token,
+      expiresAt: new Date(NOW.getTime() + 365 * 24 * 60 * 60 * 1000),
+    },
+    {
+      eventId: makeEventId(`evt_${caseId}_registration_yes`),
+      caseId: caseRef,
+      sequence: existing.length + 2,
+      occurredAt: NOW,
+      actor,
+      type: "HandoffCompleted",
+      handoffKind: "registration_email",
+      handoffToken: token,
+    },
+  ]);
 }
 
 function buildInstance(
@@ -5756,7 +5802,9 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
-      await signedInAtCreation(instance.pool, runRef);
+      // The session only: this portal verifies the address, so no registration
+      // answer is owed (P306) and none is seeded.
+      await new RunSessionStore(instance.pool).record({ runId: runRef, holder: "runner-seed", now: NOW });
     } finally {
       await instance.pool.end();
     }
@@ -13399,6 +13447,8 @@ describeIfDatabase("the resume path — the session is gone (ADR-0101 §3)", () 
       expect(await sessions.signedIn(runId, LATER), "past the ceiling").toBe(false);
 
       await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      // The student's yes to the registration e-mail (P306), so what follows is the fill.
+      await registrationEmailAnswered(instance.pool, runId);
       const filling = await instance.driver.advance({ runId, conversationId: conversation });
       if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
       expect(filling.position.step, "signed in: the fill, and no second ask").toBe("execute");
@@ -14382,6 +14432,8 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       expect(await instance.driver.reportWork({ runId, report: { leaseId: `wl_creation_${holder}`, outcome: "succeeded" } })).toBe(true);
       await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
       await captureAuthorisation(instance.pool, conversation, served.entry);
+      // The student's yes to the registration e-mail (P306): this group is about the sign-in after it.
+      await registrationEmailAnswered(instance.pool, runId);
     } finally {
       await instance.pool.end();
     }
@@ -14474,6 +14526,11 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       expect(told[0]).toContain("cannot tell");
       expect(told[0]).toContain("type your password again");
       expect(told[0]).toContain("Nothing has been submitted");
+      // ADR-0159 decision 1 (P306): *"If they change it earlier and the run
+      // cannot sign in, the run asks them once in chat for the new password,
+      // then hands to a person."* The box is the ask; a message never is.
+      expect(told[0]).toContain("If you have changed your password on their portal, or asked the portal for a new one, type the new one.");
+      expect(told[0]).toContain("Type it only into the secure box, never as a message here.");
       expect(await interventionFor(runId), "no person yet: once is chance").toBeNull();
       expect(await statusOf(runId)).toBe("running");
 
@@ -15042,6 +15099,8 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       expect(told[0]).toContain("stopped");
       expect(told[0]).toContain("cannot tell");
       expect(told[0]).toContain("member of the team");
+      // P306: and a changed password is not sent as a message while a person looks.
+      expect(told[0]).toContain("please do not send it here as a message");
       expect(await statusOf(runId)).toBe("escalated");
 
       // No third box, and no third attempt: the run waits for the person.
@@ -18701,4 +18760,291 @@ describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
     expect(await openHolds()).toHaveLength(0);
     expect((await saidTo()).some((content) => content.includes(MOVING_AGAIN))).toBe(false);
   }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P306, ADR-0159 decision 1 and O3 — the registration e-mail, asked in chat
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Vahid, 2026-10-13: *"The student confirms in chat that Sheffield's
+// registration e-mail arrived. If not, stop for a person before any press."*
+// The gated fixture is the shape decision 1 is about: the run creates the
+// account with the password the student chose, on a portal that never
+// verifies the address.
+
+describeIfDatabase("the registration e-mail question (P306, ADR-0159 O3)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00306";
+  let runId = "";
+  const CREATION_REQUEST = `sr_${"0".repeat(31)}1`;
+  const QUESTION = "has an e-mail from Gated University's application portal reached";
+  const NOT_RECEIVED = "Thank you for telling me. Without that e-mail I cannot be sure";
+  const ASKED_AGAIN = "Someone on the team has looked at your Gated University application, so I am asking you again.";
+  const BUTTONS = "Please answer with one of the two buttons under my question";
+
+  async function saidTo(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function caseTypes(): Promise<string[]> {
+    const owned = await pool.query<{ case_id: string }>("SELECT case_id FROM workflow_runs WHERE run_id = $1", [runId]);
+    const caseId = owned.rows[0]?.case_id;
+    if (caseId === undefined) expect.unreachable("the run has a case");
+    return (await new PostgresCaseStore(pool).read(makeCaseId(caseId))).map((event) => event.type);
+  }
+
+  async function withInstance<T>(act: (instance: ReturnType<typeof buildInstance>) => Promise<T>): Promise<T> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      return await act(instance);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function pendingHash(): Promise<{ contentHash: string; labels?: { yes: string; no: string } }> {
+    return withInstance(async (instance) => {
+      const reading = await instance.driver.runFor(conversation);
+      const pending = reading?.pending;
+      if (pending?.decision !== "confirm_handoff") expect.unreachable(`a confirm_handoff is pending, not ${String(pending?.decision)}`);
+      return pending;
+    });
+  }
+
+  async function decide(kind: "confirm_handoff" | "decline_handoff", contentHash: string) {
+    return withInstance((instance) =>
+      instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind, contentHash } }),
+    );
+  }
+
+  async function advanceStep(): Promise<string> {
+    return withInstance(async (instance) => {
+      const outcome = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!outcome.ok) expect.unreachable(`advance refused: ${outcome.refusal.kind}`);
+      return outcome.position.step;
+    });
+  }
+
+  it("asks once, tells once, offers yes and no, and hands out no page while it stands", async () => {
+    await ownConversation(conversation);
+    await withInstance(async (instance) => {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: `sh_${"6".repeat(32)}` },
+      });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      expect(creating.position.step).toBe("create_account");
+      // The account, recorded as `reportWork` records it, with its session.
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await new RunSessionStore(instance.pool).record({ runId: runRef, holder: "runner-306", now: NOW });
+      await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
+    });
+
+    // "I will not fill in anything until you answer." — five polls, and still the question.
+    for (let poll = 0; poll < 5; poll++) expect(await advanceStep()).toBe("student_handoff");
+    expect((await saidTo()).filter((content) => content.includes(QUESTION)), "told once").toHaveLength(1);
+    expect((await caseTypes()).filter((type) => type === "HandoffRequired"), "asked once").toHaveLength(1);
+    const work = await withInstance((instance) => instance.driver.claimWork({ holder: "runner-306", leaseSeconds: 120 }));
+    expect(work?.runId, "no page is handed out").not.toBe(runId);
+    const intents = await pool.query("SELECT 1 FROM workflow_action_intents WHERE run_id = $1 AND action = 'advance_portal_page'", [runId]);
+    expect(intents.rows, "no page was opened").toHaveLength(0);
+    const pending = await pendingHash();
+    expect(pending.labels).toEqual({ yes: "Yes, it has arrived", no: "No, it has not arrived" });
+  }, 300_000);
+
+  it("refuses a stale hash for the yes and for the no", async () => {
+    const stale = `sha256:${"0".repeat(64)}`;
+    expect(await decide("confirm_handoff", stale)).toEqual({ ok: false, reason: "content_changed" });
+    expect(await decide("decline_handoff", stale)).toEqual({ ok: false, reason: "content_changed" });
+  }, 120_000);
+
+  it("answers a typed message by pointing at the buttons, and records nothing", async () => {
+    await withInstance(async (instance) => {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: "yes it came" },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    });
+    expect((await saidTo()).at(-1)).toContain(BUTTONS);
+    const types = await caseTypes();
+    expect(types.filter((type) => type === "HandoffCompleted" || type === "HandoffDeclined"), "and nothing was recorded").toHaveLength(0);
+  }, 120_000);
+
+  it("a 'no' stops for a person once, says why once, and hands out nothing", async () => {
+    const { contentHash } = await pendingHash();
+    expect(await decide("decline_handoff", contentHash)).toEqual({ ok: true });
+    expect(await caseTypes()).toContain("HandoffDeclined");
+    expect(await advanceStep()).toBe("specialist");
+    expect(await advanceStep()).toBe("specialist");
+    const open = await pool.query<{ checkpoint: { target: string } }>(
+      "SELECT checkpoint FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+      [runId],
+    );
+    expect(open.rows.map((row) => row.checkpoint.target)).toEqual(["specialist:registration_email_not_received"]);
+    expect((await saidTo()).filter((content) => content.startsWith(NOT_RECEIVED)), "said once").toHaveLength(1);
+    expect((await saidTo()).some((content) => content.includes("I will come back to you")), "not the general words").toBe(false);
+    const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+    expect(status.rows[0]?.status).toBe("escalated");
+    const work = await withInstance((instance) => instance.driver.claimWork({ holder: "runner-306", leaseSeconds: 120 }));
+    expect(work?.runId).not.toBe(runId);
+  }, 120_000);
+
+  it("a person's resume asks again, once, with why; and a 'yes' then fills", async () => {
+    const open = await pool.query<{ intervention_id: string }>(
+      "SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+      [runId],
+    );
+    const stop = open.rows[0]?.intervention_id;
+    if (stop === undefined) expect.unreachable("the stop is open");
+    await withInstance((instance) =>
+      instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(stop),
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Asked the student to look again.",
+          resolution: "Ask again.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "registration" },
+        didHappen: false,
+      }),
+    );
+    const said = await saidTo();
+    expect(said.filter((content) => content === ASKED_AGAIN), "why, once").toHaveLength(1);
+    expect(said.filter((content) => content.includes(QUESTION)), "asked a second time, once").toHaveLength(2);
+    expect(said.at(-1), "the question last").toContain(QUESTION);
+    expect(said.some((content) => content.includes("it is moving again")), "not 'moving again'").toBe(false);
+    expect((await caseTypes()).filter((type) => type === "HandoffRequired")).toHaveLength(2);
+    // Polled again, still asked, not stopped and not said twice.
+    expect(await advanceStep()).toBe("student_handoff");
+    expect((await saidTo()).filter((content) => content.includes(QUESTION))).toHaveLength(2);
+    const { contentHash } = await pendingHash();
+    expect(await decide("confirm_handoff", contentHash)).toEqual({ ok: true });
+    expect(await advanceStep(), "answered yes: the fill").toBe("execute");
+  }, 120_000);
+});
+
+// The P306 review, F1: the student stops while the registration question is
+// open. The step becomes the hand-back, awaiting the same handoff; its words
+// must be said, so the yes/no they can press is over a message they read.
+describeIfDatabase("a stop while the registration e-mail question is open (P306 review)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03061";
+  let runId = "";
+  const CREATION_REQUEST = `sr_${"0".repeat(31)}1`;
+
+  async function assistantSaid(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("says the hand-back once, and binds the yes/no to it", async () => {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({ conversationId: conversation, event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: `sh_${"5".repeat(32)}` } });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("student_handoff");
+
+      // The student stops while the question stands.
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      for (let poll = 0; poll < 3; poll++) await instance.driver.advance({ runId, conversationId: conversation });
+
+      const handBack = (await assistantSaid()).filter((content) => content.includes("Tell me with the buttons below whether it has arrived."));
+      expect(handBack, "the hand-back is said, once").toHaveLength(1);
+      const reading = await instance.driver.runFor(conversation);
+      const pending = reading?.pending;
+      if (pending?.decision !== "confirm_handoff") expect.unreachable("the question is still pending, inside the hand-back");
+      const read = handBack[0] ?? "";
+      expect(pending.contentHash, "over the message the student read").toBe(`sha256:${createHash("sha256").update(read).digest("hex")}`);
+      expect(reading?.run.step, "the step is the hand-back").toBe("hand_over_account");
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_handoff", contentHash: pending.contentHash } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a log from before P306 with a reset still open: no yes/no is offered, and a yes completes no reset (the P306 review, F2)", async () => {
+    const old = "01JBXQ8Z9WKTQ6M4H2NPC03062";
+    await ownConversation(old);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(old));
+      const started = await pastTheYes(instance, old);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const oldRun = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({ conversationId: old, event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: `sh_${"4".repeat(32)}` } });
+      await instance.driver.advance({ runId: oldRun, conversationId: old });
+      const runRef = makeRunId(oldRun);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: oldRun });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: oldRun, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await log.append({ conversationId: old, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
+      // The reset a pre-P306 build raised and left open.
+      const caseRef = makeCaseId(`case_${old.toLowerCase()}`);
+      const cases = new PostgresCaseStore(instance.pool);
+      const existing = await cases.read(caseRef);
+      await cases.append(caseRef, existing.length, [
+        {
+          eventId: makeEventId(`evt_${caseRef}_old_reset`),
+          caseId: caseRef,
+          sequence: existing.length + 1,
+          occurredAt: NOW,
+          actor: { kind: "system", component: "run-driver (a build before P306)" },
+          type: "HandoffRequired",
+          handoffKind: "password_reset",
+          handoffToken: handoffTokenFor({ caseId: caseRef, kind: "password_reset" }),
+          expiresAt: new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
+        },
+      ]);
+      const asked = await instance.driver.advance({ runId: oldRun, conversationId: old });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("student_handoff");
+      const reading = await instance.driver.runFor(old);
+      expect(reading?.pending ?? null, "nothing offered for a handoff the step is not asking about").toBeNull();
+      const anyHash = `sha256:${"1".repeat(64)}`;
+      expect(await instance.driver.recordDecision({ conversationId: old, runId: oldRun, decision: { kind: "confirm_handoff", contentHash: anyHash } })).toEqual({ ok: false, reason: "not_asked" });
+      const after = await cases.read(caseRef);
+      expect(after.filter((event) => event.type === "HandoffCompleted"), "no reset recorded that never happened").toHaveLength(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
 });

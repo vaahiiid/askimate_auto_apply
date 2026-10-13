@@ -1292,6 +1292,36 @@ describe("a portal that needs an account", () => {
     expect(step.say).toContain("cannot read your email");
   });
 
+  // ── ADR-0159 decision 1, O3 (P306) ─────────────────────────────────────
+  // Vahid, 2026-10-13: *"The student confirms in chat that Sheffield's
+  // registration e-mail arrived. If not, stop for a person before any press."*
+  it("ASKS whether the registration e-mail arrived, and fills nothing until it is answered (P306)", async () => {
+    const state = withAccount(await authorised(runWith(COMPLETE, { ...WITH_LOGIN })), {
+      ...accountAt("awaiting_registration_email", COMPLETE),
+    });
+    const step = await nextStep(state, model);
+    expect(step.kind, "never execute while the answer is owed").toBe("student_handoff");
+    if (step.kind !== "student_handoff") expect.unreachable("checked above");
+    expect(step.reason).toBe("registration_email");
+    expect(step.say).toContain("has an e-mail from");
+    expect(step.say).toContain("I will not fill in anything until you answer.");
+    expect(step.say, "O1: not to change the password").toContain("Please do not change its password until you have submitted your application");
+  });
+
+  it("stops for a PERSON when the student says the registration e-mail did not arrive (P306)", async () => {
+    const state = withAccount(await authorised(runWith(COMPLETE, { ...WITH_LOGIN })), {
+      ...accountAt("registration_email_not_received", COMPLETE),
+    });
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("specialist");
+    if (step.kind !== "specialist") expect.unreachable("checked above");
+    expect(step.reason).toBe("registration_email_not_received");
+    expect(step.detail).toContain("acct-1");
+    expect(step.detail).toContain("apply.example.test");
+    expect(step.detail, "no address in a person's record").not.toContain("@");
+    expect(step.say).toContain("a member of the team has been asked to look at it");
+  });
+
   it("proceeds once the account is active", async () => {
     const state = withAccount(
       runWith(COMPLETE, { ...WITH_LOGIN }),

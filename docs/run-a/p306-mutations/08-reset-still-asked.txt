@@ -1,0 +1,93 @@
+# P306 mutation 08-reset-still-asked
+# file: packages/account/src/ownership.ts
+# replaced:
+      input.approach === "student_chosen"
+      ? ["studentConfirmedRegistrationEmail", ...always]
+# with:
+      false
+      ? ["studentConfirmedRegistrationEmail", ...always]
+# command: pnpm exec vitest run --project unit packages/account/src/account.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/account/src/account.test.ts (74 tests | 4 failed) 90ms
+   × handover > asks a student who chose their own password whether the registration e-mail arrived, not for a reset (ADR-0159, P306) 14ms
+     → expected "a reset is not what is asked now" not to be reached
+   × handover > owes the registration answer only for an account we made with the student's own password on a portal that never verifies 5ms
+     → expected false to be true // Object.is equality
+   × handover > tells a student whose account we made with their own password not to change it until they submit, and never that they sign in 'the same way you have been' (ADR-0159 O1, P306) 5ms
+     → expected { …(3) } to match object { madeWithYourPassword: true, …(1) }
+(2 matching properties omitted from actual)
+   × finishing a case > shows the student the registration answer while it is owed (P306) 1ms
+     → expected [ …(2) ] to include 'the student has said the portal\'s re…'
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 70 passed (74)
+   Start at  15:25:28
+   Duration  1.07s (transform 421ms, setup 0ms, collect 585ms, tests 90ms, environment 0ms, prepare 81ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/account/src/account.test.ts > handover > asks a student who chose their own password whether the registration e-mail arrived, not for a reset (ADR-0159, P306)
+AssertionError: expected "a reset is not what is asked now" not to be reached
+ ❯ packages/account/src/account.test.ts:732:36
+    730| 
+    731|     const resetOnly = handover({ ...NOTHING_DONE, ...rest, passwordRes…
+    732|     if (resetOnly.complete) expect.unreachable("a reset is not what is…
+       |                                    ^
+    733|     expect(resetOnly.refusal.outstanding).toEqual(["the student has sa…
+    734| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL |unit|  packages/account/src/account.test.ts > handover > owes the registration answer only for an account we made with the student's own password on a portal that never verifies
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ packages/account/src/account.test.ts:751:99
+    749|   it("owes the registration answer only for an account we made with th…
+    750|     const nonVerifying: ObservedPortalAuthentication = { ...PASSWORD_P…
+    751|     expect(owesRegistrationEmail(planWith("student_chosen", nonVerifyi…
+       |                                                                                                   ^
+    752|     expect(owesRegistrationEmail(planWith("student_chosen", nonVerifyi…
+    753|     expect(owesRegistrationEmail(planWith("student_chosen", PASSWORD_P…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL |unit|  packages/account/src/account.test.ts > handover > tells a student whose account we made with their own password not to change it until they submit, and never that they sign in 'the same way you have been' (ADR-0159 O1, P306)
+AssertionError: expected { …(3) } to match object { madeWithYourPassword: true, …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+    "madeWithYourPassword": true,
+-   "registrationEmailStillToDo": true,
+  }
+
+ ❯ packages/account/src/account.test.ts:890:91
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL |unit|  packages/account/src/account.test.ts > finishing a case > shows the student the registration answer while it is owed (P306)
+AssertionError: expected [ …(2) ] to include 'the student has said the portal\'s re…'
+ ❯ packages/account/src/account.test.ts:1004:40
+    1002|     const nonVerifying: ObservedPortalAuthentication = { ...PASSWORD_P…
+    1003|     const ours: PortalAccount = { ...account("handover_due"), authenti…
+    1004|     expect(studentHandoverItems(ours)).toContain("the student has said…
+       |                                        ^
+    1005|     expect(studentHandoverItems(ours).join(" ")).not.toContain("reset …
+    1006|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

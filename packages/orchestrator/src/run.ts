@@ -51,9 +51,12 @@ import {
   describeSecureChannel,
   describeSignInResume,
   describeSignInStart,
-  outstandingHandoverItems,
+  outstandingHandoverKeys,
+  owesRegistrationEmail,
   renderAccountCreationRequest,
   renderHandover,
+  renderRegistrationEmailNotReceived,
+  renderRegistrationEmailQuestion,
   resetWordsFor,
   studentHandoverItems,
 } from "@askimate/aas-account";
@@ -289,7 +292,17 @@ export type RunStep =
    * changed — none of these is something the applicant can answer, and asking
    * them would be handing over the system's own problem.
    */
-  | { readonly kind: "specialist"; readonly reason: string; readonly detail: string }
+  | {
+      readonly kind: "specialist";
+      readonly reason: string;
+      readonly detail: string;
+      /**
+       * What the student is told when the stop is theirs to hear about in its
+       * own words (P306: the registration e-mail did not arrive). Absent,
+       * the driver's general words for a stop are said, as always.
+       */
+      readonly say?: string;
+    }
   /**
    * The content would be rejected by the portal.
    *
@@ -379,7 +392,7 @@ export type RunStep =
    */
   | {
       readonly kind: "student_handoff";
-      readonly reason: "email_verification" | "mfa" | "otp" | "captcha" | "payment";
+      readonly reason: "email_verification" | "registration_email" | "mfa" | "otp" | "captcha" | "payment";
       readonly say: string;
     }
   /**
@@ -787,6 +800,40 @@ function accountStepFor(state: RunState): RunStep | null {
     };
   }
 
+  // ── ADR-0159 decision 1, O3 (P306) ──────────────────────────────────────
+  // Vahid, 2026-10-13: *"The student confirms in chat that Sheffield's
+  // registration e-mail arrived. If not, stop for a person before any press."*
+  // Asked before anything is filled (D1 in ADR-0159's Built section, mine):
+  // nothing goes into an account whose way back has not been shown to work.
+  if (account.stage === "awaiting_registration_email") {
+    return {
+      kind: "student_handoff",
+      reason: "registration_email",
+      say: renderRegistrationEmailQuestion({
+        institutionName: state.inputs.blueprint.institutionName,
+        portalHost: account.portalHost,
+        email: unwrapConfirmed(account.email),
+      }),
+    };
+  }
+
+  if (account.stage === "registration_email_not_received") {
+    return {
+      kind: "specialist",
+      reason: "registration_email_not_received",
+      // The account and the portal by name, and no address: a person's record
+      // names what to look at, not the student's personal data.
+      detail:
+        `The student said the registration e-mail from ${account.portalHost} did not arrive for ` +
+        `the account ${account.accountId}, which the run created with the password they chose. ` +
+        `Until it is shown that the portal's e-mail reaches them, nothing more is filled.`,
+      say: renderRegistrationEmailNotReceived({
+        institutionName: state.inputs.blueprint.institutionName,
+        email: unwrapConfirmed(account.email),
+      }),
+    };
+  }
+
   if (account.stage === "handover_due") {
     const plan = account.authentication;
     // The branch above returned for an account with no plan; said again for the compiler.
@@ -806,8 +853,10 @@ function accountStepFor(state: RunState): RunStep | null {
         leftToStudent: studentsOwnActs(state),
         // P301 and its review: what a reset does on this portal, from the
         // plan's own record, and whether it is still owed — so the text
-        // agrees with the list sent beside it.
-        ...resetWordsFor(plan, account.createdBy),
+        // agrees with the list sent beside it. P306: and what is still owed
+        // by the checklist as it stands, the same checklist `accountCreated`
+        // rendered the recorded text from.
+        ...resetWordsFor(plan, account.createdBy, account.handover?.checklist),
       }),
     };
   }
@@ -859,12 +908,12 @@ function unplannedStep(state: RunState, account: PortalAccount): RunStep {
  * always something to ask for while the account is outstanding.
  */
 function awaitingHandoverStep(account: PortalAccount): HandoffKind {
-  const checklist = account.handover?.checklist;
-  const outstanding = outstandingHandoverItems(account);
-  const resetOutstanding =
-    checklist?.passwordResetCompleted !== true &&
-    outstanding.some((item) => item.includes("reset flow"));
-  return resetOutstanding ? "password_reset" : "account_handover";
+  // By key, not by a label's words (P306): matching "reset flow" in a label is
+  // how a reworded label would have changed which handoff was asked for.
+  const outstanding = outstandingHandoverKeys(account);
+  if (outstanding.includes("studentConfirmedRegistrationEmail")) return "registration_email";
+  if (outstanding.includes("passwordResetCompleted")) return "password_reset";
+  return "account_handover";
 }
 
 /**
@@ -1324,6 +1373,10 @@ export interface HandoverEvidence {
    * it will not. A reader can tell which happened.
    */
   readonly runStopped?: boolean;
+  /** Handoff kinds the student answered "no" (ADR-0159 O3, P306). */
+  readonly declined?: readonly HandoffKind[];
+  /** The kind of the handoff open now, if one is. A declined question asked again is open. */
+  readonly open?: HandoffKind;
 }
 
 /** No evidence at all — the state of a run before anything has been handed back. */
@@ -1359,6 +1412,8 @@ function handoverChecklistFrom(
   return {
     emailVerifiedByPortal: evidence.completed.includes("email_verification"),
     studentInformed: evidence.raised.includes("account_handover"),
+    // Their "yes" to the question, a completed handoff like every other item.
+    studentConfirmedRegistrationEmail: evidence.completed.includes("registration_email"),
     passwordResetCompleted: evidence.completed.includes("password_reset"),
     // True where there was never a credential to destroy — which is three of
     // the four approaches. Read from the PLAN rather than asserted by a
@@ -1581,7 +1636,7 @@ export function accountCreated(
     approach: plan.approach,
     leftToStudent: studentsOwnActs(state),
     // P301: the same as the step says, so the text recorded is the text shown.
-    ...resetWordsFor(plan, "askimate_on_behalf"),
+    ...resetWordsFor(plan, "askimate_on_behalf", checklist),
   });
   const handover = checkHandoverComplete({
     checklist,
@@ -1730,6 +1785,20 @@ function stageFrom(
   const verificationRequired = plan.basedOn.emailVerificationRequired === true;
   if (verificationRequired && !evidence.completed.includes("email_verification")) {
     return "awaiting_email_verification";
+  }
+
+  // ── ADR-0159 O3 (P306): the registration e-mail, before anything is filled ──
+  //
+  // Owed by an account we made with the student's own password on a portal
+  // that never verifies the address. A "no" stops for a person; a person's
+  // resume opens the question again, and it is asked again. A stopped or
+  // filled run takes the question inside the hand-back instead (below), so a
+  // run that will fill nothing more is not held on a question about filling.
+  if (owesRegistrationEmail(plan, "askimate_on_behalf") && !evidence.completed.includes("registration_email")) {
+    if (evidence.declined?.includes("registration_email") === true && evidence.open !== "registration_email") {
+      return "registration_email_not_received";
+    }
+    if (!evidence.applicationFilled && evidence.runStopped !== true) return "awaiting_registration_email";
   }
 
   // "The application is done" is the run having filled the portal. Not
@@ -1978,8 +2047,9 @@ export function interviewActionOf(step: RunStep): InterviewAction | null {
  */
 export function specialistHandoverOf(
   step: RunStep,
-): { readonly reason: string; readonly detail: string } | null {
-  return step.kind === "specialist" ? { reason: step.reason, detail: step.detail } : null;
+): { readonly reason: string; readonly detail: string; readonly say?: string } | null {
+  if (step.kind !== "specialist") return null;
+  return { reason: step.reason, detail: step.detail, ...(step.say === undefined ? {} : { say: step.say }) };
 }
 
 /**

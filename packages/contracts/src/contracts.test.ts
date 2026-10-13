@@ -449,6 +449,12 @@ describe("the wire vocabulary is internally coherent", () => {
     expect(parseStudentDecision({ kind: "authorise" })).toBeNull();
     expect(parseStudentDecision({ kind: "confirm_handoff" })).toBeNull();
     expect(parseStudentDecision({ kind: "confirm_value" })).toBeNull();
+    // P306: a "no" to a question asked as a handoff names what was asked, as the "yes" does.
+    expect(parseStudentDecision({ kind: "decline_handoff", contentHash: "sha256:abc" })).toEqual({
+      kind: "decline_handoff",
+      contentHash: "sha256:abc",
+    });
+    expect(parseStudentDecision({ kind: "decline_handoff" })).toBeNull();
     expect(parseStudentDecision({ kind: "resign" })).toBeNull();
     expect(parseStudentDecision(null)).toBeNull();
     // ADR-0108: the student saying they attached something themselves names

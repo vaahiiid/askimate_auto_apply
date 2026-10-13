@@ -151,7 +151,13 @@ Promises written after P269's measurement, each shipped with its assertion. RDT 
 | P9 | entry-choice-offer.ts, `entryChoiceMessage` (P290) | *"I will not choose for you, and nothing is chosen until you press one."* | RDT, the P290 describe: typed words record no choice, and the plan keeps the refusal with no choice (`mapping.test.ts`, *with NO recorded choice the refusal stands*); the runner refuses the escape without a recorded choice (`preparation.test.ts`) |
 
 | P10 | entry-choice-offer.ts, `entryChoiceMessage` (P291) | *"…so they will not go in as they are; I will not shorten them for you."* | `entry-choice-offer.test.ts`, *promises nothing for a box too short*; and the validator refuses the words untruncated (`run-a-profile.test.ts` in the P291 patch: `unlistedDegree maxlength 28`; `validate.ts`: *"it must not be truncated on their behalf"*) |
+| P11 | ownership.ts, `renderRegistrationEmailQuestion` (P306) | *"One question before I fill in anything: … I will not fill in anything until you answer."* | RDT, the P306 describe: five polls stay `student_handoff`, the question is said once, no page is handed out and no page intent is recorded; then a "no" stops for a person, and only a "yes" leads to `execute` |
 
 P10 was found by the same search over the lines P291 added. It returned two lines: P10, and P8's line, which the edit moved.
 
 P8 and P9 were found by `grep -nE "\bI will\b|\bI'll\b"` over the lines P290 added to `apps` and `packages`, test files and comments excluded, and the one new product file with student text; two lines.
+
+P11 was found by `git diff HEAD -U0 -- apps packages`, test files, compiled output and comment lines
+excluded, grepped for `\bI will\b|\bI'll\b`: three lines. The other two are the handover's existing
+close, *"…and I will close this off."*, moved by P306's edit; the search finding them is its
+positive control.

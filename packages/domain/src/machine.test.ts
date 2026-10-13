@@ -1167,7 +1167,7 @@ describe("decide — handoffs", () => {
   const LATER = new Date("2126-08-26T10:15:00Z");
   const TOKEN = "ho_case_email_verification";
 
-  const raise = (kind: "email_verification" | "password_reset" | "account_handover", token = TOKEN) =>
+  const raise = (kind: "email_verification" | "password_reset" | "account_handover" | "registration_email", token = TOKEN) =>
     ({ kind: "require_handoff", handoffKind: kind, handoffToken: token, expiresAt: LATER }) as const;
 
   it("raises one, and records what it is waiting for", () => {
@@ -1283,6 +1283,67 @@ describe("decide — handoffs", () => {
     );
     const decision = decide(done, raise("account_handover", "ho_case_account_handover"));
     expect(decision.accepted).toBe(true);
+  });
+
+  // ── ADR-0159 O3 (P306): the registration e-mail, which can be answered "no" ──
+  //
+  // Vahid, 2026-10-13: *"The student confirms in chat that Sheffield's
+  // registration e-mail arrived. If not, stop for a person before any press."*
+  // A "no" is an answer, not a completion: it closes the question so another
+  // can be asked (one open handoff per case), and the case remembers it.
+  const REGISTRATION = "ho_case_registration_email";
+  const askedAboutTheEmail = () =>
+    fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "registration_email", handoffToken: REGISTRATION, expiresAt: LATER },
+      ]),
+    );
+
+  it("takes a 'no' to the registration e-mail: the handoff closes, and the case remembers it was declined", () => {
+    const decision = decide(askedAboutTheEmail(), { kind: "decline_handoff", handoffToken: REGISTRATION });
+    if (!decision.accepted) expect.unreachable(`refused: ${decision.refusal.kind}`);
+    expect(decision.events).toEqual([
+      { type: "HandoffDeclined", handoffToken: REGISTRATION, handoffKind: "registration_email" },
+    ]);
+    const after = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "registration_email", handoffToken: REGISTRATION, expiresAt: LATER },
+        { type: "HandoffDeclined", handoffToken: REGISTRATION, handoffKind: "registration_email" },
+      ]),
+    );
+    expect(after.openHandoffToken, "closed, so another question can be asked").toBeUndefined();
+    expect(after.declinedHandoffs).toEqual(["registration_email"]);
+    expect(after.completedHandoffs, "a 'no' is not a completion").toEqual([]);
+  });
+
+  it("asks again after a 'no': the same token raises a new handoff", () => {
+    const declined = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "registration_email", handoffToken: REGISTRATION, expiresAt: LATER },
+        { type: "HandoffDeclined", handoffToken: REGISTRATION, handoffKind: "registration_email" },
+      ]),
+    );
+    const decision = decide(declined, raise("registration_email", REGISTRATION));
+    if (!decision.accepted) expect.unreachable(`refused: ${decision.refusal.kind}`);
+    expect(decision.events).toHaveLength(1);
+    expect(decision.events[0]).toMatchObject({ type: "HandoffRequired", handoffKind: "registration_email" });
+  });
+
+  it("REFUSES a 'no' with nothing open, for another token, and for a handoff that cannot be declined", () => {
+    expect(decide(fold(buildLog([OPENED])), { kind: "decline_handoff", handoffToken: REGISTRATION }).accepted).toBe(false);
+    expect(decide(askedAboutTheEmail(), { kind: "decline_handoff", handoffToken: "ho_something_else" }).accepted).toBe(false);
+    // Only the registration e-mail can be answered "no". A handover or a reset
+    // the student declines is not an answer this case knows what to do with.
+    for (const kind of ["account_handover", "password_reset", "email_verification"] as const) {
+      const open = fold(
+        buildLog([OPENED, { type: "HandoffRequired", handoffKind: kind, handoffToken: TOKEN, expiresAt: LATER }]),
+      );
+      const decision = decide(open, { kind: "decline_handoff", handoffToken: TOKEN });
+      expect(decision.accepted, kind).toBe(false);
+    }
   });
 });
 
