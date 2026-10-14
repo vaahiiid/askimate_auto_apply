@@ -20,7 +20,8 @@
  * confirmed answer as it was.
  */
 
-import { isClosedVocabulary, vocabularyWords } from "@askimate/aas-profile";
+import { FIELD_SPECS, isComposite, isList, type FieldSpec } from "@askimate/aas-interview";
+import { VOCABULARY_WORDS, isClosedVocabulary, isCountryField, isFinancialField, readCountry, readCountryCode } from "@askimate/aas-profile";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 export type CorrectionReading =
@@ -110,9 +111,10 @@ export interface CorrectionTarget {
 
 /**
  * Every place among the confirmed answers that holds exactly `from`, letter
- * case and spacing aside. Only words a student gave as words can be found
- * this way: a date, a number or a choice from a fixed list is not text, and
- * is not offered (ADR-0154 §4).
+ * case and spacing aside: the stored words, and nothing else. The row-134
+ * stop names an entry's exact text by it. A correction finds its answer with
+ * `placesSaying`, which also knows a closed list by its shown words (P311).
+ * A date or a number is not text, and is found by neither (ADR-0154 §5).
  */
 export function placesHolding(confirmed: ReadonlyMap<string, unknown>, from: string): readonly CorrectionTarget[] {
   const found: CorrectionTarget[] = [];
@@ -136,23 +138,140 @@ export function placesHolding(confirmed: ReadonlyMap<string, unknown>, from: str
 }
 
 /**
- * Whether a place holds a choice from a fixed set, which a student's words
- * cannot replace (ADR-0154 §4): a country, or a token of a closed vocabulary.
- *
- * Until P297 every grade scale was a token, so a closed-vocabulary part was
- * always a fixed choice. Since P297 a scale that is not exactly one of the
- * table's phrases is kept in the student's own words ("CGPA out of 10"), and
- * those are words a correction may change: refusing them as "a fixed list"
- * would be untrue.
+ * A closed list a correction can read (P311): a country, a token of a closed
+ * vocabulary, or a part the interview takes only from its own table (a
+ * qualification's level). Vahid, 2026-10-14: *"a correction to a fixed-choice
+ * part (grade scale, and any other closed list) must work. Match the words the
+ * student is shown ("UK honours"), never only the internal token, and when the
+ * new value is a fixed choice, take it only if it is one of the set."*
  */
-export function holdsAFixedChoice(confirmed: ReadonlyMap<string, unknown>, place: CorrectionTarget): boolean {
-  const fieldKey = place.fieldKey as ProfileFieldKey;
-  if (!isClosedVocabulary(fieldKey, place.part)) return false;
-  if (place.part === undefined || place.part === "countryCode") return true;
-  const value = confirmed.get(place.fieldKey);
-  const holder = place.item === undefined ? value : Array.isArray(value) ? (value as readonly unknown[])[place.item] : undefined;
-  const held = holder !== null && typeof holder === "object" ? (holder as Record<string, unknown>)[place.part] : undefined;
-  return typeof held !== "string" || vocabularyWords(fieldKey, place.part, held) !== null;
+export interface ClosedPart {
+  /** The words the student is shown for a value of the set, or `null` for one that is not (a grade scale kept in the student's own words, P297). */
+  readonly shown: (held: string) => string | null;
+  /** The student's words read into a value, by the interview's own reader and the shown words; `null` when they name no value it takes. */
+  readonly read: (words: string) => string | null;
+  /** The set in the words the student is shown, for a refusal; `null` where it is too long to list (countries). */
+  readonly choices: readonly string[] | null;
+}
+
+/** The interview's own reader for a field, or for one of its parts (`FIELD_SPECS`). */
+function interviewReader(fieldKey: string, part: string | undefined): ((raw: string) => unknown) | null {
+  const spec = (FIELD_SPECS as Partial<Record<string, FieldSpec<unknown>>>)[fieldKey];
+  if (spec === undefined) return null;
+  if (part === undefined) return isComposite(spec) || isList(spec) ? null : spec.parse;
+  const parts = isList(spec) ? spec.item.parts : isComposite(spec) ? spec.parts : [];
+  return parts.find((candidate) => candidate.partKey === part)?.parse ?? null;
+}
+
+/** The words a country is shown in, as the playback writes them: "Iran (IR)". */
+function countryShown(code: string): string | null {
+  const country = readCountry(code);
+  return country === null ? null : `${country.name} (${country.code})`;
+}
+
+/** A country from a name, a code, or the playback's "Iran (IR)" — whose two halves must agree. */
+function readCountryWords(words: string): string | null {
+  const shownForm = /^(.+?)\s*\(([A-Za-z]{2})\)$/u.exec(words.trim());
+  if (shownForm === null) return readCountryCode(words);
+  const byName = readCountryCode(shownForm[1] ?? "");
+  return byName !== null && byName === readCountryCode(shownForm[2] ?? "") ? byName : null;
+}
+
+/**
+ * The closed list a place holds, or `null` for a place that holds the
+ * student's own words. Read by the interview's own reader, so a correction
+ * takes exactly what the question takes, and by the shown words too, because
+ * a student corrects what they were shown (`finance.funding`'s "a loan" is
+ * not a word its question takes).
+ */
+export function closedPart(fieldKey: string, part: string | undefined): ClosedPart | null {
+  const key = fieldKey as ProfileFieldKey;
+  if ((part === undefined && isCountryField(key)) || part === "countryCode") {
+    return { shown: countryShown, read: readCountryWords, choices: null };
+  }
+  if (part === undefined) return null;
+  const reader = interviewReader(fieldKey, part);
+  const table = (VOCABULARY_WORDS as Partial<Record<string, Readonly<Record<string, Readonly<Record<string, string>>>>>>)[fieldKey]?.[part];
+  if (table !== undefined && isClosedVocabulary(key, part)) {
+    const byShown = new Map(Object.entries(table).map(([token, words]) => [flat(words), token]));
+    return {
+      shown: (held) => table[held] ?? null,
+      read: (words) => {
+        const read = reader?.(words);
+        if (typeof read === "string") return read;
+        // The shown words, and the token itself if a student types it.
+        return byShown.get(flat(words)) ?? (table[words.trim()] !== undefined ? words.trim() : null);
+      },
+      choices: Object.values(table),
+    };
+  }
+  // A part held as words but taken only from the interview's own table.
+  const options = (reader as { readonly options?: Readonly<Record<string, string>> } | null)?.options;
+  if (reader === null || options === undefined) return null;
+  const choices = [...new Set(Object.values(options))];
+  return {
+    shown: (held) => (choices.includes(held) ? held : null),
+    read: (words) => {
+      const read = reader(words);
+      return typeof read === "string" ? read : null;
+    },
+    choices,
+  };
+}
+
+/**
+ * A place a correction does not change from words (P311), and why.
+ *
+ * - `financial`: a choice in a financial answer. The mandatory review of
+ *   financial evidence is done once, before the preview, and a correction
+ *   after it would not be reviewed again (it touches money, so it is his to
+ *   decide). Refused as before P311.
+ * - `decides_the_shape`: a `kind` that decides what else the answer holds —
+ *   a passport held or not — which no part can be changed without.
+ */
+export function refusedPart(place: CorrectionTarget): "financial" | "decides_the_shape" | null {
+  if (place.part === "kind") return "decides_the_shape";
+  if (isFinancialField(place.fieldKey as ProfileFieldKey) && closedPart(place.fieldKey, place.part) !== null) return "financial";
+  return null;
+}
+
+/** A value's words for matching, as `sameWords` compares them. */
+function flat(value: string): string {
+  return cleaned(value).replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Every place among the confirmed answers that says `from` (P311): holds it
+ * as words, as `placesHolding` finds them, or holds a value of a closed list
+ * that `from` names — by the words the student was shown for it, or by the
+ * interview's own reader. The token alone is never all a student has.
+ */
+export function placesSaying(confirmed: ReadonlyMap<string, unknown>, from: string): readonly CorrectionTarget[] {
+  const says = (fieldKey: string, part: string | undefined, held: string): boolean => {
+    if (sameWords(held, from)) return true;
+    const closed = closedPart(fieldKey, part);
+    if (closed === null) return false;
+    const shown = closed.shown(held);
+    return (shown !== null && sameWords(shown, from)) || (shown !== null && closed.read(from) === held);
+  };
+  const found: CorrectionTarget[] = [];
+  for (const [fieldKey, value] of confirmed) {
+    if (typeof value === "string") {
+      if (says(fieldKey, undefined, value)) found.push({ fieldKey });
+    } else if (Array.isArray(value)) {
+      value.forEach((entry, item) => {
+        if (entry === null || typeof entry !== "object") return;
+        for (const [part, held] of Object.entries(entry as Record<string, unknown>)) {
+          if (typeof held === "string" && says(fieldKey, part, held)) found.push({ fieldKey, item, part });
+        }
+      });
+    } else if (value !== null && typeof value === "object") {
+      for (const [part, held] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof held === "string" && says(fieldKey, part, held)) found.push({ fieldKey, part });
+      }
+    }
+  }
+  return found;
 }
 
 /** The words of a sentence worth matching: three letters or more, a possessive's "'s" set aside. */
@@ -168,6 +287,48 @@ function wordsOf(text: string): Set<string> {
 
 const COMMON = new Set(["the", "and", "not", "but", "for", "with", "from", "that", "this", "was", "are", "were", "should", "have", "been", "change", "correct", "update", "amend", "fix", "replace", "answer", "said"]);
 
+/** How many words of the sentence name this place: its entry's other words, and its own labels. */
+function scoreOf(
+  target: CorrectionTarget,
+  confirmed: ReadonlyMap<string, unknown>,
+  said: ReadonlySet<string>,
+  wordsFor: (target: CorrectionTarget) => readonly string[],
+): number {
+  const value = confirmed.get(target.fieldKey);
+  const entry: unknown = target.item === undefined ? value : Array.isArray(value) ? (value as readonly unknown[])[target.item] : undefined;
+  const others =
+    entry !== null && typeof entry === "object"
+      ? Object.entries(entry as Record<string, unknown>).filter(([part, held]) => part !== target.part && typeof held === "string").map(([, held]) => held as string)
+      : [];
+  const theirs = wordsOf([...others, ...wordsFor(target)].join(" "));
+  return [...said].filter((word) => theirs.has(word)).length;
+}
+
+/**
+ * The places a correction may be about (P311), before one is named.
+ *
+ * The stored words first: a town called Singapore is the town, not the
+ * country `SG` that the same word names through the country table. Only
+ * when no answer holds the words is a closed list found by the words it is
+ * shown in. And while a question is open, a place found that way must be
+ * named by the sentence too, so "It's Iraq, not Iran" stays the answer to
+ * the question it answers rather than a change to a confirmed nationality.
+ */
+export function placesToCorrect(input: {
+  readonly confirmed: ReadonlyMap<string, unknown>;
+  readonly from: string;
+  readonly context: string;
+  readonly answering: boolean;
+  readonly wordsFor: (target: CorrectionTarget) => readonly string[];
+}): readonly CorrectionTarget[] {
+  const stored = placesHolding(input.confirmed, input.from);
+  if (stored.length > 0) return stored;
+  const shown = placesSaying(input.confirmed, input.from);
+  if (!input.answering) return shown;
+  const said = wordsOf(input.context);
+  return shown.filter((place) => scoreOf(place, input.confirmed, said, input.wordsFor) > 0);
+}
+
 /**
  * Of several places holding the same words, the one the rest of the sentence
  * names — "my MASTER'S institution" — by the other words of that entry or
@@ -182,16 +343,7 @@ export function namedPlace(
 ): CorrectionTarget | null {
   if (places.length === 1) return places[0] ?? null;
   const said = wordsOf(context);
-  const scored = places.map((target) => {
-    const value = confirmed.get(target.fieldKey);
-    const entry: unknown = target.item === undefined ? value : Array.isArray(value) ? (value as readonly unknown[])[target.item] : undefined;
-    const others =
-      entry !== null && typeof entry === "object"
-        ? Object.entries(entry as Record<string, unknown>).filter(([part, held]) => part !== target.part && typeof held === "string").map(([, held]) => held as string)
-        : [];
-    const theirs = wordsOf([...others, ...wordsFor(target)].join(" "));
-    return { target, score: [...said].filter((word) => theirs.has(word)).length };
-  });
+  const scored = places.map((target) => ({ target, score: scoreOf(target, confirmed, said, wordsFor) }));
   const best = Math.max(...scored.map((one) => one.score));
   const top = scored.filter((one) => one.score === best);
   return best > 0 && top.length === 1 ? (top[0]?.target ?? null) : null;

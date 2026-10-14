@@ -1,0 +1,77 @@
+# P311 mutation 15-closed-list-before-the-stored-words
+# file: apps/conversation-service/src/correction-requests.ts
+# replaced:
+  if (stored.length > 0) return stored;
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/correction-requests.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/correction-requests.test.ts (12 tests | 2 failed) 49ms
+   × the places a correction may be about, before one is named (P311) > prefers an answer that holds the words over a country the same word names 9ms
+     → expected [ { …(2) }, { …(2) } ] to deeply equal [ { …(2) } ]
+   × the places a correction may be about, before one is named (P311) > while a question is open, takes a place found only by its shown words when the sentence names it 2ms
+     → expected [] to deeply equal [ Array(1) ]
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 10 passed (12)
+   Start at  21:11:28
+   Duration  1.06s (transform 386ms, setup 0ms, collect 660ms, tests 49ms, environment 0ms, prepare 60ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > the places a correction may be about, before one is named (P311) > prefers an answer that holds the words over a country the same word names
+AssertionError: expected [ { …(2) }, { …(2) } ] to deeply equal [ { …(2) } ]
+
+- Expected
++ Received
+
+  Array [
+    Object {
+      "fieldKey": "contact.address",
+      "part": "city",
+    },
++   Object {
++     "fieldKey": "contact.address",
++     "part": "countryCode",
++   },
+  ]
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:195:117
+    193| 
+    194|   it("prefers an answer that holds the words over a country the same w…
+    195|     expect(placesToCorrect({ confirmed: held, from: "Singapore", conte…
+       |                                                                                                                     ^
+    196|       { fieldKey: "contact.address", part: "city" },
+    197|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > the places a correction may be about, before one is named (P311) > while a question is open, takes a place found only by its shown words when the sentence names it
+AssertionError: expected [] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+- Array [
+-   Object {
+-     "fieldKey": "identity.nationality",
+-   },
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:206:102
+    204|     expect(placesToCorrect({ confirmed: held, from: "Iran", context: "…
+    205|     // The stored words are a correction while a question is open, as …
+    206|     expect(placesToCorrect({ confirmed: held, from: "IR", context: "",…
+       |                                                                                                      ^
+    207|   });
+    208| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

@@ -1,0 +1,67 @@
+# P311 mutation 05-shape-deciding-part-taken
+# file: apps/conversation-service/src/correction-requests.ts
+# replaced:
+  if (place.part === "kind") return "decides_the_shape";
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/correction-requests.test.ts apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking|P311|P297|P288
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/correction-requests.test.ts (10 tests | 1 failed) 49ms
+   × a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > refuses a choice in a financial answer, and a part that decides what else an answer holds 7ms
+     → expected null to be 'decides_the_shape' // Object.is equality
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (393 tests | 1 failed | 381 skipped) 2069ms
+   ✓ a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 363ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a choice in a financial answer stays refused, as before — a person reviews funding once, and a change after that review would not be seen again — and a part that decides an answer's shape is refused, never stored half-built 138ms
+     → expected 'I cannot change the whether you have …' to match / decides which of your other answers …/
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 20 passed | 381 skipped (403)
+   Start at  20:31:55
+   Duration  5.49s (transform 2.94s, setup 0ms, collect 4.30s, tests 2.12s, environment 0ms, prepare 171ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > refuses a choice in a financial answer, and a part that decides what else an answer holds
+AssertionError: expected null to be 'decides_the_shape' // Object.is equality
+
+- Expected: 
+"decides_the_shape"
+
++ Received: 
+null
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:175:74
+    173|     expect(refusedPart({ fieldKey: "finance.funding", part: "stage" })…
+    174|     expect(refusedPart({ fieldKey: "finance.funding", part: "details" …
+    175|     expect(refusedPart({ fieldKey: "identity.passport", part: "kind" }…
+       |                                                                          ^
+    176|     expect(refusedPart({ fieldKey: "immigration.uk_study", part: "kind…
+    177|     expect(refusedPart({ fieldKey: "education.prior_qualifications", i…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a choice in a financial answer stays refused, as before — a person reviews funding once, and a change after that review would not be seen again — and a part that decides an answer's shape is refused, never stored half-built
+AssertionError: expected 'I cannot change the whether you have …' to match / decides which of your other answers …/
+
+- Expected: 
+/ decides which of your other answers go with it, so I cannot change it on its own from your words here\. Nothing has been changed\.$/
+
++ Received: 
+"I cannot change the whether you have a passport in your passport here any more: filling in your application on Example University's form has begun, and an answer is changed after that by a person, not by me. \"none\" is not on their form yet, but other pages of your application are. I have stopped your application and passed your correction to a person on the team, in your words: \"my passport is held, not none\". Nothing more will be filled in until a person has looked at it."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7550:22
+    7548|     const shape = (await assistantSaid()).slice(before);
+    7549|     expect(shape).toHaveLength(1);
+    7550|     expect(shape[0]).toMatch(/ decides which of your other answers go …
+       |                      ^
+    7551|     expect(await held("identity.passport"), "unchanged, never half-bui…
+    7552|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

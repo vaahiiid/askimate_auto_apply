@@ -1,0 +1,113 @@
+# P311 mutation 07-same-choice-proposed-again
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (closed !== null && to === heldNow) return await say(correctionChangesNothing(where, shownOf(to)));
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (394 tests | 4 failed | 381 skipped) 1909ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 295ms
+     → expected [ …(4) ] to deeply equal [ Array(1) ]
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a nationality is corrected by the name it is shown with and pressed; a choice in a financial answer is refused, as before; and before a page is saved, a part that decides an answer's shape is refused, never stored half-built 81ms
+     → expected 'To keep this change, press "Yes, that…' to be 'You asked me to change your nationali…' // Object.is equality
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > after a page is saved, goes to a person, says what the university already holds, and holds the run — the confirmed answer unchanged 71ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did 51ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 9 passed | 381 skipped (394)
+   Start at  21:10:41
+   Duration  5.63s (transform 2.24s, setup 0ms, collect 3.37s, tests 1.91s, environment 0ms, prepare 58ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name
+AssertionError: expected [ …(4) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "The grade scale of your qualification 2 already says \"20-point\", so nothing has been changed.",
++   "You asked me to change the grade scale of your qualification 2 from \"20-point\" to \"20-point\". Here it is as I would record it — nothing changes until you say it is right.",
++   "Qualification 1 of 2 — End: completed, September 2015; Award: September 2015; Grade: 19.5; Level: Doctorate; Start date: September 2013; Subject: International Business; Award title: Doctorate of Business Administration; Grade scale: UK honours; Country: Iran (IR); Institution: HHE",
++   "Qualification 2 of 2 — End: completed, September 2015; Award: September 2015; Grade: 19.5; Level: Master's degree; Start date: September 2013; Subject: International Business; Award title: MSc; Grade scale: 20-point (you said: \"out of 20\"); Country: Iran (IR); Institution: Islamic Azad University",
++   "Those are the 2 qualifications. Is that right?",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7467:51
+    7465|     before = (await assistantSaid()).length;
+    7466|     await say("my Master's grade scale is out of 20, not 20-point");
+    7467|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7468|       'The grade scale of your qualification 2 already says "20-point"…
+    7469|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a nationality is corrected by the name it is shown with and pressed; a choice in a financial answer is refused, as before; and before a page is saved, a part that decides an answer's shape is refused, never stored half-built
+AssertionError: expected 'To keep this change, press "Yes, that…' to be 'You asked me to change your nationali…' // Object.is equality
+
+Expected: "You asked me to change your nationality from "Iran (IR)" to "Afghanistan (AF)". Here it is as I would record it — nothing changes until you say it is right."
+Received: "To keep this change, press "Yes, that's right". To leave your answer as it was, say "leave it". To change it to something else, say "leave it" first, then tell me what it should say. Nothing has been changed yet."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7516:54
+    7514|     let before = (await assistantSaid()).length;
+    7515|     await say("my nationality is Afghanistan, not Iran");
+    7516|     expect((await assistantSaid()).slice(before)[0]).toBe(
+       |                                                      ^
+    7517|       'You asked me to change your nationality from "Iran (IR)" to "Af…
+    7518|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > after a page is saved, goes to a person, says what the university already holds, and holds the run — the confirmed answer unchanged
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "I cannot change the town in your home address here any more: filling in your application on Example University's form has begun, and an answer is changed after that by a person, not by me. Example University already holds \"Tehran North\" as the town in your home address, on the page \"Personal details\" that I saved, and that is what they have until a person changes it there. I have stopped your application and passed your correction to a person on the team, in your words: \"my town is Tehran, not Tehran North\". Nothing more will be filled in until a person has looked at it.",
++   "To keep this change, press \"Yes, that's right\". To leave your answer as it was, say \"leave it\". To change it to something else, say \"leave it\" first, then tell me what it should say. Nothing has been changed yet.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7554:51
+    7552|     const before = (await assistantSaid()).length;
+    7553|     await say("my town is Tehran, not Tehran North");
+    7554|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7555|       "I cannot change the town in your home address here any more: fi…
+    7556|         `Example University already holds "Tehran North" as the town i…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "The grade scale of your qualification 2 already says \"20-point\", so nothing has been changed.",
++   "To keep this change, press \"Yes, that's right\". To leave your answer as it was, say \"leave it\". To change it to something else, say \"leave it\" first, then tell me what it should say. Nothing has been changed yet.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7585:51
+    7583|     let before = (await assistantSaid()).length;
+    7584|     await say("my Master's grade scale is out of 20, not 20-point");
+    7585|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7586|       'The grade scale of your qualification 2 already says "20-point"…
+    7587|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

@@ -1,0 +1,44 @@
+# P311 mutation 14-refused-places-not-filtered
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const places = everywhere.filter((place) => refusedPart(place) === null);
+# with:
+    const places = everywhere;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (393 tests | 1 failed | 381 skipped) 2181ms
+   ✓ a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 363ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a choice in a financial answer stays refused, as before — a person reviews funding once, and a change after that review would not be seen again — and a part that decides an answer's shape is refused, never stored half-built 126ms
+     → expected 'I cannot change the source of funding…' to match / was chosen from a fixed set of answe…/
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed | 381 skipped (393)
+   Start at  20:32:51
+   Duration  5.94s (transform 2.33s, setup 0ms, collect 3.41s, tests 2.18s, environment 0ms, prepare 67ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a choice in a financial answer stays refused, as before — a person reviews funding once, and a change after that review would not be seen again — and a part that decides an answer's shape is refused, never stored half-built
+AssertionError: expected 'I cannot change the source of funding…' to match / was chosen from a fixed set of answe…/
+
+- Expected: 
+/ was chosen from a fixed set of answers, and I cannot change it from your words here\. Nothing has been changed\.$/
+
++ Received: 
+"I cannot change the source of funding in your how your studies will be funded here any more: filling in your application on Example University's form has begun, and an answer is changed after that by a person, not by me. \"a loan\" is not on their form yet, but other pages of your application are. I have stopped your application and passed your correction to a person on the team, in your words: \"my funding source is a scholarship, not a loan\". Nothing more will be filled in until a person has looked at it."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7542:24
+    7540|     const refused = (await assistantSaid()).slice(before);
+    7541|     expect(refused).toHaveLength(1);
+    7542|     expect(refused[0]).toMatch(/ was chosen from a fixed set of answer…
+       |                        ^
+    7543|     expect(await held("finance.funding"), "unchanged").toEqual(funding…
+    7544| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

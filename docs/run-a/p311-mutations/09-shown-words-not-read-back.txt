@@ -1,0 +1,43 @@
+# P311 mutation 09-shown-words-not-read-back
+# file: apps/conversation-service/src/correction-requests.ts
+# replaced:
+        return byShown.get(flat(words)) ?? (table[words.trim()] !== undefined ? words.trim() : null);
+# with:
+        return table[words.trim()] !== undefined ? words.trim() : null;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/correction-requests.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/correction-requests.test.ts (12 tests | 1 failed) 42ms
+   × a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > reads a new value into the set by the interview's own reader, and nothing outside it 7ms
+     → expected null to be 'scholarship' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  21:10:55
+   Duration  1.08s (transform 380ms, setup 0ms, collect 693ms, tests 42ms, environment 0ms, prepare 63ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > reads a new value into the set by the interview's own reader, and nothing outside it
+AssertionError: expected null to be 'scholarship' // Object.is equality
+
+- Expected: 
+"scholarship"
+
++ Received: 
+null
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:168:76
+    166|     expect(closedPart("immigration.uk_study", "highestLevel")?.read("s…
+    167|     // The shown words read back even where the question's words diffe…
+    168|     expect(closedPart("finance.funding", "source")?.read("a scholarshi…
+       |                                                                            ^
+    169|     expect(closedPart("education.prior_qualifications", "institution")…
+    170|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

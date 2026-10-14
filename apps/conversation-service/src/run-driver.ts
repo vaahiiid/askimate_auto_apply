@@ -135,7 +135,7 @@ import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mappi
 import type { FillPlan as MappedFillPlan, UsableMappingSet as MappedUsableMappingSet } from "@askimate/aas-mapping";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import { readDeletionRequest, readStudentMessage, readUseRequest, type DeletionReading, type StudentAnswer } from "./deletion-requests.js";
-import { holdsAFixedChoice, namedPlace, placesHolding, readCorrectionRequest, type CorrectionTarget } from "./correction-requests.js";
+import { closedPart, namedPlace, placesHolding, placesToCorrect, readCorrectionRequest, refusedPart, type CorrectionTarget } from "./correction-requests.js";
 import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
@@ -2952,8 +2952,43 @@ function correctionNeedsAMaximum(where: string, to: string): string {
   return `"${to}" does not say the most the grade can be, so ${where} is unchanged. Say the scale with its maximum — for example "out of 10" or "GPA out of 4". Nothing has been changed.`;
 }
 
-function correctionFixedList(where: string): string {
-  return `${where.charAt(0).toUpperCase()}${where.slice(1)} was chosen from a fixed set of answers, and I cannot change it from your words here. Nothing has been changed.`;
+/**
+ * A part that decides what else the answer holds (P311): never changed on its
+ * own, never stored half-built. Named by its own label ("whether you have a
+ * passport"), which `correctionWhere` would wrap as "the whether …".
+ */
+function correctionDecidesTheShape(target: CorrectionTarget): string {
+  const label = partLabel(target.fieldKey as ProfileFieldKey, target.part ?? "") ?? correctionWhere(target);
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)} decides which of your other answers go with it, so I cannot change it on its own from your words here. Nothing has been changed.`;
+}
+
+/**
+ * A choice in a financial answer (P311): refused, as before P311, and now for
+ * the reason that is true — the review of financial evidence is a person's,
+ * and a correction after it would not be reviewed. "Chosen from a fixed set"
+ * stopped being a reason when fixed choices became correctable.
+ */
+function correctionFinancial(target: CorrectionTarget): string {
+  const key = target.fieldKey as ProfileFieldKey;
+  const label = partLabel(key, target.part ?? "") ?? target.part ?? "answer";
+  return (
+    `The ${label} is part of ${FIELD_LABELS[key].toLowerCase()}, which a person on the team checks, ` +
+    `so I cannot change it from your words here. Nothing has been changed.`
+  );
+}
+
+/** A new value a closed list does not take (P311): refused, naming the set when it can be listed. */
+function correctionNotInTheSet(where: string, to: string, choices: readonly string[] | null): string {
+  if (choices === null) {
+    return `"${to}" is not a country I can read, so ${where} is unchanged. Say the country's name in English — for example "Iran" — or its two-letter code. Nothing has been changed.`;
+  }
+  const listed = choices.length <= 1 ? (choices[0] ?? "") : `${choices.slice(0, -1).join(", ")} or ${choices.at(-1) ?? ""}`;
+  return `"${to}" is not one of the answers ${where} can take, so it is unchanged. The answers it can take are ${listed}. Nothing has been changed.`;
+}
+
+/** Other words for the choice already held (P311): nothing to change, and said so. */
+function correctionChangesNothing(where: string, shown: string): string {
+  return `${where.charAt(0).toUpperCase()}${where.slice(1)} already says "${shown}", so nothing has been changed.`;
 }
 
 /** What a typed message on a correction's playback is answered with (P289): only the press keeps it. */
@@ -6824,34 +6859,64 @@ export class RunDriver {
     if (situated === null) return false;
     const profile = await this.#options.profiles.load(situated.record.studentRef, this.#options.now());
     const confirmed = new Map<string, unknown>([...profile.entries].map(([key, held]) => [key, unwrapConfirmed(held.value)]));
-    const everywhere = placesHolding(confirmed, reading.from);
-    if (everywhere.length === 0) return answering ? false : await say(correctionNotFound(reading.from));
-    // A part chosen from a fixed set holds a token, not the student's words:
-    // words put in its place would be a value the set does not have.
-    const places = everywhere.filter((place) => !holdsAFixedChoice(confirmed, place));
-    const first = everywhere[0];
-    if (places.length === 0) return first === undefined ? false : await say(correctionFixedList(correctionWhere(first)));
     const wordsFor = (target: CorrectionTarget): readonly string[] => [
       FIELD_LABELS[target.fieldKey as ProfileFieldKey],
       ...(target.part === undefined ? [] : [partLabel(target.fieldKey as ProfileFieldKey, target.part) ?? target.part]),
     ];
-    const target = namedPlace(places, confirmed, reading.context, wordsFor);
-    if (target === null) return await say(correctionAmbiguous(reading.from, places.map(correctionWhere)));
+    // P311: found by the words the student was shown for a closed list's
+    // value as well as by its stored words. Vahid, 2026-10-14: *"Match the
+    // words the student is shown ("UK honours"), never only the internal
+    // token."* The stored words come first, and while a question is open a
+    // place found only by its shown words must be named by the sentence.
+    const everywhere = placesToCorrect({ confirmed, from: reading.from, context: reading.context, answering, wordsFor });
+    if (everywhere.length === 0) return answering ? false : await say(correctionNotFound(reading.from));
+    const target = namedPlace(everywhere, confirmed, reading.context, wordsFor);
+    if (target === null) return await say(correctionAmbiguous(reading.from, everywhere.map(correctionWhere)));
     const where = correctionWhere(target);
-
-    const saved = await this.#savedPages(situated.record.runId);
-    if (saved.size > 0) {
-      await this.#correctionToAPerson({ ...situated, conversationId, where, fieldKey: target.fieldKey, from: reading.from, to: reading.to, text, saved });
-      return true;
-    }
+    // A choice in a financial answer is still not changed from words, saved
+    // page or not, as before P311: its mandatory review is not run again
+    // after a correction (ADR-0154, amended in P311).
+    const refused = refusedPart(target);
+    if (refused === "financial") return await say(correctionFinancial(target));
 
     // P297: a grade scale corrected by typing is read by the rule the
     // interview reads it by, so a correction can neither store a scale with no
     // maximum ("GPA") nor keep in words a phrase whose token a signed row keys
-    // on ("20-point").
-    const to = target.part === "gradeScale" ? readGradeScale(reading.to) : reading.to;
-    if (to === null) return await say(correctionNeedsAMaximum(where, reading.to));
+    // on ("20-point"). P311: every closed list is read so — by the interview's
+    // own reader, and the words it is shown in — and a value the set does not
+    // have is refused. Vahid: *"when the new value is a fixed choice, take it
+    // only if it is one of the set."* Read before a saved page sends anything
+    // to a person, so a change that changes nothing, or one the set refuses,
+    // never stops the application.
+    const closed = closedPart(target.fieldKey, target.part);
     const current = confirmed.get(target.fieldKey);
+    const holder: unknown = target.item === undefined ? current : Array.isArray(current) ? (current as readonly unknown[])[target.item] : undefined;
+    const heldNow: unknown = target.part === undefined ? holder : holder !== null && typeof holder === "object" ? (holder as Record<string, unknown>)[target.part] : undefined;
+    let to: string | null;
+    if (target.part === "gradeScale") {
+      to = readGradeScale(reading.to) ?? closed?.read(reading.to) ?? null;
+      if (to === null) return await say(correctionNeedsAMaximum(where, reading.to));
+    } else if (closed !== null) {
+      to = closed.read(reading.to);
+      if (to === null) return await say(correctionNotInTheSet(where, reading.to, closed.choices));
+    } else {
+      to = reading.to;
+    }
+    // Shown as the student is shown them, never the token (row 92's rule).
+    const shownOf = (value: string): string => closed?.shown(value) ?? value;
+    if (closed !== null && to === heldNow) return await say(correctionChangesNothing(where, shownOf(to)));
+    const fromShown = closed !== null && typeof heldNow === "string" ? shownOf(heldNow) : reading.from;
+    const toShown = closed !== null ? shownOf(to) : reading.to;
+
+    const saved = await this.#savedPages(situated.record.runId);
+    if (saved.size > 0) {
+      await this.#correctionToAPerson({ ...situated, conversationId, where, fieldKey: target.fieldKey, from: fromShown, to: toShown, text, saved });
+      return true;
+    }
+    // A part that decides what else the answer holds: before a page is saved
+    // it is refused, never stored half-built; after, a person has it, as
+    // every correction after a saved page does (ADR-0154 §2).
+    if (refused === "decides_the_shape") return await say(correctionDecidesTheShape(target));
     const value =
       target.item !== undefined && target.part !== undefined && Array.isArray(current)
         ? (current as readonly unknown[]).map((held, index): unknown => (index === target.item ? { ...(held as Record<string, unknown>), [target.part ?? ""]: to } : held))
@@ -6865,7 +6930,7 @@ export class RunDriver {
         ? { parts: [{ partKey: `item${String(target.item)}.${target.part}`, origin: "conversation" as const, verbatim: reading.to }] }
         : {}),
     };
-    await say(correctionOpening(where, reading.from, reading.to));
+    await say(correctionOpening(where, fromShown, toShown));
     await this.#putToTheStudent(conversationId, { ...situated.state.interview, pending });
     return true;
   }

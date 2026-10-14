@@ -1,0 +1,120 @@
+# P311 mutation 04-financial-choice-taken
+# file: apps/conversation-service/src/correction-requests.ts
+# replaced:
+  if (isFinancialField(place.fieldKey as ProfileFieldKey) && closedPart(place.fieldKey, place.part) !== null) return "financial";
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/correction-requests.test.ts apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking|P311|P297|P288
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/correction-requests.test.ts (12 tests | 1 failed) 56ms
+   × a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > refuses a choice in a financial answer, and a part that decides what else an answer holds 7ms
+     → expected null to be 'financial' // Object.is equality
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (394 tests | 3 failed | 381 skipped) 2244ms
+   ✓ a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 437ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a nationality is corrected by the name it is shown with and pressed; a choice in a financial answer is refused, as before; and before a page is saved, a part that decides an answer's shape is refused, never stored half-built 227ms
+     → expected [ …(2) ] to deeply equal [ Array(1) ]
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > after a page is saved, goes to a person, says what the university already holds, and holds the run — the confirmed answer unchanged 64ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did 49ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+ Test Files  2 failed (2)
+      Tests  4 failed | 21 passed | 381 skipped (406)
+   Start at  21:10:20
+   Duration  5.51s (transform 2.25s, setup 0ms, collect 3.98s, tests 2.30s, environment 0ms, prepare 144ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > refuses a choice in a financial answer, and a part that decides what else an answer holds
+AssertionError: expected null to be 'financial' // Object.is equality
+
+- Expected: 
+"financial"
+
++ Received: 
+null
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:173:74
+    171| 
+    172|   it("refuses a choice in a financial answer, and a part that decides …
+    173|     expect(refusedPart({ fieldKey: "finance.funding", part: "source" }…
+       |                                                                          ^
+    174|     expect(refusedPart({ fieldKey: "finance.funding", part: "stage" })…
+    175|     expect(refusedPart({ fieldKey: "finance.funding", part: "details" …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a nationality is corrected by the name it is shown with and pressed; a choice in a financial answer is refused, as before; and before a page is saved, a part that decides an answer's shape is refused, never stored half-built
+AssertionError: expected [ …(2) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "The source of funding is part of how your studies will be funded, which a person on the team checks, so I cannot change it from your words here. Nothing has been changed.",
++   "You asked me to change the source of funding in your how your studies will be funded from \"a loan\" to \"a scholarship\". Here it is as I would record it — nothing changes until you say it is right.",
++   "You said: \"my funding source is a scholarship, not a loan\"
++
++ I've recorded your how your studies will be funded as: Whether you know yet how your studies will be funded: yes, How far the funding is arranged: applied, Source of funding: a scholarship
++
++ Is that right?",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7529:51
+    7527|     before = (await assistantSaid()).length;
+    7528|     await say("my funding source is a scholarship, not a loan");
+    7529|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7530|       "The source of funding is part of how your studies will be funde…
+    7531|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > after a page is saved, goes to a person, says what the university already holds, and holds the run — the confirmed answer unchanged
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "I cannot change the town in your home address here any more: filling in your application on Example University's form has begun, and an answer is changed after that by a person, not by me. Example University already holds \"Tehran North\" as the town in your home address, on the page \"Personal details\" that I saved, and that is what they have until a person changes it there. I have stopped your application and passed your correction to a person on the team, in your words: \"my town is Tehran, not Tehran North\". Nothing more will be filled in until a person has looked at it.",
++   "To keep this change, press \"Yes, that's right\". To leave your answer as it was, say \"leave it\". To change it to something else, say \"leave it\" first, then tell me what it should say. Nothing has been changed yet.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7554:51
+    7552|     const before = (await assistantSaid()).length;
+    7553|     await say("my town is Tehran, not Tehran North");
+    7554|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7555|       "I cannot change the town in your home address here any more: fi…
+    7556|         `Example University already holds "Tehran North" as the town i…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "The grade scale of your qualification 2 already says \"20-point\", so nothing has been changed.",
++   "To keep this change, press \"Yes, that's right\". To leave your answer as it was, say \"leave it\". To change it to something else, say \"leave it\" first, then tell me what it should say. Nothing has been changed yet.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7585:51
+    7583|     let before = (await assistantSaid()).length;
+    7584|     await say("my Master's grade scale is out of 20, not 20-point");
+    7585|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7586|       'The grade scale of your qualification 2 already says "20-point"…
+    7587|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

@@ -1,6 +1,6 @@
 # ADR-0154 — A confirmed answer can be corrected by asking
 
-**Status:** Accepted · decided by Vahid, 2026-10-04 and 2026-10-05, in his own words · built in P288
+**Status:** Accepted · decided by Vahid, 2026-10-04 and 2026-10-05, in his own words · built in P288 · §5 superseded for fixed choices at his word of 2026-10-14 (P311)
 
 ## Why this exists
 
@@ -102,6 +102,7 @@ is itself the exact text of an entry the run would otherwise choose, say so."*
 
 ### 5. Only words a student gave as words
 
+*Superseded in P311 for fixed choices: see "Amended in P311" below.* As written before it:
 A part chosen from a fixed set is a token, not the student's words. That covers an ISO country,
 a vocabulary choice, and a country field (`isClosedVocabulary`, ADR-0153). Words put in its place
 would be a value the set does not have, so it is refused with an honest sentence. Dates and
@@ -116,7 +117,7 @@ numbers are not text and are not found this way.
   resolves his stop.
 - **Not built:**
   - corrections after a saved page, which need a measured way back to an earlier portal page;
-  - corrections of a fixed-set answer, a date or a number;
+  - corrections of a fixed-set answer (built in P311, below), a date or a number;
   - buttons for choosing between answers holding the same words: the student names them in a
     sentence instead.
 
@@ -140,3 +141,58 @@ His report after correcting his own two answers:
   correction is stored with the correction as the whole field's source, so parts first read from a
   CV no longer say so. In his words, provenance is *"the record of who authored a value"*. Not
   built: it is a change to what the profile holds.
+
+## Amended in P311 (2026-10-14): a fixed-choice answer can be corrected
+
+His live run stopped on it. In his words ([as sent](../run-a/p311-his-message-as-sent.txt)):
+
+> *"in the chat, I could not correct my Master's grade scale. "my Master's grade scale is
+> 20-point, not UK honours" was refused because nothing confirmed says "UK honours" (the store
+> holds uk_honours), and "not uk_honours" was refused because the scale "was chosen from a fixed
+> set of answers". A student who picked the wrong option has no way to fix it."*
+>
+> *"a correction to a fixed-choice part (grade scale, and any other closed list) must work. Match
+> the words the student is shown ("UK honours"), never only the internal token, and when the new
+> value is a fixed choice, take it only if it is one of the set, then play it back for "Yes,
+> that's right" as for any correction."*
+
+So §5 no longer refuses a fixed choice:
+
+- **Found by the words the student was shown.** An answer from a closed list is found by the
+  words its playback shows (*"UK honours"*, *"Iran (IR)"*, *"full-time"*), by the interview's own
+  reader for that part (*"uk honours scale"*, *"Iran"*), or by the stored token
+  (`placesSaying`). The row-134 stop still names an entry's stored words only (`placesHolding`).
+- **The new value only if it is one of the set.** It is read by the interview's own reader for
+  that part, and by the shown words where the question's words differ (funding's *"a loan"*). A
+  value the set does not have is refused with a sentence naming the set (*"The answers it can
+  take are …"*), or, for a country, asking for its English name or two-letter code. The same
+  choice in other words changes nothing and says so. A grade scale still keeps P297's rule: the
+  student's own words are kept when they state a maximum.
+- **Played back and pressed as any correction.** The opening, the playback, *"Changed: …"* and
+  *"Nothing is changed: …"* show the words the student is shown, never a token.
+- **Closed lists covered:** a qualification's grade scale and level, a job's basis, the level of
+  UK study, every `countryCode` part, and the nationality, country of birth and country of
+  residence.
+
+Two kinds are still refused, and these are my choices, not his words:
+
+- **A choice in a financial answer** (`finance.funding`'s source and stage), as before P311.
+  The mandatory review of financial evidence is done once, before the preview. The trigger is
+  raised again on the next advance, but an earlier approving review still counts as clearing it
+  (`unclearedMandatoryTriggers`), so a correction after the review would never be reviewed. The
+  free-text parts of a financial answer have been corrected from words since P288 regardless;
+  that is row 189 (1), and his. It touches money, so it is his to decide.
+- **A part that decides what else the answer holds**: whether a passport is held, whether there
+  was UK study (`kind`). Changed on its own, it would store an answer half-built, which the code
+  before P311 did. Before a page is saved it is refused with a sentence that says why; after,
+  it goes to a person, as every correction after a saved page does (§2).
+
+From P311's review, also mine:
+
+- **The stored words first.** An answer that holds the words is found before a closed list that
+  the same word names, so a town called Singapore is the town.
+- **An open question keeps its answer.** While a question is open, an answer found only by its
+  shown words must be named by the sentence, so *"It's Iraq, not Iran"* answers the question.
+- **Read before a person.** After a page is saved, a change that changes nothing, or a value
+  outside the set, is answered as it is before one; only a real change goes to a person, in the
+  shown words.

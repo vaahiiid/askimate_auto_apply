@@ -1,0 +1,47 @@
+# P311 mutation 16-open-question-not-kept
+# file: apps/conversation-service/src/correction-requests.ts
+# replaced:
+  if (!input.answering) return shown;
+# with:
+  return shown;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/correction-requests.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/correction-requests.test.ts (12 tests | 1 failed) 71ms
+   × the places a correction may be about, before one is named (P311) > while a question is open, takes a place found only by its shown words when the sentence names it 13ms
+     → the answer to the open question: expected [ Array(1) ] to deeply equal []
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  21:11:30
+   Duration  1.07s (transform 404ms, setup 0ms, collect 679ms, tests 71ms, environment 0ms, prepare 71ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > the places a correction may be about, before one is named (P311) > while a question is open, takes a place found only by its shown words when the sentence names it
+AssertionError: the answer to the open question: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- Array []
++ Array [
++   Object {
++     "fieldKey": "identity.nationality",
++   },
++ ]
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:203:139
+    201|   it("while a question is open, takes a place found only by its shown …
+    202|     // "It's Iraq, not Iran", answering "Which country were you born i…
+    203|     expect(placesToCorrect({ confirmed: held, from: "Iran", context: "…
+       |                                                                                                                                           ^
+    204|     expect(placesToCorrect({ confirmed: held, from: "Iran", context: "…
+    205|     // The stored words are a correction while a question is open, as …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

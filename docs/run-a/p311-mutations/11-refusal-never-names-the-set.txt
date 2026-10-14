@@ -1,0 +1,68 @@
+# P311 mutation 11-refusal-never-names-the-set
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+  if (choices === null) {
+    return `"${to}" is not a country I can read
+# with:
+  if (true) {
+    return `"${to}" is not a country I can read
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (394 tests | 2 failed | 381 skipped) 2055ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 306ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did 77ms
+     → expected '"Masters" is not a country I can read…' to match /^"Masters" is not one of the answers …/
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 11 passed | 381 skipped (394)
+   Start at  21:11:00
+   Duration  5.60s (transform 2.14s, setup 0ms, collect 3.20s, tests 2.05s, environment 0ms, prepare 61ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "\"Masters\" is not one of the answers the level of your qualification 2 can take, so it is unchanged. The answers it can take are Bachelor's degree, Master's degree, Doctorate, Diploma, Certificate or High school diploma. Nothing has been changed.",
++   "\"Masters\" is not a country I can read, so the level of your qualification 2 is unchanged. Say the country's name in English — for example \"Iran\" — or its two-letter code. Nothing has been changed.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7474:51
+    7472|     before = (await assistantSaid()).length;
+    7473|     await say("my Master's level is Masters, not Master's degree");
+    7474|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7475|       '"Masters" is not one of the answers the level of your qualifica…
+    7476|         "The answers it can take are Bachelor's degree, Master's degre…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did
+AssertionError: expected '"Masters" is not a country I can read…' to match /^"Masters" is not one of the answers …/
+
+- Expected: 
+/^"Masters" is not one of the answers the level of your qualification 2 can take, so it is unchanged\./
+
++ Received: 
+"\"Masters\" is not a country I can read, so the level of your qualification 2 is unchanged. Say the country's name in English — for example \"Iran\" — or its two-letter code. Nothing has been changed."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7590:54
+    7588|     before = (await assistantSaid()).length;
+    7589|     await say("my Master's level is Masters, not Master's degree");
+    7590|     expect((await assistantSaid()).slice(before)[0]).toMatch(/^"Master…
+       |                                                      ^
+    7591|     before = (await assistantSaid()).length;
+    7592|     await say("my funding source is a scholarship, not a loan");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

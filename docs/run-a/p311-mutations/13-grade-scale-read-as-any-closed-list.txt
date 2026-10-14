@@ -1,0 +1,43 @@
+# P311 mutation 13-grade-scale-read-as-any-closed-list
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    if (target.part === "gradeScale") {
+      to = readGradeScale(reading.to) ?? closed?.read(reading.to) ?? null;
+# with:
+    if (target.part === "never") {
+      to = readGradeScale(reading.to) ?? closed?.read(reading.to) ?? null;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (394 tests | 1 failed | 381 skipped) 2095ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P297: a grade scale in the student's words can be corrected, read by the interview's own rule — one with no maximum is refused and nothing changes 108ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+   ✓ a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 369ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed | 381 skipped (394)
+   Start at  21:11:14
+   Duration  5.75s (transform 2.24s, setup 0ms, collect 3.27s, tests 2.09s, environment 0ms, prepare 79ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P297: a grade scale in the student's words can be corrected, read by the interview's own rule — one with no maximum is refused and nothing changes
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "\"GPA\" does not say the most the grade can be, so the grade scale of your qualification 1 is unchanged. Say the scale with its maximum — for example \"out of 10\" or \"GPA out of 4\". Nothing has been changed.",
++   "\"GPA\" is not one of the answers the grade scale of your qualification 1 can take, so it is unchanged. The answers it can take are UK honours, 20-point, GPA out of 4 or percentage. Nothing has been changed.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7355:51
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

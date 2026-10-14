@@ -1,0 +1,43 @@
+# P311 mutation 10-name-and-code-may-disagree
+# file: apps/conversation-service/src/correction-requests.ts
+# replaced:
+  return byName !== null && byName === readCountryCode(shownForm[2] ?? "") ? byName : null;
+# with:
+  return byName;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/correction-requests.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/correction-requests.test.ts (10 tests | 1 failed) 41ms
+   × a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > reads a new value into the set by the interview's own reader, and nothing outside it 7ms
+     → a name and a code that disagree: expected 'IR' to be null
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  20:32:26
+   Duration  1.08s (transform 419ms, setup 0ms, collect 718ms, tests 41ms, environment 0ms, prepare 84ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > reads a new value into the set by the interview's own reader, and nothing outside it
+AssertionError: a name and a code that disagree: expected 'IR' to be null
+
+- Expected: 
+null
+
++ Received: 
+"IR"
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:158:75
+    156|     expect(country?.read("Afghanistan")).toBe("AF");
+    157|     expect(country?.read("Iran (IR)")).toBe("IR");
+    158|     expect(country?.read("Iran (GB)"), "a name and a code that disagre…
+       |                                                                           ^
+    159|     expect(country?.read("Narnia")).toBeNull();
+    160|     expect(country?.shown("IR")).toBe("Iran (IR)");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

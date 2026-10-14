@@ -1,0 +1,99 @@
+# P311 mutation 03-driver-finds-by-token-only
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const everywhere = placesToCorrect({ confirmed, from: reading.from, context: reading.context, answering, wordsFor });
+# with:
+    const everywhere = placesHolding(confirmed, reading.from);
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (394 tests | 4 failed | 381 skipped) 1602ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, his case: qualification 2's grade scale, from UK honours to 20-point — found by the words he was shown, read into the set, played back, and the press stores the token 87ms
+     → expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 34ms
+     → expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a nationality is corrected by the name it is shown with and pressed; a choice in a financial answer is refused, as before; and before a page is saved, a part that decides an answer's shape is refused, never stored half-built 72ms
+     → expected 'None of the answers you have confirme…' to be 'You asked me to change your nationali…' // Object.is equality
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did 45ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 9 passed | 381 skipped (394)
+   Start at  21:10:13
+   Duration  5.36s (transform 2.29s, setup 0ms, collect 3.36s, tests 1.60s, environment 0ms, prepare 71ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, his case: qualification 2's grade scale, from UK honours to 20-point — found by the words he was shown, read into the set, played back, and the press stores the token
+AssertionError: expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+
+Expected: "You asked me to change the grade scale of your qualification 2 from "UK honours" to "20-point". Here it is as I would record it — nothing changes until you say it is right."
+Received: "None of the answers you have confirmed says "UK honours", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: "my institution is X, not Y"."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7428:22
+    7426|     await say("my Master's grade scale is 20-point, not UK honours");
+    7427|     const shown = (await assistantSaid()).slice(before);
+    7428|     expect(shown[0]).toBe(
+       |                      ^
+    7429|       'You asked me to change the grade scale of your qualification 2 …
+    7430|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name
+AssertionError: expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+
+Expected: "You asked me to change the grade scale of your qualification 2 from "20-point" to "percentage". Here it is as I would record it — nothing changes until you say it is right."
+Received: "None of the answers you have confirmed says "twenty_point", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: "my institution is X, not Y"."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7450:54
+    7448|     let before = (await assistantSaid()).length;
+    7449|     await say("my Master's grade scale is percentage, not twenty_point…
+    7450|     expect((await assistantSaid()).slice(before)[0]).toBe(
+       |                                                      ^
+    7451|       'You asked me to change the grade scale of your qualification 2 …
+    7452|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a nationality is corrected by the name it is shown with and pressed; a choice in a financial answer is refused, as before; and before a page is saved, a part that decides an answer's shape is refused, never stored half-built
+AssertionError: expected 'None of the answers you have confirme…' to be 'You asked me to change your nationali…' // Object.is equality
+
+Expected: "You asked me to change your nationality from "Iran (IR)" to "Afghanistan (AF)". Here it is as I would record it — nothing changes until you say it is right."
+Received: "None of the answers you have confirmed says "Iran", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: "my institution is X, not Y"."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7516:54
+    7514|     let before = (await assistantSaid()).length;
+    7515|     await say("my nationality is Afghanistan, not Iran");
+    7516|     expect((await assistantSaid()).slice(before)[0]).toBe(
+       |                                                      ^
+    7517|       'You asked me to change your nationality from "Iran (IR)" to "Af…
+    7518|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "The grade scale of your qualification 2 already says \"20-point\", so nothing has been changed.",
++   "None of the answers you have confirmed says \"20-point\", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: \"my institution is X, not Y\".",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7585:51
+    7583|     let before = (await assistantSaid()).length;
+    7584|     await say("my Master's grade scale is out of 20, not 20-point");
+    7585|     expect((await assistantSaid()).slice(before)).toEqual([
+       |                                                   ^
+    7586|       'The grade scale of your qualification 2 already says "20-point"…
+    7587|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

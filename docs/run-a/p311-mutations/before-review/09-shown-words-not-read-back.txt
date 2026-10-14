@@ -1,0 +1,43 @@
+# P311 mutation 09-shown-words-not-read-back
+# file: apps/conversation-service/src/correction-requests.ts
+# replaced:
+        return typeof read === "string" ? read : (byShown.get(flat(words)) ?? null);
+# with:
+        return typeof read === "string" ? read : null;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/correction-requests.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/correction-requests.test.ts (10 tests | 1 failed) 45ms
+   × a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > reads a new value into the set by the interview's own reader, and nothing outside it 8ms
+     → expected null to be 'scholarship' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  20:32:24
+   Duration  1.10s (transform 417ms, setup 0ms, collect 715ms, tests 45ms, environment 0ms, prepare 85ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/correction-requests.test.ts > a correction to a fixed-choice part: found by the words the student was shown, read into the set (P311) > reads a new value into the set by the interview's own reader, and nothing outside it
+AssertionError: expected null to be 'scholarship' // Object.is equality
+
+- Expected: 
+"scholarship"
+
++ Received: 
+null
+
+ ❯ apps/conversation-service/src/correction-requests.test.ts:167:76
+    165|     expect(closedPart("immigration.uk_study", "highestLevel")?.read("s…
+    166|     // The shown words read back even where the question's words diffe…
+    167|     expect(closedPart("finance.funding", "source")?.read("a scholarshi…
+       |                                                                            ^
+    168|     expect(closedPart("education.prior_qualifications", "institution")…
+    169|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

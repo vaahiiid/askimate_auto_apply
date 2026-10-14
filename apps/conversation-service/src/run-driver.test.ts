@@ -7366,6 +7366,180 @@ describeIfDatabase("a confirmed answer is corrected by asking, and the stop that
     expect(await revision(), "withdrawn: as confirmed").toBe(confirmedAt);
   }, 300_000);
 
+  // ── P311: a correction to a fixed-choice part ────────────────────────────
+  //
+  // Vahid, 2026-10-14 (docs/run-a/p311-his-message-as-sent.txt): *"a correction
+  // to a fixed-choice part (grade scale, and any other closed list) must work.
+  // Match the words the student is shown ("UK honours"), never only the
+  // internal token, and when the new value is a fixed choice, take it only if
+  // it is one of the set, then play it back for "Yes, that's right" as for
+  // any correction. Test it with my case: qualification 2, from UK honours to
+  // 20-point."*
+  async function qualifications(): Promise<{ value: readonly Record<string, unknown>[]; revision: number }> {
+    const row = await pool.query<{ value: readonly Record<string, unknown>[]; revision: number }>(
+      "SELECT value, revision FROM profile_entries WHERE student_id = $1 AND field_key = 'education.prior_qualifications'",
+      [owner],
+    );
+    return { value: row.rows[0]?.value ?? [], revision: row.rows[0]?.revision ?? 0 };
+  }
+  async function press(): Promise<void> {
+    const proposals = await pool.query<{ playback_hash: string }>(
+      `SELECT playback_hash FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_proposed' ORDER BY ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      const agreed = await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: proposals.rows[0]!.playback_hash } });
+      expect(agreed).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("P311, his case: qualification 2's grade scale, from UK honours to 20-point — found by the words he was shown, read into the set, played back, and the press stores the token", async () => {
+    // His two qualifications in the shape P286 measured (scripts/questions-his-run.ts,
+    // whose dates are synthetic and whose scales are 20-point). His message says
+    // his Master's was held on UK honours; putting his doctorate on UK honours
+    // too is this test's choice, so the sentence's "Master's" must pick the second.
+    const qualification = {
+      countryCode: "IR", subject: "International Business", start: { year: 2013, month: 9 },
+      end: { kind: "completed" as const, date: { year: 2015, month: 9 } }, award: { year: 2015, month: 9 }, grade: "19.5", gradeScale: "uk_honours",
+    };
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      await confirmInto(
+        new PostgresConfirmedProfileStore(instance.pool),
+        "education.prior_qualifications",
+        [
+          { ...qualification, level: "Doctorate", awardTitle: "Doctorate of Business Administration", institution: "HHE" },
+          { ...qualification, level: "Master's degree", awardTitle: "MSc", institution: "Islamic Azad University" },
+        ],
+        "my DBA and my MSc",
+        owner,
+      );
+    } finally {
+      await instance.pool.end();
+    }
+    const confirmedAt = (await qualifications()).revision;
+
+    const before = (await assistantSaid()).length;
+    await say("my Master's grade scale is 20-point, not UK honours");
+    const shown = (await assistantSaid()).slice(before);
+    expect(shown[0]).toBe(
+      'You asked me to change the grade scale of your qualification 2 from "UK honours" to "20-point". Here it is as I would record it — nothing changes until you say it is right.',
+    );
+    expect(shown.find((line) => line.startsWith("Qualification 2 of 2")) ?? "").toContain('Grade scale: 20-point (you said: "20-point")');
+    expect(shown.join("\n"), "never the internal tokens").not.toMatch(/twenty_point|uk_honours/);
+    expect((await qualifications()).revision, "nothing changes until he says it is right").toBe(confirmedAt);
+
+    await press();
+    const stored = await qualifications();
+    expect(stored.revision).toBe(confirmedAt + 1);
+    expect(stored.value.map((entry) => entry["gradeScale"]), "the token of the set, on his Master's alone").toEqual(["uk_honours", "twenty_point"]);
+    expect((await assistantSaid()).at(-1)).toBe(
+      'Changed: the grade scale of your qualification 2 is now "20-point". Your application is with a person on the team, and when they look at it again it will be with this answer.',
+    );
+  }, 300_000);
+
+  it("P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name", async () => {
+    const confirmedAt = (await qualifications()).revision;
+
+    // The internal word typed: found, and played back in his words.
+    let before = (await assistantSaid()).length;
+    await say("my Master's grade scale is percentage, not twenty_point");
+    expect((await assistantSaid()).slice(before)[0]).toBe(
+      'You asked me to change the grade scale of your qualification 2 from "20-point" to "percentage". Here it is as I would record it — nothing changes until you say it is right.',
+    );
+    await say("leave it");
+    expect((await assistantSaid()).at(-1)).toBe('Nothing is changed: the grade scale of your qualification 2 stays "20-point", as you confirmed it.');
+
+    // The internal word typed as the new value: read into the set, shown in words.
+    before = (await assistantSaid()).length;
+    await say("my Master's grade scale is gpa_4, not 20-point");
+    expect((await assistantSaid()).slice(before)[0]).toBe(
+      'You asked me to change the grade scale of your qualification 2 from "20-point" to "GPA out of 4". Here it is as I would record it — nothing changes until you say it is right.',
+    );
+    await say("leave it");
+
+    // Other words for the same choice change nothing, and say so.
+    before = (await assistantSaid()).length;
+    await say("my Master's grade scale is out of 20, not 20-point");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      'The grade scale of your qualification 2 already says "20-point", so nothing has been changed.',
+    ]);
+
+    // A closed list held as words: a value the set does not have is refused.
+    before = (await assistantSaid()).length;
+    await say("my Master's level is Masters, not Master's degree");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      '"Masters" is not one of the answers the level of your qualification 2 can take, so it is unchanged. ' +
+        "The answers it can take are Bachelor's degree, Master's degree, Doctorate, Diploma, Certificate or High school diploma. Nothing has been changed.",
+    ]);
+
+    // A country, found by the name the playback shows, and read into the table.
+    before = (await assistantSaid()).length;
+    await say("my Master's country is Afghanistan, not Iran");
+    expect((await assistantSaid()).slice(before)[0]).toBe(
+      'You asked me to change the country of your qualification 2 from "Iran (IR)" to "Afghanistan (AF)". Here it is as I would record it — nothing changes until you say it is right.',
+    );
+    await say("leave it");
+    before = (await assistantSaid()).length;
+    await say("my Master's country is Narnia, not Iran");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      '"Narnia" is not a country I can read, so the country of your qualification 2 is unchanged. Say the country\'s name in English — for example "Iran" — or its two-letter code. Nothing has been changed.',
+    ]);
+    expect((await qualifications()).revision, "nothing changed").toBe(confirmedAt);
+  }, 300_000);
+
+  async function heldAt(key: string): Promise<{ value: unknown; revision: number }> {
+    const row = await pool.query<{ value: unknown; revision: number }>("SELECT value, revision FROM profile_entries WHERE student_id = $1 AND field_key = $2", [owner, key]);
+    return { value: row.rows[0]?.value, revision: row.rows[0]?.revision ?? 0 };
+  }
+
+  it("P311: a nationality is corrected by the name it is shown with and pressed; a choice in a financial answer is refused, as before; and before a page is saved, a part that decides an answer's shape is refused, never stored half-built", async () => {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iranian", owner);
+      await confirmInto(profiles, "finance.funding", { known: true, source: "loan", stage: "applied" }, "a loan, applied for", owner);
+      await confirmInto(profiles, "identity.passport", { kind: "none" }, "I don't have a passport", owner);
+    } finally {
+      await instance.pool.end();
+    }
+    const nationality = await heldAt("identity.nationality");
+    const funding = await heldAt("finance.funding");
+    const passport = await heldAt("identity.passport");
+
+    // A country field: "Iran" is in three answers here, and "nationality" names one.
+    let before = (await assistantSaid()).length;
+    await say("my nationality is Afghanistan, not Iran");
+    expect((await assistantSaid()).slice(before)[0]).toBe(
+      'You asked me to change your nationality from "Iran (IR)" to "Afghanistan (AF)". Here it is as I would record it — nothing changes until you say it is right.',
+    );
+    await press();
+    expect(await heldAt("identity.nationality")).toEqual({ value: "AF", revision: nationality.revision + 1 });
+    expect((await assistantSaid()).at(-1)).toBe(
+      'Changed: your nationality is now "Afghanistan (AF)". Your application is with a person on the team, and when they look at it again it will be with this answer.',
+    );
+
+    // Found by the words the playback shows ("a loan"), and refused for the
+    // reason the code acts on: the funding review is not run again.
+    before = (await assistantSaid()).length;
+    await say("my funding source is a scholarship, not a loan");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      "The source of funding is part of how your studies will be funded, which a person on the team checks, so I cannot change it from your words here. Nothing has been changed.",
+    ]);
+    expect(await heldAt("finance.funding"), "unchanged").toEqual(funding);
+
+    // Whether a passport is held decides what else that answer holds.
+    before = (await assistantSaid()).length;
+    await say("my passport is held, not none");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      "Whether you have a passport decides which of your other answers go with it, so I cannot change it on its own from your words here. Nothing has been changed.",
+    ]);
+    expect(await heldAt("identity.passport"), "unchanged, never half-built").toEqual(passport);
+  }, 300_000);
+
   it("after a page is saved, goes to a person, says what the university already holds, and holds the run — the confirmed answer unchanged", async () => {
     const page = EXACT_ENTRY_TRAP.blueprint.pages.find((candidate) => candidate.sections.some((section) => section.fields.some((field) => field.fieldRef === "nationality")));
     if (page === undefined) expect.unreachable("the fixture's page");
@@ -7400,6 +7574,46 @@ describeIfDatabase("a confirmed answer is corrected by asking, and the stop that
     expect((await assistantSaid()).at(-1)).toBe("Your correction to the town in your home address is already with a person on the team, and nothing more will be filled in until they have looked at it.");
     expect((await openFor()).filter((item) => item.escalation.checkpoint.target === "correction:contact.address")).toHaveLength(1);
     void caseRef;
+  }, 300_000);
+
+  it("P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did", async () => {
+    const holds = async (): Promise<readonly string[]> => (await openFor()).map((item) => item.escalation.checkpoint.target).sort();
+    const heldBefore = await holds();
+
+    let before = (await assistantSaid()).length;
+    await say("my Master's grade scale is out of 20, not 20-point");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      'The grade scale of your qualification 2 already says "20-point", so nothing has been changed.',
+    ]);
+    before = (await assistantSaid()).length;
+    await say("my Master's level is Masters, not Master's degree");
+    expect((await assistantSaid()).slice(before)[0]).toMatch(/^"Masters" is not one of the answers the level of your qualification 2 can take, so it is unchanged\./);
+    before = (await assistantSaid()).length;
+    await say("my funding source is a scholarship, not a loan");
+    expect((await assistantSaid()).slice(before)).toEqual([
+      "The source of funding is part of how your studies will be funded, which a person on the team checks, so I cannot change it from your words here. Nothing has been changed.",
+    ]);
+    expect(await holds(), "none of these raised anything").toEqual(heldBefore);
+
+    const passport = await heldAt("identity.passport");
+    before = (await assistantSaid()).length;
+    await say("my passport is held, not none");
+    const said = (await assistantSaid()).slice(before);
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain("I have stopped your application and passed your correction to a person on the team");
+    expect(await holds()).toEqual([...heldBefore, "correction:identity.passport"].sort());
+    expect(await heldAt("identity.passport"), "not changed here").toEqual(passport);
+
+    // A real change to a fixed choice goes to the person, in the words he was shown.
+    before = (await assistantSaid()).length;
+    await say("my Master's grade scale is percentage, not twenty_point");
+    const passed = (await assistantSaid()).slice(before);
+    expect(passed).toHaveLength(1);
+    expect(passed[0]).toContain('"20-point" is not on their form yet');
+    // The token appears only where his own words are quoted back as he typed them.
+    expect(passed[0]).toContain('in your words: "my Master\'s grade scale is percentage, not twenty_point"');
+    expect((passed[0] ?? "").replace(/in your words: "[^"]*"/u, ""), "never the internal token in our words").not.toMatch(/twenty_point|uk_honours/);
+    expect(await holds()).toEqual([...heldBefore, "correction:education.prior_qualifications", "correction:identity.passport"].sort());
   }, 300_000);
 });
 

@@ -19,6 +19,34 @@ not shipped artefacts.
 
 ---
 
+## [0.304.0] — 2026-10-14
+
+**P311 — a correction to a fixed-choice answer works.** His live run stopped before the portal on
+it: *"my Master's grade scale is 20-point, not UK honours"* was refused. His words
+(`docs/run-a/p311-his-message-as-sent.txt`): *"a correction to a fixed-choice part (grade scale,
+and any other closed list) must work."*
+
+- **Found by the words the student was shown.** An answer from a closed list is found by the words
+  its playback shows ("UK honours", "Iran (IR)", "full-time"), by the interview's own reader for
+  that part, or by the stored token (`placesSaying`).
+- **Only a value of the set.** The new value is read by the interview's own reader, and by the
+  shown words where the question's words differ. A value outside the set is refused, naming the
+  set. The same choice in other words changes nothing and says so. A grade scale keeps P297's rule.
+- **Played back and pressed as any correction**, in the shown words, never a token. His case is
+  the test: qualification 2, from UK honours to 20-point, stored as `twenty_point`, the token the
+  signed Sheffield entry keys on.
+- **Still refused, my choices:** a choice in a financial answer, as before, because an approving
+  financial review still counts as clearing the trigger after a correction; and, before a page is
+  saved, a part that decides what else an answer holds (whether a passport is held), which the
+  code before P311 would have stored half-built. After a saved page it goes to a person, as before.
+- **From the review:** the stored words are found first; an open question keeps its answer; after
+  a saved page, a change that changes nothing or a value outside the set stops nothing. A financial
+  answer corrected after its review is never reviewed again, as since P288: row 189, his.
+- **Records.** ADR-0154 amended in his words; his five points recorded as rows 184 to 188, to be
+  built after his live run; what P311 leaves in row 189.
+
+---
+
 ## [0.303.0] — 2026-10-14
 
 **P310 — the consent notice at the account-creation press, handled as the sign-in handles it

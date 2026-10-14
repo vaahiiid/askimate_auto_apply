@@ -1,0 +1,12 @@
+My live run stopped before the portal, on a defect, in my own words: in the chat, I could not correct my Master's grade scale. "my Master's grade scale is 20-point, not UK honours" was refused because nothing confirmed says "UK honours" (the store holds uk_honours), and "not uk_honours" was refused because the scale "was chosen from a fixed set of answers". A student who picked the wrong option has no way to fix it.
+
+Fix this first, alone, so my run can continue: a correction to a fixed-choice part (grade scale, and any other closed list) must work. Match the words the student is shown ("UK honours"), never only the internal token, and when the new value is a fixed choice, take it only if it is one of the set, then play it back for "Yes, that's right" as for any correction. Test it with my case: qualification 2, from UK honours to 20-point.
+
+Record these as rows, to be built after my live run:
+1. A grade must match the form's list by number, not by text: "20" and "20.0" are the same grade.
+2. The correction playback attributed qualification 2's award date to my word "MSc" ("Award: September 2020 (you said: \"MSc\")").
+3. The CV reader put one whole line, "Bachelor's in Business Studies, Azad University, 2012", into the award title, subject, institution, level, status and end date of one qualification.
+4. Interview wording: "What's your currently living in the uk?" and "What's your previous qualifications"; the answer "United Kingdom" to the living-in-the-UK question was not understood, and the run stopped after three tries.
+5. When the CV and the student's answer disagree on a date (CV: DBA 2021; I said September 2015), the playback shows both but asks nothing. Say whether it should ask.
+
+My profile's corrections so far are confirmed and stay. Nothing on the portal was touched.

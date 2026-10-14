@@ -1,0 +1,79 @@
+# P311 mutation 03-driver-finds-by-token-only
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const everywhere = placesSaying(confirmed, reading.from);
+# with:
+    const everywhere = placesHolding(confirmed, reading.from);
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (393 tests | 3 failed | 381 skipped) 1575ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, his case: qualification 2's grade scale, from UK honours to 20-point — found by the words he was shown, read into the set, played back, and the press stores the token 113ms
+     → expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 34ms
+     → expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a choice in a financial answer stays refused, as before — a person reviews funding once, and a change after that review would not be seen again — and a part that decides an answer's shape is refused, never stored half-built 40ms
+     → expected 'None of the answers you have confirme…' to match / was chosen from a fixed set of answe…/
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 9 passed | 381 skipped (393)
+   Start at  20:31:42
+   Duration  5.21s (transform 2.28s, setup 0ms, collect 3.27s, tests 1.58s, environment 0ms, prepare 59ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, his case: qualification 2's grade scale, from UK honours to 20-point — found by the words he was shown, read into the set, played back, and the press stores the token
+AssertionError: expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+
+Expected: "You asked me to change the grade scale of your qualification 2 from "UK honours" to "20-point". Here it is as I would record it — nothing changes until you say it is right."
+Received: "None of the answers you have confirmed says "UK honours", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: "my institution is X, not Y"."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7426:22
+    7424|     await say("my Master's grade scale is 20-point, not UK honours");
+    7425|     const shown = (await assistantSaid()).slice(before);
+    7426|     expect(shown[0]).toBe(
+       |                      ^
+    7427|       'You asked me to change the grade scale of your qualification 2 …
+    7428|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name
+AssertionError: expected 'None of the answers you have confirme…' to be 'You asked me to change the grade scal…' // Object.is equality
+
+Expected: "You asked me to change the grade scale of your qualification 2 from "20-point" to "percentage". Here it is as I would record it — nothing changes until you say it is right."
+Received: "None of the answers you have confirmed says "twenty_point", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: "my institution is X, not Y"."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7448:54
+    7446|     let before = (await assistantSaid()).length;
+    7447|     await say("my Master's grade scale is percentage, not twenty_point…
+    7448|     expect((await assistantSaid()).slice(before)[0]).toBe(
+       |                                                      ^
+    7449|       'You asked me to change the grade scale of your qualification 2 …
+    7450|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a choice in a financial answer stays refused, as before — a person reviews funding once, and a change after that review would not be seen again — and a part that decides an answer's shape is refused, never stored half-built
+AssertionError: expected 'None of the answers you have confirme…' to match / was chosen from a fixed set of answe…/
+
+- Expected: 
+/ was chosen from a fixed set of answers, and I cannot change it from your words here\. Nothing has been changed\.$/
+
++ Received: 
+"None of the answers you have confirmed says \"a loan\", so nothing has been changed. Tell me the answer exactly as you gave it and what it should be — for example: \"my institution is X, not Y\"."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7542:24
+    7540|     const refused = (await assistantSaid()).slice(before);
+    7541|     expect(refused).toHaveLength(1);
+    7542|     expect(refused[0]).toMatch(/ was chosen from a fixed set of answer…
+       |                        ^
+    7543|     expect(await held("finance.funding"), "unchanged").toEqual(funding…
+    7544| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

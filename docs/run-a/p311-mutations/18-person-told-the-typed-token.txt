@@ -1,0 +1,41 @@
+# P311 mutation 18-person-told-the-typed-token
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+from: fromShown, to: toShown, text, saved });
+# with:
+from: reading.from, to: reading.to, text, saved });
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a confirmed answer is corrected by asking
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (394 tests | 1 failed | 381 skipped) 2593ms
+   ✓ a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311: a typed token is played back in the shown words, a value already held changes nothing, a value outside the set is refused naming the set, and a country is found by its name 475ms
+   × a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did 315ms
+     → expected 'I cannot change the grade scale of yo…' to contain '"20-point" is not on their form yet'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed | 381 skipped (394)
+   Start at  21:11:40
+   Duration  6.24s (transform 2.26s, setup 0ms, collect 3.24s, tests 2.59s, environment 0ms, prepare 67ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a confirmed answer is corrected by asking, and the stop that invited the wrong fix no longer does (P288, ADR-0154, rows 134 and 135) > P311, after a page is saved: a change that changes nothing, or a value outside the set, stops nothing; a funding choice is refused as before; a part that decides an answer's shape goes to a person, as it did
+AssertionError: expected 'I cannot change the grade scale of yo…' to contain '"20-point" is not on their form yet'
+
+Expected: ""20-point" is not on their form yet"
+Received: "I cannot change the grade scale of your qualification 2 here any more: filling in your application on Example University's form has begun, and an answer is changed after that by a person, not by me. "twenty_point" is not on their form yet, but other pages of your application are. I have stopped your application and passed your correction to a person on the team, in your words: "my Master's grade scale is percentage, not twenty_point". Nothing more will be filled in until a person has looked at it."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:7612:23
+    7610|     const passed = (await assistantSaid()).slice(before);
+    7611|     expect(passed).toHaveLength(1);
+    7612|     expect(passed[0]).toContain('"20-point" is not on their form yet');
+       |                       ^
+    7613|     // The token appears only where his own words are quoted back as h…
+    7614|     expect(passed[0]).toContain('in your words: "my Master\'s grade sc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

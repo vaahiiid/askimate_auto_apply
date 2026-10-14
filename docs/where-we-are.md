@@ -4906,6 +4906,33 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P311 — a fixed-choice answer can be corrected
+
+*2026-10-14.* His live run stopped before the portal. In the chat he could not correct his
+Master's grade scale: *"my Master's grade scale is 20-point, not UK honours"* was refused,
+because the store holds `uk_honours`, and *"not uk_honours"* was refused because the scale was
+chosen from a fixed set. In his words (`docs/run-a/p311-his-message-as-sent.txt`): *"A student who
+picked the wrong option has no way to fix it."*
+
+Now a correction finds an answer by the words the student was shown, reads the new value by the
+interview's own rule, and takes it only if it is one of the set. It plays the correction back for
+"Yes, that's right" like any other. His case is the test: qualification 2, from UK honours to
+20-point, stored as the token the signed entry keys on. The same goes for a qualification's
+level, a job's basis, the level of UK study and every country answer. Two kinds stay refused, by
+my choice: a choice in a funding answer, because the funding review is not run again after a
+correction; and whether a passport is held, which decides what else that answer holds.
+
+He asked for five more points to be recorded, to be built after his live run: rows 184 to 188.
+Two of them quote, word for word, the texts P255 and P289 recorded and fixed; whether his run met
+them again on today's code, or on an older stack, is not established. His fifth is P267's case:
+it was built to say the difference, and I recommend it ask. The review found that a financial
+answer corrected after its review is never reviewed again, which has been so since P288; that is
+his (row 189).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P310 — the consent notice at the creation's press
 
 *2026-10-14.* His order (`docs/run-a/p310-his-decisions-as-sent.txt`): *"P302 item 3 alone first:
