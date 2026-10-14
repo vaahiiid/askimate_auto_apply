@@ -972,7 +972,8 @@ plainly that the application was submitted, by them, on that date."* The additio
     `reportWork` refuses a report whose lease is no longer held. So those nine are reachable only
     through a narrow race: a runner claims work after the record has checked the leases and before
     it has written. Read in the code; no test makes the race.
-- **Who recorded it is asserted, not authenticated**, as for a review.
+- **Who recorded it is asserted, not authenticated**, as for a review. Left so at his word,
+  2026-10-14 (`docs/run-a/p310-his-decisions-as-sent.txt`), with his rule: *"Record that before anyone other than me can record a submission, who recorded it must be authenticated."*
 - **The press**, and everything in §3 to §10 that it needs.
 - **What the review found and left, each recorded in row 182:**
   - a password box open when the record is made stays open (the wind-down has the same gap);

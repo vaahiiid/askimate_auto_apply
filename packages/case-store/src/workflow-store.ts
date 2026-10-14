@@ -117,7 +117,8 @@ export interface IntentRecord {
      * counted as an attempt (ADR-0144, P219). `attemptFailures` below keeps
      * only the attempts MADE; this keeps the one fact the next advance needs
      * from a completion that made none — an account creation that met the
-     * portal's consent notice before it typed anything. Absent on a success.
+     * portal's consent notice before it typed anything, or at its press with
+     * the password typed (P310). Absent on a success.
      */
     readonly failure?: string;
   };
@@ -147,8 +148,10 @@ export interface IntentRecord {
  * caller says the action never reached the world. `spentSecretRequestId` is
  * the request the attempt was handed a handle for, so the row can say which
  * password is spent without waiting on the Secure Plane's outbox. `failure`
- * is the runner's code for a failed attempt (ADR-0122), kept on the row
- * only when the attempt was made.
+ * is the runner's code for a failed attempt (ADR-0122). Both are kept on the
+ * row for a completion that was not an attempt too: the code since ADR-0144,
+ * and the spent request since P310, for a creation that met the consent notice
+ * at its press after the password was typed (`attempted: false`).
  */
 export interface IntentCompletionDetail {
   readonly attempted?: boolean;

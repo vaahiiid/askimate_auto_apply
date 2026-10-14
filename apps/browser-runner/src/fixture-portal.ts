@@ -198,6 +198,19 @@ export interface FixturePortalOptions {
    */
   readonly registerConsentBanner?: boolean | "settings-records-everything";
   /**
+   * P310. When the registration page's notice arrives: in the page as it
+   * loads (the default, and every test before P310), or only once the e-mail
+   * box is first typed into — after the runner's look as the page opens, and
+   * before its press, the race Run A measured on Sheffield's page 0 (P176).
+   */
+  readonly registerConsentBannerArrives?: "with the page" | "once the e-mail is typed";
+  /**
+   * P310. `POST /register` answers after this many milliseconds, held back
+   * AFTER the account exists: a registration that reached the portal and whose
+   * answer is slow, the case a press must never take for one that did not.
+   */
+  readonly registerAnswerDelayMs?: number;
+  /**
    * P301. Sheffield's "Forgot password", as Vahid observed it on 2026-10-12
    * (docs/run-a/p301-his-auth7-as-sent.txt): the login page links to a reset
    * page that takes an e-mail and a plain "Send" (`name=sendBtn`, as the
@@ -219,6 +232,7 @@ const REGISTER_PAGE = (
   challenge?: FixtureChallenge,
   consentBanner: false | "nothing" | "everything" = false,
   resetControls = false,
+  consentLate = false,
 ): string =>
   page(
     "Create your account",
@@ -240,7 +254,7 @@ ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="createAccount">Create account</button>${resetControls ? CREATE_RESET_CONTROLS : ""}
 </form>${resetControls ? `\n<p><button type="button" id="createScripted" onclick="location.href='/forgottenPassword.do'">Create my account</button></p>` : ""}
 <p>Already registered? <a href="/login">Sign in</a></p>
-<p><a href="/private/staff-only">Staff area</a></p>${consentBanner === false ? "" : CONSENT_BANNER(consentBanner)}`,
+<p><a href="/private/staff-only">Staff area</a></p>${consentBanner === false ? "" : consentLate ? CONSENT_BANNER_LATE(consentBanner) : CONSENT_BANNER(consentBanner)}`,
   );
 
 /**
@@ -300,6 +314,33 @@ const CONSENT_BANNER = (settingsRecords: "nothing" | "everything"): string => `
       write(${settingsRecords === "everything" ? "everything" : "{}"});
       document.getElementById("ccc-overlay").remove();
     });
+  </script>`;
+
+/**
+ * P310. The same notice, arriving late: held in a template and put on the
+ * page, with its own script run fresh, the first time the e-mail box is typed
+ * into. The markup and the wiring are CONSENT_BANNER's own, so the late notice
+ * is the notice, not a look-alike.
+ */
+const CONSENT_BANNER_LATE = (settingsRecords: "nothing" | "everything"): string => `
+  <template id="ccc-late">${CONSENT_BANNER(settingsRecords)}</template>
+  <script>
+    (() => {
+      let shown = false;
+      document.getElementById("email").addEventListener("input", () => {
+        if (shown) return;
+        shown = true;
+        const content = document.getElementById("ccc-late").content.cloneNode(true);
+        const scripts = [...content.querySelectorAll("script")];
+        for (const script of scripts) script.remove();
+        document.body.appendChild(content);
+        for (const script of scripts) {
+          const run = document.createElement("script");
+          run.textContent = script.textContent;
+          document.body.appendChild(run);
+        }
+      });
+    })();
   </script>`;
 
 const LOGIN_PAGE = (
@@ -784,6 +825,8 @@ export async function startFixturePortal(
       : options.registerConsentBanner === "settings-records-everything"
         ? "everything"
         : false;
+  const registerConsentLate = options.registerConsentBannerArrives === "once the e-mail is typed";
+  const registerAnswerDelayMs = options.registerAnswerDelayMs ?? 0;
   const tagScriptUrl = options.loginTagScriptUrl;
   const pixelFrameUrl = options.loginPixelFrameUrl;
   const accounts = new Map<string, Account>();
@@ -865,7 +908,11 @@ export async function startFixturePortal(
         // The notice is shown until answered, here as on the login page: the
         // answer is a cookie, as the real one keeps it (ADR-0131, ADR-0144).
         const answered = consentOf(request) !== null;
-        send(response, 200, REGISTER_PAGE(null, challenge, answered ? false : registerConsentBanner, passwordReset));
+        send(
+          response,
+          200,
+          REGISTER_PAGE(null, challenge, answered ? false : registerConsentBanner, passwordReset, registerConsentLate),
+        );
         return;
       }
 
@@ -932,6 +979,10 @@ export async function startFixturePortal(
         }
 
         accounts.set(email.toLowerCase(), { email, password });
+        // P310: the account exists from here; only the answer is held back.
+        if (registerAnswerDelayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, registerAnswerDelayMs));
+        }
         const id = randomBytes(16).toString("hex");
         if (challenge === "second_factor") {
           // The account EXISTS from here. What it does not have is a session:

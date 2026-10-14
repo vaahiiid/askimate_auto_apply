@@ -1,0 +1,54 @@
+# P310 mutation 17-document-drops-the-value
+# file: packages/contracts/openapi/conversation.v1.yaml
+# replaced:
+          type: boolean
+          enum: [true]
+          description: >-
+            With `failed` and `consent_banner_met`
+# with:
+          type: boolean
+          description: >-
+            With `failed` and `consent_banner_met`
+# command: pnpm exec vitest run --project unit scripts/contract-drift.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/contract-drift.test.ts (27 tests | 1 failed) 165ms
+   × the work vocabulary and the domain do not drift > publishes exactly the failure codes a runner can report 44ms
+     → expected { type: 'boolean', …(1) } to match object { type: 'boolean', enum: [ true ] }
+(1 matching property omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 26 passed (27)
+   Start at  14:02:53
+   Duration  3.63s (transform 1.98s, setup 0ms, collect 3.09s, tests 165ms, environment 0ms, prepare 63ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/contract-drift.test.ts > the work vocabulary and the domain do not drift > publishes exactly the failure codes a runner can report
+AssertionError: expected { type: 'boolean', …(1) } to match object { type: 'boolean', enum: [ true ] }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "enum": Array [
+-     true,
+-   ],
+    "type": "boolean",
+  }
+
+ ❯ scripts/contract-drift.test.ts:280:58
+    278|     expect(WORK_FAILURES).toContain("second_factor_met");
+    279|     // P310: the one flag a consent stop carries, published as the par…
+    280|     expect((report["properties"] as Doc)["secretSpent"]).toMatchObject…
+       |                                                          ^
+    281|   });
+    282| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -1,0 +1,43 @@
+# P310 mutation 21-press-stop-says-the-open-time-sentence
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      await say(input.typedFirst ? consentMetAtCreationPressMessage(entry) : consentMetAtCreationMessage(entry));
+# with:
+      await say(consentMetAtCreationMessage(entry));
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P310
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (388 tests | 1 failed | 386 skipped) 990ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3) 318ms
+     → told once: expected [] to have a length of 1 but got +0
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 386 skipped (388)
+   Start at  14:03:18
+   Duration  5.07s (transform 2.45s, setup 0ms, collect 3.65s, tests 990ms, environment 0ms, prepare 92ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3)
+AssertionError: told once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15054:32
+    15052|       const said = await saidTo(conversation);
+    15053|       const met = said.filter((content) => content.includes("as I went…
+    15054|       expect(met, "told once").toHaveLength(1);
+       |                                ^
+    15055|       expect(met[0]).toContain("I will ask you which choice you want n…
+    15056|       expect(said.filter((content) => content.includes("The password y…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

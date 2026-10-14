@@ -1,0 +1,87 @@
+# P310 mutation 20-press-stop-counted-as-an-attempt
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+          attempted: input.report.failure !== "secret_unavailable" && !metTheNotice,
+# with:
+          attempted: input.report.failure !== "secret_unavailable" && (!metTheNotice || typedFirst),
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P310
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (388 tests | 2 failed | 386 skipped) 1054ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3) 332ms
+     → not an attempt: the press never reached the button: expected { intent: { …(4) }, …(3) } to match object { attemptsMade: +0, …(2) }
+(5 matching properties omitted from actual)
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310) 305ms
+     → expected { intent: { …(4) }, …(3) } to match object { attemptsMade: +0, …(2) }
+(5 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 386 skipped (388)
+   Start at  14:03:12
+   Duration  5.18s (transform 2.56s, setup 0ms, collect 3.69s, tests 1.05s, environment 0ms, prepare 82ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3)
+AssertionError: not an attempt: the press never reached the button: expected { intent: { …(4) }, …(3) } to match object { attemptsMade: +0, …(2) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "attemptFailures": Array [],
+-   "attemptsMade": 0,
++   "attemptFailures": Array [
++     "consent_banner_met",
++   ],
++   "attemptsMade": 1,
+    "completed": Object {
+      "failure": "consent_banner_met",
+      "outcome": "failed_cleanly",
+    },
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15044:76
+    15042|       const key = idempotencyKeyFor({ runId: runRef, action: "create_p…
+    15043|       const ledger = await new PostgresWorkflowRunStore(instance.pool)…
+    15044|       expect(ledger, "not an attempt: the press never reached the butt…
+       |                                                                            ^
+    15045|         attemptsMade: 0,
+    15046|         attemptFailures: [],
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310)
+AssertionError: expected { intent: { …(4) }, …(3) } to match object { attemptsMade: +0, …(2) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "attemptFailures": Array [],
+-   "attemptsMade": 0,
++   "attemptFailures": Array [
++     "consent_not_recorded",
++   ],
++   "attemptsMade": 1,
+    "completed": Object {
+      "failure": "consent_not_recorded",
+    },
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15121:22
+    15119|       const key = idempotencyKeyFor({ runId: runRef, action: "create_p…
+    15120|       const closed = await new PostgresWorkflowRunStore(instance.pool)…
+    15121|       expect(closed).toMatchObject({ attemptsMade: 0, attemptFailures:…
+       |                      ^
+    15122|       expect(closed?.completed?.spentSecretRequestId, "the password wa…
+    15123|       const said = await saidTo(conversation);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

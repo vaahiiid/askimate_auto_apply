@@ -1,0 +1,43 @@
+# P310 mutation 29-claim-reads-the-blueprint-host
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+                deployedHost(entry, detail.portalHost) ?? detail.portalHost,
+# with:
+                detail.portalHost,
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P310 review
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (390 tests | 1 failed | 388 skipped) 904ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the creation is handed the choice recorded for the host it is sent to, on a portal moved to another origin (P310 review) 334ms
+     → the choice the student just made, carried: expected undefined to be 'reject' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 388 skipped (390)
+   Start at  14:27:52
+   Duration  4.97s (transform 2.49s, setup 0ms, collect 3.64s, tests 904ms, environment 0ms, prepare 93ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the creation is handed the choice recorded for the host it is sent to, on a portal moved to another origin (P310 review)
+AssertionError: the choice the student just made, carried: expected undefined to be 'reject' // Object.is equality
+
+- Expected: 
+"reject"
+
++ Received: 
+undefined
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15222:97
+    15220|       const second = await instance.driver.claimWork({ holder: "runner…
+    15221|       if (second === null || second.runId !== runId) expect.unreachabl…
+    15222|       expect(second.registration?.consent?.chosen, "the choice the stu…
+       |                                                                                                 ^
+    15223|       await offOffer(runId);
+    15224|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -1044,6 +1044,32 @@ describe("what shows a page was saved crosses the wire as locators and a URL, an
     expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: "given_name" })).toBeNull();
     expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: Array.from({ length: 51 }, (_, i) => `f${String(i)}`) })).toBeNull();
   });
+
+  it("carries a password spent before a consent stop, and only on a failed consent stop (P310)", () => {
+    // P302 item 3: the creation that meets the notice at its press has typed
+    // the password already, and the plane must ask for it again.
+    for (const failure of ["consent_banner_met", "consent_not_recorded"] as const) {
+      expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", failure, secretSpent: true })).toEqual({
+        leaseId: "wl_1",
+        outcome: "failed",
+        failure,
+        secretSpent: true,
+      });
+      // Absent is absent: the open-time stop typed nothing (ADR-0144).
+      expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", failure })).not.toHaveProperty("secretSpent");
+      // Exactly `true`, nothing that reads as it.
+      for (const value of ["true", 1, false, null, {}]) {
+        expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", failure, secretSpent: value })).toBeNull();
+      }
+      // Never with another outcome.
+      expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure, secretSpent: true })).toBeNull();
+    }
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "succeeded", secretSpent: true })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", failure: "portal_refused", secretSpent: true })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", failure: "secret_unavailable", secretSpent: true })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "runner_fault", secretSpent: true })).toBeNull();
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", unseen: ["given_name"], secretSpent: true })).toBeNull();
+  });
 });
 
 describe("the portal's demand for a part, on the wire (P233, ADR-0148 §11)", () => {

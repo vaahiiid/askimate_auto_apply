@@ -1,0 +1,43 @@
+# P310 mutation 19-driver-spends-the-open-time-handle
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+          ...(metTheNotice && !typedFirst ? {} : await this.#secretHandedTo(runId)),
+# with:
+          ...(await this.#secretHandedTo(runId)),
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t consent notice met at the account CREATION
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (388 tests | 1 failed | 387 skipped) 687ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the account CREATION: nothing typed, no password spent, not counted, the student asked before the creation is offered again, the choice carried on the next creation, and a disagreeing record stops for a person (ADR-0144) 345ms
+     → the Secure Plane was never asked, so the handle is not spent: expected 'sr_00000000000000000000000000000001' to be undefined
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 387 skipped (388)
+   Start at  14:03:05
+   Duration  4.89s (transform 2.61s, setup 0ms, collect 3.81s, tests 687ms, environment 0ms, prepare 78ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the account CREATION: nothing typed, no password spent, not counted, the student asked before the creation is offered again, the choice carried on the next creation, and a disagreeing record stops for a person (ADR-0144)
+AssertionError: the Secure Plane was never asked, so the handle is not spent: expected 'sr_00000000000000000000000000000001' to be undefined
+
+- Expected: 
+undefined
+
++ Received: 
+"sr_00000000000000000000000000000001"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:14928:119
+    14926|         completed: { outcome: "failed_cleanly", failure: "consent_bann…
+    14927|       });
+    14928|       expect(ledger?.completed?.spentSecretRequestId, "the Secure Plan…
+       |                                                                                                                       ^
+    14929|       expect(await interventionFor(runId), "not a stop for a person").…
+    14930|       expect(await statusOf(runId)).toBe("running");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

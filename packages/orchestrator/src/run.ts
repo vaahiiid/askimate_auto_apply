@@ -209,11 +209,13 @@ export interface RunState {
     /** The runner's closed code the last completion closed with, attempt or not (ADR-0144). */
     readonly failure?: string;
     /**
-     * ADR-0144: the last creation met the portal's consent notice before it
-     * typed anything, and the student has no choice on record for this
-     * portal. The driver derives it from the ledger's code and the consent
-     * store; the step it produces is `consent_choice`, ahead of the creation
-     * and — since nothing was typed — with no password spent.
+     * ADR-0144: the last creation met the portal's consent notice, and the
+     * student has no choice on record for this portal. The driver derives it
+     * from the ledger's code and the consent store; the step it produces is
+     * `consent_choice`, ahead of the creation. Met as the page opened, nothing
+     * was typed and no password is spent; met at the press (P310), the
+     * password was typed, `spentSecretRequestId` names it, and the box opens
+     * again after the choice.
      */
     readonly consentChoiceNeeded?: boolean;
   };
@@ -776,9 +778,11 @@ function accountStepFor(state: RunState): RunStep | null {
     //
     // ── The consent notice, before the creation is offered again (ADR-0144) ─
     //
-    // The last creation met the portal's consent notice before it typed
-    // anything, and the student has not chosen on it. Their choice comes
-    // first; handing the creation out again would meet the same notice. Only
+    // The last creation met the portal's consent notice — before it typed
+    // anything, or at its press with the password typed (P310) — and the
+    // student has not chosen on it. Their choice comes first, and only then a
+    // new password box if the last one was spent; handing the creation out
+    // again would meet the same notice. Only
     // where the reviewed blueprint records the banner — elsewhere the
     // runner's report stopped the run for a person, as any obstacle does.
     const banner = state.inputs.blueprint.authentication.consent;

@@ -1,0 +1,49 @@
+# P310 mutation 02-presses-a-choice-when-none-is-on-record
+# file: apps/browser-runner/src/create-account.ts
+# replaced:
+        if (consent.chosen === undefined) {
+          say(
+            `run ${work.runId}: account creation stopped — the press met
+# with:
+        if (false) {
+          say(
+            `run ${work.runId}: account creation stopped — the press met
+# command: pnpm exec vitest run apps/browser-runner/src/create-account-consent.test.ts -t P310
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/browser-runner/src/create-account-consent.test.ts (13 tests | 1 failed | 5 skipped) 128331ms
+   × the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > stops with consent_banner_met, pressing nothing on the notice, and says the password was already typed (secretSpent) 15308ms
+     → Cannot read properties of undefined (reading 'steps')
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > with the student's choice on record, presses it, reads the record back, and presses the creation ONCE more 15468ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > STOPS with consent_not_recorded, the password already typed (secretSpent), when the portal records the opposite of the presses 15461ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > leaves anything else over the button UNCERTAIN, as before: a plain cover is not the notice, and nothing is pressed on it 15315ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > never takes a press that WAS sent for one the notice stopped: the cover goes, the registration goes out, the answer is slow — UNCERTAIN, not consent_banner_met 15281ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > a second press that still cannot be made, after the choice was pressed, is UNCERTAIN — never a third press 30415ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > leaves a press that failed for another reason UNCERTAIN, with nothing pressed on the notice 15254ms
+   ✓ the guard reads Playwright's own call log: a press never sent, or one sent and still waiting (P310) > names a press the notice stopped before it was sent, and refuses one that was sent and is waiting for its answer 5666ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed | 5 skipped (13)
+   Start at  13:43:36
+   Duration  129.73s (transform 422ms, setup 0ms, collect 1.01s, tests 128.33s, environment 0ms, prepare 58ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/browser-runner/src/create-account-consent.test.ts > the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > stops with consent_banner_met, pressing nothing on the notice, and says the password was already typed (secretSpent)
+TypeError: Cannot read properties of undefined (reading 'steps')
+ ❯ Module.pressConsentPath apps/browser-runner/src/consent.ts:105:38
+    103|   const { chosen, doing, say } = input;
+    104|   let pressed = 0;
+    105|   for (const [index, step] of chosen.steps.entries()) {
+       |                                      ^
+    106|     const control = await resolve(page, step);
+    107|     if (control === null) {
+ ❯ Module.createPortalAccount apps/browser-runner/src/create-account.ts:309:31
+ ❯ apps/browser-runner/src/create-account-consent.test.ts:299:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

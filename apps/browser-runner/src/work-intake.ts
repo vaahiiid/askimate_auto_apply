@@ -54,7 +54,17 @@ export type PerformOutcome =
       /** Every document attached to the page that was saved (ADR-0069, P73). */
       readonly transmissions?: readonly WireTransmission[];
     }
-  | { readonly kind: "failed"; readonly failure: WorkFailure }
+  | {
+      readonly kind: "failed";
+      readonly failure: WorkFailure;
+      /**
+       * P310: a creation that met the consent notice at its PRESS had typed the
+       * password already, unlike one that met it before typing. Carried only
+       * with `consent_banner_met` or `consent_not_recorded`; the plane asks for
+       * the password again when it is set.
+       */
+      readonly secretSpent?: true;
+    }
   | {
       readonly kind: "uncertain";
       readonly failure: WorkFailure;
@@ -237,6 +247,7 @@ export async function runOneTurn(
           outcome: outcome.kind,
           failure: outcome.failure,
           ...(outcome.kind === "uncertain" && outcome.unseen !== undefined ? { unseen: outcome.unseen } : {}),
+          ...(outcome.kind === "failed" && outcome.secretSpent === true ? { secretSpent: true } : {}),
         };
 
   const accepted = await intake.report(work.runId, report);

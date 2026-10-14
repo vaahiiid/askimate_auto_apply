@@ -3243,6 +3243,16 @@ components:
             `entries` for a repeating page whose listing did not grow.
             Identifiers, never a portal's text; refused with any other outcome.
           items: { type: string, pattern: "^[A-Za-z0-9_.:-]{1,64}$" }
+        secretSpent:
+          type: boolean
+          enum: [true]
+          description: >-
+            With `failed` and `consent_banner_met` or `consent_not_recorded`
+            only (P310): the account creation met the portal's consent notice at
+            its press, after the password had been typed, so the handle it was
+            handed is spent. Absent, a creation's consent stop typed nothing
+            (ADR-0144). Refused with any other outcome or code, and as any value
+            but `true`.
         transmissions:
           type: array
           maxItems: 20

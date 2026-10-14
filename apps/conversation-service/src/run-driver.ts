@@ -1123,10 +1123,11 @@ function consentNotRecordedMessage(entry: CatalogueEntry): string {
 }
 
 /**
- * The runner met the portal's consent notice at the REGISTRATION form and
- * pressed nothing on it — and, because the creation reads the notice before
- * it types, nothing was typed and no password was spent (ADR-0144). Said
- * once; the question itself is the run's next step.
+ * The runner met the portal's consent notice at the REGISTRATION form as the
+ * page opened, and pressed nothing on it — before it typed, so nothing was
+ * typed and no password was spent (ADR-0144). A notice met at the press is
+ * `consentMetAtCreationPressMessage` (P310). Said once; the question itself is
+ * the run's next step.
  */
 function consentMetAtCreationMessage(entry: CatalogueEntry): string {
   const institution = entry.blueprint.institutionName;
@@ -1140,7 +1141,7 @@ function consentMetAtCreationMessage(entry: CatalogueEntry): string {
   );
 }
 
-/** As `consentNotRecordedMessage`, for the creation: nothing typed, no password spent (ADR-0144). */
+/** As `consentNotRecordedMessage`, for the creation that met the notice as the page opened: nothing typed, no password spent (ADR-0144). */
 function consentNotRecordedAtCreationMessage(entry: CatalogueEntry): string {
   const institution = entry.blueprint.institutionName;
   return (
@@ -1150,6 +1151,38 @@ function consentNotRecordedAtCreationMessage(entry: CatalogueEntry): string {
     `there. I did not create your account, I typed nothing, and the password you typed was not ` +
     `used. I am not going to tell you the site is set the way you asked when I cannot see that ` +
     `it is. Someone is looking at it, and I will come back to you.`
+  );
+}
+
+/**
+ * The runner met the portal's consent notice at the PRESS that creates the
+ * account, after the password had been typed, and pressed nothing on it
+ * (P310, P302 item 3): the notice arrived after the page opened. The password
+ * is spent, so the box opens again after the question. Said once; the question
+ * itself is the run's next step.
+ */
+function consentMetAtCreationPressMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I went to create your account on ${institution}'s application portal, and as I went to press ` +
+    `the button that creates it, the site put a notice over the page that has to be answered first. ` +
+    `It is about what the site may remember about you, and that is your choice to make on your ` +
+    `account, not mine, so I pressed nothing on it and did not press the button that creates the ` +
+    `account. I will ask you which choice you want next, and then ask for your password again, ` +
+    `because the one you typed was spent on this try. Nothing has been submitted.`
+  );
+}
+
+/** As `consentNotRecordedAtCreationMessage`, for a notice met at the press: the password was typed and is spent (P310). */
+function consentNotRecordedAtCreationPressMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `On ${institution}'s application portal I made the choice you recorded about what the site ` +
+    `may remember about you, and then I checked the site's own record of it — and the record ` +
+    `does not say what you chose. It may have changed how that notice works. I have stopped ` +
+    `there. I did not create your account, and the password you typed was put into the form ` +
+    `before I got that far and is spent. I am not going to tell you the site is set the way you ` +
+    `asked when I cannot see that it is. Someone is looking at it, and I will come back to you.`
   );
 }
 
@@ -4281,17 +4314,23 @@ export class RunDriver {
       ) {
         // ── The consent notice, before the creation is offered again ────
         //
-        // ADR-0144. The last creation met the portal's consent notice before
-        // it typed anything, and the student has no choice on record for
-        // THIS portal: their choice comes first. From the ledger's code and
-        // the consent store, never from a runner's memory — the same
-        // derivation the sign-in makes from its session record.
+        // ADR-0144. The last creation met the portal's consent notice — as
+        // the page opened, or at its press with the password typed (P310) —
+        // and the student has no choice on record for THIS portal that the
+        // notice offers: their choice comes first. From the ledger's code and
+        // the consent store, never from a runner's memory. A stored choice the
+        // notice no longer offers is no choice, because the creation is never
+        // handed it (`consentTargetsFrom`); read as one, the run would skip
+        // the question and meet the notice again (P310's review).
         const failure = found.completed.failure;
         const consents = this.#options.consents;
         const portalHost = portalHostOf(input.entry);
         const consentChoiceNeeded =
           failure === "consent_banner_met" && consents !== undefined && portalHost !== null
-            ? (await consents.choiceFor(String(input.record.studentRef), portalHost)) === null
+            ? consentTargetsFrom(
+                input.entry,
+                (await consents.choiceFor(String(input.record.studentRef), portalHost))?.choice ?? null,
+              )?.chosen === undefined
             : undefined;
         return withAccountCreationFailure(declared, {
           at: found.completed.completedAt,
@@ -10194,9 +10233,17 @@ export class RunDriver {
         plan === null ? [] : await this.#heldAttachments(entry, plan, record.studentRef);
       // ADR-0131: the student's choice on this portal's consent banner, if
       // any, so the runner presses that button and no other.
+      // Read under the host the work is sent to, which is the host the choice
+      // was recorded under (`portalHostOf`); on a portal moved to another
+      // origin the blueprint's own host holds nothing (P310's review).
       const consentChoice =
         kind === "sign_in" || kind === "create_account"
-          ? ((await this.#options.consents?.choiceFor(String(record.studentRef), detail.portalHost))?.choice ?? null)
+          ? ((
+              await this.#options.consents?.choiceFor(
+                String(record.studentRef),
+                deployedHost(entry, detail.portalHost) ?? detail.portalHost,
+              )
+            )?.choice ?? null)
           : null;
       const nextPage = plan === null ? null : await this.#nextPage(record.runId, entry, plan, attachments);
 
@@ -11000,16 +11047,20 @@ export class RunDriver {
     const creationFailed = held.kind === "create_account" && input.report.outcome === "failed";
     const pageFailed = held.kind === "execute" && input.report.outcome === "failed";
     const code = input.report.failure === undefined ? {} : { failure: input.report.failure };
-    // A creation that met the portal's consent notice typed nothing and
-    // spent nothing (ADR-0144): not an attempt, and the handle it was handed
-    // is not recorded as spent — the Secure Plane was never asked for it.
+    // A creation that met the portal's consent notice as the page opened
+    // typed nothing and spent nothing (ADR-0144): not an attempt, and the
+    // handle it was handed is not recorded as spent — the Secure Plane was
+    // never asked for it. One that met it at its PRESS (P310) had typed the
+    // password first and says so: still not an attempt, since the press never
+    // reached the button, but the handle IS spent, so the box opens again.
     const metTheNotice =
       input.report.failure === "consent_banner_met" || input.report.failure === "consent_not_recorded";
+    const typedFirst = metTheNotice && input.report.secretSpent === true;
     const detail: IntentCompletionDetail | undefined = creationFailed
       ? {
           attempted: input.report.failure !== "secret_unavailable" && !metTheNotice,
           ...code,
-          ...(metTheNotice ? {} : await this.#secretHandedTo(runId)),
+          ...(metTheNotice && !typedFirst ? {} : await this.#secretHandedTo(runId)),
         }
       : pageFailed
         ? { attempted: input.report.failure !== "needs_the_student", ...code }
@@ -11102,6 +11153,7 @@ export class RunDriver {
         target,
         failure: input.report.failure,
         spent: detail?.spentSecretRequestId,
+        typedFirst,
         now,
       });
     } else if (pageFailed && input.report.failure !== undefined) {
@@ -11216,6 +11268,8 @@ export class RunDriver {
     readonly target: string;
     readonly failure: WorkFailure;
     readonly spent: string | undefined;
+    /** P310: a consent stop met at the press, after the password was typed. */
+    readonly typedFirst: boolean;
     readonly now: Date;
   }): Promise<void> {
     const context = await this.#stopContext(input.runId);
@@ -11238,10 +11292,12 @@ export class RunDriver {
     }
     if (input.failure === "consent_banner_met") {
       // ADR-0144. Not a failure of the creation and not counted as one: the
-      // runner met the portal's consent notice before it typed anything and
-      // pressed nothing on it. The student is told that, and the question
-      // itself follows as the run's next step.
-      await say(consentMetAtCreationMessage(entry));
+      // runner met the portal's consent notice and pressed nothing on it. As
+      // the page opened, before it typed anything; or at the press, with the
+      // password typed and spent (P310), so the box opens again after the
+      // question. The student is told which, and the question itself follows
+      // as the run's next step.
+      await say(input.typedFirst ? consentMetAtCreationPressMessage(entry) : consentMetAtCreationMessage(entry));
       return;
     }
     if (input.failure === "consent_not_recorded") {
@@ -11251,7 +11307,7 @@ export class RunDriver {
         entry,
         action: input.action,
         target: input.target,
-        doing: "account creation",
+        doing: input.typedFirst ? "account creation, typed" : "account creation",
         now: input.now,
       });
       return;
@@ -11303,10 +11359,12 @@ export class RunDriver {
     readonly entry: CatalogueEntry;
     readonly action: ConsequentialAction;
     readonly target: string;
-    readonly doing: "sign-in" | "account creation";
+    /** P310: "account creation, typed" is a creation that met the notice at its press, the password typed. */
+    readonly doing: "sign-in" | "account creation" | "account creation, typed";
     readonly now: Date;
   }): Promise<void> {
     const { entry } = input;
+    const doing = input.doing === "sign-in" ? "sign-in" : "account creation";
     await this.#stopForPerson({
       record: input.record,
       conversationId: input.conversationId,
@@ -11317,19 +11375,27 @@ export class RunDriver {
       // for: its consent control no longer records what the entry says it
       // records. Not an authentication failure — nothing was authenticated.
       reason: "new_portal_behaviour",
-      say: input.doing === "sign-in" ? consentNotRecordedMessage(entry) : consentNotRecordedAtCreationMessage(entry),
+      say:
+        input.doing === "sign-in"
+          ? consentNotRecordedMessage(entry)
+          : input.doing === "account creation, typed"
+            ? consentNotRecordedAtCreationPressMessage(entry)
+            : consentNotRecordedAtCreationMessage(entry),
       now: input.now,
       expected:
         `The portal's own consent record saying what the student chose, read back after the ` +
         `path the reviewed entry names (ADR-0131, P169).`,
       encountered:
         `The student's recorded consent choice for ${portalHostOf(entry)} was pressed at the ` +
-        `${input.doing} and the portal's own record does not say what they chose, or could not be ` +
+        `${doing} and the portal's own record does not say what they chose, or could not be ` +
         `read (ADR-0131, P169: the third shape checks the record rather than trusting the press). ` +
         `Controls were pressed on the student's account. ` +
         (input.doing === "sign-in"
           ? `Nothing was signed in, no password was spent, `
-          : `Nothing was typed, no account was attempted, no password was spent (ADR-0144), `) +
+          : input.doing === "account creation, typed"
+            ? `The password was typed into the registration form before the notice was met at the press and ` +
+              `is spent; the registration button was never pressed (P310), `
+            : `Nothing was typed, no account was attempted, no password was spent (ADR-0144), `) +
         `and nothing is claimed about what the portal recorded. A person reads what the notice now ` +
         `does on this portal before the entry's consent block is trusted again.`,
     });

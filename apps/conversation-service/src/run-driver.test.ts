@@ -3268,6 +3268,20 @@ describeIfDatabase("leasing browser work to a runner", () => {
       });
       expect(wrong.status).toBe(403);
 
+      // P310: the flag a consent stop carries is held to the parser over HTTP
+      // too — exactly `true`, and only on a consent stop.
+      for (const body of [
+        { leaseId: work.leaseId, outcome: "failed", failure: "consent_banner_met", secretSpent: "true" },
+        { leaseId: work.leaseId, outcome: "failed", failure: "portal_drift", secretSpent: true },
+      ]) {
+        const refused = await fetch(`${base}/internal/v1/work/${runId}/report`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+        expect(refused.status).toBe(400);
+      }
+
       const reported = await fetch(`${base}/internal/v1/work/${runId}/report`, {
         method: "POST",
         headers,
@@ -14991,6 +15005,241 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
     }
   }, 300_000);
 
+  /**
+   * P310: a run at its creation on the consent entry, the creation claimed
+   * with CREATION_HANDLE — the moment the runner reports on.
+   */
+  async function aClaimedCreationOnTheNotice(
+    instance: ReturnType<typeof buildInstance>,
+    conversation: string,
+    holder: string,
+  ): Promise<{ runId: string; leaseId: string }> {
+    await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+    const started = await pastTheYes(instance, conversation, CONSENT_ENTRY);
+    if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    const runId = started.position.runId;
+    await new ConversationEventStore(instance.pool).append({
+      conversationId: conversation,
+      event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: CREATION_HANDLE },
+    });
+    const creating = await instance.driver.advance({ runId, conversationId: conversation });
+    if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+    expect(creating.position.step).toBe("create_account");
+    await nextOnOffer(runId);
+    const claimed = await instance.driver.claimWork({ holder, leaseSeconds: 60, sessions: [] });
+    if (claimed === null || claimed.runId !== runId) expect.unreachable(`the creation should be this run's work, got ${claimed?.runId ?? "nothing"}`);
+    expect(claimed.kind).toBe("create_account");
+    expect(claimed.secretHandle).toBe(CREATION_HANDLE);
+    return { runId, leaseId: claimed.leaseId };
+  }
+
+  /**
+   * Takes a run these tests leave mid-creation off offer, so a later group
+   * that claims "the next work" is not handed it (P307's group claims once).
+   */
+  async function offOffer(runId: string): Promise<void> {
+    await pool.query("DELETE FROM work_leases WHERE run_id = $1", [runId]);
+    await pool.query("UPDATE workflow_runs SET status = 'completed' WHERE run_id = $1", [runId]);
+  }
+
+  it("the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-10-14: *"P302 item 3 alone first: the consent notice at
+    // the account-creation press, handled as sign-in already handles it."*
+    // The notice arrived after the page opened, so the runner typed the
+    // password and met the notice at the press. Not an attempt — the press
+    // never reached the button — but the handle IS spent, and the sentence
+    // promises two things in order: the choice, then the password again.
+    // ═══════════════════════════════════════════════════════════════════
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00791";
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), CONSENT_CATALOGUE);
+    try {
+      const { runId, leaseId } = await aClaimedCreationOnTheNotice(instance, conversation, "runner-creation-press");
+      const boxes = await requestsOpened(conversation);
+
+      expect(
+        await instance.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "consent_banner_met", secretSpent: true } }),
+      ).toBe(true);
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const ledger = await new PostgresWorkflowRunStore(instance.pool).findIntent(runRef, key);
+      expect(ledger, "not an attempt: the press never reached the button").toMatchObject({
+        attemptsMade: 0,
+        attemptFailures: [],
+        completed: { outcome: "failed_cleanly", failure: "consent_banner_met" },
+      });
+      expect(ledger?.completed?.spentSecretRequestId, "the password was typed: the handle is spent").toBe(CREATION_REQUEST);
+      expect(await interventionFor(runId), "not a stop for a person").toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+      const said = await saidTo(conversation);
+      const met = said.filter((content) => content.includes("as I went to press the button that creates it"));
+      expect(met, "told once").toHaveLength(1);
+      expect(met[0]).toContain("I will ask you which choice you want next, and then ask for your password again");
+      expect(said.filter((content) => content.includes("The password you typed was not used")), "never the open-time sentence").toEqual([]);
+      expect(said.filter((content) => content.includes("pressed nothing on it and typed nothing"))).toEqual([]);
+
+      // Its first promise: the choice is asked next, and no box opens first.
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("consent_choice");
+      expect(await requestsOpened(conversation), "the choice comes before the password").toEqual(boxes);
+
+      // Its second promise: then the password, in a new box.
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "reject" } })).toEqual({ ok: true });
+      const boxed = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!boxed.ok) expect.unreachable(`advance refused: ${boxed.refusal.kind}`);
+      expect(boxed.position.step).toBe("request_secret");
+      const reopened = await requestsOpened(conversation);
+      expect(reopened, "one new box").toHaveLength(boxes.length + 1);
+      const fresh = reopened.at(-1);
+      if (fresh === undefined || fresh === CREATION_REQUEST) expect.unreachable("a new request, not the spent one");
+
+      // The new password, never the spent one, and the choice carried.
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: fresh, handle: SECOND_HANDLE },
+      });
+      const again = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("create_account");
+      await nextOnOffer(runId);
+      const second = await instance.driver.claimWork({ holder: "runner-creation-press-2", leaseSeconds: 60, sessions: [] });
+      if (second === null || second.runId !== runId) expect.unreachable(`the creation should be on offer again, got ${second?.runId ?? "nothing"}`);
+      expect(second.secretHandle).toBe(SECOND_HANDLE);
+      expect(second.registration?.consent?.chosen).toBe("reject");
+      await offOffer(runId);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310)", async () => {
+    // The first try met the notice as the page opened (nothing typed); the
+    // second met it late, at the press, with the password typed — and the
+    // choice pressed then did not hold. Nothing may say no password was spent.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00792";
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), CONSENT_CATALOGUE);
+    try {
+      const { runId, leaseId } = await aClaimedCreationOnTheNotice(instance, conversation, "runner-creation-press-drift");
+      expect(await instance.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "consent_banner_met" } })).toBe(true);
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "reject" } })).toEqual({ ok: true });
+      const again = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("create_account");
+      await nextOnOffer(runId);
+      const second = await instance.driver.claimWork({ holder: "runner-creation-press-drift-2", leaseSeconds: 60, sessions: [] });
+      if (second === null || second.runId !== runId) expect.unreachable(`the creation should be on offer again, got ${second?.runId ?? "nothing"}`);
+      expect(second.secretHandle, "nothing was spent the first time").toBe(CREATION_HANDLE);
+
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: second.leaseId, outcome: "failed", failure: "consent_not_recorded", secretSpent: true },
+        }),
+      ).toBe(true);
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const closed = await new PostgresWorkflowRunStore(instance.pool).findIntent(runRef, key);
+      expect(closed).toMatchObject({ attemptsMade: 0, attemptFailures: [], completed: { failure: "consent_not_recorded" } });
+      expect(closed?.completed?.spentSecretRequestId, "the password was typed: the handle is spent").toBe(CREATION_REQUEST);
+      const said = await saidTo(conversation);
+      const told = said.filter((content) =>
+        content.includes("I did not create your account, and the password you typed was put into the form before I got that far and is spent"),
+      );
+      expect(told).toHaveLength(1);
+      expect(said.filter((content) => content.includes("I typed nothing, and the password you typed was not used"))).toEqual([]);
+      const intervention = await interventionFor(runId);
+      expect(intervention?.reason).toBe("new_portal_behaviour");
+      expect(intervention?.encountered).toContain("pressed at the account creation and the portal's own record");
+      expect(intervention?.encountered).toContain(
+        "The password was typed into the registration form before the notice was met at the press and is spent",
+      );
+      expect(intervention?.encountered).not.toContain("no password was spent");
+      expect(await statusOf(runId)).toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a choice on record that the notice no longer offers is no choice: the press-time stop asks the question it promises, and does not open a box first (P310 review)", async () => {
+    // The entry's notice names its choices; a stored choice it does not
+    // name is never handed to the runner (`consentTargetsFrom`). Read as a
+    // choice anyway, the stop would skip the question and open a new box,
+    // and every try would spend another password at the same notice.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00793";
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), CONSENT_CATALOGUE);
+    try {
+      await new PortalConsentStore(instance.pool).record({
+        studentId: ownerOf(conversation),
+        portalHost: "gated.portal.test",
+        choice: "only-the-ones-it-needs",
+        now: NOW,
+      });
+      const { runId, leaseId } = await aClaimedCreationOnTheNotice(instance, conversation, "runner-creation-stale-choice");
+      const boxes = await requestsOpened(conversation);
+      expect(
+        await instance.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "consent_banner_met", secretSpent: true } }),
+      ).toBe(true);
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step, "the question it promised, before any box").toBe("consent_choice");
+      expect(await requestsOpened(conversation)).toEqual(boxes);
+      await offOffer(runId);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("the creation is handed the choice recorded for the host it is sent to, on a portal moved to another origin (P310 review)", async () => {
+    // The choice is recorded, and the stop derived, under the host the
+    // runner is sent to (`portalHostOf`). The claim read it under the
+    // blueprint's own host, so on a moved origin the creation never carried
+    // it and met the same notice again.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00794";
+    await ownConversation(conversation);
+    const moved: CatalogueEntry = { ...CONSENT_ENTRY, portalOrigin: "http://127.0.0.1:45998" };
+    const catalogue: TestCatalogue = {
+      targets: () => [],
+      find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? moved : null),
+    };
+    const instance = buildInstance(connectionString(), opener(), catalogue);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation, moved);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: CREATION_HANDLE },
+      });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      expect(creating.position.step).toBe("create_account");
+      await nextOnOffer(runId);
+      const first = await instance.driver.claimWork({ holder: "runner-creation-moved", leaseSeconds: 60, sessions: [] });
+      if (first === null || first.runId !== runId) expect.unreachable(`the creation should be this run's work, got ${first?.runId ?? "nothing"}`);
+      expect(first.portalHost).toBe("127.0.0.1:45998");
+      expect(await instance.driver.reportWork({ runId, report: { leaseId: first.leaseId, outcome: "failed", failure: "consent_banner_met" } })).toBe(true);
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("consent_choice");
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "reject" } })).toEqual({ ok: true });
+      const again = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("create_account");
+      await nextOnOffer(runId);
+      const second = await instance.driver.claimWork({ holder: "runner-creation-moved-2", leaseSeconds: 60, sessions: [] });
+      if (second === null || second.runId !== runId) expect.unreachable(`the creation should be on offer again, got ${second?.runId ?? "nothing"}`);
+      expect(second.registration?.consent?.chosen, "the choice the student just made, carried").toBe("reject");
+      await offOffer(runId);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
   it("the consent path was pressed and the portal's record disagrees: not counted as a sign-in, said plainly, stopped for a person (ADR-0131, P169)", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // The plane's half of shape 3. The runner pressed controls on the
@@ -19108,6 +19357,10 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
 
   async function offeredTo(): Promise<ClaimedWork | null> {
     await pool.query("DELETE FROM work_leases");
+    // This run first in the queue, so "not offered" means the driver refused
+    // it, not that another group's run was ahead of it (P310: the tie order
+    // among runs stamped at the same instant is the table's own).
+    await nextOnOffer(runId);
     const instance = held();
     try {
       return await instance.driver.claimWork({ holder: "runner-by-hand", leaseSeconds: 120 });
@@ -19142,7 +19395,9 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
       if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
       expect(filling.position.step).toBe("execute");
       await pool.query("DELETE FROM work_leases");
+      await nextOnOffer(runId);
       const first = await instance.driver.claimWork({ holder: "runner-by-hand", leaseSeconds: 120 });
+      expect(first?.runId).toBe(runId);
       expect(first?.formUrl).toBe("https://gated.portal.test/apply");
       const pageKey = idempotencyKeyFor({
         runId: runRef,

@@ -19,6 +19,43 @@ not shipped artefacts.
 
 ---
 
+## [0.303.0] — 2026-10-14
+
+**P310 — the consent notice at the account-creation press, handled as the sign-in handles it
+(P302 item 3).** His order (`docs/run-a/p310-his-decisions-as-sent.txt`): *"P302 item 3 alone first:
+the consent notice at the account-creation press, handled as sign-in already handles it. My live
+run waits for this."* His decisions on rows 181 and 182 are recorded; nothing of them is built.
+
+- **The runner.** A creation press that another element stopped before it was sent, on a portal
+  whose entry records the notice, with the notice on the page, is answered as the sign-in answers
+  it. With the student's choice on record, the path is pressed, the record read back, and the
+  creation pressed once more, never a third time. With none, it stops with `consent_banner_met`,
+  pressing nothing. The look before typing (ADR-0144) is unchanged.
+- **Never a press that was sent.** The creation's press waits for the navigation it starts, so a
+  press that went out and then timed out carries the earlier "intercepts pointer events" lines in
+  its error too. `interceptedBeforeSending` takes the notice branch only when Playwright's call log
+  has no "performing click action". Everything else stays `uncertain`, as before. Tested on real
+  Playwright errors of both kinds.
+- **The password is spent.** Both press-time stops report `secretSpent: true`. The contract carries
+  it only on `failed` with `consent_banner_met` or `consent_not_recorded`, and only as `true`; the
+  OpenAPI document publishes it. The plane records the handle as spent, does not count the stop as
+  an attempt, tells the student the password was spent, asks the choice and then opens a new box.
+  A disagreeing record says the password was typed and is spent, to the student and in the
+  intervention.
+- **A new promise, P16**, with the test that keeps it: *"I will ask you which choice you want next,
+  and then ask for your password again"*.
+- **Review.** Four read-only reviewers, each finding put to a verifier told to refute it. Two
+  defects fixed, each with a test seen red first. A stored consent choice the notice no longer
+  offers was read as a choice, so the press-time stop skipped the question it promises and opened
+  a new box each time. On a portal moved to another origin, the claim read the choice under the
+  blueprint's host, not the one it was recorded under. The stop after a failed press now says
+  whether the press was sent and which check was pending. P307's tests put their own run first
+  before claiming, so their "nothing offered" checks can fail. Seven points left, in row 183.
+- **Records.** ADR-0144 §3 and its index row, P302 items 3 and 10, his live-run steps, the item-6
+  runbook, row 126's list, row 183.
+
+---
+
 ## [0.302.0] — 2026-10-14
 
 **P309 — three of P302's items answered in his words.** Records only; nothing is built.

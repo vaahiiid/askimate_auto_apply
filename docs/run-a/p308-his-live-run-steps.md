@@ -5,8 +5,9 @@ live run as plain numbered steps on my machine: what to start, the exact words t
 the three corrections, where the run stops before page 12, and the exact command to record my own
 submission afterwards."*
 
-Everything below is read from the code at P308's commit. None of it was run against Sheffield:
-the agent does not touch the portal. **Proven against the deterministic stand-in only.**
+Everything below is read from the code at P308's commit, and step 8 and the first stop below
+again at P310's. None of it was run against Sheffield: the agent does not touch the portal.
+**Proven against the deterministic stand-in only.**
 
 **Cost:** nothing metered, as the stack starts by default. The interview uses the deterministic
 model, the CV reader is the stand-in, and documents are `none`. Starting with
@@ -22,9 +23,11 @@ ADR-0158."* The steps below are today's code.
 
 ## What may stop it, before you start
 
-- **The consent notice at the creation's press is not handled** (P302 item 3, not built). If
-  Sheffield shows it after the page has opened, the press fails as `uncertain` and the run stops
-  for a person.
+- **The consent notice at the creation's press: handled since P310** (P302 item 3). If Sheffield
+  shows it after the page has opened, the creation stops at the press without pressing it and
+  without pressing anything on the notice. The password you typed is spent by then, so step 8 asks
+  for it again. Proven against the deterministic stand-in only. What still stops for a person: a
+  press that was sent and then failed, or anything else over the button.
 - **A password Sheffield refuses** counts as a failed attempt: two attempts, then a person. In your
   words (P302 item 5, 2026-10-14): *"Sheffield's registration page shows no password rules."* So
   Sheffield may still refuse a password for a rule the page does not show (my reading).
@@ -127,10 +130,13 @@ ADR-0158."* The steps below are today's code.
 
 8. **The preview, the password, the account.** Under page 12 the preview says it is held. Press
    **"Yes — this is right, fill it in"**. The password box opens; type it once (its handle lives
-   five minutes). The first creation stops at Sheffield's consent notice with nothing typed: answer
-   its question in the chat, and the creation runs again. Then the chat asks whether Sheffield's
-   registration e-mail has arrived: press **"Yes, it has arrived"** only if it did. Nothing is
-   filled until you answer.
+   five minutes). The first creation stops at Sheffield's consent notice: answer its question in
+   the chat, and the creation runs again. If the notice was on the page as it opened, nothing was
+   typed and the creation runs again on the same password, unless the five minutes have passed.
+   If it arrived after (P310), your password was typed and is spent: the chat says so, asks the
+   question, then opens the password box again; type it once more. Then the chat asks whether
+   Sheffield's registration e-mail has arrived: press **"Yes, it has arrived"** only if it did.
+   Nothing is filled until you answer.
 
 9. **The fill.** Pages 3, 4, 5, 7 (once per qualification), 8 (once per job) and 9. Pages 6, 10
    and 11 have nothing mapped and are not opened.

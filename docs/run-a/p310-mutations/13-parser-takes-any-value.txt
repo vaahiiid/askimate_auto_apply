@@ -1,0 +1,48 @@
+# P310 mutation 13-parser-takes-any-value
+# file: packages/contracts/src/work.ts
+# replaced:
+    if (secretSpent !== true || outcome !== "failed" || unseen !== undefined) return null;
+# with:
+    if (outcome !== "failed" || unseen !== undefined) return null;
+# command: pnpm exec vitest run --project unit packages/contracts/src/contracts.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/contracts/src/contracts.test.ts (74 tests | 1 failed) 78ms
+   × what shows a page was saved crosses the wire as locators and a URL, and nothing else (ADR-0106) > carries a password spent before a consent stop, and only on a failed consent stop (P310) 25ms
+     → expected { leaseId: 'wl_1', …(3) } to be null
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 73 passed (74)
+   Start at  14:02:42
+   Duration  760ms (transform 238ms, setup 0ms, collect 298ms, tests 78ms, environment 0ms, prepare 64ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/contracts/src/contracts.test.ts > what shows a page was saved crosses the wire as locators and a URL, and nothing else (ADR-0106) > carries a password spent before a consent stop, and only on a failed consent stop (P310)
+AssertionError: expected { leaseId: 'wl_1', …(3) } to be null
+
+- Expected: 
+null
+
++ Received: 
+Object {
+  "failure": "consent_banner_met",
+  "leaseId": "wl_1",
+  "outcome": "failed",
+  "secretSpent": true,
+}
+
+ ❯ packages/contracts/src/contracts.test.ts:1062:102
+    1060|       // Exactly `true`, nothing that reads as it.
+    1061|       for (const value of ["true", 1, false, null, {}]) {
+    1062|         expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", f…
+       |                                                                                                      ^
+    1063|       }
+    1064|       // Never with another outcome.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

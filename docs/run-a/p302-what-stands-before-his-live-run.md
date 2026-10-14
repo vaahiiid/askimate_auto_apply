@@ -39,7 +39,15 @@ where that matters.
 
    If those points must govern his own run, ADR-0158 and ADR-0156's intake rule are built first, and
    he chooses the ordering. *His decision.*
-3. **Account creation must answer Sheffield's consent notice at the press, as the sign-in does.**
+3. **His order, 2026-10-14 (P310), in his words** ([as sent](./p310-his-decisions-as-sent.txt)):
+   *"P302 item 3 alone first: the consent notice at the account-creation press, handled as sign-in
+   already handles it. My live run waits for this."* **Built in P310.** A press another element
+   stopped before it was sent, with the notice on the page, is answered as the sign-in answers
+   it: with his choice on record, the path is pressed, the record read back and the creation
+   pressed once more; with none, the creation stops and the run asks him. The password has been
+   typed by then, so it is spent, and the box opens again after his choice. A press that was sent
+   and then failed stays `uncertain`, as before. Proven against the deterministic stand-in only:
+   the fixture portal with the notice arriving once the e-mail is typed. As written before it: **Account creation must answer Sheffield's consent notice at the press, as the sign-in does.**
    Today the creation looks for the notice once, as the page opens
    (`apps/browser-runner/src/create-account.ts:166-211`). A notice that arrives later makes the
    press fail into `uncertain`, and the run stops for a person (`create-account.ts:264-282`). The
@@ -91,6 +99,13 @@ where that matters.
     - his consent choice;
     - the creation again; the box reopens if the five minutes have passed (`run.ts:737`, `:749-750`,
       `:959`).
+
+    **Since P310**, which of two orders he meets depends on when the notice arrives, which only his
+    run shows. If it is on the page as it opens, the order above holds. If it arrives after, as it
+    did on page 0 in P176, the first attempt types his password and stops at the press. He is told
+    the password was spent. Then come his consent choice, a new password box, and the creation
+    again, with the choice pressed if the notice is met once more. Neither stop counts as one of
+    the two attempts.
 
     It has never made an account on a live portal. Success is read from the page path changing, on
     one observation (row 89). *His acts; the outcome only his run shows.*

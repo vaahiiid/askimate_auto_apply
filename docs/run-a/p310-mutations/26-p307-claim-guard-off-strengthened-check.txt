@@ -1,0 +1,37 @@
+# P310 mutation 26-p307-claim-guard-off-strengthened-check
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      if (foldedCase?.submittedByHand !== undefined) continue;
+# with:
+      if (false) continue;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t a submission made by hand \(P307
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (390 tests | 1 failed | 384 skipped) 1768ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 512ms
+   × a submission made by hand (P307, ADR-0159 O10) > offers no work in the window after the account is back and before the run completes (the P307 mutation round) 169ms
+     → nothing more is filled in: expected 'run_case_01jbxq8z9wktq6m4h2npc00307_1' not to be 'run_case_01jbxq8z9wktq6m4h2npc00307_1' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed | 384 skipped (390)
+   Start at  14:16:11
+   Duration  6.01s (transform 2.62s, setup 0ms, collect 3.78s, tests 1.77s, environment 0ms, prepare 82ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > offers no work in the window after the account is back and before the run completes (the P307 mutation round)
+AssertionError: nothing more is filled in: expected 'run_case_01jbxq8z9wktq6m4h2npc00307_1' not to be 'run_case_01jbxq8z9wktq6m4h2npc00307_1' // Object.is equality
+ ❯ apps/conversation-service/src/run-driver.test.ts:19543:62
+    19541|       try {
+    19542|         const work = await unheld.driver.claimWork({ holder: "runner-b…
+    19543|         expect(work?.runId, "nothing more is filled in").not.toBe(runI…
+       |                                                              ^
+    19544|       } finally {
+    19545|         await unheld.pool.end();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

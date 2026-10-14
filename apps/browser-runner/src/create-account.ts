@@ -33,6 +33,13 @@
  *   3. The email goes in first — ordinary text, typed by this process.
  *   4. The password goes in via the fill agent, one handle for every box.
  *   5. Only then is the form submitted.
+ *   5½. A notice that arrives after the page opened is met at the press, as
+ *      the sign-in meets it (P310, P302 item 3): a press that another element
+ *      stopped BEFORE it was sent, the notice on the page, and it is answered
+ *      with the student's choice and the button pressed once more, or the step
+ *      stops with `consent_banner_met`. Either stop says `secretSpent`, because
+ *      by then the password had been typed. A press that was sent and then
+ *      failed stays UNCERTAIN whatever covered the button before it.
  *
  * Step 4 before step 5 is the whole shape: submitting first would create an
  * account with no password, and asking for the password after submitting would
@@ -56,7 +63,7 @@ import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
 import { landedOnPasswordReset, passwordResetWatch, REACHED_A_RESET, refusalToPress } from "./password-reset-guard.js";
 import { openSensitiveContext } from "./sensitive.js";
-import { pressCheckInWords, thrownInWords } from "./runner-log.js";
+import { interceptedBeforeSending, pressCheckInWords, pressWasDispatched, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
 /** How long to wait for a page or a control. Portals are slow; students wait. */
@@ -265,12 +272,65 @@ export async function createPortalAccount(
     // Every request to a reset from here on is watched, redirect hops
     // included, and read once the press has landed (P301's review).
     const resetMark = passwordResetWatch(page.context()).mark();
-    try {
-      await Promise.all([
-        page.waitForLoadState("load", { timeout: STEP_TIMEOUT_MS }),
-        submit.click({ timeout: STEP_TIMEOUT_MS }),
-      ]);
-    } catch {
+    const press = async (): Promise<unknown> => {
+      try {
+        await Promise.all([
+          page.waitForLoadState("load", { timeout: STEP_TIMEOUT_MS }),
+          submit.click({ timeout: STEP_TIMEOUT_MS }),
+        ]);
+        return undefined;
+      } catch (thrown) {
+        return thrown;
+      }
+    };
+    let thrown = await press();
+
+    // ── 5½. The notice that arrived after the page opened (P310) ─────────
+    //
+    // P302 item 3, in his words: "the consent notice at the account-creation
+    // press, handled as sign-in already handles it." The sign-in presses with
+    // `noWaitAfter`, so an interception there means nothing was sent. This
+    // press waits for the navigation it starts, and a press that was SENT and
+    // then timed out carries the earlier interceptions in its call log too.
+    // So the notice is answered only when the press never left this process
+    // (`interceptedBeforeSending`); anything else falls to UNCERTAIN below.
+    // The password has been typed by now, so both stops say it was spent.
+    if (thrown !== undefined && targets.consent !== undefined && interceptedBeforeSending(thrown)) {
+      const consent = consentTargetsOf(targets.consent);
+      if (await consentNoticeOnThePage(page, consent)) {
+        if (consent.chosen === undefined) {
+          say(
+            `run ${work.runId}: account creation stopped — the press met the portal's consent notice, and no ` +
+              `choice of the student's is on record for this portal; nothing was pressed on it, and the ` +
+              `password had already been typed`,
+          );
+          return { kind: "failed", failure: "consent_banner_met", secretSpent: true };
+        }
+        const stopped = await pressConsentPath(page, {
+          runId: work.runId,
+          doing: "account creation",
+          chosen: consent.chosen,
+          pressMs: STEP_TIMEOUT_MS,
+          say,
+        });
+        if (stopped !== null) {
+          return stopped.kind === "failed" && stopped.failure === "consent_not_recorded"
+            ? { ...stopped, secretSpent: true }
+            : stopped;
+        }
+        // Once more, never a loop — as the sign-in does.
+        thrown = await press();
+      }
+    }
+    if (thrown !== undefined) {
+      // What this process knows about the press, in the closed vocabulary
+      // (ADR-0124): whether it was sent, and which check was pending. Before
+      // P310's review this stop said nothing, and "uncertain" was all a reader
+      // of the run's log had to go on.
+      say(
+        `run ${work.runId}: account creation: the press ${pressWasDispatched(thrown) ? "was sent, and then failed" : "was not sent"} — ` +
+          `${thrownInWords(thrown)}; pending: ${pressCheckInWords(thrown)}; reported as uncertain`,
+      );
       // ═══════════════════════════════════════════════════════════════════
       // UNCERTAIN, not failed. The click may have reached the portal and the
       // account may exist; this process simply stopped being able to tell. A

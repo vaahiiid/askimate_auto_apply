@@ -70,19 +70,28 @@ the stack restarted with P221's page.
 6. **The yes.** The preview shows what will be typed; he authorises it. The run starts. He has not
    recorded an existing account, so the orchestrator's step is `create_account` (ADR-0110's
    default).
-7. **The password box.** The secure channel opens once; he types a password only he has seen. The
-   handle lives five minutes (`MAX_TTL_SECONDS`); an expired one reopens the box.
+7. **The password box.** The secure channel opens; he types a password only he has seen. The
+   handle lives five minutes (`MAX_TTL_SECONDS`); an expired one reopens the box, and so does one
+   spent at the creation's press by a notice that arrived late (P310, step 8).
 8. **The creation.** The runner opens `https://www.sheffield.ac.uk/postgradapplication/`, checks the
    host, checks for a CAPTCHA, and then — before typing — checks whether the portal's consent notice
    stands over the form's button (ADR-0144).
-   - **No choice on record** (the first time): the creation stops with `consent_banner_met`,
-     nothing typed, no password spent. The chat says so and asks the choice in the notice's own
+   - **No choice on record** (the first time), the notice on the page as it opens: the creation
+     stops with `consent_banner_met`, nothing typed, no password spent. The chat says so and asks the choice in the notice's own
      words: *"Before I can create your account on www.sheffield.ac.uk …"*. He answers `accept` or
      `refuse` in the chat. The creation is offered again with the same handle if it is still live,
      or the box reopens.
    - **A choice on record:** the runner presses the path the entry names, reads the `CookieControl`
      cookie back against the entry's clauses, and only if every clause holds types his e-mail,
      asks the secure plane to type the password into both boxes, and presses `startApplicationBtn`.
+   - **A notice that arrives after the page opened** (P310, P302 item 3), as on page 0 in P176: the
+     look before typing finds nothing, the password is typed, and the press is stopped by the
+     notice before it is sent. As the sign-in does, the runner then presses the path with a choice
+     on record, reads the record back and presses `startApplicationBtn` once more. With no choice
+     on record it stops with `consent_banner_met`: the plane records the password spent, the chat
+     says so, asks the choice, and then the box reopens. If the record read back disagrees, it
+     stops with `consent_not_recorded`, the password spent, and a person looks. Neither is counted
+     as an attempt. A press that was sent and then failed stays `uncertain`, and a person looks.
    - **Success** is read from the page: the path changed from `/postgradapplication/`. His
      observation of 2026-09-11 (AUTH 4) is that registration goes *"straight into the form"*, and
      the entry records no e-mail verification. If a verification page does appear, the account
@@ -98,9 +107,10 @@ the stack restarted with P221's page.
 
 ## What is unmeasured until the run, and named as such
 
-- Sheffield's notice at the **registration** form is inferred from page 0 being one page with the
-  sign-in, where the notice was measured (P164, attempt 1). The creation's consent step is proven on
-  the fixture only (row 88).
+- Sheffield's notice at the **registration** form: that it covers `startApplicationBtn` was measured
+  by him on 2026-10-01, read-only (row 88). The creation's consent step is proven on the fixture
+  only, the press-time step of P310 included: when the notice arrives on the registration form is
+  not measured, so which of the two paths above his run takes is not known.
 - Where a **created account lands**. The runner reads success by the path changing; the evidence
   that it does is his one observation (row 89).
 - What Sheffield does with a **duplicate e-mail** — the dedicated address exists to make that

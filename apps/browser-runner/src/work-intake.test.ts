@@ -237,6 +237,36 @@ describe("one turn of the loop", () => {
     acceptReports = true;
   });
 
+  it("reports a password spent before a consent stop, and only when the outcome says so (P310)", async () => {
+    // P302 item 3: the creation that met the notice at its press typed the
+    // password first, and the plane reads that off the report alone.
+    offer = WORK;
+    acceptReports = true;
+    const spent = await runOneTurn(intake(), () =>
+      Promise.resolve({ kind: "failed", failure: "consent_banner_met", secretSpent: true }),
+    );
+    expect(spent).toEqual({
+      kind: "worked",
+      runId: WORK.runId,
+      report: { leaseId: WORK.leaseId, outcome: "failed", failure: "consent_banner_met", secretSpent: true },
+    });
+    expect(JSON.parse(received.find((call) => call.url.includes("/report"))?.body ?? "{}")).toEqual({
+      leaseId: "wl_1",
+      outcome: "failed",
+      failure: "consent_banner_met",
+      secretSpent: true,
+    });
+
+    // The open-time stop typed nothing, and its report says nothing of a password.
+    const untyped = await runOneTurn(intake(), () => Promise.resolve({ kind: "failed", failure: "consent_banner_met" }));
+    expect(untyped).toEqual({
+      kind: "worked",
+      runId: WORK.runId,
+      report: { leaseId: WORK.leaseId, outcome: "failed", failure: "consent_banner_met" },
+    });
+    expect(received.find((call) => call.url.includes("/report"))?.body).not.toContain("secretSpent");
+  });
+
   it("claims ONE unit of work per turn", async () => {
     offer = WORK;
     await runOneTurn(intake(), () => Promise.resolve({ kind: "succeeded" }));

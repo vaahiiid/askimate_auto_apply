@@ -1,0 +1,47 @@
+# P310 mutation 15-parser-drops-the-flag
+# file: packages/contracts/src/work.ts
+# replaced:
+    return { leaseId: record["leaseId"], outcome, failure, secretSpent: true };
+# with:
+    return { leaseId: record["leaseId"], outcome, failure };
+# command: pnpm exec vitest run --project unit packages/contracts/src/contracts.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/contracts/src/contracts.test.ts (74 tests | 1 failed) 82ms
+   × what shows a page was saved crosses the wire as locators and a URL, and nothing else (ADR-0106) > carries a password spent before a consent stop, and only on a failed consent stop (P310) 26ms
+     → expected { leaseId: 'wl_1', …(2) } to deeply equal { leaseId: 'wl_1', …(3) }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 73 passed (74)
+   Start at  14:02:47
+   Duration  830ms (transform 267ms, setup 0ms, collect 356ms, tests 82ms, environment 0ms, prepare 78ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/contracts/src/contracts.test.ts > what shows a page was saved crosses the wire as locators and a URL, and nothing else (ADR-0106) > carries a password spent before a consent stop, and only on a failed consent stop (P310)
+AssertionError: expected { leaseId: 'wl_1', …(2) } to deeply equal { leaseId: 'wl_1', …(3) }
+
+- Expected
++ Received
+
+  Object {
+    "failure": "consent_banner_met",
+    "leaseId": "wl_1",
+    "outcome": "failed",
+-   "secretSpent": true,
+  }
+
+ ❯ packages/contracts/src/contracts.test.ts:1052:99
+    1050|     // the password already, and the plane must ask for it again.
+    1051|     for (const failure of ["consent_banner_met", "consent_not_recorded…
+    1052|       expect(parseWorkReport({ leaseId: "wl_1", outcome: "failed", fai…
+       |                                                                                                   ^
+    1053|         leaseId: "wl_1",
+    1054|         outcome: "failed",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

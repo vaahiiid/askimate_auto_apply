@@ -1,0 +1,51 @@
+# P310 mutation 12-report-flags-every-failure
+# file: apps/browser-runner/src/work-intake.ts
+# replaced:
+outcome.kind === "failed" && outcome.secretSpent === true ? { secretSpent: true }
+# with:
+outcome.kind === "failed" ? { secretSpent: true }
+# command: pnpm exec vitest run --project unit apps/browser-runner/src/work-intake.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/browser-runner/src/work-intake.test.ts (11 tests | 1 failed) 89ms
+   × one turn of the loop > reports a password spent before a consent stop, and only when the outcome says so (P310) 12ms
+     → expected { kind: 'worked', …(2) } to deeply equal { kind: 'worked', …(2) }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+   Start at  14:02:39
+   Duration  784ms (transform 205ms, setup 0ms, collect 277ms, tests 89ms, environment 0ms, prepare 96ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/browser-runner/src/work-intake.test.ts > one turn of the loop > reports a password spent before a consent stop, and only when the outcome says so (P310)
+AssertionError: expected { kind: 'worked', …(2) } to deeply equal { kind: 'worked', …(2) }
+
+- Expected
++ Received
+
+  Object {
+    "kind": "worked",
+    "report": Object {
+      "failure": "consent_banner_met",
+      "leaseId": "wl_1",
+      "outcome": "failed",
++     "secretSpent": true,
+    },
+    "runId": "run_case_1_1",
+  }
+
+ ❯ apps/browser-runner/src/work-intake.test.ts:262:21
+    260|     // The open-time stop typed nothing, and its report says nothing o…
+    261|     const untyped = await runOneTurn(intake(), () => Promise.resolve({…
+    262|     expect(untyped).toEqual({
+       |                     ^
+    263|       kind: "worked",
+    264|       runId: WORK.runId,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -1,0 +1,41 @@
+# P310 mutation 25-record-names-the-internal-word
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+        `${doing} and the portal's own record does not say what they chose, or could not be ` +
+# with:
+        `${input.doing} and the portal's own record does not say what they chose, or could not be ` +
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P310
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (388 tests | 1 failed | 386 skipped) 987ms
+   ✓ a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3) 360ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310) 295ms
+     → expected 'The student\'s recorded consent choic…' to contain 'pressed at the account creation and t…'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 386 skipped (388)
+   Start at  14:03:46
+   Duration  5.24s (transform 2.59s, setup 0ms, collect 3.80s, tests 987ms, environment 0ms, prepare 77ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310)
+AssertionError: expected 'The student\'s recorded consent choic…' to contain 'pressed at the account creation and t…'
+
+Expected: "pressed at the account creation and the portal's own record"
+Received: "The student's recorded consent choice for gated.portal.test was pressed at the account creation, typed and the portal's own record does not say what they chose, or could not be read (ADR-0131, P169: the third shape checks the record rather than trusting the press). Controls were pressed on the student's account. The password was typed into the registration form before the notice was met at the press and is spent; the registration button was never pressed (P310), and nothing is claimed about what the portal recorded. A person reads what the notice now does on this portal before the entry's consent block is trusted again."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15131:41
+    15129|       const intervention = await interventionFor(runId);
+    15130|       expect(intervention?.reason).toBe("new_portal_behaviour");
+    15131|       expect(intervention?.encountered).toContain("pressed at the acco…
+       |                                         ^
+    15132|       expect(intervention?.encountered).toContain(
+    15133|         "The password was typed into the registration form before the …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

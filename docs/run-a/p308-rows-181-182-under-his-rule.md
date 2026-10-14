@@ -6,6 +6,29 @@ four: submitting an application, money, a student's personal data, or legal or d
 Those four always come to me. … Apply this rule now to rows 181 and 182, and tell me which of their
 points fall under the four."*
 
+## His decision, 2026-10-14 (P310), in his words
+
+Saved as sent: [`p310-his-decisions-as-sent.txt`](./p310-his-decisions-as-sent.txt).
+
+> *"Rows 181 and 182: apply all your recommendations as written, with two additions in my words:*
+> *- 182 (13): a CV uploaded after a record is kept and read into the student's profile, for future
+> applications. Nothing changes on the submitted application, and the sentence says so.*
+> *- 182 (3): leave as is for now. Record that before anyone other than me can record a submission,
+> who recorded it must be authenticated."*
+
+And his build order: *"1. P302 item 3 alone first: the consent notice at the account-creation
+press, handled as sign-in already handles it. My live run waits for this. 2. Then my live run. 3.
+Then rows 181 and 182, in one phase."*
+
+So every recommendation below is applied as written, in one phase after his live run, and nothing
+here is built before then. The recommendations stay mine; his word applies them. Where his two
+additions differ from what I wrote, his words govern:
+- **182 (13):** my line left "whether the CV is read or kept" to him. He has said it: kept and read
+  into the profile, for future applications, with nothing changed on the submitted application, and
+  the sentence saying so.
+- **182 (3):** left as is, as I recommended, with his rule recorded: before anyone other than him
+  can record a submission, who recorded it must be authenticated.
+
 **The answer: all of them.** Every open point of rows 181 and 182 touches at least one of the four,
 by my reading, so none was applied under his rule. Each is listed below with what it touches and my
 recommendation, for him to answer. Four more points found by P308's review are added as 182 (11) to

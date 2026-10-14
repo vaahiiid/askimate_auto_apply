@@ -1,0 +1,64 @@
+# P310 mutation 18-driver-ignores-the-flag
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const typedFirst = metTheNotice && input.report.secretSpent === true;
+# with:
+    const typedFirst = false;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P310
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (388 tests | 2 failed | 386 skipped) 1054ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3) 324ms
+     → the password was typed: the handle is spent: expected undefined to be 'sr_00000000000000000000000000000001' // Object.is equality
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310) 259ms
+     → the password was typed: the handle is spent: expected undefined to be 'sr_00000000000000000000000000000001' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 386 skipped (388)
+   Start at  14:02:58
+   Duration  5.23s (transform 2.52s, setup 0ms, collect 3.72s, tests 1.05s, environment 0ms, prepare 65ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3)
+AssertionError: the password was typed: the handle is spent: expected undefined to be 'sr_00000000000000000000000000000001' // Object.is equality
+
+- Expected: 
+"sr_00000000000000000000000000000001"
+
++ Received: 
+undefined
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15049:102
+    15047|         completed: { outcome: "failed_cleanly", failure: "consent_bann…
+    15048|       });
+    15049|       expect(ledger?.completed?.spentSecretRequestId, "the password wa…
+       |                                                                                                      ^
+    15050|       expect(await interventionFor(runId), "not a stop for a person").…
+    15051|       expect(await statusOf(runId)).toBe("running");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310)
+AssertionError: the password was typed: the handle is spent: expected undefined to be 'sr_00000000000000000000000000000001' // Object.is equality
+
+- Expected: 
+"sr_00000000000000000000000000000001"
+
++ Received: 
+undefined
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15122:102
+    15120|       const closed = await new PostgresWorkflowRunStore(instance.pool)…
+    15121|       expect(closed).toMatchObject({ attemptsMade: 0, attemptFailures:…
+    15122|       expect(closed?.completed?.spentSecretRequestId, "the password wa…
+       |                                                                                                      ^
+    15123|       const said = await saidTo(conversation);
+    15124|       const told = said.filter((content) =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

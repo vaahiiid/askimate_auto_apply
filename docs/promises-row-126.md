@@ -105,7 +105,7 @@ RDT is `apps/conversation-service/src/run-driver.test.ts`; lines are at `cbd87b3
 | D5 | nothing new started on a stopped application | RDT:7628, :7891 (no work offered, no account creation started) |
 | D8 | the consent choice asked, then the password again | RDT:13703 (*consent_choice*), :13752 (*request_secret*) |
 | D10 | the consent choice asked, then the account created | RDT:13868, :13881, :13886 |
-| D13 | the recorded consent choice pressed whenever the notice appears | RDT:13764, :13796, :13979; `browser-runner/src/sign-in-settle.test.ts:338` |
+| D13 | the recorded consent choice pressed whenever the notice appears | RDT:13764, :13796, :13979; `browser-runner/src/sign-in-settle.test.ts:338`; at the creation's press since P310, `browser-runner/src/create-account-consent.test.ts`, *with the student's choice on record, presses it, reads the record back, and presses the creation ONCE more* |
 | D14 | creation tried once more | RDT:8939 |
 | D15 | the secure box opened again for the second attempt | RDT:8921, :8924 |
 | D17 | the box opened again when the student asks to apply again | RDT:8698 |
@@ -157,6 +157,15 @@ Promises written after P269's measurement, each shipped with its assertion. RDT 
 | P13 | run-driver.ts, `submittedByHandHeldMessage` (P307; its words P308; also said by `announcePending`'s repair, P308) | *"You submitted your … application … on …. What is left of it at … is something I cannot settle on my own, so I have passed it to a member of the team. I will tell you when it is finished."* | RDT, *a submission made by hand whose account only a person can settle*: the hold is raised under `specialist:submitted_by_hand_owed`, said once; when the person has settled it and resumed, *"That is the last of it"* is said, once. The repair's saying it is asserted by the P308 describe |
 | P14 | client/words.ts, `SUBMITTED_TAIL` (P308) | *"What is left of it is with a member of the team, and I will tell you when it is finished."* — the page's line for an `escalated` or `uncertain` run after a record | RDT, the P307 describes: his case's page-12 hold resolved after the record ends with *"That is the last of it"*, and so does the hold only a person can settle. **Partly asserted:** a run is `uncertain` only from a runner's report, and no work is handed out after a record, so the line shows for one only if it was already `uncertain` when recorded; no test drives that one to its close |
 | P15 | run-driver.ts, `abandonedMessage` (P308) | *"Someone on the team has stopped work on your … application, and I will not start anything new on it."* — P272's promise, in the words for a recorded case | RDT: no work is handed out after a record (the P307 describes), and none for an abandoned run (P272's test); both branches of the abandon after a record are asserted (the P308 describe) |
+| P16 | run-driver.ts, `consentMetAtCreationPressMessage` (P310) | *"I will ask you which choice you want next, and then ask for your password again, because the one you typed was spent on this try."* — said when the account creation met the consent notice at its press, the password typed | RDT, *the consent notice met at the creation's PRESS* (P310): the next step is `consent_choice` with no box opened; after the choice, `request_secret` with one new box; the creation then handed out carries the new password's handle, never the spent one, and the choice |
+
+P16 was found by `git diff HEAD -U0 -- apps packages scripts`, test files, compiled output and
+comment lines excluded, grepped for `\bI will\b|\bI'll\b`: two lines. The other is D12's
+*"Someone is looking at it, and I will come back to you."*, said now also by
+`consentNotRecordedAtCreationPressMessage` (P310), for a creation that met the notice at its press.
+It is D12's promise and stays where D12 is: the escalation is asserted (the second P310 test), and
+nothing resolves the intervention and sees the student told. The same search over P306's diff
+returns its three lines, as recorded below: the positive control.
 
 P10 was found by the same search over the lines P291 added. It returned two lines: P10, and P8's line, which the edit moved.
 

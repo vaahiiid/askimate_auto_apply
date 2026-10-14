@@ -276,6 +276,8 @@ describe("the work vocabulary and the domain do not drift", () => {
     expect([...(failure["enum"] as string[])].sort()).toEqual([...WORK_FAILURES].sort());
     expect(WORK_FAILURES).toContain("captcha_met");
     expect(WORK_FAILURES).toContain("second_factor_met");
+    // P310: the one flag a consent stop carries, published as the parser takes it.
+    expect((report["properties"] as Doc)["secretSpent"]).toMatchObject({ type: "boolean", enum: [true] });
   });
 
   it("hands out every browser step the orchestrator can produce", () => {

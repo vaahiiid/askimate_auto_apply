@@ -136,9 +136,11 @@ export interface RegistrationTargets {
    * The same shape the login carries, for the same reason: on Sheffield the
    * registration form and the sign-in form are one page, and the notice that
    * stood over the sign-in button stands over the registration's. The runner
-   * reads it BEFORE it types anything — an unanswered notice met here costs
-   * no password, because none has been asked for yet. Absent `chosen`, the
-   * runner presses nothing and reports `consent_banner_met`.
+   * reads it BEFORE it types anything — an unanswered notice met there costs
+   * no password, because none has been asked for yet — and again at the press
+   * if it arrived after (P310), when the password has been typed and the
+   * report says `secretSpent`. Absent `chosen`, the runner presses nothing on
+   * it and reports `consent_banner_met`.
    */
   readonly consent?: LoginConsent;
 }
@@ -627,11 +629,14 @@ export const WORK_FAILURES = [
    */
   "not_recorded",
   /**
-   * The sign-in's press met the portal's consent banner, and no choice of the
-   * student's is on record for this portal (ADR-0131). The runner pressed
-   * nothing on it: the choice is the student's. Not counted as a failed
-   * sign-in — nothing was tried against the portal — and the plane asks the
-   * student before any password is asked for again.
+   * A press met the portal's consent banner, and no choice of the student's
+   * is on record for this portal (ADR-0131). The sign-in's press, or the
+   * account creation's: before it typed (ADR-0144) or at its press (P310). The
+   * runner pressed nothing on it: the choice is the student's. Not counted as
+   * a failed sign-in or creation — the press never reached the portal's
+   * button — and the plane asks the student before any password is asked for
+   * again. The sign-in has always typed the password by then; a creation says
+   * so with `secretSpent`.
    */
   "consent_banner_met",
   /**
@@ -639,8 +644,11 @@ export const WORK_FAILURES = [
    * record does not say what they chose — or could not be read at all
    * (ADR-0131, P169).
    *
-   * Its own code, and not a sign-in failure: the password was not spent and
-   * nothing was tried against the login form. What a consent control records
+   * Its own code, and not a sign-in or creation failure: nothing was pressed
+   * on the login or registration form. The password had been typed already at
+   * the sign-in, and at a creation that met the notice at its press
+   * (`secretSpent`, P310); not at one that met it before typing (ADR-0144).
+   * What a consent control records
    * is set by configuration nobody outside the portal can see, so the third
    * shape checks rather than trusts, and this is what the check failing looks
    * like. The run stops for a person, because buttons were pressed on the
@@ -715,6 +723,13 @@ export interface WorkReport {
    * (P233, row 94).
    */
   readonly unseen?: readonly string[];
+  /**
+   * P310: with `failed` and `consent_banner_met` or `consent_not_recorded`
+   * only — the account creation met the consent notice at its PRESS, after the
+   * password had been typed, so the handle it was handed is spent. Absent, a
+   * creation's consent stop typed nothing (ADR-0144). Exactly `true`.
+   */
+  readonly secretSpent?: true;
 }
 
 /** An unseen name is a reviewer's identifier: short, and shaped like one. */
@@ -1256,7 +1271,7 @@ export function parseWorkReport(value: unknown): WorkReport | null {
   const transmissions = record["transmissions"];
   if (outcome === "succeeded") {
     // A success saw everything it typed: an `unseen` beside it contradicts it (P233).
-    if (failure !== undefined || record["unseen"] !== undefined) return null;
+    if (failure !== undefined || record["unseen"] !== undefined || record["secretSpent"] !== undefined) return null;
     if (transmissions === undefined) return { leaseId: record["leaseId"], outcome };
     const parsed = parseTransmissions(transmissions);
     if (parsed === null) return null;
@@ -1267,6 +1282,15 @@ export function parseWorkReport(value: unknown): WorkReport | null {
   // not happen; the half-written record is refused rather than stored.
   if (transmissions !== undefined) return null;
   const unseen = record["unseen"];
+  // P310: a password spent before a consent stop, and nothing else. Any other
+  // value, outcome or code is a report that claims what its runner cannot
+  // have seen, and is refused rather than stored.
+  const secretSpent = record["secretSpent"];
+  if (secretSpent !== undefined) {
+    if (secretSpent !== true || outcome !== "failed" || unseen !== undefined) return null;
+    if (failure !== "consent_banner_met" && failure !== "consent_not_recorded") return null;
+    return { leaseId: record["leaseId"], outcome, failure, secretSpent: true };
+  }
   if (unseen === undefined) return { leaseId: record["leaseId"], outcome, failure };
   // Only the read-back names what it did not see, and only as identifiers.
   if (outcome !== "uncertain" || failure !== "not_recorded") return null;

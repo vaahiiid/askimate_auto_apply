@@ -1,0 +1,46 @@
+# P310 mutation 22-typed-not-recorded-says-nothing-typed
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+          : input.doing === "account creation, typed"
+            ? consentNotRecordedAtCreationPressMessage(entry)
+# with:
+          : false
+            ? consentNotRecordedAtCreationPressMessage(entry)
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P310
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (388 tests | 1 failed | 386 skipped) 1066ms
+   ✓ a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the creation's PRESS, the password already typed: the handle is spent, not counted, the student told so, asked the choice and THEN for the password again, and the new password used (P310, P302 item 3) 364ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310) 340ms
+     → expected [] to have a length of 1 but got +0
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 386 skipped (388)
+   Start at  14:03:25
+   Duration  5.43s (transform 2.66s, setup 0ms, collect 3.86s, tests 1.07s, environment 0ms, prepare 93ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a disagreeing record met at the creation's PRESS says the password was typed and spent, in the sentence and the record, and stops for a person (P310)
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15127:20
+    15125|         content.includes("I did not create your account, and the passw…
+    15126|       );
+    15127|       expect(told).toHaveLength(1);
+       |                    ^
+    15128|       expect(said.filter((content) => content.includes("I typed nothin…
+    15129|       const intervention = await interventionFor(runId);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

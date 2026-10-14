@@ -114,6 +114,30 @@ export function pressCheckInWords(thrown: unknown): string {
 
 export const PRESS_CHECK_PHRASES: readonly string[] = PRESS_CHECKS.map((check) => check.phrase);
 
+/**
+ * Whether a failed press was SENT before it failed (P310). Playwright logs
+ * "performing click action" in the call log it attaches to the error, at the
+ * moment it dispatches the click and not before (playwright-core 1.62.1,
+ * coreBundle.js:19921, the call log by formatCallLog). A press that waits for
+ * the navigation it started can fail AFTER it was sent — a slow answer — and
+ * its log still carries the "intercepts pointer events" lines of the attempts
+ * before it; read alone, those lines would call a sent registration a press
+ * the notice stopped.
+ */
+export function pressWasDispatched(thrown: unknown): boolean {
+  const message = thrown instanceof Error ? thrown.message : "";
+  return /performing click action/i.test(message);
+}
+
+/**
+ * A press that another element stopped before it was ever sent: the one case
+ * in which pressing again cannot make a second request (P310). Anything else
+ * a press can fail with stays what it was — for a registration, uncertain.
+ */
+export function interceptedBeforeSending(thrown: unknown): boolean {
+  return pressCheckInWords(thrown) === "another element intercepts pointer events" && !pressWasDispatched(thrown);
+}
+
 /** A Chromium network code: a closed enum, naming no page and no value. */
 const NETWORK_CODE = /\b(ERR_[A-Z0-9_]{3,40})\b/;
 

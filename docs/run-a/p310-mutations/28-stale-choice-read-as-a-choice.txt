@@ -1,0 +1,44 @@
+# P310 mutation 28-stale-choice-read-as-a-choice
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+            ? consentTargetsFrom(
+                input.entry,
+                (await consents.choiceFor(String(input.record.studentRef), portalHost))?.choice ?? null,
+              )?.chosen === undefined
+# with:
+            ? (await consents.choiceFor(String(input.record.studentRef), portalHost)) === null
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P310 review
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (390 tests | 1 failed | 388 skipped) 1000ms
+   × a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a choice on record that the notice no longer offers is no choice: the press-time stop asks the question it promises, and does not open a box first (P310 review) 303ms
+     → the question it promised, before any box: expected 'request_secret' to be 'consent_choice' // Object.is equality
+   ✓ a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the creation is handed the choice recorded for the host it is sent to, on a portal moved to another origin (P310 review) 326ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 388 skipped (390)
+   Start at  14:27:44
+   Duration  5.37s (transform 2.70s, setup 0ms, collect 3.98s, tests 1000ms, environment 0ms, prepare 89ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > a choice on record that the notice no longer offers is no choice: the press-time stop asks the question it promises, and does not open a box first (P310 review)
+AssertionError: the question it promised, before any box: expected 'request_secret' to be 'consent_choice' // Object.is equality
+
+Expected: "consent_choice"
+Received: "request_secret"
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:15174:79
+    15172|       const asked = await instance.driver.advance({ runId, conversatio…
+    15173|       if (!asked.ok) expect.unreachable(`advance refused: ${asked.refu…
+    15174|       expect(asked.position.step, "the question it promised, before an…
+       |                                                                               ^
+    15175|       expect(await requestsOpened(conversation)).toEqual(boxes);
+    15176|       await offOffer(runId);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

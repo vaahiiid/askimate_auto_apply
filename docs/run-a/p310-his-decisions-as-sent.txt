@@ -1,0 +1,8 @@
+Rows 181 and 182: apply all your recommendations as written, with two additions in my words:
+- 182 (13): a CV uploaded after a record is kept and read into the student's profile, for future applications. Nothing changes on the submitted application, and the sentence says so.
+- 182 (3): leave as is for now. Record that before anyone other than me can record a submission, who recorded it must be authenticated.
+
+Build order:
+1. P302 item 3 alone first: the consent notice at the account-creation press, handled as sign-in already handles it. My live run waits for this.
+2. Then my live run.
+3. Then rows 181 and 182, in one phase.

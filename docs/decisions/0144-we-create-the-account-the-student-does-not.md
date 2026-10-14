@@ -77,6 +77,21 @@ So:
    on record it presses the path the entry names and reads the portal's record back, exactly as the
    sign-in does (ADR-0131, P169), and only then types. The question the student is then asked is the
    same question in the creation's words: *"Before I can create your account on …"*.
+
+   **At the press too (P310, 2026-10-14).** His order ([`p310-his-decisions-as-sent.txt`](../run-a/p310-his-decisions-as-sent.txt)):
+   *"P302 item 3 alone first: the consent notice at the account-creation press, handled as
+   sign-in already handles it. My live run waits for this."* The look before typing stays as
+   written above. A notice that arrives after it, as Sheffield's did on page 0 in P176, is met at
+   the press, after the password has been typed. If the press never left the runner (Playwright's
+   call log says another element intercepted it and has no *"performing click action"*) and the
+   notice is on the page, it is answered as the sign-in answers it. With no choice on record, the
+   creation stops with `consent_banner_met`. With one, the path is pressed, the record read back,
+   and the creation pressed once more. Both stops carry `secretSpent` on the report, so the plane
+   records the password as spent. The student is told so, asked the choice, and then asked for the
+   password again in a new box. Neither stop is counted as an attempt, because the press never
+   reached the button. A press that was sent and then failed stays `uncertain`, whatever covered
+   the button before. The mechanism (the flag rather than new codes, the call-log guard) is mine,
+   not his words.
 4. **The ledger keeps the code the last completion closed with, attempt or not.** ADR-0122's list
    holds only the attempts made, on the line ADR-0114's count draws; a creation that met the notice
    is not an attempt and appeared nowhere. Migration 0008 adds `last_failure` to the intent row so
@@ -87,8 +102,10 @@ So:
 
 - It decides the item-6 run's starting point and the shape of the creation's consent path. It does
   not decide that the consent question is put to the student *before* the runner meets the notice;
-  today the runner meets it, types nothing, and the question follows. Asking up front, on the
-  blueprint's word alone, would be a reading rather than a measurement, and is his to decide.
+  today the runner meets it, types nothing, and the question follows — or, when the notice arrives
+  after the page opened, meets it at the press with the password typed, and the question and then a
+  new password box follow (P310). Asking up front, on the blueprint's word alone, would be a
+  reading rather than a measurement, and is his to decide.
 - It does not read Sheffield's registration beyond the three boxes and one button on page 0 and
   his observation. What the portal does with a duplicate e-mail, and whether a created account lands
   on `personal.do` — which is how the runner reads success, by the path changing — are rows in
@@ -101,4 +118,5 @@ So:
 No seventh item. P219, by the clock, is inside item 6's build; the run itself remains his acts once:
 the dedicated e-mail, the local stack on the catalogue, a fresh `students` row whose id goes into the
 approval, one signature, his answers in the chat, his consent choice when asked, his password in the
-secure box, and the run to `ready_to_submit`. The runbook is `docs/run-a/item-6-runbook.md`.
+secure box (twice, if the notice arrives after the registration page has opened: P310), and the run
+to `ready_to_submit`. The runbook is `docs/run-a/item-6-runbook.md`.

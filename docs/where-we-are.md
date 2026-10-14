@@ -4906,6 +4906,37 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P310 — the consent notice at the creation's press
+
+*2026-10-14.* His order (`docs/run-a/p310-his-decisions-as-sent.txt`): *"P302 item 3 alone first:
+the consent notice at the account-creation press, handled as sign-in already handles it. My live
+run waits for this."*, then *"Then my live run."*, then *"Then rows 181 and 182, in one phase."* His decisions on
+rows 181 and 182, with his two additions, are recorded. Nothing of them is built; they come after
+his run.
+
+Item 3 is built. On Sheffield's page 0 the notice was not there as the page opened and was over the
+button just before the press (P176). The creation looked only as the page opened, so a late notice
+ended the run `uncertain`, for a person. Now the press meets it as the sign-in does: the student's
+choice pressed and the creation pressed once more, or a stop that asks them. One difference from
+the sign-in made it more than a copy. The creation's press waits for the page it starts, so a press
+that went out and then timed out still shows the earlier "intercepts" lines. The notice is answered
+only when Playwright says the press never went out. Anything else is still `uncertain`.
+
+What it costs him: by the time the press meets a late notice, his password has been typed, so it is
+spent. The chat says so, asks the choice, and opens the box again. Which order his run meets
+depends on when Sheffield's notice arrives on the registration form, which nothing has measured.
+
+The review found two defects, both fixed with tests first. A consent choice stored for the student
+that the notice no longer offers was counted as a choice: the run would have skipped the question
+and asked for a new password each time it met the notice. And on a portal moved to another origin,
+the choice was looked up under the wrong host. Seven smaller points it found are in row 183. Two of
+them, a loop like the first in the sign-in and a false sentence in the sign-in's record for a
+person, are his, because they touch the password.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P309 — three of P302's items answered in his words
 
 *2026-10-14.* Three more of the twelve things between today and his live run, answered by him

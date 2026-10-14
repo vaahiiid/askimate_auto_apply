@@ -1,0 +1,50 @@
+# P310 mutation 05-guard-ignores-a-sent-press
+# file: apps/browser-runner/src/runner-log.ts
+# replaced:
+return pressCheckInWords(thrown) === "another element intercepts pointer events" && !pressWasDispatched(thrown);
+# with:
+return pressCheckInWords(thrown) === "another element intercepts pointer events";
+# command: pnpm exec vitest run apps/browser-runner/src/create-account-consent.test.ts -t P310
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/browser-runner/src/create-account-consent.test.ts (13 tests | 1 failed | 5 skipped) 135243ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > stops with consent_banner_met, pressing nothing on the notice, and says the password was already typed (secretSpent) 15405ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > with the student's choice on record, presses it, reads the record back, and presses the creation ONCE more 15486ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > STOPS with consent_not_recorded, the password already typed (secretSpent), when the portal records the opposite of the presses 15357ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > leaves anything else over the button UNCERTAIN, as before: a plain cover is not the notice, and nothing is pressed on it 15278ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > never takes a press that WAS sent for one the notice stopped: the cover goes, the registration goes out, the answer is slow — UNCERTAIN, not consent_banner_met 22271ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > a second press that still cannot be made, after the choice was pressed, is UNCERTAIN — never a third press 30352ms
+   ✓ the account creation meets a notice that arrives late at its press, as the sign-in does (P302 item 3, P310) > leaves a press that failed for another reason UNCERTAIN, with nothing pressed on the notice 15276ms
+   × the guard reads Playwright's own call log: a press never sent, or one sent and still waiting (P310) > names a press the notice stopped before it was sent, and refuses one that was sent and is waiting for its answer 5655ms
+     → never taken for a press the notice stopped: expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed | 5 skipped (13)
+   Start at  13:50:26
+   Duration  136.98s (transform 511ms, setup 0ms, collect 1.28s, tests 135.24s, environment 0ms, prepare 95ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/browser-runner/src/create-account-consent.test.ts > the guard reads Playwright's own call log: a press never sent, or one sent and still waiting (P310) > names a press the notice stopped before it was sent, and refuses one that was sent and is waiting for its answer
+AssertionError: never taken for a press the notice stopped: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ apps/browser-runner/src/create-account-consent.test.ts:526:92
+    524|       expect(pressCheckInWords(sent), "its log still names the interce…
+    525|       expect(pressWasDispatched(sent)).toBe(true);
+    526|       expect(interceptedBeforeSending(sent), "never taken for a press …
+       |                                                                                            ^
+    527|     } finally {
+    528|       await context.close();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
