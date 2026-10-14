@@ -4906,6 +4906,21 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P309 — three of P302's items answered in his words
+
+*2026-10-14.* Three more of the twelve things between today and his live run, answered by him
+(`docs/run-a/p309-his-decisions-as-sent.txt`). Item 2: *"my live run uses today's code. It does not
+wait for ADR-0158."* Item 4: *"my live run uses an e-mail address of mine that has no Sheffield
+account. I will give it in the chat correction; do not write it into any record."* It is in no
+record here. Item 5:
+*"Sheffield's registration page shows no password rules."* ADR-0158's ordering is still his to
+choose, for the build; that it no longer stands in front of his run is my reading of his words,
+not his. Nothing was built.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P308 — the student is told they submitted it, on that date
 
 *2026-10-14.* His decisions on P307: D7 to D12 accepted, with one addition to D7 in his words,

@@ -1,0 +1,16 @@
+Three messages from Vahid, 2026-10-14, saved as sent. The lines of dashes between them are the
+agent's, not his.
+
+----------------------------------------------------------------------------------------------------
+P302 item 2: my live run uses today's code. It does not wait for ADR-0158.
+----------------------------------------------------------------------------------------------------
+Sheffield's registration page shows no password rules. Record that for P302 item 5.
+
+Paste here, in full, the contents of docs/run-a/p308-his-live-run-steps.md and docs/run-a/p308-rows-181-182-under-his-rule.md, as plain text, one after the other.
+----------------------------------------------------------------------------------------------------
+P302 item 4: my live run uses an e-mail address of mine that has no Sheffield account. I will give it in the chat correction; do not write it into any record.
+
+P302 item 5: Sheffield's registration page shows no password rules. Record that.
+
+Paste here, in full, the contents of docs/run-a/p308-his-live-run-steps.md and docs/run-a/p308-rows-181-182-under-his-rule.md, as plain text, one after the other.
+----------------------------------------------------------------------------------------------------

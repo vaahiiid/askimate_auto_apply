@@ -2,7 +2,8 @@
 
 **Status:** Accepted in direction · approved by Vahid on 2026-10-13, in his own words (below), with
 four of its five open points decided by him and the fifth, §4's ordering, his to choose · written
-2026-10-12 (P297) for his approval, at his request · **nothing here is built yet** · amends
+2026-10-12 (P297) for his approval, at his request · **nothing here is built yet** · his live run:
+*"my live run uses today's code. It does not wait for ADR-0158."* (2026-10-14, below) · amends
 [ADR-0156](./0156-ask-the-student-only-when-it-matters.md) §1, §3 and §4(a),
 [ADR-0155](./0155-a-student-chooses-from-the-forms-own-list.md),
 [ADR-0109](./0109-a-typeahead-mapping-names-the-value-the-form-submits.md) as amended in P290,
@@ -41,6 +42,12 @@ What each settles below:
   match on what comes back means the escape, under point 2's two conditions. No other word is ever
   tried.
 
+**His own live run, 2026-10-14, in his words** ([as sent](../run-a/p309-his-decisions-as-sent.txt)):
+*"P302 item 2: my live run uses today's code. It does not wait for ADR-0158."* So on his run the
+subject search types the recorded word and the escape is pressed on his choice recorded in the
+chat, as today's code does (P302 item 2). Point 5 below, the ordering, is still his to choose for
+the build. That it no longer moves his live run's account creation is my reading of his words.
+
 **Point 5, the ordering (§4), explained for his choice, one sentence each:**
 - **(a) The account first:** the student says yes to creating their account on its own, and the
   run creates it, reads the lists inside it and only then shows the application for their yes, so an
@@ -55,7 +62,8 @@ What each settles below:
 **Recommended: (a).** It is the only one of the three that serves Sheffield's lists whole without an
 account of ours. Its cost is real, and the student accepts it on its own yes. ADR-0101 A1 changes to
 "the account's yes comes first", and the fill after the preview signs in again, as the resume path
-does today (ADR-0101 B). For his own live run it would also move the account's creation, which
+does today (ADR-0101 B). (Written in P302; since P309 his live run does not wait for ADR-0158, by
+his words above.) For his own live run it would also move the account's creation, which
 today comes after his yes on the preview, to before it. Measure (b) only where one read would
 settle it. This supersedes §4's earlier "measure (b) first". **His choice; nothing is built until he
 makes it.**

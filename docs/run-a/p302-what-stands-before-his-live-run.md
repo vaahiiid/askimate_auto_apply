@@ -25,7 +25,11 @@ where that matters.
    Sign it before his yes on the preview, because a signature after it asks for the yes again. The
    run does not wait on it: the signed entry `546b2948…` admits his account today.
    *His act.*
-2. **His decision: today's code, or ADR-0158 first.** Today the run gets as far as the account
+2. **Decided 2026-10-14 (P309), in his words** ([as sent](./p309-his-decisions-as-sent.txt)):
+   *"P302 item 2: my live run uses today's code. It does not wait for ADR-0158."* So his run meets
+   the two differences below as today's code has them. ADR-0158's own ordering (§4) is still his to
+   choose, for the build; that it no longer bears on his live run is my reading of his words.
+   As written before it: **His decision: today's code, or ADR-0158 first.** Today the run gets as far as the account
    without ADR-0158, asking him 4 choices from the form's lists once item 7 is done. Two of his
    ADR-0158 points differ from what today's code does on his run:
    - the subject search types the recorded word `international`, not his exact words (point 4;
@@ -41,10 +45,19 @@ where that matters.
    press fail into `uncertain`, and the run stops for a person (`create-account.ts:264-282`). The
    sign-in met exactly that race on Sheffield's page 0, and handles it at the press
    (`sign-in.ts:219-247`). Registration and login are the same page there. *Code to build.*
-4. **Does his own e-mail already have a Sheffield account?** A duplicate looks like any refusal:
+4. **Answered 2026-10-14 (P309), in his words:** *"P302 item 4: my live run uses an e-mail address
+   of mine that has no Sheffield account. I will give it in the chat correction; do not write it
+   into any record."* The address is in no record here, by his instruction; it reaches his profile
+   only through his correction in the chat (item 7). As written before it: **Does his own e-mail
+   already have a Sheffield account?** A duplicate looks like any refusal:
    two attempts, then a person (`create-account.ts:306-311`; row 149). The dedicated address that
    made this moot is gone under his row-174 decision. *An answer only he has.*
-5. **Sheffield's password rules.** They are recorded nowhere, and the secure box does not state them
+5. **Answered 2026-10-14 (P309), in his words:** *"Sheffield's registration page shows no password
+   rules."* His statement; the repository holds no read of the page that shows it. So the page
+   gives the secure box no rules to state (my reading). Sheffield may still refuse a password for
+   a rule it does not show, and that spends an attempt, two and then a person: the code as it
+   stands, my reading, not his words.
+   As written before it: **Sheffield's password rules.** They are recorded nowhere, and the secure box does not state them
    (`packages/account/src/authentication.ts:676-684`). A password Sheffield refuses spends the
    attempt: two, then a person. *A read, or his knowledge.*
 6. **On his machine:** pull `main` and restart the stack on the same database, then continue

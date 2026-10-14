@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.302.0] — 2026-10-14
+
+**P309 — three of P302's items answered in his words.** Records only; nothing is built.
+
+- **His words** (`docs/run-a/p309-his-decisions-as-sent.txt`, saved as sent):
+  - item 2: *"my live run uses today's code. It does not wait for ADR-0158."*;
+  - item 4: *"my live run uses an e-mail address of mine that has no Sheffield account. I will give
+    it in the chat correction; do not write it into any record."*;
+  - item 5: *"Sheffield's registration page shows no password rules."*
+- **Recorded** in P302's list (each item keeps its earlier text beneath), in his live-run steps,
+  and in ADR-0158 and its index row. ADR-0158's ordering (§4) stays his to choose, for the build.
+- **The address** is in no record, by his instruction; his steps say to type it only in the chat.
+
+---
+
 ## [0.301.0] — 2026-10-14
 
 **P308 — his addition to D7: the student is told they submitted it, on that date.** The run still

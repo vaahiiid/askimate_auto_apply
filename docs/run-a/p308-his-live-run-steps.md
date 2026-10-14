@@ -15,6 +15,9 @@ model, the CV reader is the stand-in, and documents are `none`. Starting with
 Two placeholders stand for addresses, because which address to use is his to say and a record
 carries only his own. Type the real ones; never paste them into a record.
 
+**P302 item 2, decided by him on 2026-10-14:** *"my live run uses today's code. It does not wait for
+ADR-0158."* The steps below are today's code.
+
 ---
 
 ## What may stop it, before you start
@@ -22,8 +25,14 @@ carries only his own. Type the real ones; never paste them into a record.
 - **The consent notice at the creation's press is not handled** (P302 item 3, not built). If
   Sheffield shows it after the page has opened, the press fails as `uncertain` and the run stops
   for a person.
-- **An account already on your e-mail at Sheffield**, or a password Sheffield refuses, counts as a
-  failed attempt. Two attempts, then a person (P302 items 4 and 5, open).
+- **A password Sheffield refuses** counts as a failed attempt: two attempts, then a person. In your
+  words (P302 item 5, 2026-10-14): *"Sheffield's registration page shows no password rules."* So
+  Sheffield may still refuse a password for a rule the page does not show (my reading).
+- **An account already on the address the account is created on** counts the same way: two
+  attempts, then a person. In your words (P302 item 4): *"my live run uses an e-mail address of mine
+  that has no Sheffield account."* So I do not expect a duplicate there (my reading, not your
+  words). One can still arise if correction 1 is not made, or if an earlier press that ended
+  uncertain had already made the account.
 - **`email_verified` for your student record is recorded nowhere** the agent could read. If it is
   false, the password box is refused (`email_not_verified`). Step 2's query shows it.
 - **The financial-evidence review** (step 7) stops the run before the preview if your profile
@@ -73,7 +82,10 @@ carries only his own. Type the real ones; never paste them into a record.
    plays the change back; press **"Yes, that's right"** before typing the next. A sentence typed
    while a playback is open gets only the press-or-"leave it" reply. Corrections are taken only
    before any page is saved.
-   1. Your e-mail. The account is created on it.
+   1. Your e-mail. The account is created on it. Use the address you named in P302 item 4, the one
+      of yours with no Sheffield account. Type it only in the chat. It goes into no file, commit or
+      note in the repository; your profile and the conversation log in your own database hold it,
+      as they hold any correction, because the account is created on it.
       ```
       my email is <your own address>, not <the address your profile holds now>
       ```

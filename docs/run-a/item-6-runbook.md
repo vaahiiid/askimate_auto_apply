@@ -106,3 +106,6 @@ the stack restarted with P221's page.
 - What Sheffield does with a **duplicate e-mail** — the dedicated address exists to make that
   question moot for this run. *P302: his own address now, so the question is open again: item 4 of
   [`p302-what-stands-before-his-live-run.md`](./p302-what-stands-before-his-live-run.md).*
+  *P309, in his words: "my live run uses an e-mail address of mine that has no Sheffield account."
+  So the question is moot again for his run; what Sheffield does with a duplicate e-mail is still
+  unmeasured. The address is in no record here, by his instruction.*
