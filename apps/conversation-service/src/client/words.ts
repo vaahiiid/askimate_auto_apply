@@ -84,6 +84,79 @@ export function positionLine(run: { readonly status: RunStatus; readonly step: R
 }
 
 /**
+ * P308, Vahid's addition to D7 (2026-10-14): *"whatever the case's internal
+ * state, what the student sees must say plainly that the application was
+ * submitted, by them, on that date."* Once a person has recorded a submission
+ * made by hand, the line opens with that sentence whatever the run's status,
+ * and what follows is typed over every status, with no default.
+ */
+const SUBMITTED_TAIL = {
+  // Not "your account": a record may come before any account exists (the
+  // P308 review), and the hand-back, when there is one, says so in the chat.
+  running: "What is left is closing it off here. Nothing more will be filled in or submitted.",
+  suspended: "What is left is paused for a moment, and I will carry on shortly.",
+  uncertain: "What is left of it is with a member of the team, and I will tell you when it is finished.",
+  escalated: "What is left of it is with a member of the team, and I will tell you when it is finished.",
+  stopped_by_student: "You closed the password box, so I stopped there. To close it off here, choose it below.",
+  completed: "There is nothing more for me to do on it.",
+  abandoned: "Stopping did not withdraw it, and there is nothing more for me to do on it.",
+} as const satisfies Record<RunStatus, string>;
+
+/** `YYYY-MM-DD` as stated, in words: "14 October 2026", the chat's own format. */
+export function dayWords(on: string): string {
+  const [y, m, d] = on.split("-").map(Number);
+  return new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1)).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** The sentence every recorded-case surface on the page begins with (P308). */
+function youSubmitted(on: string): string {
+  return `You submitted your application on the university's website on ${dayWords(on)}.`;
+}
+
+/** The position line once a submission made by hand is recorded (P308). */
+export function submittedLine(status: RunStatus, on: string): StudentWords {
+  return mint(`${youSubmitted(on)} ${SUBMITTED_TAIL[status]}`);
+}
+
+/** Above the targets, when a student who stopped may choose again after a record (P308). */
+export function submittedTargetsHeading(on: string): StudentWords {
+  return mint(
+    `${youSubmitted(on)} To close it off here, choose it below. Nothing will be filled in or submitted.`,
+  );
+}
+
+/** The offer's heading and its button after a record (P308): not "apply". */
+export const SUBMITTED_OFFER_HEADING: StudentWords = mint("The application you submitted");
+export const SUBMITTED_OFFER_BUTTON: StudentWords = mint("Close it off here");
+
+/** The own-acts heading after a record (P308): nothing is "before you submit" any more. */
+export function submittedOwnActsHeading(on: string): StudentWords {
+  return mint(
+    `${youSubmitted(on)} I cannot tell whether these were attached before you did; if they were not, ` +
+      `the university's admissions office can tell you how to send them.`,
+  );
+}
+
+/** The stop button's label after a record (P308): stopping withdraws nothing. */
+export const SUBMITTED_STOP_LABEL: StudentWords = mint("Stop here (this does not withdraw the application you submitted)");
+
+/**
+ * The stop's label, or `null` where there is nothing left to stop (ADR-0053):
+ * a completed run (P307), and an abandoned one after a record, whose line has
+ * just said so (the P308 review).
+ */
+export function stopLabelFor(status: RunStatus | undefined, submitted: { readonly on: string } | null): string | null {
+  if (status === "completed") return null;
+  if (submitted === null) return "Stop this application";
+  return status === "abandoned" ? null : SUBMITTED_STOP_LABEL;
+}
+
+/**
  * What a student reads before handing over a CV (ADR-0148 §10, P236). Vahid's
  * sentence, said as written: it is about keeping the document and nothing
  * else — what they will be shown of what was read belongs to the moment it is
@@ -120,4 +193,11 @@ export const EVERY_SENTENCE: readonly string[] = [
   CHOOSING_LINE,
   ...Object.values(STEP_WORDS),
   ...Object.values(STATUS_WORDS).flatMap((sentence) => (sentence === null ? [] : [sentence])),
+  // P308: every recorded-case line, with a date standing in for the stated one.
+  ...(Object.keys(SUBMITTED_TAIL) as RunStatus[]).map((status) => submittedLine(status, "2026-10-14")),
+  submittedTargetsHeading("2026-10-14"),
+  SUBMITTED_OFFER_HEADING,
+  SUBMITTED_OFFER_BUTTON,
+  submittedOwnActsHeading("2026-10-14"),
+  SUBMITTED_STOP_LABEL,
 ];

@@ -1,0 +1,21 @@
+# P308 mutation 23-impossible-day-taken
+# file: packages/domain/src/machine.ts
+# replaced:
+  if (new Date(asUtc).toISOString().slice(0, 10) !== day) return false;
+  const hour
+# with:
+  const hour
+# command: pnpm exec vitest run --project unit packages/domain/src/machine.test.ts
+# exit status: 0
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ✓ |unit| packages/domain/src/machine.test.ts (78 tests) 37ms
+
+ Test Files  1 passed (1)
+      Tests  78 passed (78)
+   Start at  10:09:09
+   Duration  700ms (transform 194ms, setup 0ms, collect 235ms, tests 37ms, environment 0ms, prepare 100ms)
+

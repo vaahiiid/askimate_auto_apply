@@ -1,0 +1,59 @@
+# P308 mutation 19-interventions-moving-again-for-everyone
+# file: scripts/interventions.ts
+# replaced:
+          : "The run is back in the pool. The student has been told it is moving again, unless the case\n" +
+            "holds a submission made by hand: then nothing is said here, and the hand-back of their\n" +
+            "account follows (P308). It picks up from where the intent ledger says it got to — not\n" +
+# with:
+          : "The run is back in the pool. The student has been told it is moving again. It picks up\n" +
+            "from where the intent ledger says it got to — not\n" +
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (24 tests | 1 failed | 22 skipped) 2557ms
+   × the published demonstrations > interventions, after a submission made by hand (P308) > lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student 938ms
+     → expected 'Recorded against iv_held.\n\nThe run …' to contain 'unless the case'
+   ✓ the published demonstrations > submission-by-hand > REFUSES a date that does not exist and a zone no place keeps, before the service (the P308 review) 1617ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 22 skipped (24)
+   Start at  10:08:39
+   Duration  8.47s (transform 46ms, setup 0ms, collect 5.53s, tests 2.56s, environment 0ms, prepare 77ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions, after a submission made by hand (P308) > lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student
+AssertionError: expected 'Recorded against iv_held.\n\nThe run …' to contain 'unless the case'
+
+- Expected
++ Received
+
+- unless the case
++ Recorded against iv_held.
++
++ The run is back in the pool. The student has been told it is moving again. It picks up
++ from where the intent ledger says it got to — not
++ from the beginning, and not from anything you just typed: a resolution carries no
++ position (ADR-0048 §5).
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++
+
+ ❯ scripts/demonstrations.test.ts:287:30
+    285|         );
+    286|         expect(resolved.code).toBe(0);
+    287|         expect(resolved.out).toContain("unless the case");
+       |                              ^
+    288|         expect(resolved.out).toContain("holds a submission made by han…
+    289|         expect(resolved.out).not.toContain("The run is back in the poo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

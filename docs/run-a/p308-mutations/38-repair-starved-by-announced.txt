@@ -1,0 +1,67 @@
+# P308 mutation 38-repair-starved-by-announced
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    const unannounced = (await interventions.open()).filter((held) => held.announcedAt === undefined);
+    for (const held of unannounced.slice(0, limit)) {
+# with:
+    for (const held of (await interventions.open()).slice(0, limit)) {
+      if (held.announcedAt !== undefined) continue;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (386 tests | 1 failed) 40337ms
+   ✓ a run that stops on an unfinished action > ABANDONED by a person: the student is told, in their terms, and no work is offered — never 'moving again' (P272, row 126) 368ms
+   ✓ the interview stops rather than stranding > REACHES the attempt limit through the real interview, and stops 348ms
+   ✓ the by-hand questions come from what the portal reads, in a person's order (P231, ADR-0148 §4) > asks the job title first, then the employer, and never the basis or the referee this portal does not read 304ms
+   ✓ a list is collected entry by entry, and the walk survives the request (ADR-0113, P211) > asks 'another?' after the entry, takes 'no', and puts ONE confirmation for the whole list 387ms
+   ✓ one entry of a played-back list is corrected and the rest stay (P230, ADR-0148 §6–7) > walks job 2 again, plays the whole list back, and the confirmation stores both with the corrected one 554ms
+   ✓ an entry that is NOT the last is corrected: the rest stay, the list is played back whole and confirmed (P264) > P264: correcting job 1 of 2 re-walks job 1, keeps job 2, asks the closing 'another?' once more, plays the whole list back and confirms it — the promise 'and then read the whole list back to you' is kept for a non-last entry 604ms
+   ✓ a run that holds an account never loses sight of it when an authentication fact reads unobserved, and is never closed as owing nothing (P300, row 170) > a student who has told us they can sign in is not told the account is still in our hands (the P300 review) 304ms
+   ✓ a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > fail, succeed, fail: a sign-in that held ENDS the episode, so the third sign-in is offered with zero failures and its failure is told as a first, not a stop (P163) 410ms
+   ✓ a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120) > the consent notice met at the sign-in: not counted, the student asked in the notice's words BEFORE any password, their choice recorded for the portal, carried on the next sign-in, and changeable (ADR-0131) 459ms
+   ✓ a CV uploaded after both its fields are confirmed is asked about at once, never held in silence; a no deletes it and leaves the fields; a yes goes back and confirms again (P252, row 107) > a YES reopens the CV's fields from that point: the reading is seeded over the confirmed value, the walk asks what the CV did not give and the completeness question, and the confirmed value stands until they confirm the CV's 306ms
+   ✓ a CV-read entry left out mid-walk (P264): the mark is on the log, the walk goes on, the playback says what was left out, the profile holds what stands, and a correction after it names the right entry > plays back the two that stand, numbered as they now are and told the number they were asked by, then the one left out with the words that left it out, and stores the two 365ms
+   ✓ a CV-read entry left out mid-walk (P264): the mark is on the log, the walk goes on, the playback says what was left out, the profile holds what stands, and a correction after it names the right entry > a correction pressed as 'qualification 2' after the removal re-asks the walk's THIRD slot, says which it was, and carries the mark forward 385ms
+   ✓ an entry the CV reader could not read into parts is seeded to be asked by hand, its words shown — the sentence's 'I will ask you about it' kept (P266) > seeds the words alone, asks every part by hand with the words said once, plays the entry back as the student's with the CV's words beside it, and stores it 738ms
+   ✓ a CV that arrives while its own field is open is asked about at once and the open question yields; entries already typed are named and a yes starts the list again; a CV that arrives ahead of its field is acknowledged (P254) > BEGUN, a typed YES: the list starts again from the CV — the typed country does not survive, so it is asked; the playback carries the CV's entry 355ms
+   ✓ the registration e-mail question (P306, ADR-0159 O3) > asks once, tells once, offers yes and no, and hands out no page while it stands 346ms
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 336ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 430ms
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > the worker's repair of an unannounced hold on a recorded case says the student submitted it, on that date, not that it is paused (the P308 review) 227ms
+     → expected { announced: +0 } to match object { announced: 1 }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 385 passed (386)
+   Start at  10:11:17
+   Duration  43.93s (transform 2.19s, setup 0ms, collect 3.21s, tests 40.34s, environment 0ms, prepare 81ms)
+
+stderr | apps/conversation-service/src/run-driver.test.ts > a run only a person can carry on > still takes the student's MESSAGES while a person is looking
+conversation-service error: Error
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > the worker's repair of an unannounced hold on a recorded case says the student submitted it, on that date, not that it is paused (the P308 review)
+AssertionError: expected { announced: +0 } to match object { announced: 1 }
+
+- Expected
++ Received
+
+  Object {
+-   "announced": 1,
++   "announced": 0,
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20112:55
+    20110|       expect(held.rowCount, "a person holds the account").toBe(1);
+    20111|       const before = (await said(conversation)).length;
+    20112|       expect(await instance.driver.announcePending()).toMatchObject({ …
+       |                                                       ^
+    20113|       expect((await said(conversation)).slice(before)).toEqual([
+    20114|         "You submitted your Gated University application on the univer…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

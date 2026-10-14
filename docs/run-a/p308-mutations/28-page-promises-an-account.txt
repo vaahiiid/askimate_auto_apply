@@ -1,0 +1,43 @@
+# P308 mutation 28-page-promises-an-account
+# file: apps/conversation-service/src/client/words.ts
+# replaced:
+  running: "What is left is closing it off here. Nothing more will be filled in or submitted.",
+# with:
+  running: "What is left is handing your account on the university's website back to you.",
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/words.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/words.test.ts (8 tests | 1 failed) 147ms
+   × no internal word ever reaches a student's screen (P227, ADR-0147) > says plainly, whatever the status, that the student submitted it, on the date stated, once a record exists (P308, his D7 addition) 13ms
+     → expected 'You submitted your application on the…' not to match /account/iu
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  10:10:18
+   Duration  738ms (transform 172ms, setup 0ms, collect 261ms, tests 147ms, environment 0ms, prepare 63ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/words.test.ts > no internal word ever reaches a student's screen (P227, ADR-0147) > says plainly, whatever the status, that the student submitted it, on the date stated, once a record exists (P308, his D7 addition)
+AssertionError: expected 'You submitted your application on the…' not to match /account/iu
+
+- Expected: 
+/account/iu
+
++ Received: 
+"You submitted your application on the university's website on 14 October 2026. What is left is handing your account on the university's website back to you."
+
+ ❯ apps/conversation-service/src/client/words.test.ts:105:24
+    103|     // line after one promises an account back.
+    104|     for (const said of [...statuses.map((status) => submittedLine(stat…
+    105|       expect(said).not.toMatch(/account/iu);
+       |                        ^
+    106|     }
+    107|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

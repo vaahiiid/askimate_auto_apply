@@ -1,0 +1,42 @@
+# P308 mutation 09-finished-without-submission
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+  if (submittedByHand !== undefined) {
+    return (
+      `That is the last of it. ${youSubmitted
+# with:
+  if (false) {
+    return (
+      `That is the last of it. ${youSubmitted
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307|P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (386 tests | 1 failed | 366 skipped) 4522ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 420ms
+   × a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 554ms
+     → expected [ …(7) ] to include 'That is the last of it. You submitted…'
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 452ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed | 366 skipped (386)
+   Start at  10:07:42
+   Duration  8.92s (transform 2.66s, setup 0ms, collect 3.97s, tests 4.52s, environment 0ms, prepare 63ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted
+AssertionError: expected [ …(7) ] to include 'That is the last of it. You submitted…'
+ ❯ apps/conversation-service/src/run-driver.test.ts:19414:37
+    19412|       await instance.driver.advance({ runId, conversationId: conversat…
+    19413|       expect(confirmed, "the hand-back was confirmed by the student").…
+    19414|       expect(await assistantSaid()).toContain(
+       |                                     ^
+    19415|         "That is the last of it. You submitted your Gated University a…
+    19416|           "Stopping did not withdraw it. The account at Gated Universi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

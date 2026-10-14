@@ -1494,6 +1494,100 @@ describeIfDatabase("the student's page", () => {
     expect(await textOf("#transcript")).toMatch(/member of the team/);
   }, 300_000);
 
+  it("after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-10-14: *"whatever the case's internal state, what the
+    // student sees must say plainly that the application was submitted, by
+    // them, on that date."* The run is served at the network boundary, as the
+    // corrupted-body test serves its, with a record dated 14 October and a
+    // consent choice on file; the offer the target asks for is served there
+    // too. Written after the P308 review found six of the page's seven P308
+    // branches read by no test.
+    // ═══════════════════════════════════════════════════════════════════
+    await visitAs(student);
+    // The page opens a conversation on first load; run alone, this is that load.
+    await expect
+      .poll(async () => (await pool.query("SELECT 1 FROM conversations WHERE student_id = $1", [student])).rowCount ?? 0, { timeout: 15_000 })
+      .toBeGreaterThan(0);
+    const mine = await pool.query<{ id: string }>("SELECT id FROM conversations WHERE student_id = $1", [student]);
+    const conversationId = mine.rows[0]!.id;
+    const said = "You submitted your application on the university's website on 14 October 2026.";
+    const serve = async (status: string): Promise<void> => {
+      await page.unroute("**/v1/conversations/*/runs");
+      await page.route("**/v1/conversations/*/runs", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            run: { runId: "run_p308", caseId: "case_p308", conversationId, status, phase: "interviewing", step: "request_secret", revision: 1, resumed: true },
+            pending: null,
+            ownActs: [{ key: "passport", label: "Passport", done: false }],
+            consent: {
+              banner: {
+                portalHost: "gated.portal.test",
+                words: "We use cookies.",
+                beforeAnyChoice: "Nothing is set before you choose.",
+                choices: [{ id: "accept", label: "Accept all", means: "Every cookie.", path: ["Accept all"] }],
+              },
+              chosen: { id: "accept", label: "Accept all", chosenAt: "2026-10-01T09:00:00Z" },
+            },
+            submitted: { on: "2026-10-14" },
+          }),
+        });
+      });
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForFunction(
+        (expected) => (document.querySelector("#pending .position")?.textContent ?? "").startsWith(expected),
+        said,
+        { timeout: 20_000 },
+      );
+    };
+    await page.route("**/v1/conversations/*/target-offers", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ offerHash: `sha256:${"e5".repeat(32)}`, rendered: "Gated University\n  Course: MSc Example", target: { institutionName: "Gated University", courseName: "MSc Example" } }),
+      });
+    });
+    try {
+      await serve("stopped_by_student");
+      expect(await page.locator("#pending .position").textContent()).toBe(
+        `${said} You closed the password box, so I stopped there. To close it off here, choose it below.`,
+      );
+      expect(await page.locator("#targets h2").textContent()).toBe(`${said} To close it off here, choose it below. Nothing will be filled in or submitted.`);
+      const headings = await page.locator("#pending h2").allTextContents();
+      expect(headings).toContain(
+        `${said} I cannot tell whether these were attached before you did; if they were not, the university's admissions office can tell you how to send them.`,
+      );
+      const buttons = await page.locator("#pending button").allTextContents();
+      expect(buttons).toContain("Stop here (this does not withdraw the application you submitted)");
+      expect(buttons).not.toContain("Stop this application");
+      // The choice on the portal's cookies stays visible and changeable (ADR-0131 §4).
+      expect(await page.locator("#pending .consent").textContent()).toContain('"Accept all"');
+      const shown = (await page.locator("body").textContent()) ?? "";
+      for (const before of ["To carry on, choose the application again", "Still yours to do", "Apply to this for me", "account handed back"]) {
+        expect(shown, `never "${before}" after a record`).not.toContain(before);
+      }
+
+      await page.locator("#targets button", { hasText: "See what would be applied for" }).first().click();
+      await page.waitForFunction(() => (document.querySelector("#offer h2")?.textContent ?? "").length > 0, undefined, { timeout: 20_000 });
+      expect(await page.locator("#offer h2").textContent()).toBe("The application you submitted");
+      const offered = await page.locator("#offer button").allTextContents();
+      expect(offered).toContain("Close it off here");
+      expect(offered).not.toContain("Apply to this for me");
+
+      // Abandoned after the record: the line says it is stopped, and no stop is offered.
+      await serve("abandoned");
+      expect(await page.locator("#pending .position").textContent()).toBe(
+        `${said} Stopping did not withdraw it, and there is nothing more for me to do on it.`,
+      );
+      expect((await page.locator("#pending button").allTextContents()).filter((label) => label.startsWith("Stop"))).toEqual([]);
+    } finally {
+      await page.unroute("**/v1/conversations/*/target-offers");
+      await page.unroute("**/v1/conversations/*/runs");
+    }
+  }, 180_000);
+
   it("sends the student to log in when there is no session", async () => {
     // 401 is the ordinary case for a page loaded without one. The page does
     // not render an empty journey and pretend; it goes where the cookie is

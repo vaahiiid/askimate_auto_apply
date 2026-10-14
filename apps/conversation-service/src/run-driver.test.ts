@@ -19072,11 +19072,11 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
     },
   ];
   const RECORDED =
-    "A member of the team has recorded that your Gated University application was submitted on the " +
-    "university's website on 30 August 2026. I will not fill in or submit anything more on it.";
+    "You submitted your Gated University application on the university's website on 30 August 2026. " +
+    "A member of the team has recorded it. I will not fill in or submit anything more on it.";
   const FINISHED =
-    "That is the last of it. The account at Gated University is yours now, and nothing is left for me " +
-    "to do on your Gated University application.";
+    "That is the last of it. You submitted your Gated University application on the university's website " +
+    "on 30 August 2026. The account at Gated University is yours now, and nothing is left for me to do on it.";
   const MOVING_AGAIN = "it is moving again";
 
   function held(): ReturnType<typeof buildInstance> {
@@ -19163,6 +19163,7 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
       const recorded = await recording.driver.recordSubmissionByHand({
         caseId: caseRef,
         submittedAt: SUBMITTED,
+        submittedOn: "2026-08-30",
         source: "observed",
         recordedBy: "specialist_vahid",
       });
@@ -19174,14 +19175,19 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
       });
       // The same record again is a retry: nothing new, and the student is not told twice.
       expect(
-        await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+        await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, submittedOn: "2026-08-30", source: "observed", recordedBy: "specialist_vahid" }),
       ).toEqual({ ok: true, recordedNow: false, heldBy: [hold?.intervention_id], told: true });
       // A different record is a disagreement, refused.
-      const other = await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: NOW, source: "stated", recordedBy: "specialist_other" });
+      const other = await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: NOW, submittedOn: "2026-08-31", source: "stated", recordedBy: "specialist_other" });
       expect(other.ok).toBe(false);
       if (!other.ok) expect(other.reason).toBe("refused");
+      // The same instant and source with another stated date is a different
+      // record too: the date is what the student was told (P308).
+      const otherDay = await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, submittedOn: "2026-08-31", source: "observed", recordedBy: "specialist_vahid" });
+      expect(otherDay.ok, "another stated date is not the same record").toBe(false);
+      if (!otherDay.ok) expect(otherDay.reason).toBe("refused");
       expect(
-        await recording.driver.recordSubmissionByHand({ caseId: makeCaseId("case_none"), submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+        await recording.driver.recordSubmissionByHand({ caseId: makeCaseId("case_none"), submittedAt: SUBMITTED, submittedOn: "2026-08-30", source: "observed", recordedBy: "specialist_vahid" }),
       ).toMatchObject({ ok: false, reason: "no_case" });
     } finally {
       await recording.pool.end();
@@ -19239,8 +19245,8 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
       const handBack = (await saidTo()).filter((content) => content.includes("and the account is yours."));
       expect(handBack, "the hand-back, said once").toHaveLength(1);
       const text = handBack[0] ?? "";
-      expect(text).toContain("Your application to Gated University has been recorded as submitted on the university's website, and the account is yours.");
-      expect(text).toContain("Your application has been submitted, so we advise you to change the password now");
+      expect(text).toContain("You submitted your application to Gated University on the university's website on 30 August 2026, and the account is yours.");
+      expect(text).toContain("You have submitted your application, so we advise you to change the password now");
       expect(text).not.toContain("until you have submitted");
       const reading = await instance.driver.runFor(conversation);
       if (reading?.pending?.decision !== "confirm_handoff") expect.unreachable("the account's question is the one pending");
@@ -19327,7 +19333,9 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
 describeIfDatabase("a stop after a submission made by hand says what was recorded (P307)", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03071";
   const CREATION_REQUEST = `sr_${"0".repeat(31)}1`;
-  const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+  // 00:30 in summer time on 30 August is 23:30 UTC on the 29th: every sentence
+  // below must say the 30th, the date stated, never the UTC day (the P308 review).
+  const SUBMITTED = new Date("2026-08-29T23:30:00Z");
 
   async function assistantSaid(): Promise<string[]> {
     const rows = await pool.query<{ content: string }>(
@@ -19363,12 +19371,13 @@ describeIfDatabase("a stop after a submission made by hand says what was recorde
       const recorded = await instance.driver.recordSubmissionByHand({
         caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
         submittedAt: SUBMITTED,
+        submittedOn: "2026-08-30",
         source: "stated",
         recordedBy: "specialist_vahid",
       });
       expect(recorded).toEqual({ ok: true, recordedNow: true, heldBy: [], told: true });
       // Advanced by the record itself: the hand-back is said, the question inside it.
-      const handBack = (await assistantSaid()).filter((content) => content.includes("has been recorded as submitted on the university's website"));
+      const handBack = (await assistantSaid()).filter((content) => content.includes("You submitted your application to Gated University on the university's website on 30 August 2026, and the account is yours."));
       expect(handBack, "the hand-back, at once").toHaveLength(1);
       expect(handBack[0]).toContain("Tell me with the buttons below whether it has arrived.");
 
@@ -19376,10 +19385,36 @@ describeIfDatabase("a stop after a submission made by hand says what was recorde
       const stop = (await assistantSaid()).find((content) => content.startsWith("I have stopped work on your Gated University application"));
       if (stop === undefined) expect.unreachable("the stop is said");
       expect(stop).toContain(
-        "A member of the team recorded that your application was submitted on the university's website on 30 August 2026; stopping here does not withdraw it.",
+        "You submitted your application on the university's website on 30 August 2026. Stopping here does not withdraw it.",
       );
       expect(stop).not.toContain("Nothing was submitted");
+      // P308 and its review: no page was saved here, so nothing is said to have
+      // been filled in, nor to be part of what the student submitted, and no
+      // change after the submission is promised.
+      expect(stop).toContain("Anything I already filled in on their form is still saved there; I cannot remove it. ");
+      expect(stop).not.toContain("part of the application you submitted");
+      expect(stop).not.toContain("you can change it yourself");
       expect((await assistantSaid()).some((content) => content.includes("Nothing was submitted")), "said nowhere").toBe(false);
+
+      // The student takes the account back; the stopped, recorded case finishes, and says so (P308).
+      // Walked the way the abandon test walks it: each handoff asked, confirmed.
+      let confirmed = 0;
+      for (let round = 0; round < 5; round += 1) {
+        await instance.driver.advance({ runId, conversationId: conversation });
+        const now = await instance.driver.runFor(conversation);
+        if (now?.pending?.decision !== "confirm_handoff") break;
+        expect(
+          await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_handoff", contentHash: now.pending.contentHash } }),
+          `round ${String(round)}`,
+        ).toEqual({ ok: true });
+        confirmed += 1;
+      }
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect(confirmed, "the hand-back was confirmed by the student").toBeGreaterThan(0);
+      expect(await assistantSaid()).toContain(
+        "That is the last of it. You submitted your Gated University application on the university's website on 30 August 2026. " +
+          "Stopping did not withdraw it. The account at Gated University is yours now, and nothing is outstanding here.",
+      );
     } finally {
       await instance.pool.end();
     }
@@ -19404,7 +19439,7 @@ describeIfDatabase("a stop after a submission made by hand says what was recorde
     const caseRef = `case_${conversation.toLowerCase()}`;
     const record = (body: unknown, target = caseRef, sent: Record<string, string> = headers): Promise<Response> =>
       fetch(`${base}/internal/v1/cases/${target}/submission-by-hand`, { method: "POST", headers: sent, body: JSON.stringify(body) });
-    const same = { recordedBy: "specialist_vahid", submittedAt: SUBMITTED.toISOString(), source: "stated" };
+    const same = { recordedBy: "specialist_vahid", submittedAt: "2026-08-30T00:30:00+01:00", source: "stated" };
     try {
       expect((await record(same, caseRef, { "content-type": "application/json" })).status, "the internal plane is not open").toBe(403);
       // Against a case that does not exist, so a body that got past the
@@ -19414,12 +19449,17 @@ describeIfDatabase("a stop after a submission made by hand says what was recorde
       expect((await record(same, nowhere)).status, "a well-formed record reaches the case").toBe(404);
       expect((await record({ ...same, submittedAt: "2026-08-30" }, nowhere)).status, "a day is not a time").toBe(400);
       expect((await record({ ...same, submittedAt: new Date(NOW.getTime() + 60_000).toISOString() }, nowhere)).status, "not after now").toBe(400);
+      // The P308 review: a JavaScript date rolls 30 February forward and parses
+      // -20:00, so the route checks both itself; -12:00 is a zone kept somewhere.
+      expect((await record({ ...same, submittedAt: "2026-02-30T10:00:00Z" }, nowhere)).status, "a date that does not exist").toBe(400);
+      expect((await record({ ...same, submittedAt: "2026-08-30T10:00:00-20:00" }, nowhere)).status, "a zone no place keeps").toBe(400);
+      expect((await record({ ...same, submittedAt: "2026-08-30T10:00:00-12:00" }, nowhere)).status, "-12:00 is kept somewhere").toBe(404);
       expect((await record({ ...same, source: "reasoned" }, nowhere)).status, "no reasoned").toBe(400);
       expect((await record({ ...same, recordedBy: " " }, nowhere)).status, "who recorded it").toBe(400);
       expect((await record({ ...same, note: "x" }, nowhere)).status, "nothing else").toBe(400);
       const again = await record(same);
       expect(again.status).toBe(200);
-      expect(await again.json(), "the same record again: nothing new").toEqual({ recordedNow: false, heldBy: [], told: true });
+      expect(await again.json(), "the same record again: nothing new").toEqual({ recordedNow: false, heldBy: [], told: true, submittedOn: "2026-08-30" });
       expect((await record({ ...same, source: "observed" })).status, "a different record is refused").toBe(400);
     } finally {
       await new Promise<void>((resolve) => listening.close(() => resolve()));
@@ -19432,7 +19472,7 @@ describeIfDatabase("a stop after a submission made by hand says what was recorde
 
 describeIfDatabase("a submission made by hand recorded before the yes (P307)", () => {
   const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
-  const FINISHED_NO_ACCOUNT = "That is the last of it. Nothing is left for me to do on your Gated University application.";
+  const FINISHED_NO_ACCOUNT = "That is the last of it. You submitted your Gated University application on the university's website on 30 August 2026. Nothing is left for me to do on it.";
 
   async function said(conversation: string): Promise<{ actor: string; content: string }[]> {
     const rows = await pool.query<{ actor: string; content: string }>(
@@ -19462,6 +19502,7 @@ describeIfDatabase("a submission made by hand recorded before the yes (P307)", (
         await instance.driver.recordSubmissionByHand({
           caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
           submittedAt: SUBMITTED,
+          submittedOn: "2026-08-30",
           source: "stated",
           recordedBy: "specialist_vahid",
         }),
@@ -19493,6 +19534,7 @@ describeIfDatabase("a submission made by hand recorded before the yes (P307)", (
         await instance.driver.recordSubmissionByHand({
           caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
           submittedAt: SUBMITTED,
+          submittedOn: "2026-08-30",
           source: "stated",
           recordedBy: "specialist_vahid",
         }),
@@ -19521,9 +19563,10 @@ describeIfDatabase("a submission made by hand whose account only a person can se
   const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
   const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
   const HELD =
-    "What is left of your Gated University application at Gated University is something I cannot settle " +
-    "on my own, so I have passed it to a member of the team. I will tell you when it is finished.";
-  const FINISHED_NO_ACCOUNT = "That is the last of it. Nothing is left for me to do on your Gated University application.";
+    "You submitted your Gated University application on the university's website on 30 August 2026. What " +
+    "is left of it at Gated University is something I cannot settle on my own, so I have passed it to a member " +
+    "of the team. I will tell you when it is finished.";
+  const FINISHED_NO_ACCOUNT = "That is the last of it. You submitted your Gated University application on the university's website on 30 August 2026. Nothing is left for me to do on it.";
 
   async function assistantSaid(): Promise<string[]> {
     const rows = await pool.query<{ content: string }>(
@@ -19556,7 +19599,7 @@ describeIfDatabase("a submission made by hand whose account only a person can se
       await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
 
       expect(
-        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, submittedOn: "2026-08-30", source: "observed", recordedBy: "specialist_vahid" }),
       ).toMatchObject({ ok: true, recordedNow: true });
       const raised = await pool.query<{ intervention_id: string; target: string }>(
         "SELECT intervention_id, checkpoint->>'target' AS target FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
@@ -19596,7 +19639,7 @@ describeIfDatabase("a submission made by hand whose account only a person can se
 describeIfDatabase("the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand", () => {
   const SUBMITTED = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
   const FIRST_BOX = `sr_${"0".repeat(31)}1`;
-  const FINISHED_NO_ACCOUNT = "That is the last of it. Nothing is left for me to do on your Gated University application.";
+  const FINISHED_NO_ACCOUNT = "That is the last of it. You submitted your Gated University application on the university's website on 30 August 2026. Nothing is left for me to do on it.";
 
   async function said(conversation: string): Promise<{ actor: string; content: string }[]> {
     const rows = await pool.query<{ actor: string; content: string }>(
@@ -19630,6 +19673,7 @@ describeIfDatabase("the P307 review: a student's stop, an interview stop, and wo
         await instance.driver.recordSubmissionByHand({
           caseId: makeCaseId(`case_${conversation.toLowerCase()}`),
           submittedAt: SUBMITTED,
+          submittedOn: "2026-08-30",
           source: "stated",
           recordedBy: "specialist_vahid",
         }),
@@ -19705,7 +19749,7 @@ describeIfDatabase("the P307 review: a student's stop, an interview stop, and wo
     const recording = buildInstance(connectionString(), opener());
     try {
       expect(
-        await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+        await recording.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, submittedOn: "2026-08-30", source: "observed", recordedBy: "specialist_vahid" }),
       ).toMatchObject({ ok: true, recordedNow: true, heldBy: [stop.rows[0]?.intervention_id] });
     } finally {
       await recording.pool.end();
@@ -19778,7 +19822,7 @@ describeIfDatabase("the P307 review: a student's stop, an interview stop, and wo
       expect(await statusOf(runId)).toBe("stopped_by_student");
 
       expect(
-        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, submittedOn: "2026-08-30", source: "observed", recordedBy: "specialist_vahid" }),
       ).toMatchObject({ ok: true, recordedNow: true, heldBy: [] });
       const opensBefore = secure.opens.length;
       const carried = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
@@ -19787,7 +19831,7 @@ describeIfDatabase("the P307 review: a student's stop, an interview stop, and wo
       expect(carried.position.step).toBe("hand_over_account");
       expect(secure.opens.length, "no password box opened").toBe(opensBefore);
       const lines = (await said(conversation)).map((line) => line.content);
-      expect(lines.filter((content) => content.includes("has been recorded as submitted on the university's website")), "the hand-back, once").toHaveLength(1);
+      expect(lines.filter((content) => content.includes("You submitted your application to Gated University on the university's website on 30 August 2026, and the account is yours.")), "the hand-back, once").toHaveLength(1);
       expect(lines.some((content) => content.startsWith("Carrying on with your")), "no 'carrying on'").toBe(false);
     } finally {
       await instance.pool.end();
@@ -19826,14 +19870,14 @@ describeIfDatabase("the P307 review: a student's stop, an interview stop, and wo
       expect(work?.runId, "a runner holds a page of this run").toBe(runId);
 
       const count = (await said(conversation)).length;
-      const refused = await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" });
+      const refused = await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, submittedOn: "2026-08-30", source: "observed", recordedBy: "specialist_vahid" });
       expect(refused).toMatchObject({ ok: false, reason: "work_in_flight" });
       expect((await new PostgresCaseStore(pool).read(caseRef)).filter((event) => event.type === "SubmissionByHandRecorded"), "nothing recorded").toHaveLength(0);
       expect((await said(conversation)).length, "nothing said").toBe(count);
 
       await pool.query("DELETE FROM work_leases WHERE run_id = $1", [runId]);
       expect(
-        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, source: "observed", recordedBy: "specialist_vahid" }),
+        await instance.driver.recordSubmissionByHand({ caseId: caseRef, submittedAt: SUBMITTED, submittedOn: "2026-08-30", source: "observed", recordedBy: "specialist_vahid" }),
       ).toMatchObject({ ok: true, recordedNow: true });
     } finally {
       await instance.pool.end();
@@ -19841,3 +19885,302 @@ describeIfDatabase("the P307 review: a student's stop, an interview stop, and wo
   }, 300_000);
 });
 
+
+// ───────────────────────────────────────────────────────────────────────────
+// P308, his addition to D7 — what the student sees says they submitted it,
+// on that date
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Vahid, 2026-10-14 (docs/run-a/p308-his-decisions-on-p307-as-sent.txt):
+// *"whatever the case's internal state, what the student sees must say plainly
+// that the application was submitted, by them, on that date."*
+describeIfDatabase("what the student sees says they submitted it, on the date stated (P308, his D7 addition)", () => {
+  async function said(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("a time typed at 00:30 in its own zone is told as that date, not the UTC day before; the page reads it too", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03081";
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: () => Promise.resolve(true),
+      authoriseService: (req) => req.header("x-service-cert") === "operator",
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(0, "127.0.0.1", () => resolve(s_));
+    });
+    const address = listening.address();
+    const base = `http://127.0.0.1:${String(typeof address === "object" && address !== null ? address.port : 0)}`;
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      // 00:30 in British Summer Time on the 30th is 23:30 UTC on the 29th.
+      const response = await fetch(`${base}/internal/v1/cases/case_${conversation.toLowerCase()}/submission-by-hand`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-service-cert": "operator" },
+        body: JSON.stringify({ recordedBy: "specialist_vahid", submittedAt: "2026-08-30T00:30:00+01:00", source: "observed" }),
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ recordedNow: true, told: true, submittedOn: "2026-08-30" });
+      const lines = await said(conversation);
+      const told = lines.find((content) => content.includes("A member of the team has recorded it."));
+      expect(told).toBe(
+        "You submitted your Gated University application on the university's website on 30 August 2026. " +
+          "A member of the team has recorded it. I will not fill in or submit anything more on it.",
+      );
+      expect(lines.some((content) => content.includes("29 August")), "never the UTC day before").toBe(false);
+      // No account was made, so the run completes, and says so with the same date.
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.run.status).toBe("completed");
+      expect(reading?.submitted, "the page reads the date, as stated").toEqual({ on: "2026-08-30" });
+      expect(lines).toContain(
+        "That is the last of it. You submitted your Gated University application on the university's website on 30 August 2026. Nothing is left for me to do on it.",
+      );
+      // And through the route the page itself calls.
+      const page = await fetch(`${base}/v1/conversations/${conversation}/runs`, { headers: { cookie: cookieFor(ownerOf(conversation)) } });
+      expect(page.status).toBe(200);
+      expect(((await page.json()) as { submitted?: unknown }).submitted, "the route carries it to the page").toEqual({ on: "2026-08-30" });
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("an abandon after a record says the student submitted it, on that date, and never that it cannot go on", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03082";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: `sr_${"0".repeat(31)}1`, handle: `sh_${"2".repeat(32)}` },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      // A creation begun and never finished: only a person can settle the account.
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      await new PostgresWorkflowRunStore(instance.pool).recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      await instance.driver.recordSubmissionByHand({
+        caseId: caseRef,
+        submittedAt: new Date("2026-08-30T10:00:00Z"),
+        submittedOn: "2026-08-30",
+        source: "observed",
+        recordedBy: "specialist_vahid",
+      });
+      const open = await pool.query<{ intervention_id: string }>(
+        "SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+        [runId],
+      );
+      const [hold] = open.rows;
+      if (hold === undefined) expect.unreachable("a person holds the account");
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(hold.intervention_id),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Looked.", resolution: "Set aside.", resolvedAt: NOW, outcome: "abandon" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand-abandon" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    const lines = await said(conversation);
+    const abandon = lines.find((content) => content.startsWith("Someone on the team has"));
+    if (abandon === undefined) expect.unreachable("the abandon is said");
+    expect(abandon).toContain("You submitted your application on the university's website on 30 August 2026.");
+    expect(abandon).not.toContain("cannot go on");
+    expect(lines.some((content) => content.includes("Nothing was submitted")), "said nowhere").toBe(false);
+  }, 300_000);
+
+  it("an abandon of a case that can no longer be wound down still says the student submitted it, on that date", async () => {
+    // The abandon's other branch: the case is already terminal, so nothing is
+    // concluded and only the opening is said, with what was recorded beside it.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03083";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: `sr_${"0".repeat(31)}1`, handle: `sh_${"3".repeat(32)}` },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      await new PostgresWorkflowRunStore(instance.pool).recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      await instance.driver.recordSubmissionByHand({
+        caseId: caseRef,
+        submittedAt: new Date("2026-08-30T10:00:00Z"),
+        submittedOn: "2026-08-30",
+        source: "observed",
+        recordedBy: "specialist_vahid",
+      });
+      const open = await pool.query<{ intervention_id: string }>(
+        "SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL",
+        [runId],
+      );
+      const [hold] = open.rows;
+      if (hold === undefined) expect.unreachable("a person holds the account");
+      // A case already terminal: the abandon cannot wind it down.
+      const cases = new PostgresCaseStore(pool);
+      const existing = await cases.read(caseRef);
+      await cases.append(caseRef, existing.length, [
+        {
+          eventId: makeEventId(`evt_${caseRef}_terminal`),
+          caseId: caseRef,
+          sequence: existing.length + 1,
+          occurredAt: NOW,
+          actor: { kind: "system", component: "test: a case already terminal" },
+          type: "CaseStateChanged",
+          from: fold(existing).state,
+          to: "FAILED_PERMANENT",
+          reason: "Terminal before the person abandons it.",
+        },
+      ]);
+      await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(hold.intervention_id),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Looked.", resolution: "Set aside.", resolvedAt: NOW, outcome: "abandon" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand-abandon-terminal" },
+        didHappen: false,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(fold(await new PostgresCaseStore(pool).read(caseRef)).state, "not wound down").toBe("FAILED_PERMANENT");
+    const lines = await said(conversation);
+    const abandon = lines.find((content) => content.startsWith("Someone on the team has"));
+    if (abandon === undefined) expect.unreachable("the abandon is said");
+    expect(abandon).toContain(
+      "Someone on the team has stopped work on your Gated University application, and I will not start anything new on it. " +
+        "You submitted your application on the university's website on 30 August 2026. Stopping here does not withdraw it.",
+    );
+    expect(abandon).not.toContain("cannot go on");
+  }, 300_000);
+
+  it("the worker's repair of an unannounced hold on a recorded case says the student submitted it, on that date, not that it is paused (the P308 review)", async () => {
+    // `#raiseForSpecialist` raises before it speaks; a crash between the two
+    // leaves the hold unannounced, and `announcePending` is the repair.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03085";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: `sr_${"0".repeat(31)}1`, handle: `sh_${"5".repeat(32)}` },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      await new PostgresWorkflowRunStore(instance.pool).recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      await instance.driver.recordSubmissionByHand({
+        caseId: caseRef,
+        submittedAt: new Date("2026-08-29T23:30:00Z"),
+        submittedOn: "2026-08-30",
+        source: "observed",
+        recordedBy: "specialist_vahid",
+      });
+      const held = await pool.query("UPDATE interventions SET announced_at = NULL WHERE run_id = $1 AND resolved_at IS NULL", [runId]);
+      expect(held.rowCount, "a person holds the account").toBe(1);
+      const before = (await said(conversation)).length;
+      expect(await instance.driver.announcePending()).toMatchObject({ announced: 1 });
+      expect((await said(conversation)).slice(before)).toEqual([
+        "You submitted your Gated University application on the university's website on 30 August 2026. What is left of it at " +
+          "Gated University is something I cannot settle on my own, so I have passed it to a member of the team. I will tell you " +
+          "when it is finished.",
+      ]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a record written before P308, sent again as typed then, is the same record, and the student is not told twice", async () => {
+    // P307 kept no stated date, so the fold reads the instant's UTC day; its
+    // message had other words. The P308 review: a retry must not refuse the
+    // command typed then, nor tell the student again in the new words.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03084";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      // 00:30 in summer time on 30 August is 23:30 UTC on the 29th.
+      const submittedAt = new Date("2026-08-29T23:30:00Z");
+      const cases = new PostgresCaseStore(pool);
+      const existing = await cases.read(caseRef);
+      await cases.append(caseRef, existing.length, [
+        {
+          eventId: makeEventId(`evt_${caseRef}_p307_record`),
+          caseId: caseRef,
+          sequence: existing.length + 1,
+          occurredAt: NOW,
+          actor: { kind: "specialist", reviewerId: "specialist_vahid" },
+          type: "SubmissionByHandRecorded",
+          submittedAt,
+          source: "observed",
+        } as unknown as Parameters<typeof cases.append>[2][number],
+      ]);
+      const p307Words =
+        "A member of the team has recorded that your Gated University application was submitted on the university's " +
+        "website on 29 August 2026. I will not fill in or submit anything more on it.";
+      await new ConversationEventStore(pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "assistant", content: p307Words },
+      });
+      const before = (await said(conversation)).length;
+      const again = await instance.driver.recordSubmissionByHand({
+        caseId: caseRef,
+        submittedAt,
+        submittedOn: "2026-08-30",
+        source: "observed",
+        recordedBy: "specialist_vahid",
+      });
+      expect(again, "the command typed then is the same record").toMatchObject({ ok: true, recordedNow: false, told: true });
+      const after = (await said(conversation)).slice(before);
+      expect(after.filter((content) => content.includes("recorded")), "not told again").toEqual([]);
+      // The run then finishes, saying the day the case holds, as P307's words did.
+      expect(after).toEqual([
+        "That is the last of it. You submitted your Gated University application on the university's website on 29 August 2026. Nothing is left for me to do on it.",
+      ]);
+      // And a different instant is still a different record.
+      const other = await instance.driver.recordSubmissionByHand({
+        caseId: caseRef,
+        submittedAt: new Date("2026-08-29T22:30:00Z"),
+        submittedOn: "2026-08-29",
+        source: "observed",
+        recordedBy: "specialist_vahid",
+      });
+      expect(other.ok, "another instant is refused").toBe(false);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});

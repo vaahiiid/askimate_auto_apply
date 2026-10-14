@@ -1,0 +1,43 @@
+# P308 mutation 15-page-line-without-submission
+# file: apps/conversation-service/src/client/words.ts
+# replaced:
+  return mint(`${youSubmitted(on)} ${SUBMITTED_TAIL[status]}`);
+# with:
+  return mint(`${SUBMITTED_TAIL[status]}`);
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/words.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/words.test.ts (8 tests | 1 failed) 154ms
+   × no internal word ever reaches a student's screen (P227, ADR-0147) > says plainly, whatever the status, that the student submitted it, on the date stated, once a record exists (P308, his D7 addition) 8ms
+     → running: expected false to be true // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  10:08:22
+   Duration  817ms (transform 202ms, setup 0ms, collect 285ms, tests 154ms, environment 0ms, prepare 63ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/words.test.ts > no internal word ever reaches a student's screen (P227, ADR-0147) > says plainly, whatever the status, that the student submitted it, on the date stated, once a record exists (P308, his D7 addition)
+AssertionError: running: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ apps/conversation-service/src/client/words.test.ts:90:122
+     88|     for (const status of statuses) {
+     89|       const line = submittedLine(status, "2026-10-14");
+     90|       expect(line.startsWith("You submitted your application on the un…
+       |                                                                                                                          ^
+     91|       expect(EVERY_SENTENCE, status).toContain(line);
+     92|       // Nothing that says it is still to be applied for, or not submi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

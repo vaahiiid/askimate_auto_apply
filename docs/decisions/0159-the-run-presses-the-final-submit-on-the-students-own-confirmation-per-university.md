@@ -4,8 +4,9 @@
 points answered by him, the other eleven applied as recommended at his word; three parts still his
 to say (O5's session hold, O7's part decided with row 81, O15's presses on his own account) ·
 written 2026-10-13
-(P304) for his approval, at his request · **nothing here is built yet**; his build order is
-decision 1 alone first, the press later · amends
+(P304) for his approval, at his request · **built: decision 1 (P306), O10 (P307) and his addition
+to D7 (P308); the press is not built** (this line said "nothing here is built yet" until P308
+corrected it); his build order is decision 1 alone first, the press later · amends
 [ADR-0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md) §3, §4, §5
 and §7, [ADR-0014](./0014-discovery-cannot-submit.md) (the capability ladder and the token),
 [ADR-0007](./0007-agent-led-conversational-intake.md) (a legal declaration as a handoff),
@@ -935,7 +936,12 @@ his own run may end (§11 (ii)), can now be said on the case, and the run then a
   `resume`. Nothing says "moving again", the run opens no page, and the hand-back follows.
   `pnpm run interventions` says so when it refuses a resume of a held page.
 
-**My choices, beyond his words, each his to overturn:**
+**His decision on these choices, 2026-10-14, in his words**
+(`docs/run-a/p308-his-decisions-on-p307-as-sent.txt`): *"Your choices D7 to D12 in ADR-0159:
+accepted. One addition to D7: whatever the case's internal state, what the student sees must say
+plainly that the application was submitted, by them, on that date."* The addition is built in P308.
+
+**My choices, beyond his words, accepted by him on 2026-10-14:**
 - **D7. The case keeps its state.** No new state, and not `SUBMITTED`. That would say this system
   submitted it. The record is a fact beside the state, as §11 (ii) describes his case: *"The case
   stays at `AUTHORISED`, its account at `handover_due`."*
@@ -1001,3 +1007,82 @@ his own run may end (§11 (ii)), can now be said on the case, and the run then a
 - **Checked by a review.** One read-only reviewer found three defects and two risks, all fixed with
   tests seen to fail first. The rest are recorded in row 182.
 
+
+## Built: his addition to D7 (P308)
+
+**His words**, 2026-10-14 (`docs/run-a/p308-his-decisions-on-p307-as-sent.txt`): *"Your choices D7 to
+D12 in ADR-0159: accepted. One addition to D7: whatever the case's internal state, what the student
+sees must say plainly that the application was submitted, by them, on that date."*
+
+**What is built to them:**
+- **The date is the one stated.** The record carries `submittedOn`, `YYYY-MM-DD`: the date part of
+  `--at` as typed, in the zone it was typed in. A time of 00:30 in summer time is told as that day,
+  not the UTC day before (row 182 (5), now closed).
+  - The domain refuses a date that does not exist, or one the instant falls on in no real zone
+    (from twelve hours behind UTC to fourteen ahead).
+  - The route and the command refuse an impossible date or an offset outside that range before
+    anything is sent.
+  - A record written before P308 has no stated date. It is read as its instant's UTC day, which
+    is what P307 told the student. Sent again as typed then, it is the same record, and the
+    student is not told again in the new words.
+- **One sentence, on every surface.** *"You submitted your {institution} application on the
+  university's website on {date}."*
+  - In the chat: the record's own message, the stop, the abandon (both branches), a hold for a
+    person, the worker's repair of a hold left unannounced, the hand-back (*"You submitted your
+    application to {institution} on the university's website on {date}, and the account is
+    yours."*), and the closing message.
+  - On the page: the position line, whatever the run's status; the targets heading; the heading
+    over what is left to the student. The offer's heading and button and the stop button say
+    nothing of applying: "The application you submitted", "Close it off here", and "Stop here (this
+    does not withdraw the application you submitted)".
+  - The run reading carries `submitted: { on } | null`. A malformed value refuses the whole read,
+    rather than showing a wrong date.
+- **"By them" is said on his decision, not read from the record.** The record holds who recorded it
+  and how it is known (`observed` or `stated`), not who pressed submit.
+- **Nothing on these surfaces contradicts it.** Four surfaces still do, and are his to say (under
+  "Not built" below).
+  - No *"Nothing was submitted"*, *"it cannot go on"* or *"you can change it yourself"*.
+  - No "apply" on the page after a record, and no stop offered on an abandoned recorded run.
+  - The stop does not claim anything was filled in.
+
+**My choices, beyond his words, each his to overturn:**
+- **The date comes from `--at`.** It is not asked for separately, so the date cannot disagree with
+  the time.
+- **"Close it off here" on the page**, not "hand my account back". A record may come before any
+  account exists. The hand-back, when there is one, says so in the chat.
+- **The stop after a record says** *"Anything I already filled in on their form is still saved
+  there; I cannot remove it."* It does not say whether anything was filled in, or whether it can
+  still be changed: neither is known.
+- **The cookie choice stays visible and changeable after a record**, as ADR-0131 §4 has it. My first
+  build hid it; the review caught that, and it is restored.
+
+**Also fixed, found on the way and not his to decide:**
+- `announcePending` took its batch of twenty-five before skipping the holds already announced. So
+  twenty-five older open holds kept every later one from ever being told. It now skips them first.
+  This is the first test that pass has had.
+- `pnpm run interventions` prints each stop's case, which `submission-by-hand` takes.
+- Its resolve text no longer tells the person that the student hears "moving again" after a record.
+
+**Not built, and his to say** (row 182 (11) to (14), and `docs/run-a/p308-rows-181-182-under-his-rule.md`):
+- a correction typed after a record still gets the old replies, and with pages saved it escalates the
+  run;
+- the way back after a stop at the password box still posts *"Apply to {institution}"* into the chat;
+- a CV uploaded after a record is met with the late-document question;
+- the reapplication panel offers "I withdrew it" and "Apply again anyway" with no word of the
+  submission.
+
+**Proven:**
+- **Tests.** The domain, the driver (a date typed at 00:30 in its own zone, through the route; an
+  account held across a stop, the hand-back and the close, dated just after midnight; both abandon
+  branches; the worker's repair; a record from before P308 sent again), the orchestrator's hand-back
+  with a stated date unlike the UTC day, the words, the transport, the command, and the page in a
+  real browser after a record.
+- **Mutations.** Each guard disabled on its own, run on the finished code, kept unedited in
+  `docs/run-a/p308-mutations/`: thirty-eight, every one red. Two earlier runs were green, each a
+  test that could not see its guard, and are kept beside the red ones: 08, the abandon's branch for
+  a case that can no longer be wound down, which no test reached; 23, the calendar check, which the
+  first test could not isolate, because "2026-02-30" sorts before March.
+- **Checked by a review.** Three read-only reviewers (every surface; the date; tests and
+  regressions), and a verifier for the top two findings of each. Every finding the verifiers
+  checked was confirmed. What it found is fixed above, with tests seen to fail first, or listed for
+  him under "Not built".

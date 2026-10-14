@@ -544,7 +544,19 @@ no row is the list never entering the profile.
   `AAS_CONVERSATION_URL=http://127.0.0.1:4870 AAS_SERVICE_CERT=browser-runner pnpm run interventions`
   (the port is the stack's base). Each line names the run, what it is stuck on and against which
   page, and whether the student has been told. `resolve <id> --did-happen|--did-not-happen` records
-  what a person established on the portal; neither retries anything by itself.
+  what a person established on the portal; neither retries anything by itself. Since P308 each
+  line also names its `case`, which the next two take.
+- **The mandatory review** (financial evidence, a minor: ADR-0008's mandatory triggers) is recorded on the
+  case first, then its stop is resolved with `--did-not-happen`. The outcome is the reviewer's to
+  say; there is no command, so it is a POST with the same certificate:
+  `curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:4870/internal/v1/cases/<caseId>/review -H "x-service-cert: browser-runner" -H 'content-type: application/json' -d '{"reviewerId":"<your name>","outcome":"approved","triggers":["financial_evidence"],"notes":"<what you checked>"}'`
+  (`204` when taken). Resolving the stop before the review is recorded re-plans and stops again.
+- `pnpm run submission-by-hand` (since 0.300.0, P307) — records that the student submitted the
+  application by hand on the portal (ADR-0159 O10), with the same certificate and port:
+  `… pnpm run submission-by-hand <caseId> --by <your name> --at 2026-10-15T14:05:00+01:00 --observed`.
+  `--at` is the time with its own offset: the date typed is the date the student is told (P308).
+  A page-12 stop is then resolved without `--abandon`, and the account is handed back. His live run
+  as steps: `docs/run-a/p308-his-live-run-steps.md`.
 - `pnpm run deletion-requests` (since 0.268.0, P275) — a student's request to delete the details
   they confirmed, waiting for a person: the same certificate and port as `interventions`. Each
   line names the request, the student, the conversation and how long it has waited; the service's

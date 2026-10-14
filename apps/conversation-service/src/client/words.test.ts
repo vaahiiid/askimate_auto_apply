@@ -4,7 +4,19 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { RUN_PHASES, RUN_STATUSES, RUN_STEP_KINDS } from "@askimate/aas-contracts";
 
-import { CHOOSING_LINE, CV_UPLOAD_SENTENCE, EVERY_SENTENCE, positionLine } from "./words.js";
+import {
+  CHOOSING_LINE,
+  CV_UPLOAD_SENTENCE,
+  dayWords,
+  EVERY_SENTENCE,
+  positionLine,
+  SUBMITTED_OFFER_BUTTON,
+  SUBMITTED_STOP_LABEL,
+  stopLabelFor,
+  submittedLine,
+  submittedOwnActsHeading,
+  submittedTargetsHeading,
+} from "./words.js";
 
 describe("no internal word ever reaches a student's screen (P227, ADR-0147)", () => {
   // ═══════════════════════════════════════════════════════════════════════
@@ -65,8 +77,45 @@ describe("no internal word ever reaches a student's screen (P227, ADR-0147)", ()
     expect(CHOOSING_LINE).toBe("Your application is waiting for you: their form's list does not hold one of your answers, and the choice below is yours.");
     expect(CHOOSING_LINE).not.toContain("member of the team");
     expect(EVERY_SENTENCE).toContain(CHOOSING_LINE);
-    const raw = readFileSync(join(import.meta.dirname, "journey.ts"), "utf8");
-    expect(raw).toContain('pending?.decision === "choose_entry" ? CHOOSING_LINE : positionLine(run)');
+    const raw = readFileSync(join(import.meta.dirname, "journey.ts"), "utf8").replace(/\s+/g, " ");
+    expect(raw).toContain(
+      'pending?.decision === "choose_entry" ? CHOOSING_LINE : submitted === null ? positionLine(run) : submittedLine(run.status, submitted.on)',
+    );
+  });
+
+  it("says plainly, whatever the status, that the student submitted it, on the date stated, once a record exists (P308, his D7 addition)", () => {
+    const statuses = ["running", "suspended", "uncertain", "escalated", "stopped_by_student", "completed", "abandoned"] as const;
+    for (const status of statuses) {
+      const line = submittedLine(status, "2026-10-14");
+      expect(line.startsWith("You submitted your application on the university's website on 14 October 2026. "), status).toBe(true);
+      expect(EVERY_SENTENCE, status).toContain(line);
+      // Nothing that says it is still to be applied for, or not submitted.
+      expect(line, status).not.toMatch(/apply again|not submitted|ready for you to submit/u);
+    }
+    // The date as stated, never moved by a zone.
+    expect(dayWords("2026-10-14")).toBe("14 October 2026");
+    expect(dayWords("2026-01-01")).toBe("1 January 2026");
+    expect(submittedTargetsHeading("2026-10-14")).toContain("You submitted your application on the university's website on 14 October 2026.");
+    expect(submittedOwnActsHeading("2026-10-14")).toContain("You submitted your application on the university's website on 14 October 2026.");
+    expect(SUBMITTED_OFFER_BUTTON).not.toMatch(/apply/iu);
+    expect(SUBMITTED_STOP_LABEL).toContain("does not withdraw");
+    // The P308 review: a record may come before any account exists, so no
+    // line after one promises an account back.
+    for (const said of [...statuses.map((status) => submittedLine(status, "2026-10-14")), submittedTargetsHeading("2026-10-14"), SUBMITTED_OFFER_BUTTON]) {
+      expect(said).not.toMatch(/account/iu);
+    }
+  });
+
+  it("offers no stop where nothing is left to stop: a completed run, and an abandoned one after a record (P307; the P308 review)", () => {
+    const on = { on: "2026-10-14" };
+    expect(stopLabelFor("completed", null)).toBeNull();
+    expect(stopLabelFor("completed", on)).toBeNull();
+    expect(stopLabelFor("abandoned", on), "its line has just said it is stopped").toBeNull();
+    expect(stopLabelFor("running", on)).toBe(SUBMITTED_STOP_LABEL);
+    expect(stopLabelFor("stopped_by_student", on)).toBe(SUBMITTED_STOP_LABEL);
+    expect(stopLabelFor("running", null)).toBe("Stop this application");
+    expect(stopLabelFor(undefined, null), "before any run, as before").toBe("Stop this application");
+    expect(stopLabelFor("abandoned", null), "without a record, unchanged").toBe("Stop this application");
   });
 
   it("describes a running run by its step, in the present tense", () => {

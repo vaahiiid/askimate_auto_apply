@@ -5,8 +5,9 @@
  *   pnpm run submission-by-hand <caseId> --by <name> --at <time> --observed
  *   pnpm run submission-by-hand <caseId> --by <name> --at <time> --stated
  *
- * `--at` is when it was submitted, a full time with its zone
- * (2026-10-14T09:30:00Z); `--observed` means you saw the portal say so,
+ * `--at` is when it was submitted, a full time with its zone, written in the
+ * zone it happened in (2026-10-14T00:30:00+01:00): the date you type is the
+ * date the student is told (P308). `--observed` means you saw the portal say so,
  * `--stated` that someone told you. Neither has a default: the record is a
  * fact a person established, and a default would be this script choosing it.
  *
@@ -24,7 +25,9 @@ import { parseArgs } from "node:util";
 const SERVICE = process.env["AAS_CONVERSATION_URL"] ?? "http://127.0.0.1:4000";
 const CERT = process.env["AAS_SERVICE_CERT"];
 
-const USAGE = "Usage: submission-by-hand <caseId> --by <name> --at <time, e.g. 2026-10-14T09:30:00Z> --observed | --stated";
+const USAGE =
+  "Usage: submission-by-hand <caseId> --by <name> --at <time in its own zone, e.g. 2026-10-14T00:30:00+01:00> --observed | --stated\n" +
+  "The date you type is the date the student is told.";
 const FULL_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/u;
 
 function fail(message: string): never {
@@ -46,9 +49,28 @@ const { values } = parseArgs({
 });
 const by = values.by;
 if (by === undefined || by.trim().length === 0) fail("--by is required: the record says who made it.");
+/**
+ * A date that exists, in a zone some place keeps: from twelve hours behind UTC
+ * to fourteen ahead (the P308 review). A JavaScript date rolls 30 February
+ * forward to 2 March and parses -20:00; the service refuses both as well.
+ */
+function isRealZonedTime(time: string): boolean {
+  const day = time.slice(0, 10);
+  const [y, m, d] = day.split("-").map(Number);
+  if (new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1)).toISOString().slice(0, 10) !== day) return false;
+  const zone = /([+-])(\d{2}):(\d{2})$/u.exec(time);
+  if (zone === null) return true;
+  const minutes = (Number(zone[2]) * 60 + Number(zone[3])) * (zone[1] === "-" ? -1 : 1);
+  return minutes >= -12 * 60 && minutes <= 14 * 60;
+}
+
 const at = values.at;
-if (at === undefined || !FULL_TIME.test(at) || Number.isNaN(new Date(at).getTime())) {
-  fail("--at is required, as a full time with its zone, such as 2026-10-14T09:30:00Z: when it was submitted.");
+if (at === undefined || !FULL_TIME.test(at) || Number.isNaN(new Date(at).getTime()) || !isRealZonedTime(at)) {
+  fail(
+    "--at is required, as a full time with its zone, such as 2026-10-14T00:30:00+01:00: when it was\n" +
+      "submitted, in the zone it happened in, on a date that exists, with an offset from -12:00 to\n" +
+      "+14:00. The date you type is the date the student is told.",
+  );
 }
 const observed = values.observed === true;
 const stated = values.stated === true;
@@ -90,7 +112,7 @@ if (!response.ok) {
   }
   fail(`The service refused: ${code}`);
 }
-const answer = body as { recordedNow?: boolean; heldBy?: string[]; told?: boolean } | null;
+const answer = body as { recordedNow?: boolean; heldBy?: string[]; told?: boolean; submittedOn?: string } | null;
 process.stdout.write(
   answer?.recordedNow === true
     ? `Recorded on ${caseId}. Nothing more will be filled in on it.\n`
@@ -98,7 +120,7 @@ process.stdout.write(
 );
 process.stdout.write(
   answer?.told === true
-    ? "The student has been told, in the conversation, once.\n"
+    ? `The student has been told, in the conversation, once, that they submitted it on ${answer.submittedOn ?? "?"}.\n`
     : "The student has NOT been told: no conversation or entry is bound to this case. Tell them yourself.\n",
 );
 const held = answer?.heldBy ?? [];

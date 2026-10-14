@@ -1,0 +1,43 @@
+# P308 mutation 17-transport-takes-any-date
+# file: apps/conversation-service/src/client/transport.ts
+# replaced:
+      if (typeof on !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(on)) return null;
+# with:
+      if (typeof on !== "string") return null;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/transport-submitted.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/transport-submitted.test.ts (3 tests | 1 failed) 20ms
+   × the run reading's submitted date (P308) > refuses the whole read for a date it cannot trust, rather than showing a wrong one 8ms
+     → {"on":"14/10/2026"}: expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  10:08:27
+   Duration  676ms (transform 174ms, setup 0ms, collect 248ms, tests 20ms, environment 0ms, prepare 74ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/transport-submitted.test.ts > the run reading's submitted date (P308) > refuses the whole read for a date it cannot trust, rather than showing a wrong one
+AssertionError: {"on":"14/10/2026"}: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ apps/conversation-service/src/client/transport-submitted.test.ts:46:44
+     44|       serve({ ...EMPTY, submitted: bad });
+     45|       const read = await readRun("c1");
+     46|       expect(read.ok, JSON.stringify(bad)).toBe(false);
+       |                                            ^
+     47|       if (!read.ok) expect(read.code).toBe("contract_mismatch");
+     48|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

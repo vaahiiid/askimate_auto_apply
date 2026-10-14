@@ -1,0 +1,48 @@
+# P308 mutation 37-repair-says-paused
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+          content: byHand === undefined ? pauseMessage(entry) : submittedByHandHeldMessage(entry, byHand.submittedOn),
+# with:
+          content: pauseMessage(entry),
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307|P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (386 tests | 1 failed | 366 skipped) 4232ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 358ms
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 397ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 424ms
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > the worker's repair of an unannounced hold on a recorded case says the student submitted it, on that date, not that it is paused (the P308 review) 172ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed | 366 skipped (386)
+   Start at  10:11:07
+   Duration  8.33s (transform 2.47s, setup 0ms, collect 3.65s, tests 4.23s, environment 0ms, prepare 110ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > the worker's repair of an unannounced hold on a recorded case says the student submitted it, on that date, not that it is paused (the P308 review)
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "You submitted your Gated University application on the university's website on 30 August 2026. What is left of it at Gated University is something I cannot settle on my own, so I have passed it to a member of the team. I will tell you when it is finished.",
++   "I have paused your Gated University application. Something happened on their system that I could not confirm one way or the other, and rather than risk repeating a step you may already have completed, I have stopped and asked a person to check it. Nothing you have given me is lost, and you do not need to do anything — I will tell you as soon as it moves again.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20113:56
+    20111|       const before = (await said(conversation)).length;
+    20112|       expect(await instance.driver.announcePending()).toMatchObject({ …
+    20113|       expect((await said(conversation)).slice(before)).toEqual([
+       |                                                        ^
+    20114|         "You submitted your Gated University application on the univer…
+    20115|           "Gated University is something I cannot settle on my own, so…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

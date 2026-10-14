@@ -41,6 +41,7 @@ const CERT = process.env["AAS_SERVICE_CERT"];
 interface OpenIntervention {
   readonly interventionId: string;
   readonly runId: string;
+  readonly caseId: string;
   readonly studentRef: string;
   readonly priority: string;
   readonly reason: string;
@@ -151,6 +152,8 @@ async function list(now: Date): Promise<void> {
     process.stdout.write(
       `  ${item.interventionId}   [${item.priority}]  waiting ${ageOf(item.raisedAt, now)}\n` +
         `    run       ${item.runId}  (student ${item.studentRef})\n` +
+        // P308: the case is what `pnpm run submission-by-hand` takes.
+        `    case      ${item.caseId}\n` +
         `    stuck on  ${item.action} against ${item.target}\n` +
         `    portal    ${item.portal}   phase ${item.phase}\n` +
         `    student   ${item.announced ? "has been told it is paused" : "HAS NOT BEEN TOLD"}\n` +
@@ -246,9 +249,11 @@ async function resolve(argv: readonly string[]): Promise<void> {
           ? `The run re-planned and stopped again at once: ${again.interventionId} is open for it\n` +
             `(${again.target}). The student was told once that someone looked and it still cannot\n` +
             "go on — not that it is moving.\n"
-          : "The run is back in the pool, and the student has been told it is moving again. It picks\n" +
-            "up from where the intent ledger says it got to — not from the beginning, and not from\n" +
-            "anything you just typed: a resolution carries no position (ADR-0048 §5).\n"),
+          : "The run is back in the pool. The student has been told it is moving again, unless the case\n" +
+            "holds a submission made by hand: then nothing is said here, and the hand-back of their\n" +
+            "account follows (P308). It picks up from where the intent ledger says it got to — not\n" +
+            "from the beginning, and not from anything you just typed: a resolution carries no\n" +
+            "position (ADR-0048 §5).\n"),
   );
 }
 

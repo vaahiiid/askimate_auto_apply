@@ -246,6 +246,7 @@ export interface RunCoordinator {
   recordSubmissionByHand(input: {
     readonly caseId: CaseId;
     readonly submittedAt: Date;
+    readonly submittedOn: string;
     readonly source: "observed" | "stated";
     readonly recordedBy: string;
   }): Promise<
@@ -673,7 +674,7 @@ function parseDeletionClosure(body: unknown): { closedBy: string; outcome: Delet
 function parseSubmissionByHand(
   body: unknown,
   now: Date,
-): { recordedBy: string; submittedAt: Date; source: "observed" | "stated" } | null {
+): { recordedBy: string; submittedAt: Date; submittedOn: string; source: "observed" | "stated" } | null {
   if (typeof body !== "object" || body === null) return null;
   if (Object.keys(body).some((key) => !["recordedBy", "submittedAt", "source"].includes(key))) return null;
   const recordedBy = readString(body, "recordedBy");
@@ -684,7 +685,26 @@ function parseSubmissionByHand(
   if (at === null || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/u.test(at)) return null;
   const submittedAt = new Date(at);
   if (Number.isNaN(submittedAt.getTime()) || submittedAt.getTime() > now.getTime()) return null;
-  return { recordedBy, submittedAt, source };
+  if (!isRealZonedTime(at)) return null;
+  // The date as typed, in the zone it was typed in (P308): the student is told
+  // that date, not the instant's date in UTC.
+  return { recordedBy, submittedAt, submittedOn: at.slice(0, 10), source };
+}
+
+/**
+ * A date that exists, in a zone some place keeps: from twelve hours behind UTC
+ * to fourteen ahead (the P308 review). A JavaScript date rolls 30 February
+ * forward to 2 March and parses -20:00, and the date typed is the one the
+ * student is told.
+ */
+function isRealZonedTime(at: string): boolean {
+  const day = at.slice(0, 10);
+  const [y, m, d] = day.split("-").map(Number);
+  if (new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1)).toISOString().slice(0, 10) !== day) return false;
+  const zone = /([+-])(\d{2}):(\d{2})$/u.exec(at);
+  if (zone === null) return true;
+  const minutes = (Number(zone[2]) * 60 + Number(zone[3])) * (zone[1] === "-" ? -1 : 1);
+  return minutes >= -12 * 60 && minutes <= 14 * 60;
 }
 
 export function createConversationRoutes(options: ConversationRoutesOptions): Router {
@@ -1806,6 +1826,9 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           // ADR-0131. The portal's consent banner and the student's choice on
           // it, visible and changeable; `null` where the portal records none.
           consent: reading?.consent ?? null,
+          // P308, his D7 addition: the date a submission made by hand was
+          // recorded as made on, so the page says it whatever the status.
+          submitted: reading?.submitted ?? null,
         });
       })().catch(next);
     },
@@ -1986,7 +2009,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           ...record,
         });
         if (done.ok) {
-          res.status(200).json({ recordedNow: done.recordedNow, heldBy: done.heldBy, told: done.told });
+          res.status(200).json({
+            recordedNow: done.recordedNow,
+            heldBy: done.heldBy,
+            told: done.told,
+            // P308: the date the student is told, as stated, for the person to see.
+            submittedOn: record.submittedOn,
+          });
           return;
         }
         if (done.reason === "no_case") {

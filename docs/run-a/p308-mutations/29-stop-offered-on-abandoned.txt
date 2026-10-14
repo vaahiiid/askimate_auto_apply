@@ -1,0 +1,43 @@
+# P308 mutation 29-stop-offered-on-abandoned
+# file: apps/conversation-service/src/client/words.ts
+# replaced:
+  return status === "abandoned" ? null : SUBMITTED_STOP_LABEL;
+# with:
+  return SUBMITTED_STOP_LABEL;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/words.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/words.test.ts (8 tests | 1 failed) 161ms
+   × no internal word ever reaches a student's screen (P227, ADR-0147) > offers no stop where nothing is left to stop: a completed run, and an abandoned one after a record (P307; the P308 review) 5ms
+     → its line has just said it is stopped: expected 'Stop here (this does not withdraw the…' to be null
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  10:10:21
+   Duration  762ms (transform 189ms, setup 0ms, collect 262ms, tests 161ms, environment 0ms, prepare 70ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/words.test.ts > no internal word ever reaches a student's screen (P227, ADR-0147) > offers no stop where nothing is left to stop: a completed run, and an abandoned one after a record (P307; the P308 review)
+AssertionError: its line has just said it is stopped: expected 'Stop here (this does not withdraw the…' to be null
+
+- Expected: 
+null
+
++ Received: 
+"Stop here (this does not withdraw the application you submitted)"
+
+ ❯ apps/conversation-service/src/client/words.test.ts:113:83
+    111|     expect(stopLabelFor("completed", null)).toBeNull();
+    112|     expect(stopLabelFor("completed", on)).toBeNull();
+    113|     expect(stopLabelFor("abandoned", on), "its line has just said it i…
+       |                                                                                   ^
+    114|     expect(stopLabelFor("running", on)).toBe(SUBMITTED_STOP_LABEL);
+    115|     expect(stopLabelFor("stopped_by_student", on)).toBe(SUBMITTED_STOP…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

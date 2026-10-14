@@ -1,0 +1,43 @@
+# P308 mutation 01-date-not-checked
+# file: packages/domain/src/machine.ts
+# replaced:
+      if (!isCalendarDateNear(intent.submittedOn, intent.submittedAt)) {
+# with:
+      if (false) {
+# command: pnpm exec vitest run --project unit packages/domain/src/machine.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/domain/src/machine.test.ts (78 tests | 1 failed) 50ms
+   × a submission made by hand (ADR-0159 O10, P307) > keeps the date as the person stated it, and refuses one the instant falls on in no zone (P308) 14ms
+     → 2026-10-16: expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 77 passed (78)
+   Start at  10:12:11
+   Duration  668ms (transform 200ms, setup 0ms, collect 247ms, tests 50ms, environment 0ms, prepare 62ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/domain/src/machine.test.ts > a submission made by hand (ADR-0159 O10, P307) > keeps the date as the person stated it, and refuses one the instant falls on in no zone (P308)
+AssertionError: 2026-10-16: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ packages/domain/src/machine.test.ts:1411:39
+    1409|     for (const wrong of ["2026-10-16", "2026-10-11", "2026-02-30", "14…
+    1410|       const refused = decide(opened, { kind: "record_submission_by_han…
+    1411|       expect(refused.accepted, wrong).toBe(false);
+       |                                       ^
+    1412|     }
+    1413|     // Real zones run from twelve hours behind UTC to fourteen ahead (…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

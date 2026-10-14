@@ -1,0 +1,36 @@
+# P308 mutation 32-page-offer-button-old
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+    button(view.run.submitted === null ? "Apply to this for me" : SUBMITTED_OFFER_BUTTON, () => {
+# with:
+    button("Apply to this for me", () => {
+# command: pnpm exec vitest run apps/conversation-service/src/student-client.test.ts -t after a record, every surface
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/conversation-service/src/student-client.test.ts (29 tests | 1 failed | 28 skipped) 1269ms
+   × the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition) 423ms
+     → expected [ 'Apply to this for me', …(1) ] to include 'Close it off here'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 skipped (29)
+   Start at  10:10:35
+   Duration  4.63s (transform 1.60s, setup 0ms, collect 2.98s, tests 1.27s, environment 0ms, prepare 66ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/conversation-service/src/student-client.test.ts > the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)
+AssertionError: expected [ 'Apply to this for me', …(1) ] to include 'Close it off here'
+ ❯ apps/conversation-service/src/student-client.test.ts:1576:23
+    1574|       expect(await page.locator("#offer h2").textContent()).toBe("The …
+    1575|       const offered = await page.locator("#offer button").allTextConte…
+    1576|       expect(offered).toContain("Close it off here");
+       |                       ^
+    1577|       expect(offered).not.toContain("Apply to this for me");
+    1578| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

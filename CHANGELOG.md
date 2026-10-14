@@ -19,6 +19,45 @@ not shipped artefacts.
 
 ---
 
+## [0.301.0] — 2026-10-14
+
+**P308 — his addition to D7: the student is told they submitted it, on that date.** The run still
+presses nothing.
+
+- **His words** (`docs/run-a/p308-his-decisions-on-p307-as-sent.txt`): D7 to D12 accepted, and
+  *"whatever the case's internal state, what the student sees must say plainly that the application
+  was submitted, by them, on that date."* And a standing rule, recorded in CLAUDE.md: an open point
+  with a recommendation is applied and recorded as mine, unless it touches submitting an
+  application, money, a student's personal data, or legal or declaration text.
+- **The date as stated.** `SubmissionByHandRecorded` carries `submittedOn`, the date part of `--at`
+  in the zone it was typed in. The domain refuses a date that does not exist or that the instant
+  falls on in no real zone; the route and the command refuse an impossible date or offset first. A
+  record from before P308 reads as its instant's UTC day, and a retry of it as typed then is the
+  same record, not told again.
+- **One sentence.** *"You submitted your … application on the university's website on …"* opens
+  the record's message, the stop, the abandon, a hold for a person (also when the worker repairs
+  an unannounced one), and the close; the hand-back's first line says it; the page's line says it
+  whatever the run's status, and the run reading carries `submitted: { on } | null`.
+- **Nothing on those surfaces contradicts it.** No "Nothing was submitted", "it cannot go on" or
+  "you can change it yourself"; no "apply" on the page; no stop on an abandoned recorded run; the
+  stop claims nothing was filled in. The cookie choice stays visible (ADR-0131 §4).
+- **Rows 181 and 182 under his rule.** Every point touches one of the four, so none was applied;
+  each goes to him with my recommendation (`docs/run-a/p308-rows-181-182-under-his-rule.md`). The
+  review adds four to row 182, (11) to (14), all his to say.
+- **His live run as numbered steps** (`docs/run-a/p308-his-live-run-steps.md`), and the runbook's
+  steps for the mandatory review and the record.
+- **Fixed on the way.** `announcePending` sliced its batch before skipping holds already told, so
+  twenty-five older ones could keep a new one silent for ever. `pnpm run interventions` prints each
+  stop's case; its resolve text no longer says "moving again" after a record.
+- **Review.** Three read-only reviewers and six verifiers; every finding checked was confirmed.
+  The fixes were written as tests seen to fail first, and the rest are row 182 (11) to (14).
+- **Mutations** in `docs/run-a/p308-mutations/`: thirty-eight, every one red on the finished code;
+  two earlier green runs (08 and 23) kept beside them, each a test that could not see its guard.
+- **Records:** ADR-0159 (status line corrected; Built: his addition to D7); rows 181 and 182; row
+  126's list; CLAUDE.md; the runbook; journal.
+
+---
+
 ## [0.300.0] — 2026-10-13
 
 **P307 — ADR-0159 O10: a submission made by hand, recorded on the case.** The run still presses

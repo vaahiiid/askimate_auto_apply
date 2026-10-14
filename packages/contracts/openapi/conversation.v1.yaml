@@ -649,6 +649,20 @@ paths:
                       they chose, in the banner's words, and every choice they
                       could change it to. `null` when the portal records no
                       banner. Absent from an older service.
+                  submitted:
+                    oneOf:
+                      - type: object
+                        additionalProperties: false
+                        required: [on]
+                        properties:
+                          on: { type: string, format: date }
+                      - type: "null"
+                    description: >-
+                      P308. A submission a person recorded as made by hand
+                      (ADR-0159 O10): the date it was made on, as stated, so
+                      the page says that the student submitted it, on that
+                      date, whatever the run's status. `null` when none is
+                      recorded. Absent from an older service.
                   ownActs:
                     type: array
                     maxItems: 200
@@ -1078,8 +1092,14 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [recordedNow, heldBy, told]
+                required: [recordedNow, heldBy, told, submittedOn]
                 properties:
+                  submittedOn:
+                    type: string
+                    format: date
+                    description: >-
+                      P308. The date the student is told it was submitted on:
+                      the date part of `submittedAt` as typed, in its own zone.
                   recordedNow: { type: boolean }
                   heldBy:
                     type: array

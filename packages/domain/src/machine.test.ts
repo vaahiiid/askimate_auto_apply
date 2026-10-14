@@ -1353,20 +1353,21 @@ describe("decide — handoffs", () => {
 
 describe("a submission made by hand (ADR-0159 O10, P307)", () => {
   const AT = new Date("2026-10-14T09:30:00Z");
+  const ON = "2026-10-14";
 
   it("is recorded once, as a fact, with no change of state", () => {
     const opened = fold(buildLog([OPENED]));
-    const decision = decide(opened, { kind: "record_submission_by_hand", submittedAt: AT, source: "observed" });
+    const decision = decide(opened, { kind: "record_submission_by_hand", submittedAt: AT, submittedOn: ON, source: "observed" });
     if (!decision.accepted) expect.unreachable(`refused: ${decision.refusal.kind}`);
-    expect(decision.events).toEqual([{ type: "SubmissionByHandRecorded", submittedAt: AT, source: "observed" }]);
-    const after = fold(buildLog([OPENED, { type: "SubmissionByHandRecorded", submittedAt: AT, source: "observed" }]));
-    expect(after.submittedByHand).toEqual({ submittedAt: AT, source: "observed" });
+    expect(decision.events).toEqual([{ type: "SubmissionByHandRecorded", submittedAt: AT, submittedOn: ON, source: "observed" }]);
+    const after = fold(buildLog([OPENED, { type: "SubmissionByHandRecorded", submittedAt: AT, submittedOn: ON, source: "observed" }]));
+    expect(after.submittedByHand).toEqual({ submittedAt: AT, submittedOn: ON, source: "observed" });
     expect(after.state, "a fact, not a move").toBe(opened.state);
   });
 
   it("refuses a second record, and keeps the first", () => {
-    const recorded = fold(buildLog([OPENED, { type: "SubmissionByHandRecorded", submittedAt: AT, source: "stated" }]));
-    const decision = decide(recorded, { kind: "record_submission_by_hand", submittedAt: new Date("2026-10-15T09:00:00Z"), source: "observed" });
+    const recorded = fold(buildLog([OPENED, { type: "SubmissionByHandRecorded", submittedAt: AT, submittedOn: ON, source: "stated" }]));
+    const decision = decide(recorded, { kind: "record_submission_by_hand", submittedAt: new Date("2026-10-15T09:00:00Z"), submittedOn: "2026-10-15", source: "observed" });
     expect(decision.accepted).toBe(false);
     expect(recorded.submittedByHand?.source).toBe("stated");
   });
@@ -1387,10 +1388,47 @@ describe("a submission made by hand (ADR-0159 O10, P307)", () => {
     const attempted = fold(
       buildLog([OPENED, { type: "SubmissionAttempted", submissionIdentity: IDENTITY, authorisedContentHash: "sha256:v1" }]),
     );
-    const decision = decide(attempted, { kind: "record_submission_by_hand", submittedAt: AT, source: "observed" });
+    const decision = decide(attempted, { kind: "record_submission_by_hand", submittedAt: AT, submittedOn: ON, source: "observed" });
     if (decision.accepted) expect.unreachable("recorded beside an attempt of ours");
     if (decision.refusal.kind !== "invalid_intent") expect.unreachable(`refused for another reason: ${decision.refusal.kind}`);
     expect(decision.refusal.detail).toContain("attempted a submission");
+  });
+
+  it("reads a record written before P308, with no stated date, as the instant's UTC day, never a crash (P308)", () => {
+    const old = { type: "SubmissionByHandRecorded", submittedAt: new Date("2026-10-13T23:30:00Z"), source: "observed" } as unknown as CaseEventPayload;
+    expect(fold(buildLog([OPENED, old])).submittedByHand?.submittedOn).toBe("2026-10-13");
+  });
+
+  it("keeps the date as the person stated it, and refuses one the instant falls on in no zone (P308)", () => {
+    const opened = fold(buildLog([OPENED]));
+    // 00:30 in Birmingham in summer is 23:30 UTC the day before: the date stated is the 14th.
+    const lateNight = new Date("2026-10-13T23:30:00Z");
+    const taken = decide(opened, { kind: "record_submission_by_hand", submittedAt: lateNight, submittedOn: "2026-10-14", source: "observed" });
+    if (!taken.accepted) expect.unreachable(`refused: ${taken.refusal.kind}`);
+    expect(taken.events[0]).toMatchObject({ submittedOn: "2026-10-14" });
+    for (const wrong of ["2026-10-16", "2026-10-11", "2026-02-30", "14/10/2026"]) {
+      const refused = decide(opened, { kind: "record_submission_by_hand", submittedAt: lateNight, submittedOn: wrong, source: "observed" });
+      expect(refused.accepted, wrong).toBe(false);
+    }
+    // Real zones run from twelve hours behind UTC to fourteen ahead (the P308
+    // review): 23:30 UTC is the 12th nowhere, and 00:30 UTC the 15th nowhere,
+    // while 11:00 UTC is the 13th, the 14th or the 15th somewhere.
+    const offBy = (at: string, on: string): boolean =>
+      decide(opened, { kind: "record_submission_by_hand", submittedAt: new Date(at), submittedOn: on, source: "observed" }).accepted;
+    expect(offBy("2026-10-13T23:30:00Z", "2026-10-12"), "the day before, at 23:30 UTC").toBe(false);
+    expect(offBy("2026-10-14T00:30:00Z", "2026-10-15"), "the day after, at 00:30 UTC").toBe(false);
+    expect(offBy("2026-10-14T00:30:00Z", "2026-10-13"), "00:30 UTC is the 13th behind UTC").toBe(true);
+    expect(offBy("2026-10-14T11:00:00Z", "2026-10-13"), "11:00 UTC is the 13th at twelve hours behind").toBe(true);
+    expect(offBy("2026-10-14T11:00:00Z", "2026-10-15"), "11:00 UTC is the 15th at fourteen hours ahead").toBe(true);
+    expect(offBy("2026-10-14T09:59:00Z", "2026-10-15"), "09:59 UTC is the 15th nowhere").toBe(false);
+    // A date that does not exist, beside the day a JavaScript date rolls it to.
+    expect(offBy("2026-03-02T10:00:00Z", "2026-02-30"), "30 February is not 2 March").toBe(false);
+    // And one the window alone would take, as text sorts: 23:00 UTC on 28
+    // February is 1 March at fourteen hours ahead, and "2026-02-29" sorts
+    // between them, so only the calendar check refuses it (P308 mutation 23,
+    // green against the case above, which the window refuses by itself).
+    expect(offBy("2026-02-28T23:00:00Z", "2026-02-29"), "29 February 2026 does not exist").toBe(false);
+    expect(offBy("2026-02-28T23:00:00Z", "2026-03-01"), "while 1 March is real there").toBe(true);
   });
 
   it("takes no yes once recorded: there is nothing left to fill or submit", () => {
@@ -1402,7 +1440,7 @@ describe("a submission made by hand (ADR-0159 O10, P307)", () => {
     ] as const;
     // The same case takes a yes without the record, so the record is what refuses it.
     expect(decide(fold(buildLog([...awaiting])), { kind: "capture_authorisation", contentHash: "sha256:v1" }).accepted).toBe(true);
-    const recorded = fold(buildLog([...awaiting, { type: "SubmissionByHandRecorded", submittedAt: AT, source: "observed" }]));
+    const recorded = fold(buildLog([...awaiting, { type: "SubmissionByHandRecorded", submittedAt: AT, submittedOn: ON, source: "observed" }]));
     const decision = decide(recorded, { kind: "capture_authorisation", contentHash: "sha256:v1" });
     if (decision.accepted) expect.unreachable("a yes taken after a submission by hand");
     if (decision.refusal.kind !== "invalid_intent") expect.unreachable(`refused for another reason: ${decision.refusal.kind}`);

@@ -163,7 +163,11 @@ export interface RunInputs {
    * for an application already submitted. The one source of the fact here:
    * the account's stage and the words both read it from this field.
    */
-  readonly submittedByHand?: { readonly submittedAt: Date };
+  readonly submittedByHand?: {
+    readonly submittedAt: Date;
+    /** `YYYY-MM-DD`, the date the person stated it was submitted on (P308). */
+    readonly submittedOn: string;
+  };
 }
 
 /** Where a run has got to. Immutable; each step returns a new one. */
@@ -1802,8 +1806,10 @@ export function accountDeclared(
  * hand (ADR-0159 O10, P307), passed by every caller of `renderHandover`, so
  * the text recorded is the text shown.
  */
-function submittedWordsFor(state: RunState): { readonly applicationSubmitted?: true } {
-  return state.inputs.submittedByHand === undefined ? {} : { applicationSubmitted: true };
+function submittedWordsFor(state: RunState): { readonly applicationSubmittedOn?: string } {
+  return state.inputs.submittedByHand === undefined
+    ? {}
+    : { applicationSubmittedOn: state.inputs.submittedByHand.submittedOn };
 }
 
 function stageFrom(

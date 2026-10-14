@@ -1,0 +1,40 @@
+# P308 mutation 30-page-targets-heading-old
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+        ? submittedTargetsHeading(view.run.submitted.on)
+# with:
+        ? "To carry on, choose the application again — it picks up where you left it."
+# command: pnpm exec vitest run apps/conversation-service/src/student-client.test.ts -t after a record, every surface
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/conversation-service/src/student-client.test.ts (29 tests | 1 failed | 28 skipped) 1265ms
+   × the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition) 365ms
+     → expected 'To carry on, choose the application a…' to be 'You submitted your application on the…' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 skipped (29)
+   Start at  10:10:23
+   Duration  4.66s (transform 1.64s, setup 0ms, collect 2.97s, tests 1.26s, environment 0ms, prepare 79ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/conversation-service/src/student-client.test.ts > the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)
+AssertionError: expected 'To carry on, choose the application a…' to be 'You submitted your application on the…' // Object.is equality
+
+Expected: "You submitted your application on the university's website on 14 October 2026. To close it off here, choose it below. Nothing will be filled in or submitted."
+Received: "To carry on, choose the application again — it picks up where you left it."
+
+ ❯ apps/conversation-service/src/student-client.test.ts:1557:63
+    1555|         `${said} You closed the password box, so I stopped there. To c…
+    1556|       );
+    1557|       expect(await page.locator("#targets h2").textContent()).toBe(`${…
+       |                                                               ^
+    1558|       const headings = await page.locator("#pending h2").allTextConten…
+    1559|       expect(headings).toContain(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

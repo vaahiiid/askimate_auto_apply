@@ -140,6 +140,8 @@ export interface RunReading {
   readonly ownActs: readonly OwnActReading[];
   /** The portal's consent banner and the student's choice on it; `null` where none is recorded (ADR-0131). */
   readonly consent: PortalConsentReading | null;
+  /** P308: the date a submission made by hand was recorded as made on, as stated; `null` when none. */
+  readonly submitted: { readonly on: string } | null;
 }
 
 /**
@@ -328,7 +330,15 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
     // ADR-0131. Absent from an older service reads as no banner recorded.
     const consent = body["consent"] === undefined || body["consent"] === null ? null : parsePortalConsent(body["consent"]);
     if (body["consent"] !== undefined && body["consent"] !== null && consent === null) return null;
-    return { run, pending, ownActs, consent };
+    // P308. Absent from an older service reads as none recorded; malformed refuses the read.
+    const rawSubmitted = body["submitted"];
+    let submitted: { readonly on: string } | null = null;
+    if (rawSubmitted !== undefined && rawSubmitted !== null) {
+      const on = typeof rawSubmitted === "object" ? (rawSubmitted as Record<string, unknown>)["on"] : undefined;
+      if (typeof on !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(on)) return null;
+      submitted = { on };
+    }
+    return { run, pending, ownActs, consent, submitted };
   });
 }
 

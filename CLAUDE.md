@@ -332,3 +332,26 @@ So every phase report carries what `scripts/portal-onboarding-time.ts` prints fo
 record under `docs/onboarding/`, run at the report's commit: the stages reached, each from its
 marker, and the time to onboard (T5 − T1), or how long it has been since T1 while it is not
 reached. The stages are defined in `docs/onboarding/README.md`.
+
+## An open point with a recommendation is applied, unless it touches one of four
+
+Decided by Vahid on 2026-10-14, in his words ([the message](docs/run-a/p308-his-decisions-on-p307-as-sent.txt)):
+
+> **"for any open point where you give a recommendation, apply your recommendation and record it
+> as yours, unless it touches one of these four: submitting an application, money, a student's
+> personal data, or legal or declaration text. Those four always come to me. List what you applied
+> under this rule at the end of each report, one line each."**
+
+So:
+
+- An open point that has a recommendation is applied, without asking first, unless it touches one
+  of the four.
+- What is applied under this rule is recorded as the agent's choice, never as his. The rule above
+  still stands: a decision is his only if he typed it. His word applies the recommendation; the
+  recommendation stays the agent's.
+- A point that touches one of the four goes to him with the recommendation, and nothing is built
+  on it until he answers. When in doubt, it touches: anything that changes whether, when or how a
+  submission or a press can happen, anything about what is collected, held, shown or deleted of a
+  student's personal data or credentials, and any declaration, attestation or legal wording. That
+  reading of "touches" is the agent's, written in P308, not his words, and his to correct.
+- Each report ends with the list of what was applied under this rule, one line each.

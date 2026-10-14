@@ -1,0 +1,42 @@
+# P308 mutation 27-consent-hidden-after-record
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+  if (consent !== null && consent.chosen !== null && pending?.decision !== "consent_choice") {
+# with:
+  if (consent !== null && consent.chosen !== null && pending?.decision !== "consent_choice" && view.run.submitted === null) {
+# command: pnpm exec vitest run apps/conversation-service/src/student-client.test.ts -t after a record, every surface
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/conversation-service/src/student-client.test.ts (29 tests | 1 failed | 28 skipped) 31464ms
+   × the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition) 30389ms
+     → locator.textContent: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('#pending .consent')
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 skipped (29)
+   Start at  10:09:41
+   Duration  35.42s (transform 2.03s, setup 0ms, collect 3.61s, tests 31.46s, environment 0ms, prepare 64ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/conversation-service/src/student-client.test.ts > the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)
+TimeoutError: locator.textContent: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('#pending .consent')
+
+ ❯ apps/conversation-service/src/student-client.test.ts:1566:54
+    1564|       expect(buttons).not.toContain("Stop this application");
+    1565|       // The choice on the portal's cookies stays visible and changeab…
+    1566|       expect(await page.locator("#pending .consent").textContent()).to…
+       |                                                      ^
+    1567|       const shown = (await page.locator("body").textContent()) ?? "";
+    1568|       for (const before of ["To carry on, choose the application again…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

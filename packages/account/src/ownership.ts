@@ -822,10 +822,12 @@ export function renderHandover(input: {
   readonly registrationEmailStillToDo?: true;
   /**
    * A person recorded that the application was submitted by hand (ADR-0159
-   * O10, P307). The words are then for an application already submitted:
-   * nothing is said to be done "before you submit".
+   * O10, P307): the date it was submitted on, `YYYY-MM-DD`, as stated (P308).
+   * The words are then for an application already submitted, and say that the
+   * student submitted it, on that date. Nothing is said to be done "before
+   * you submit".
    */
-  readonly applicationSubmitted?: true;
+  readonly applicationSubmittedOn?: string;
 }): string {
   const left = input.leftToStudent ?? [];
   // ADR-0108, in Vahid's words: *"the student must be able to tell that we
@@ -835,11 +837,11 @@ export function renderHandover(input: {
   const ownActs =
     left.length === 0
       ? ""
-      : input.applicationSubmitted === true
+      : input.applicationSubmittedOn !== undefined
         ? // P307: too late to say "before you submit", and nothing here knows
           // whether they were attached before it was. Said as what is known.
-          `I did not attach these, and I cannot tell whether they were attached before the ` +
-          `application was submitted:\n${left.map((act) => `  - ${act.text}`).join("\n")}\n\n` +
+          `I did not attach these, and I cannot tell whether they were attached before you ` +
+          `submitted it:\n${left.map((act) => `  - ${act.text}`).join("\n")}\n\n` +
           `If they were not, ${input.institutionName}'s admissions office can tell you how to send them.\n\n`
       : `Before you submit, attach these yourself on the portal — I did not attach them:\n` +
         `${left.map((act) => `  - ${act.text}`).join("\n")}\n\n` +
@@ -848,8 +850,10 @@ export function renderHandover(input: {
         `${input.institutionName} will treat the application as incomplete, and I will not know. ` +
         `When you have attached one, tell me here and I will record it.\n\n`;
   const state =
-    input.applicationSubmitted === true
-      ? `Your application to ${input.institutionName} has been recorded as submitted on the university's website, and the account is yours.`
+    input.applicationSubmittedOn !== undefined
+      ? // P308, his D7 addition: submitted, by the student, on that date.
+        `You submitted your application to ${input.institutionName} on the university's website on ` +
+        `${dayInWords(input.applicationSubmittedOn)}, and the account is yours.`
       : left.length === 0
       ? `Your application to ${input.institutionName} is complete, and the account is yours.`
       : `Your application to ${input.institutionName} is filled as far as I can take it, and the account is yours.`;
@@ -864,6 +868,17 @@ export function renderHandover(input: {
         ? `Tell me when you have done that and you are in, and I will close this off.`
         : `Tell me when you are in, and I will close this off.`)
   );
+}
+
+/** `YYYY-MM-DD` in words, "14 October 2026": the date as stated, never moved by a zone (P308). */
+function dayInWords(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1)).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 /**
@@ -927,7 +942,7 @@ function handoverMiddle(input: {
   readonly resetStillToDo?: true;
   readonly madeWithYourPassword?: true;
   readonly registrationEmailStillToDo?: true;
-  readonly applicationSubmitted?: true;
+  readonly applicationSubmittedOn?: string;
 }): string {
   if (input.approach === "generated_ephemeral") {
     return (
@@ -952,8 +967,8 @@ function handoverMiddle(input: {
     // P307: his rule applied to a submission already recorded. "Until every
     // submission is done" is over, so the advice is "after": now.
     const when =
-      input.applicationSubmitted === true
-        ? `Your application has been submitted, so we advise you to change the password now, ` +
+      input.applicationSubmittedOn !== undefined
+        ? `You have submitted your application, so we advise you to change the password now, ` +
           `because it passed through our system on its way to the portal.`
         : `Please do not change the password until you have submitted your application. After ` +
           `that, we advise you to change it, because it passed through our system on its way to the ` +

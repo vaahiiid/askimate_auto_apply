@@ -1,0 +1,40 @@
+# P308 mutation 31-page-offer-heading-old
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+  text(heading, view.run.submitted === null ? "This is what I would apply for" : SUBMITTED_OFFER_HEADING);
+# with:
+  text(heading, "This is what I would apply for");
+# command: pnpm exec vitest run apps/conversation-service/src/student-client.test.ts -t after a record, every surface
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/conversation-service/src/student-client.test.ts (29 tests | 1 failed | 28 skipped) 1100ms
+   × the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition) 476ms
+     → expected 'This is what I would apply for' to be 'The application you submitted' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 skipped (29)
+   Start at  10:10:29
+   Duration  4.49s (transform 1.71s, setup 0ms, collect 3.04s, tests 1.10s, environment 0ms, prepare 66ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/conversation-service/src/student-client.test.ts > the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)
+AssertionError: expected 'This is what I would apply for' to be 'The application you submitted' // Object.is equality
+
+Expected: "The application you submitted"
+Received: "This is what I would apply for"
+
+ ❯ apps/conversation-service/src/student-client.test.ts:1574:61
+    1572|       await page.locator("#targets button", { hasText: "See what would…
+    1573|       await page.waitForFunction(() => (document.querySelector("#offer…
+    1574|       expect(await page.locator("#offer h2").textContent()).toBe("The …
+       |                                                             ^
+    1575|       const offered = await page.locator("#offer button").allTextConte…
+    1576|       expect(offered).toContain("Close it off here");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

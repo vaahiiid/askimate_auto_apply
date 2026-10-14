@@ -132,7 +132,12 @@ export interface ApplicationCase {
    * A person recorded that it was submitted by hand (ADR-0159 O10, P307). The
    * first record is kept; a second is refused.
    */
-  readonly submittedByHand?: { readonly submittedAt: Date; readonly source: "observed" | "stated" };
+  readonly submittedByHand?: {
+    readonly submittedAt: Date;
+    /** The calendar date as the person stated it (P308). */
+    readonly submittedOn: string;
+    readonly source: "observed" | "stated";
+  };
   /**
    * The unresolved recovery escalation, if the case is paused on one.
    *
@@ -175,7 +180,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   const raisedHandoffs: HandoffKind[] = [];
   const completedHandoffs: HandoffKind[] = [];
   const declinedHandoffs: HandoffKind[] = [];
-  let submittedByHand: { readonly submittedAt: Date; readonly source: "observed" | "stated" } | undefined;
+  let submittedByHand: ApplicationCase["submittedByHand"];
   let openEscalation: RecoveryEscalation | undefined;
   let submissionAttempted = false;
   let priorCaseId: CaseId | undefined = first.priorCaseId;
@@ -273,7 +278,11 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         break;
 
       case "SubmissionByHandRecorded":
-        submittedByHand ??= { submittedAt: event.submittedAt, source: event.source };
+        submittedByHand ??= {
+          submittedAt: event.submittedAt,
+          submittedOn: statedOrUtcDay(event),
+          source: event.source,
+        };
         break;
 
       case "HandoffDeclined":
@@ -461,7 +470,13 @@ export type CaseIntent =
   /** The student's "no" to the open handoff, where a "no" is an answer (ADR-0159 O3). */
   | { readonly kind: "decline_handoff"; readonly handoffToken: string }
   /** A person records that it was submitted by hand (ADR-0159 O10, P307). */
-  | { readonly kind: "record_submission_by_hand"; readonly submittedAt: Date; readonly source: "observed" | "stated" }
+  | {
+      readonly kind: "record_submission_by_hand";
+      readonly submittedAt: Date;
+      /** `YYYY-MM-DD`, the calendar date in the zone the person stated the time in (P308). */
+      readonly submittedOn: string;
+      readonly source: "observed" | "stated";
+    }
   | { readonly kind: "capture_authorisation"; readonly contentHash: string }
   | { readonly kind: "void_authorisation"; readonly reason: "content_changed" | "expired" | "student_revoked" }
   | { readonly kind: "attempt_submission" }
@@ -745,9 +760,28 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
           },
         };
       }
+      // The stated date must be a real calendar date that the instant falls on
+      // in some zone: real zones run from twelve hours behind UTC to fourteen
+      // ahead (P308, bounded so by its review).
+      if (!isCalendarDateNear(intent.submittedOn, intent.submittedAt)) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: `${intent.submittedOn} is not a date ${intent.submittedAt.toISOString()} falls on in any zone.`,
+          },
+        };
+      }
       return {
         accepted: true,
-        events: [{ type: "SubmissionByHandRecorded", submittedAt: intent.submittedAt, source: intent.source }],
+        events: [
+          {
+            type: "SubmissionByHandRecorded",
+            submittedAt: intent.submittedAt,
+            submittedOn: intent.submittedOn,
+            source: intent.source,
+          },
+        ],
       };
     }
 
@@ -1206,6 +1240,30 @@ export function openReapplication(input: {
     requestEvidence: input.requestEvidence,
     priorCaseId: input.priorCase.caseId,
   });
+}
+
+/**
+ * The stated date, or, for a record written before P308 carried one, the
+ * instant's UTC day: what the student was told then, and never a crash.
+ */
+function statedOrUtcDay(event: { readonly submittedAt: Date; readonly submittedOn?: string }): string {
+  return event.submittedOn ?? event.submittedAt.toISOString().slice(0, 10);
+}
+
+/**
+ * `YYYY-MM-DD`, a real date, and one `at` falls on in a real zone: between its
+ * date twelve hours behind UTC and its date fourteen hours ahead.
+ */
+function isCalendarDateNear(day: string, at: Date): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(day);
+  if (match === null) return false;
+  const [, y, m, d] = match;
+  const asUtc = Date.UTC(Number(y), Number(m) - 1, Number(d));
+  if (new Date(asUtc).toISOString().slice(0, 10) !== day) return false;
+  const hour = 60 * 60 * 1000;
+  const earliest = new Date(at.getTime() - 12 * hour).toISOString().slice(0, 10);
+  const latest = new Date(at.getTime() + 14 * hour).toISOString().slice(0, 10);
+  return day >= earliest && day <= latest;
 }
 
 /** Convenience for the common `askimate` actor. */

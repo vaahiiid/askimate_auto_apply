@@ -1,0 +1,266 @@
+# P308 mutation 05-no-date-in-the-sentence
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+    `university's website on ${dayStated(submittedOn)}.`
+# with:
+    `university's website.`
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307|P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (386 tests | 12 failed | 366 skipped) 4218ms
+   × a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 447ms
+     → told once: expected [] to have a length of 1 but got +0
+   × a submission made by hand (P307, ADR-0159 O10) > once the student has it back the run is completed, says so once, and asks nothing more 182ms
+     → said once: expected [] to have a length of 1 but got +0
+   × a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 263ms
+     → expected 'I have stopped work on your Gated Uni…' to contain 'You submitted your application on the…'
+   × a submission made by hand recorded before the yes (P307) > at the yes: no account is owed, so the run completes at once, says so once, offers nothing, and takes no yes 168ms
+     → said once: expected [] to have a length of 1 but got +0
+   × a submission made by hand whose account only a person can settle (P307) > goes to a person, says so once, and when the person has settled it, says it is finished, once 202ms
+     → said once: expected [] to have a length of 1 but got +0
+   × the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D2: a run the student stopped at the password box, recorded as submitted by hand, ends when they carry on, with no 'carrying on' 192ms
+     → said once: expected [] to have a length of 1 but got +0
+   × the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 442ms
+     → expected [] to have a length of 1 but got +0
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a time typed at 00:30 in its own zone is told as that date, not the UTC day before; the page reads it too 150ms
+     → expected 'You submitted your Gated University a…' to be 'You submitted your Gated University a…' // Object.is equality
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon after a record says the student submitted it, on that date, and never that it cannot go on 216ms
+     → expected 'Someone on the team has stopped work …' to contain 'You submitted your application on the…'
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon of a case that can no longer be wound down still says the student submitted it, on that date 189ms
+     → expected 'Someone on the team has stopped work …' to contain 'Someone on the team has stopped work …'
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > the worker's repair of an unannounced hold on a recorded case says the student submitted it, on that date, not that it is paused (the P308 review) 173ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a record written before P308, sent again as typed then, is the same record, and the student is not told twice 140ms
+     → expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+ Test Files  1 failed (1)
+      Tests  12 failed | 8 passed | 366 skipped (386)
+   Start at  10:07:02
+   Duration  8.15s (transform 2.46s, setup 0ms, collect 3.58s, tests 4.22s, environment 0ms, prepare 62ms)
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once
+AssertionError: told once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19200:85
+    19198|     expect(records[0]?.actor, "the person is its actor").toEqual({ kin…
+    19199|     expect(records[0]?.type === "SubmissionByHandRecorded" ? records[0…
+    19200|     expect((await saidTo()).filter((content) => content === RECORDED),…
+       |                                                                                     ^
+    19201|     expect(await statusOf(), "still held by the person: the hand-back …
+    19202|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand (P307, ADR-0159 O10) > once the student has it back the run is completed, says so once, and asks nothing more
+AssertionError: said once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19270:87
+    19268|       for (let poll = 0; poll < 3; poll++) await instance.driver.advan…
+    19269|       expect(await statusOf()).toBe("completed");
+    19270|       expect((await saidTo()).filter((content) => content === FINISHED…
+       |                                                                                       ^
+    19271|       const after = await instance.driver.runFor(conversation);
+    19272|       expect(after?.run.status).toBe("completed");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted
+AssertionError: expected 'I have stopped work on your Gated Uni…' to contain 'You submitted your application on the…'
+
+Expected: "You submitted your application on the university's website on 30 August 2026. Stopping here does not withdraw it."
+Received: "I have stopped work on your Gated University application, and I will not start anything new on it. The account at Gated University was created in your name and still exists — it is yours, and I will help you take control of it before we finish. Anything I already filled in on their form is still saved there; I cannot remove it. It is stopped, but it is not finished: the account at Gated University is still in my hands, and I have to give you control of it before we are done. I will come back to you about that, and I will tell you when it is finished. You submitted your application on the university's website. Stopping here does not withdraw it. If you want your data deleted rather than just stopped, tell me — that is a separate request and I will pass it to a person."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19387:20
+    19385|       const stop = (await assistantSaid()).find((content) => content.s…
+    19386|       if (stop === undefined) expect.unreachable("the stop is said");
+    19387|       expect(stop).toContain(
+       |                    ^
+    19388|         "You submitted your application on the university's website on…
+    19389|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand recorded before the yes (P307) > at the yes: no account is owed, so the run completes at once, says so once, offers nothing, and takes no yes
+AssertionError: said once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19513:110
+    19511|       expect(reading?.run.status).toBe("completed");
+    19512|       expect(reading?.pending ?? null, "no yes is offered for a form t…
+    19513|       expect((await said(conversation)).filter((line) => line.content …
+       |                                                                                                              ^
+    19514|       const yes = await instance.driver.recordDecision({ conversationI…
+    19515|       expect(yes.ok, "a yes sent anyway is not taken").toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a submission made by hand whose account only a person can settle (P307) > goes to a person, says so once, and when the person has settled it, says it is finished, once
+AssertionError: said once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19609:90
+    19607|       );
+    19608|       expect(raised.rows.map((row) => row.target), "a person holds it,…
+    19609|       expect((await assistantSaid()).filter((content) => content === H…
+       |                                                                                          ^
+    19610|       expect((await pool.query<{ status: string }>("SELECT status FROM…
+    19611| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D2: a run the student stopped at the password box, recorded as submitted by hand, ends when they carry on, with no 'carrying on'
+AssertionError: said once: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19690:87
+    19688|       expect(secure.opens.length, "no password box opened").toBe(opens…
+    19689|       const lines = (await said(conversation)).map((line) => line.cont…
+    19690|       expect(lines.filter((content) => content === FINISHED_NO_ACCOUNT…
+       |                                                                                       ^
+    19691|       expect(lines.some((content) => content.startsWith("Carrying on w…
+    19692|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19777:95
+    19775|     }
+    19776|     expect(await statusOf(runId)).toBe("completed");
+    19777|     expect((await said(conversation)).filter((line) => line.content ==…
+       |                                                                                               ^
+    19778|   }, 300_000);
+    19779| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a time typed at 00:30 in its own zone is told as that date, not the UTC day before; the page reads it too
+AssertionError: expected 'You submitted your Gated University a…' to be 'You submitted your Gated University a…' // Object.is equality
+
+Expected: "You submitted your Gated University application on the university's website on 30 August 2026. A member of the team has recorded it. I will not fill in or submit anything more on it."
+Received: "You submitted your Gated University application on the university's website. A member of the team has recorded it. I will not fill in or submit anything more on it."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19939:20
+    19937|       const lines = await said(conversation);
+    19938|       const told = lines.find((content) => content.includes("A member …
+    19939|       expect(told).toBe(
+       |                    ^
+    19940|         "You submitted your Gated University application on the univer…
+    19941|           "A member of the team has recorded it. I will not fill in or…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon after a record says the student submitted it, on that date, and never that it cannot go on
+AssertionError: expected 'Someone on the team has stopped work …' to contain 'You submitted your application on the…'
+
+Expected: "You submitted your application on the university's website on 30 August 2026."
+Received: "Someone on the team has stopped work on your Gated University application, and I will not start anything new on it. It is stopped, but it is not finished: I was creating an account for you at Gated University, and I do not yet know whether the university made it. A member of the team will find out, and I will tell you when it is finished. You submitted your application on the university's website. Stopping here does not withdraw it. If you want your data deleted rather than just stopped, tell me — that is a separate request and I will pass it to a person."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20006:21
+    20004|     const abandon = lines.find((content) => content.startsWith("Someon…
+    20005|     if (abandon === undefined) expect.unreachable("the abandon is said…
+    20006|     expect(abandon).toContain("You submitted your application on the u…
+       |                     ^
+    20007|     expect(abandon).not.toContain("cannot go on");
+    20008|     expect(lines.some((content) => content.includes("Nothing was submi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon of a case that can no longer be wound down still says the student submitted it, on that date
+AssertionError: expected 'Someone on the team has stopped work …' to contain 'Someone on the team has stopped work …'
+
+Expected: "Someone on the team has stopped work on your Gated University application, and I will not start anything new on it. You submitted your application on the university's website on 30 August 2026. Stopping here does not withdraw it."
+Received: "Someone on the team has stopped work on your Gated University application, and I will not start anything new on it. You submitted your application on the university's website. Stopping here does not withdraw it."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20074:21
+    20072|     const abandon = lines.find((content) => content.startsWith("Someon…
+    20073|     if (abandon === undefined) expect.unreachable("the abandon is said…
+    20074|     expect(abandon).toContain(
+       |                     ^
+    20075|       "Someone on the team has stopped work on your Gated University a…
+    20076|         "You submitted your application on the university's website on…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > the worker's repair of an unannounced hold on a recorded case says the student submitted it, on that date, not that it is paused (the P308 review)
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "You submitted your Gated University application on the university's website on 30 August 2026. What is left of it at Gated University is something I cannot settle on my own, so I have passed it to a member of the team. I will tell you when it is finished.",
++   "You submitted your Gated University application on the university's website. What is left of it at Gated University is something I cannot settle on my own, so I have passed it to a member of the team. I will tell you when it is finished.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20113:56
+    20111|       const before = (await said(conversation)).length;
+    20112|       expect(await instance.driver.announcePending()).toMatchObject({ …
+    20113|       expect((await said(conversation)).slice(before)).toEqual([
+       |                                                        ^
+    20114|         "You submitted your Gated University application on the univer…
+    20115|           "Gated University is something I cannot settle on my own, so…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/12]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a record written before P308, sent again as typed then, is the same record, and the student is not told twice
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "That is the last of it. You submitted your Gated University application on the university's website on 29 August 2026. Nothing is left for me to do on it.",
++   "That is the last of it. You submitted your Gated University application on the university's website. Nothing is left for me to do on it.",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20170:21
+    20168|       expect(after.filter((content) => content.includes("recorded")), …
+    20169|       // The run then finishes, saying the day the case holds, as P307…
+    20170|       expect(after).toEqual([
+       |                     ^
+    20171|         "That is the last of it. You submitted your Gated University a…
+    20172|       ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/12]⎯
+

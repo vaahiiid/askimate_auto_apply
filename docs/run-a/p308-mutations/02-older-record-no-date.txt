@@ -1,0 +1,43 @@
+# P308 mutation 02-older-record-no-date
+# file: packages/domain/src/machine.ts
+# replaced:
+  return event.submittedOn ?? event.submittedAt.toISOString().slice(0, 10);
+# with:
+  return event.submittedOn as string;
+# command: pnpm exec vitest run --project unit packages/domain/src/machine.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| packages/domain/src/machine.test.ts (78 tests | 1 failed) 60ms
+   × a submission made by hand (ADR-0159 O10, P307) > reads a record written before P308, with no stated date, as the instant's UTC day, never a crash (P308) 15ms
+     → expected undefined to be '2026-10-13' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 77 passed (78)
+   Start at  10:12:13
+   Duration  615ms (transform 190ms, setup 0ms, collect 231ms, tests 60ms, environment 0ms, prepare 62ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  packages/domain/src/machine.test.ts > a submission made by hand (ADR-0159 O10, P307) > reads a record written before P308, with no stated date, as the instant's UTC day, never a crash (P308)
+AssertionError: expected undefined to be '2026-10-13' // Object.is equality
+
+- Expected: 
+"2026-10-13"
+
++ Received: 
+undefined
+
+ ❯ packages/domain/src/machine.test.ts:1399:72
+    1397|   it("reads a record written before P308, with no stated date, as the …
+    1398|     const old = { type: "SubmissionByHandRecorded", submittedAt: new D…
+    1399|     expect(fold(buildLog([OPENED, old])).submittedByHand?.submittedOn)…
+       |                                                                        ^
+    1400|   });
+    1401| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

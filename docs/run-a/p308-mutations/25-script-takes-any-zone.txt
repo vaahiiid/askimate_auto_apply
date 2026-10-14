@@ -1,0 +1,66 @@
+# P308 mutation 25-script-takes-any-zone
+# file: scripts/submission-by-hand.ts
+# replaced:
+ || !isRealZonedTime(at)) {
+# with:
+) {
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t submission-by-hand
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (24 tests | 1 failed | 20 skipped) 3387ms
+   ✓ the published demonstrations > interventions, after a submission made by hand (P308) > lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student 843ms
+   ✓ the published demonstrations > submission-by-hand > REFUSES a record without a case, a name, a full time, or exactly one of how it is known 1869ms
+   × the published demonstrations > submission-by-hand > REFUSES a date that does not exist and a zone no place keeps, before the service (the P308 review) 381ms
+     → 2026-02-30T10:00:00Z: expected 'node:internal/deps/undici/undici:1497…' to contain '--at is required'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 20 skipped (24)
+   Start at  10:09:22
+   Duration  9.02s (transform 55ms, setup 0ms, collect 5.20s, tests 3.39s, environment 0ms, prepare 95ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > submission-by-hand > REFUSES a date that does not exist and a zone no place keeps, before the service (the P308 review)
+AssertionError: 2026-02-30T10:00:00Z: expected 'node:internal/deps/undici/undici:1497…' to contain '--at is required'
+
+- Expected
++ Received
+
+- --at is required
++ node:internal/deps/undici/undici:14976
++       Error.captureStackTrace(err);
++             ^
++
++ TypeError: fetch failed
++     at node:internal/deps/undici/undici:14976:13
++     at async <anonymous> (/home/user/askimate_auto_apply/scripts/submission-by-hand.ts:88:18) {
++   [cause]: Error: bad port
++       at makeNetworkError (node:internal/deps/undici/undici:9495:35)
++       at mainFetch (node:internal/deps/undici/undici:10721:20)
++       at fetching (node:internal/deps/undici/undici:10707:7)
++       at fetch (node:internal/deps/undici/undici:10576:20)
++       at fetch (node:internal/deps/undici/undici:14974:10)
++       at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
++       at <anonymous> (/home/user/askimate_auto_apply/scripts/submission-by-hand.ts:88:24)
++       at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
++       at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
++       at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
++ }
++
++ Node.js v22.22.2
++
+
+ ❯ scripts/demonstrations.test.ts:360:33
+    358|         const refused = run("submission-by-hand.ts", ["case_x", "--by"…
+    359|         expect(refused.code, at).not.toBe(0);
+    360|         expect(refused.out, at).toContain("--at is required");
+       |                                 ^
+    361|         expect(refused.out, at).not.toContain("The service refused");
+    362|       }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

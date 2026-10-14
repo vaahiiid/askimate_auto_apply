@@ -1,0 +1,54 @@
+# P308 mutation 20-retry-of-undated-record-refused
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+        (datedThen && before.submittedOn !== input.submittedOn) ||
+
+# with:
+        before.submittedOn !== input.submittedOn ||
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307|P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (386 tests | 1 failed | 366 skipped) 3951ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 397ms
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 380ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 439ms
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a record written before P308, sent again as typed then, is the same record, and the student is not told twice 136ms
+     → the command typed then is the same record: expected { ok: false, reason: 'refused', …(1) } to match object { ok: true, recordedNow: false, …(1) }
+(2 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed | 366 skipped (386)
+   Start at  10:08:49
+   Duration  7.66s (transform 2.32s, setup 0ms, collect 3.36s, tests 3.95s, environment 0ms, prepare 77ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a record written before P308, sent again as typed then, is the same record, and the student is not told twice
+AssertionError: the command typed then is the same record: expected { ok: false, reason: 'refused', …(1) } to match object { ok: true, recordedNow: false, …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "ok": true,
+-   "recordedNow": false,
+-   "told": true,
++   "ok": false,
+  }
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20166:66
+    20164|         recordedBy: "specialist_vahid",
+    20165|       });
+    20166|       expect(again, "the command typed then is the same record").toMat…
+       |                                                                  ^
+    20167|       const after = (await said(conversation)).slice(before);
+    20168|       expect(after.filter((content) => content.includes("recorded")), …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

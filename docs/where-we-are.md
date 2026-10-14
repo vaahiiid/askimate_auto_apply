@@ -4906,6 +4906,34 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P308 — the student is told they submitted it, on that date
+
+*2026-10-14.* His decisions on P307: D7 to D12 accepted, with one addition to D7 in his words,
+*"whatever the case's internal state, what the student sees must say plainly that the application
+was submitted, by them, on that date."* And a standing rule: an open point with a recommendation is
+applied and recorded as mine, unless it touches submitting an application, money, a student's
+personal data, or legal or declaration text. Those come to him.
+
+The addition is built. The record now carries the date as the person typed it, so a submission at
+00:30 in summer time is not told as the day before. One sentence, *"You submitted your … application
+on the university's website on …"*, opens the record's own message, the stop, the abandon, a hold
+for a person and the closing message; it is the hand-back's first line, and the page's line whatever
+the run's state. A correction or a CV sent after a record is still answered as before (below). Nothing on the page says
+"apply" after a record. The review found more surfaces than I had built; the ones that were words
+are fixed, and four that would change what happens with a student's data or a new application go to
+him (row 182, (11) to (14)).
+
+Rows 181 and 182, under his rule: every point touches one of the four, so nothing was applied; each
+goes to him with my recommendation (`docs/run-a/p308-rows-181-182-under-his-rule.md`). His live run
+is written out as numbered steps (`docs/run-a/p308-his-live-run-steps.md`).
+
+Found on the way: the worker's pass that tells a student about a hold took its batch before skipping
+the holds already told, so twenty-five old ones could keep a new one silent for ever. Fixed.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P307 — a submission made by hand, recorded
 
 *2026-10-13.* ADR-0159's O10, the recommendation applied at his word: a person records a submission

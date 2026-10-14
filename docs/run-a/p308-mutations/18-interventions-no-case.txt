@@ -1,0 +1,61 @@
+# P308 mutation 18-interventions-no-case
+# file: scripts/interventions.ts
+# replaced:
+        `    case      ${item.caseId}\n` +
+
+# with:
+
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (24 tests | 1 failed | 22 skipped) 2060ms
+   × the published demonstrations > interventions, after a submission made by hand (P308) > lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student 453ms
+     → expected '1 waiting for a specialist:\n\n  iv_h…' to match /case\s+case_stub_1/u
+   ✓ the published demonstrations > submission-by-hand > REFUSES a date that does not exist and a zone no place keeps, before the service (the P308 review) 1605ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 22 skipped (24)
+   Start at  10:08:29
+   Duration  8.05s (transform 37ms, setup 0ms, collect 5.61s, tests 2.06s, environment 0ms, prepare 63ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions, after a submission made by hand (P308) > lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student
+AssertionError: expected '1 waiting for a specialist:\n\n  iv_h…' to match /case\s+case_stub_1/u
+
+- Expected: 
+/case\s+case_stub_1/u
+
++ Received: 
+"1 waiting for a specialist:
+
+  iv_held   [high]  waiting 0m
+    run       run_1  (student s1)
+    stuck on  advance_portal_page against held:page12
+    portal    gated.portal.test   phase filling
+    student   has been told it is paused
+    what      held
+
+To resolve one, OPEN THE PORTAL AND LOOK first. The only question that matters is
+whether the action actually happened:
+
+  pnpm run interventions resolve <id> \\
+      --specialist <your-name> --did-happen|--did-not-happen \\
+      --actions \"what you did\" --resolution \"what worked\"
+
+"
+
+ ❯ scripts/demonstrations.test.ts:280:28
+    278|         const listed = run("interventions.ts", [], env);
+    279|         expect(listed.code).toBe(0);
+    280|         expect(listed.out).toMatch(/case\s+case_stub_1/u);
+       |                            ^
+    281|         const resolved = run(
+    282|           "interventions.ts",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -602,6 +602,12 @@ export interface RunReading {
    * visible and changeable; `null` where the reviewed blueprint records none.
    */
   readonly consent: PortalConsentReading | null;
+  /**
+   * P308, his D7 addition: a submission a person recorded as made by hand, the
+   * date as stated (`YYYY-MM-DD`), so the page says it whatever the run's
+   * status; `null` when none is recorded.
+   */
+  readonly submitted: { readonly on: string } | null;
 }
 
 export type RunOutcome =
@@ -811,14 +817,23 @@ function abandonedMessage(
   entry: CatalogueEntry,
   hasAccount: boolean,
   conclusion: StopConclusion | null,
-  submittedByHand: Date | undefined,
+  submittedByHand: string | undefined,
 ): string {
   const institution = entry.blueprint.institutionName;
+  // P308, his D7 addition: after a record, nothing says it "cannot go on"; it
+  // was submitted, by the student, on that date.
   const opening =
-    `Someone on the team has looked at your ${institution} application, and it cannot go on, so I ` +
-    `have stopped work on it and I will not start anything new on it.`;
+    submittedByHand === undefined
+      ? `Someone on the team has looked at your ${institution} application, and it cannot go on, so I ` +
+        `have stopped work on it and I will not start anything new on it.`
+      : `Someone on the team has stopped work on your ${institution} application, and I will not start ` +
+        `anything new on it.`;
   if (conclusion === null) {
-    return opening + (hasAccount ? ` The account at ${institution} that was created in your name still exists.` : "");
+    return (
+      opening +
+      (submittedByHand === undefined ? "" : ` ${submittedWords(submittedByHand)}`) +
+      (hasAccount ? ` The account at ${institution} that was created in your name still exists.` : "")
+    );
   }
   return `${opening} ${stoppedRemainder(institution, hasAccount, conclusion, submittedByHand)}`;
 }
@@ -829,11 +844,23 @@ function abandonedMessage(
  * every stop said "Nothing was submitted", which a recorded submission makes
  * untrue; a stop does not withdraw it, and nothing here can.
  */
-function submittedWords(submittedByHand: Date | undefined): string {
+function submittedWords(submittedByHand: string | undefined): string {
   return submittedByHand === undefined
     ? `Nothing was submitted.`
-    : `A member of the team recorded that your application was submitted on the university's ` +
-        `website on ${dayOf(submittedByHand)}; stopping here does not withdraw it.`;
+    : `${youSubmitted(null, submittedByHand)} Stopping here does not withdraw it.`;
+}
+
+/**
+ * The one sentence every surface says after a submission made by hand is
+ * recorded (P308). Vahid, 2026-10-14: *"whatever the case's internal state,
+ * what the student sees must say plainly that the application was submitted,
+ * by them, on that date."* One function, so no surface words it another way.
+ */
+function youSubmitted(institution: string | null, submittedOn: string): string {
+  return (
+    `You submitted your ${institution === null ? "" : `${institution} `}application on the ` +
+    `university's website on ${dayStated(submittedOn)}.`
+  );
 }
 
 /** What a stopped application leaves, said the same way whoever stopped it (ADR-0053; P278). */
@@ -841,14 +868,20 @@ function stoppedRemainder(
   institution: string,
   hasAccount: boolean,
   conclusion: StopConclusion,
-  submittedByHand: Date | undefined,
+  submittedByHand: string | undefined,
 ): string {
   const submitted = submittedWords(submittedByHand);
   const account = hasAccount
     ? `The account at ${institution} was created in your name and still exists — it is yours, and ` +
-      `I will help you take control of it before we finish. Anything I already filled in on their ` +
-      `form is still saved there; I cannot remove it, and you can change it yourself once you have ` +
-      `the account. `
+      `I will help you take control of it before we finish. ` +
+      // P308: after a submission, whether anything was filled in and whether
+      // it can still be changed are not known here, so neither is said (its
+      // review: "What I filled in … is part of the application you submitted"
+      // presumed a fill that may never have happened).
+      (submittedByHand === undefined
+        ? `Anything I already filled in on their form is still saved there; I cannot remove it, and ` +
+          `you can change it yourself once you have the account. `
+        : `Anything I already filled in on their form is still saved there; I cannot remove it. `)
     : ``;
   // Three ways of not being finished, each said as what is known (the P300
   // review). A creation whose outcome is not known is not an account that
@@ -857,7 +890,7 @@ function stoppedRemainder(
   const completion = conclusion.concluded
     ? submittedByHand === undefined
       ? `Nothing was submitted, and nothing is outstanding — this application is closed. `
-      : `Nothing is outstanding, and this application is closed here. ${submitted} `
+      : `${submitted} Nothing is outstanding, and this application is closed here. `
     : conclusion.creationUncertain === true
       ? `It is stopped, but it is not finished: I was creating an account for you at ${institution}, ` +
         `and I do not yet know whether the university made it. A member of the team will find out, ` +
@@ -884,7 +917,7 @@ function stoppedRemainder(
  * account exists that may not. The promise — a member of the team has it — is
  * the open intervention, asserted by the driver's test (P300, row 170).
  */
-function heldForAPersonMessage(entry: CatalogueEntry, submittedByHand: Date | undefined): string {
+function heldForAPersonMessage(entry: CatalogueEntry, submittedByHand: string | undefined): string {
   const institution = entry.blueprint.institutionName;
   return (
     `Your ${institution} application is stopped, but what is left of it at ${institution} is ` +
@@ -897,7 +930,7 @@ function cancellationMessage(
   entry: CatalogueEntry,
   hasAccount: boolean,
   conclusion: StopConclusion,
-  submittedByHand: Date | undefined,
+  submittedByHand: string | undefined,
 ): string {
   const institution = entry.blueprint.institutionName;
   // Named, not enumerated. Every member of `outstanding` comes from
@@ -919,11 +952,17 @@ function cancellationMessage(
  * told "I will tell you when it is finished" is never told, and the case
  * concludes in a log they cannot read.
  */
-function cancellationFinishedMessage(entry: CatalogueEntry, submittedByHand: Date | undefined): string {
+function cancellationFinishedMessage(entry: CatalogueEntry, submittedByHand: string | undefined): string {
   const institution = entry.blueprint.institutionName;
+  if (submittedByHand !== undefined) {
+    return (
+      `That is the last of it. ${youSubmitted(institution, submittedByHand)} Stopping did not ` +
+      `withdraw it. The account at ${institution} is yours now, and nothing is outstanding here.`
+    );
+  }
   return (
     `That is the last of it. The account at ${institution} is yours now, nothing is outstanding, ` +
-    `and your application there is closed${submittedByHand === undefined ? "" : " here"}. ${submittedWords(submittedByHand)}`
+    `and your application there is closed. ${submittedWords(submittedByHand)}`
   );
 }
 
@@ -935,11 +974,21 @@ function cancellationFinishedMessage(entry: CatalogueEntry, submittedByHand: Dat
  * `claimWork` offering the case no browser work and by the domain refusing
  * `SUBMITTING` on a case that holds the record; the driver's tests assert both.
  */
-function submittedByHandMessage(entry: CatalogueEntry, submittedAt: Date): string {
+function submittedByHandMessage(entry: CatalogueEntry, submittedOn: string): string {
   return (
-    `A member of the team has recorded that your ${entry.blueprint.institutionName} application ` +
-    `was submitted on the university's website on ${dayOf(submittedAt)}. I will not fill in or ` +
-    `submit anything more on it.`
+    `${youSubmitted(entry.blueprint.institutionName, submittedOn)} A member of the team has ` +
+    `recorded it. I will not fill in or submit anything more on it.`
+  );
+}
+
+/**
+ * The words P307 told the student a record in (before P308 said it plainly):
+ * a retry of such a record has told them already (the P308 review).
+ */
+function toldUnderP307(content: string): boolean {
+  return (
+    content.startsWith("A member of the team has recorded that your ") &&
+    content.endsWith(" I will not fill in or submit anything more on it.")
   );
 }
 
@@ -948,21 +997,22 @@ function submittedByHandMessage(entry: CatalogueEntry, submittedAt: Date): strin
  * something a person must settle (P307), the by-hand twin of
  * `heldForAPersonMessage`. Its promise is kept by `submittedByHandFinishedMessage`.
  */
-function submittedByHandHeldMessage(entry: CatalogueEntry): string {
+function submittedByHandHeldMessage(entry: CatalogueEntry, submittedOn: string): string {
   const institution = entry.blueprint.institutionName;
   return (
-    `What is left of your ${institution} application at ${institution} is something I cannot ` +
-    `settle on my own, so I have passed it to a member of the team. I will tell you when it is ` +
-    `finished.`
+    `${youSubmitted(institution, submittedOn)} What is left of it at ${institution} is something I ` +
+    `cannot settle on my own, so I have passed it to a member of the team. I will tell you when it ` +
+    `is finished.`
   );
 }
 
 /** What the student reads when a case recorded as submitted by hand owes nothing more (P307). */
-function submittedByHandFinishedMessage(entry: CatalogueEntry, hadAccount: boolean): string {
+function submittedByHandFinishedMessage(entry: CatalogueEntry, hadAccount: boolean, submittedOn: string): string {
   const institution = entry.blueprint.institutionName;
   return (
-    `That is the last of it. ${hadAccount ? `The account at ${institution} is yours now, and n` : "N"}` +
-    `othing is left for me to do on your ${institution} application.`
+    `That is the last of it. ${youSubmitted(institution, submittedOn)} ` +
+    `${hadAccount ? `The account at ${institution} is yours now, and n` : "N"}othing is left for me ` +
+    `to do on it.`
   );
 }
 
@@ -1906,6 +1956,15 @@ function andList(items: readonly string[]): string {
 
 function dayOf(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * A calendar date as a person stated it, `YYYY-MM-DD`, in words (P308): the
+ * date itself, never recomputed from an instant in another zone.
+ */
+function dayStated(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return dayOf(new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1)));
 }
 
 function documentNeededMessage(entry: CatalogueEntry, documentType: string): string {
@@ -4028,7 +4087,7 @@ export class RunDriver {
           studentPresentAtCreation: true,
           // P290, ADR-0155: what the student chose from the form's own lists.
           choices: (await this.#options.entryChoices?.forCase(input.caseId)) ?? [],
-          ...(byHand === undefined ? {} : { submittedByHand: { submittedAt: byHand.submittedAt } }),
+          ...(byHand === undefined ? {} : { submittedByHand: { submittedAt: byHand.submittedAt, submittedOn: byHand.submittedOn } }),
         },
         profile: profileView,
         interview: interviewFrom({
@@ -4549,6 +4608,8 @@ export class RunDriver {
   public async recordSubmissionByHand(input: {
     readonly caseId: CaseId;
     readonly submittedAt: Date;
+    /** `YYYY-MM-DD` in the zone the person stated the time in (P308). */
+    readonly submittedOn: string;
     readonly source: "observed" | "stated";
     readonly recordedBy: string;
   }): Promise<
@@ -4566,9 +4627,17 @@ export class RunDriver {
     if (events.length === 0) return { ok: false, reason: "no_case", detail: `No case ${input.caseId}.` };
     const held = fold(events);
     const before = held.submittedByHand;
+    // A record written before P308 stated no date; the fold reads the instant's
+    // UTC day for it, which the time typed then need not give (the P308 review).
+    const first = events.find((event) => event.type === "SubmissionByHandRecorded") as
+      | { readonly submittedOn?: string }
+      | undefined;
+    const datedThen = first?.submittedOn !== undefined;
     if (
       before !== undefined &&
-      (before.submittedAt.getTime() !== input.submittedAt.getTime() || before.source !== input.source)
+      (before.submittedAt.getTime() !== input.submittedAt.getTime() ||
+        (datedThen && before.submittedOn !== input.submittedOn) ||
+        before.source !== input.source)
     ) {
       return {
         ok: false,
@@ -4598,6 +4667,7 @@ export class RunDriver {
       const decision = decide(held, {
         kind: "record_submission_by_hand",
         submittedAt: input.submittedAt,
+        submittedOn: input.submittedOn,
         source: input.source,
       });
       if (!decision.accepted) return { ok: false, reason: "refused", detail: detailOf(decision.refusal) };
@@ -4627,9 +4697,10 @@ export class RunDriver {
     // review).
     let told = false;
     if (entry !== null) {
-      const message = submittedByHandMessage(entry, input.submittedAt);
+      // The date the case holds, so the chat and the page say the same day.
+      const message = submittedByHandMessage(entry, (before ?? input).submittedOn);
       const said = await this.#options.conversations.since(conversationId, 0);
-      if (!said.some((event) => event.kind === "message" && event.content === message)) {
+      if (!said.some((event) => event.kind === "message" && (event.content === message || (event.content !== null && toldUnderP307(event.content))))) {
         await this.#options.conversations.append({
           conversationId,
           event: { kind: "message", actor: "assistant", content: message },
@@ -4878,10 +4949,12 @@ export class RunDriver {
     // ADR-0108: what is owed, from the case log — the same record a
     // specialist reads, and the one the student's word closes.
     const events = await this.#options.stores.cases.read(record.caseId);
-    const ownActs = events.length === 0 ? [] : ownActReadingsOf(fold(events).ownActs);
+    const folded = events.length === 0 ? null : fold(events);
+    const ownActs = folded === null ? [] : ownActReadingsOf(folded.ownActs);
     // ADR-0131: the portal's consent notice and the student's choice on it.
     const consent = await this.#consentReading(entry, record.studentRef);
-    return { run, pending, ownActs, consent };
+    const byHand = folded?.submittedByHand;
+    return { run, pending, ownActs, consent, submitted: byHand === undefined ? null : { on: byHand.submittedOn } };
   }
 
   /**
@@ -5933,7 +6006,7 @@ export class RunDriver {
         event: {
           kind: "message",
           actor: "assistant",
-          content: cancellationMessage(entry, accounts.length > 0, conclusion, winding.submittedByHand?.submittedAt),
+          content: cancellationMessage(entry, accounts.length > 0, conclusion, winding.submittedByHand?.submittedOn),
         },
       });
     }
@@ -6178,8 +6251,11 @@ export class RunDriver {
     if (interventions === undefined) return { announced: 0 };
 
     let announced = 0;
-    for (const held of (await interventions.open()).slice(0, limit)) {
-      if (held.announcedAt !== undefined) continue;
+    // The unannounced first, then the batch: sliced the other way, twenty-five
+    // older holds already announced kept every later one from ever being told
+    // (found by the P308 test of this pass, the first it ever had).
+    const unannounced = (await interventions.open()).filter((held) => held.announcedAt === undefined);
+    for (const held of unannounced.slice(0, limit)) {
       const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
       if (conversationId === null) continue;
       const bound = await this.#options.bindings.caseFor(conversationId);
@@ -6187,12 +6263,21 @@ export class RunDriver {
       const entry = await this.#entryAdmitting(bound);
       if (entry === null) continue;
 
+      // After a submission made by hand, the hold is a person's to settle and
+      // nothing is "paused": said as `#holdForAPerson` says it, with the date
+      // (the P308 review; his D7 addition).
+      const caseEvents = await this.#options.stores.cases.read(makeCaseId(held.caseId));
+      const byHand = caseEvents.length === 0 ? undefined : fold(caseEvents).submittedByHand;
       // Message first, mark second — the order `#pause` uses, and for the same
       // reason: a crash between them re-tells somebody, which is a much smaller
       // failure than a paused run whose student never hears.
       await this.#options.conversations.append({
         conversationId,
-        event: { kind: "message", actor: "assistant", content: pauseMessage(entry) },
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content: byHand === undefined ? pauseMessage(entry) : submittedByHandHeldMessage(entry, byHand.submittedOn),
+        },
       });
       await interventions.markAnnounced(held.interventionId, this.#options.now());
       announced += 1;
@@ -8746,7 +8831,7 @@ export class RunDriver {
       event: {
         kind: "message",
         actor: "assistant",
-        content: abandonedMessage(entry, accounts.length > 0, conclusion, theCase.submittedByHand?.submittedAt),
+        content: abandonedMessage(entry, accounts.length > 0, conclusion, theCase.submittedByHand?.submittedOn),
       },
     });
   }
@@ -9301,7 +9386,7 @@ export class RunDriver {
       if (handoffFor(situation.step) === null) {
         return await this.#holdForAPerson(input, situation, conclusion.outstanding, {
           stopped: true,
-          submittedByHand: held.submittedByHand?.submittedAt,
+          submittedByHand: held.submittedByHand?.submittedOn,
         });
       }
       return stoppedAt(input.record.status);
@@ -9315,7 +9400,7 @@ export class RunDriver {
       event: {
         kind: "message",
         actor: "assistant",
-        content: cancellationFinishedMessage(input.entry, held.submittedByHand?.submittedAt),
+        content: cancellationFinishedMessage(input.entry, held.submittedByHand?.submittedOn),
       },
     });
     return stoppedAt("abandoned");
@@ -9440,7 +9525,9 @@ export class RunDriver {
      * Why it cannot close (P307): the student's stop, which may come after a
      * recorded submission, or a recorded submission with no stop at all.
      */
-    why: { readonly stopped: boolean; readonly submittedByHand: Date | undefined },
+    why:
+      | { readonly stopped: true; readonly submittedByHand: string | undefined }
+      | { readonly stopped: false; readonly submittedByHand: string },
   ): Promise<RunOutcome> {
     const step = specialistHandoverOf(situation.step);
     await this.#raiseForSpecialist({
@@ -9464,7 +9551,7 @@ export class RunDriver {
         `(row 173).`,
       message: why.stopped
         ? heldForAPersonMessage(input.entry, why.submittedByHand)
-        : submittedByHandHeldMessage(input.entry),
+        : submittedByHandHeldMessage(input.entry, why.submittedByHand),
       now: situation.now,
     });
     const revision =
@@ -9576,7 +9663,7 @@ export class RunDriver {
       if (handoffFor(situation.step) === null) {
         return await this.#holdForAPerson(input, situation, outstanding, {
           stopped: false,
-          submittedByHand: submittedByHand.submittedAt,
+          submittedByHand: submittedByHand.submittedOn,
         });
       }
       return at(input.record.status, input.record.revision);
@@ -9587,7 +9674,7 @@ export class RunDriver {
     // Said before the status is saved, the log being the memory: a crash
     // between the two says nothing twice, and loses nothing (the review).
     const accounts = await this.#accountsOn(input.record, input.entry);
-    const finished = submittedByHandFinishedMessage(input.entry, accounts.length > 0);
+    const finished = submittedByHandFinishedMessage(input.entry, accounts.length > 0, submittedByHand.submittedOn);
     const said = await this.#options.conversations.since(input.conversationId, 0);
     if (!said.some((event) => event.kind === "message" && event.content === finished)) {
       await this.#options.conversations.append({

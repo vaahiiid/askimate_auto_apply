@@ -1,0 +1,36 @@
+# P308 mutation 33-page-own-acts-heading-old
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+        : submittedOwnActsHeading(view.run.submitted.on),
+# with:
+        : "Still yours to do — nobody is watching this, and nobody will remind you",
+# command: pnpm exec vitest run apps/conversation-service/src/student-client.test.ts -t after a record, every surface
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/conversation-service/src/student-client.test.ts (29 tests | 1 failed | 28 skipped) 1212ms
+   × the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition) 420ms
+     → expected [ Array(1) ] to include 'You submitted your application on the…'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 skipped (29)
+   Start at  10:10:41
+   Duration  4.99s (transform 1.86s, setup 0ms, collect 3.41s, tests 1.21s, environment 1ms, prepare 65ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/conversation-service/src/student-client.test.ts > the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)
+AssertionError: expected [ Array(1) ] to include 'You submitted your application on the…'
+ ❯ apps/conversation-service/src/student-client.test.ts:1559:24
+    1557|       expect(await page.locator("#targets h2").textContent()).toBe(`${…
+    1558|       const headings = await page.locator("#pending h2").allTextConten…
+    1559|       expect(headings).toContain(
+       |                        ^
+    1560|         `${said} I cannot tell whether these were attached before you …
+    1561|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

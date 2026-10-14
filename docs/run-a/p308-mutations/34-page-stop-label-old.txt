@@ -1,0 +1,36 @@
+# P308 mutation 34-page-stop-label-old
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+  const stop = stopLabelFor(view.run.run?.status, view.run.submitted);
+# with:
+  const stop = view.run.run?.status === "completed" ? null : "Stop this application";
+# command: pnpm exec vitest run apps/conversation-service/src/student-client.test.ts -t after a record, every surface
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |chromium| apps/conversation-service/src/student-client.test.ts (29 tests | 1 failed | 28 skipped) 1058ms
+   × the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition) 399ms
+     → expected [ 'I have attached this myself', …(1) ] to include 'Stop here (this does not withdraw the…'
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 skipped (29)
+   Start at  10:10:48
+   Duration  4.58s (transform 1.73s, setup 0ms, collect 3.16s, tests 1.06s, environment 0ms, prepare 77ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |chromium|  apps/conversation-service/src/student-client.test.ts > the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)
+AssertionError: expected [ 'I have attached this myself', …(1) ] to include 'Stop here (this does not withdraw the…'
+ ❯ apps/conversation-service/src/student-client.test.ts:1563:23
+    1561|       );
+    1562|       const buttons = await page.locator("#pending button").allTextCon…
+    1563|       expect(buttons).toContain("Stop here (this does not withdraw the…
+       |                       ^
+    1564|       expect(buttons).not.toContain("Stop this application");
+    1565|       // The choice on the portal's cookies stays visible and changeab…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -1,0 +1,7 @@
+My decisions on P307.
+
+Your choices D7 to D12 in ADR-0159: accepted. One addition to D7: whatever the case's internal state, what the student sees must say plainly that the application was submitted, by them, on that date.
+
+Standing rule from now on, in my words: for any open point where you give a recommendation, apply your recommendation and record it as yours, unless it touches one of these four: submitting an application, money, a student's personal data, or legal or declaration text. Those four always come to me. List what you applied under this rule at the end of each report, one line each. Apply this rule now to rows 181 and 182, and tell me which of their points fall under the four.
+
+Next: my live run. From P302's twelve items, tell me which are now done and which remain, as a short list. Then give me the live run as plain numbered steps on my machine: what to start, the exact words to type in chat for the three corrections, where the run stops before page 12, and the exact command to record my own submission afterwards.

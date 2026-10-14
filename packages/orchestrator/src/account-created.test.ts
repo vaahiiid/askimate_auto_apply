@@ -75,6 +75,8 @@ function stateWith(input: {
   readonly observed?: ObservedPortalAuthentication;
   /** ADR-0159 O10 (P307): a person recorded a submission made by hand. */
   readonly submittedByHand?: Date;
+  /** The date stated with it (P308); the instant's UTC day when not given. */
+  readonly submittedOn?: string;
 }): RunState {
   return beginRun({
     inputs: {
@@ -86,7 +88,9 @@ function stateWith(input: {
       studentPresentAtCreation: true,
       ...(input.observed === undefined ? {} : { portalAuthentication: input.observed }),
       passwordDelivery: "askimate_secure_channel",
-      ...(input.submittedByHand === undefined ? {} : { submittedByHand: { submittedAt: input.submittedByHand } }),
+      ...(input.submittedByHand === undefined
+        ? {}
+        : { submittedByHand: { submittedAt: input.submittedByHand, submittedOn: input.submittedOn ?? input.submittedByHand.toISOString().slice(0, 10) } }),
     },
     profile: input.profile,
     interview: newInterview({
@@ -342,19 +346,22 @@ describe("where the account stands", () => {
   });
 
   it("hands back with words for an application already submitted, once a person records one (ADR-0159 O10, P307)", () => {
-    const text = (submittedByHand?: Date): string =>
-      accountCreated(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED, ...(submittedByHand === undefined ? {} : { submittedByHand }) }), {
+    const text = (submittedByHand?: Date, submittedOn?: string): string =>
+      accountCreated(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED, ...(submittedByHand === undefined ? {} : { submittedByHand }), ...(submittedOn === undefined ? {} : { submittedOn }) }), {
         accountId: "acct-1",
         now: NOW,
         handover: evidence({ completed: ["registration_email"] }),
       })?.account?.handover?.presentedText ?? "";
     const before = text();
-    const after = text(new Date("2026-10-13T09:00:00Z"));
+    // 00:30 in summer time on 13 October is 23:30 UTC on the 12th: the date
+    // stated is the one said, never the UTC day (the P308 review).
+    const after = text(new Date("2026-10-12T23:30:00Z"), "2026-10-13");
     expect(before).toContain("Please do not change the password until you have submitted your application.");
     // His rule (ADR-0159): not until every submission is done, and change it after. After is now.
     expect(after).not.toContain("until you have submitted");
-    expect(after).toContain("Your application has been submitted, so we advise you to change the password now");
-    expect(after).toContain("has been recorded as submitted on the university's website, and the account is yours.");
+    expect(after).toContain("You have submitted your application, so we advise you to change the password now");
+    // P308, his D7 addition: submitted, by them, on that date.
+    expect(after).toContain("You submitted your application to Gated University on the university's website on 13 October 2026, and the account is yours.");
     expect(after).not.toContain("is complete, and the account is yours.");
   });
 

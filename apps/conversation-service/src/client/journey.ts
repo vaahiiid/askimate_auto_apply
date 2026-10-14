@@ -58,7 +58,18 @@ import {
 } from "@askimate/aas-conversation";
 
 import * as api from "./transport.js";
-import { CHOOSING_LINE, CV_UPLOAD_SENTENCE, positionLine, type StudentWords } from "./words.js";
+import {
+  CHOOSING_LINE,
+  CV_UPLOAD_SENTENCE,
+  positionLine,
+  SUBMITTED_OFFER_BUTTON,
+  SUBMITTED_OFFER_HEADING,
+  stopLabelFor,
+  submittedLine,
+  submittedOwnActsHeading,
+  submittedTargetsHeading,
+  type StudentWords,
+} from "./words.js";
 
 /** Everything drawn, in one object, replaced whole on every read. */
 interface View {
@@ -95,7 +106,7 @@ interface View {
 const view: View = {
   conversationId: null,
   events: [],
-  run: { run: null, pending: null, ownActs: [], consent: null },
+  run: { run: null, pending: null, ownActs: [], consent: null, submitted: null },
   targets: [],
   offer: null,
   preview: null,
@@ -198,7 +209,7 @@ async function refresh(): Promise<void> {
   }
   if (run.ok) view.run = run.value;
   else {
-    view.run = { run: null, pending: null, ownActs: [], consent: null };
+    view.run = { run: null, pending: null, ownActs: [], consent: null, submitted: null };
     report(run.code);
   }
 
@@ -285,7 +296,9 @@ function drawTargets(): void {
     heading,
     view.run.run === null
       ? "What would you like to apply to?"
-      : "To carry on, choose the application again — it picks up where you left it.",
+      : view.run.submitted !== null
+        ? submittedTargetsHeading(view.run.submitted.on)
+        : "To carry on, choose the application again — it picks up where you left it.",
   );
   panel.append(heading);
 
@@ -333,7 +346,7 @@ function drawOffer(): void {
   if (offer === null || !mayChoose()) return;
 
   const heading = document.createElement("h2");
-  text(heading, "This is what I would apply for");
+  text(heading, view.run.submitted === null ? "This is what I would apply for" : SUBMITTED_OFFER_HEADING);
   const body = document.createElement("pre");
   // The server's own deterministic rendering, shown verbatim. This client does
   // not compose it, summarise it, or re-order it.
@@ -348,7 +361,7 @@ function drawOffer(): void {
     heading,
     body,
     statement,
-    button("Apply to this for me", () => {
+    button(view.run.submitted === null ? "Apply to this for me" : SUBMITTED_OFFER_BUTTON, () => {
       void applyForOffer(offer.offerHash);
     }),
     button(
@@ -400,7 +413,17 @@ function drawPending(): void {
   // sentence comes from `words.ts`, typed over the closed vocabularies, and
   // this element accepts nothing else.
   // P290: a choice from the form's own list is the student's, not a person's.
-  position(where, pending?.decision === "choose_entry" ? CHOOSING_LINE : positionLine(run));
+  // P308, his D7 addition: once a submission made by hand is recorded, the
+  // line says the student submitted it, on that date, whatever the status.
+  const submitted = view.run.submitted;
+  position(
+    where,
+    pending?.decision === "choose_entry"
+      ? CHOOSING_LINE
+      : submitted === null
+        ? positionLine(run)
+        : submittedLine(run.status, submitted.on),
+  );
   panel.append(where);
 
   if (pending !== null && pending.decision === "consent_choice") {
@@ -606,7 +629,12 @@ function drawPending(): void {
   const owed = view.run.ownActs;
   if (owed.length > 0) {
     const heading = document.createElement("h2");
-    text(heading, "Still yours to do — nobody is watching this, and nobody will remind you");
+    text(
+      heading,
+      view.run.submitted === null
+        ? "Still yours to do — nobody is watching this, and nobody will remind you"
+        : submittedOwnActsHeading(view.run.submitted.on),
+    );
     panel.append(heading);
     for (const act of owed) {
       const line = document.createElement("p");
@@ -628,10 +656,12 @@ function drawPending(): void {
   // the architecture says a stop button that only worked sometimes would not
   // be one — not because a read mentioned it. Not on a completed run (P307):
   // there is nothing left to stop, and the service refuses it.
-  if (view.run.run?.status !== "completed") {
+  // And not on an abandoned run after a record (the P308 review).
+  const stop = stopLabelFor(view.run.run?.status, view.run.submitted);
+  if (stop !== null) {
     panel.append(
       button(
-        "Stop this application",
+        stop,
         () => {
           void answer("cancel");
         },

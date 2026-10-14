@@ -257,6 +257,42 @@ describe("the published demonstrations", () => {
     });
   });
 
+  describe("interventions, after a submission made by hand (P308)", () => {
+    // A stand-in service, in its own process because `run` blocks this one: it
+    // lists one held stop and takes a resolution of it.
+    const STUB =
+      "const iv={interventionId:'iv_held',runId:'run_1',caseId:'case_stub_1',studentRef:'s1',priority:'high'," +
+      "reason:'page_save_may_submit',action:'advance_portal_page',target:'held:page12',portal:'gated.portal.test'," +
+      "phase:'filling',encountered:'held',expected:'x',raisedAt:new Date().toISOString(),announced:true};" +
+      "let resolved=false;" +
+      "require('node:http').createServer((q,s)=>{let b='';q.on('data',d=>b+=d).on('end',()=>{" +
+      "s.writeHead(200,{'content-type':'application/json'});" +
+      "if(q.method==='POST'){resolved=true;s.end(JSON.stringify({intervention:iv}));return;}" +
+      "s.end(JSON.stringify({interventions:resolved?[]:[iv]}));});})" +
+      ".listen(0,'127.0.0.1',function(){console.log(this.address().port);});";
+    it("lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student", async () => {
+      const stub = spawn(process.execPath, ["-e", STUB]);
+      try {
+        const port = await new Promise<string>((done) => stub.stdout.once("data", (chunk: Buffer) => done(chunk.toString().trim())));
+        const env = { AAS_SERVICE_CERT: "operator", AAS_CONVERSATION_URL: `http://127.0.0.1:${port}` };
+        const listed = run("interventions.ts", [], env);
+        expect(listed.code).toBe(0);
+        expect(listed.out).toMatch(/case\s+case_stub_1/u);
+        const resolved = run(
+          "interventions.ts",
+          ["resolve", "iv_held", "--specialist", "vahid", "--did-not-happen", "--actions", "submitted by hand", "--resolution", "resume"],
+          env,
+        );
+        expect(resolved.code).toBe(0);
+        expect(resolved.out).toContain("unless the case");
+        expect(resolved.out).toContain("holds a submission made by hand: then nothing is said here");
+        expect(resolved.out).not.toContain("The run is back in the pool, and the student has been told it is moving again.");
+      } finally {
+        stub.kill();
+      }
+    });
+  });
+
   describe("deletion-requests", () => {
     // P275, row 130. Closing one tells a student, so the command must refuse
     // without the credential, and refuse a closing that does not say which —
@@ -314,6 +350,18 @@ describe("the published demonstrations", () => {
       const both = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--at", AT, "--observed", "--stated"], offline);
       expect(both.code).not.toBe(0);
       expect(both.out).toContain("Say exactly one of --observed");
+    });
+    it("REFUSES a date that does not exist and a zone no place keeps, before the service (the P308 review)", () => {
+      // A JavaScript date rolls 30 February forward to 2 March, and parses an
+      // offset of -20:00; the date typed is the date the student is told.
+      for (const at of ["2026-02-30T10:00:00Z", "2026-04-31T10:00:00+01:00", "2026-10-14T23:30:00-20:00", "2026-10-14T09:30:00+15:00"]) {
+        const refused = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--at", at, "--observed"], offline);
+        expect(refused.code, at).not.toBe(0);
+        expect(refused.out, at).toContain("--at is required");
+        expect(refused.out, at).not.toContain("The service refused");
+      }
+      const ends = run("submission-by-hand.ts", ["case_x", "--by", "vahid", "--at", "2026-10-14T23:30:00-12:00", "--observed"], offline);
+      expect(ends.out, "-12:00 is a real zone: it reaches the service").not.toContain("--at is required");
     });
   });
 

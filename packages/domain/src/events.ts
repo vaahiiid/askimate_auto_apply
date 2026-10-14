@@ -517,6 +517,14 @@ export interface SubmissionByHandRecorded {
   readonly type: "SubmissionByHandRecorded";
   /** When it was submitted, as the person established it. */
   readonly submittedAt: Date;
+  /**
+   * The calendar date it was submitted on, `YYYY-MM-DD`, in the zone the person
+   * stated the time in (P308). What the student is told, because Vahid,
+   * 2026-10-14: *"what the student sees must say plainly that the application
+   * was submitted, by them, on that date."* An instant has a date only in a
+   * zone, and 00:30 in Birmingham in summer is the day before in UTC.
+   */
+  readonly submittedOn: string;
   readonly source: "observed" | "stated";
 }
 

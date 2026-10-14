@@ -1,0 +1,48 @@
+# P308 mutation 11-route-drops-date
+# file: apps/conversation-service/src/routes.ts
+# replaced:
+          submitted: reading?.submitted ?? null,
+# with:
+          submitted: null,
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307|P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (386 tests | 1 failed | 366 skipped) 4232ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 433ms
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 419ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 436ms
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a time typed at 00:30 in its own zone is told as that date, not the UTC day before; the page reads it too 190ms
+     → the route carries it to the page: expected null to deeply equal { on: '2026-08-30' }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed | 366 skipped (386)
+   Start at  10:08:02
+   Duration  8.04s (transform 2.31s, setup 0ms, collect 3.42s, tests 4.23s, environment 0ms, prepare 78ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > a time typed at 00:30 in its own zone is told as that date, not the UTC day before; the page reads it too
+AssertionError: the route carries it to the page: expected null to deeply equal { on: '2026-08-30' }
+
+- Expected: 
+Object {
+  "on": "2026-08-30",
+}
+
++ Received: 
+null
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19954:110
+    19952|       const page = await fetch(`${base}/v1/conversations/${conversatio…
+    19953|       expect(page.status).toBe(200);
+    19954|       expect(((await page.json()) as { submitted?: unknown }).submitte…
+       |                                                                                                              ^
+    19955|     } finally {
+    19956|       await new Promise<void>((resolve) => listening.close(() => resol…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

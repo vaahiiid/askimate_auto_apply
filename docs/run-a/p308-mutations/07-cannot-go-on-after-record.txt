@@ -1,0 +1,65 @@
+# P308 mutation 07-cannot-go-on-after-record
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+  const opening =
+    submittedByHand === undefined
+
+# with:
+  const opening =
+    true
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P307|P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (386 tests | 2 failed | 366 skipped) 4447ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 427ms
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 510ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 486ms
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon after a record says the student submitted it, on that date, and never that it cannot go on 230ms
+     → expected 'Someone on the team has looked at you…' not to contain 'cannot go on'
+   × what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon of a case that can no longer be wound down still says the student submitted it, on that date 172ms
+     → expected 'Someone on the team has looked at you…' to contain 'Someone on the team has stopped work …'
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 18 passed | 366 skipped (386)
+   Start at  10:07:22
+   Duration  8.31s (transform 2.37s, setup 0ms, collect 3.50s, tests 4.45s, environment 0ms, prepare 65ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon after a record says the student submitted it, on that date, and never that it cannot go on
+AssertionError: expected 'Someone on the team has looked at you…' not to contain 'cannot go on'
+
+Expected: "cannot go on"
+Received: "Someone on the team has looked at your Gated University application, and it cannot go on, so I have stopped work on it and I will not start anything new on it. It is stopped, but it is not finished: I was creating an account for you at Gated University, and I do not yet know whether the university made it. A member of the team will find out, and I will tell you when it is finished. You submitted your application on the university's website on 30 August 2026. Stopping here does not withdraw it. If you want your data deleted rather than just stopped, tell me — that is a separate request and I will pass it to a person."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20007:25
+    20005|     if (abandon === undefined) expect.unreachable("the abandon is said…
+    20006|     expect(abandon).toContain("You submitted your application on the u…
+    20007|     expect(abandon).not.toContain("cannot go on");
+       |                         ^
+    20008|     expect(lines.some((content) => content.includes("Nothing was submi…
+    20009|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > what the student sees says they submitted it, on the date stated (P308, his D7 addition) > an abandon of a case that can no longer be wound down still says the student submitted it, on that date
+AssertionError: expected 'Someone on the team has looked at you…' to contain 'Someone on the team has stopped work …'
+
+Expected: "Someone on the team has stopped work on your Gated University application, and I will not start anything new on it. You submitted your application on the university's website on 30 August 2026. Stopping here does not withdraw it."
+Received: "Someone on the team has looked at your Gated University application, and it cannot go on, so I have stopped work on it and I will not start anything new on it. You submitted your application on the university's website on 30 August 2026. Stopping here does not withdraw it."
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:20074:21
+    20072|     const abandon = lines.find((content) => content.startsWith("Someon…
+    20073|     if (abandon === undefined) expect.unreachable("the abandon is said…
+    20074|     expect(abandon).toContain(
+       |                     ^
+    20075|       "Someone on the team has stopped work on your Gated University a…
+    20076|         "You submitted your application on the university's website on…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
