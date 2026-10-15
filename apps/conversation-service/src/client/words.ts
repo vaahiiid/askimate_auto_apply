@@ -147,13 +147,19 @@ export const SUBMITTED_STOP_LABEL: StudentWords = mint("Stop here (this does not
 
 /**
  * The stop's label, or `null` where there is nothing left to stop (ADR-0053):
- * a completed run (P307), and an abandoned one after a record, whose line has
- * just said so (the P308 review).
+ * a completed run (P307); an abandoned one; and one the service says is
+ * stopped and winding down (P313, his finding 2: *"The "Stop this
+ * application" button is still shown on the closed application."*). A second
+ * press on any of them was refused, and the page then said "That is not
+ * available any more".
  */
-export function stopLabelFor(status: RunStatus | undefined, submitted: { readonly on: string } | null): string | null {
-  if (status === "completed") return null;
-  if (submitted === null) return "Stop this application";
-  return status === "abandoned" ? null : SUBMITTED_STOP_LABEL;
+export function stopLabelFor(
+  status: RunStatus | undefined,
+  submitted: { readonly on: string } | null,
+  stopped: { readonly concluded: boolean } | null = null,
+): string | null {
+  if (status === "completed" || status === "abandoned" || stopped !== null) return null;
+  return submitted === null ? "Stop this application" : SUBMITTED_STOP_LABEL;
 }
 
 /**

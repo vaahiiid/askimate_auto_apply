@@ -81,6 +81,8 @@ ADR-0158."* The steps below are today's code.
    await fetch("/dev/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ subject: "5774ff16-ff9c-424a-882f-42d0f304968b" }) });
    ```
    Then open `http://127.0.0.1:4870/` and continue conversation `01M3D473G7EWJDKZ50BTSVEDW7`.
+   *P313:* after the stop of 2026-10-15 that conversation's application has ended; it reads nothing
+   typed as an answer. The way on is `docs/run-a/p313-restart-steps.md`.
 
 4. **The three corrections, typed in the chat, one sentence at a time.** After each, the chat
    plays the change back; press **"Yes, that's right"** before typing the next. A sentence typed

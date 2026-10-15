@@ -384,6 +384,15 @@ export type RunRefusal =
   | { readonly kind: "unknown_conversation" }
   | { readonly kind: "case_not_bindable" }
   /**
+   * P313. This conversation's own application has ended (completed, or
+   * stopped and set aside), and a conversation owns at most one case: a new
+   * application, or a second attempt at this one, lives in a new conversation.
+   * Before P313 a start here reached `startRun` with the run id that exists
+   * and answered 500; a re-application here wrote its instruction onto the
+   * ended case itself, after which every later one was refused.
+   */
+  | { readonly kind: "application_ended" }
+  /**
    * This student already has an application for this institution, course and
    * intake (ADR-0006).
    *
@@ -609,6 +618,12 @@ export interface RunReading {
    * status; `null` when none is recorded.
    */
   readonly submitted: { readonly on: string } | null;
+  /**
+   * P313, item 2: the application is stopped (`concluded: false` while it
+   * winds down, `true` once its case is terminal), so the page draws no stop
+   * and, once concluded, the way to a new application; `null` while it is not.
+   */
+  readonly stopped: ApplicationStop | null;
 }
 
 export type RunOutcome =
@@ -925,6 +940,74 @@ function heldForAPersonMessage(entry: CatalogueEntry, submittedByHand: string | 
     `something I cannot settle on my own, so I have passed it to a member of the team. I will ` +
     `tell you when it is finished. ${submittedWords(submittedByHand)}`
   );
+}
+
+/**
+ * What a student reads when they write to an application that is stopped
+ * (P313, item 2).
+ *
+ * His words (docs/run-a/p313-his-message-as-sent.txt): *"After the stop, the
+ * case said "this application is closed", but the interview kept asking
+ * questions (EU, British passport), and my typed "Apply for me to the MSc at
+ * Sheffield" was read as an answer to the EU question."* Each clause is a test
+ * case: nothing typed is read as an answer; once it has concluded nothing more
+ * is asked; and the button it names is on the page. While it winds down the
+ * account may still be handed back with a question of its own, so "nothing
+ * more is asked" is said only once it has concluded.
+ */
+export function stoppedApplicationMessage(stop: ApplicationStop, submittedOn?: string): string {
+  // P308: after a submission recorded as made by hand, every surface says the
+  // student submitted it, and nothing offers to apply for it again (the P313
+  // review: a new application here is a duplicate of a submitted one, and
+  // whether one may be offered touches submitting, which is his).
+  if (submittedOn !== undefined) {
+    return `${youSubmitted(null, submittedOn)} My work on it here is stopped, so I have not read your message as an answer to a question about it.`;
+  }
+  if (!stop.concluded) {
+    return "This application is stopped, so I have not read your message as an answer to a question about it.";
+  }
+  // No direction: the button is drawn in the page's own place for decisions,
+  // and the line in the conversation; the P313 review found "below" untrue.
+  return (
+    "This application is stopped and closed, so I have not read your message as an answer, and I am not asking " +
+    'anything more for it. To apply again, press "Start a new application".'
+  );
+}
+
+/**
+ * An application the student stopped, or a person set aside: `null` while it
+ * is neither (P313, item 2). `concluded` once its case is terminal, which is
+ * when a second attempt may be instructed (ADR-0006) and so when the page may
+ * offer a new application.
+ */
+export interface ApplicationStop {
+  readonly concluded: boolean;
+}
+
+/**
+ * Read from the CASE, where "the student stopped" is a durable fact, and from
+ * the run, which a person's set-aside marks `abandoned` (ADR-0053; P313).
+ */
+/**
+ * The decisions a stopped application refuses as `not_asked` (P313, item 2):
+ * the interview's, and a portal account declared for a run that will not run.
+ * Not the stop itself, the account's hand-back, what the student owes, their
+ * word on a CV, or their choice on a portal's consent notice, which is theirs
+ * per portal rather than this application's.
+ */
+const STOPPED_TAKES_NO: ReadonlySet<StudentDecision["kind"]> = new Set([
+  "confirm_value",
+  "choose_reading",
+  "choose_entry",
+  "correct_entry",
+  "existing_account",
+]);
+
+function applicationStopOf(record: WorkflowRunRecord, held: ReturnType<typeof fold> | null): ApplicationStop | null {
+  const state = held?.state;
+  const stopped = record.status === "abandoned" || state === "WINDING_DOWN" || state === "CANCELLED";
+  if (!stopped) return null;
+  return { concluded: state !== undefined && isTerminal(state) };
 }
 
 function cancellationMessage(
@@ -1900,6 +1983,10 @@ const LATE_DECLINED_THE_CV = "You said no, so I have deleted your CV. Your jobs 
 const READ_BEFORE_ASKING_QUESTION = "I read your CV before I should have asked. Do you want me to use what I read, or would you rather tell me yourself?";
 const USING_WHAT_I_READ = "Thank you. I will use what I read from your CV, and ask you what it did not say.";
 const SET_ASIDE_THE_CV = "You said no, so I have deleted your CV and set aside what I read from it. I will ask you about your jobs and qualifications as usual.";
+// P313: the same no, on a stopped application. The CV is deleted as on any no;
+// "I will ask you … as usual" is not said, because nothing more is asked.
+const DECLINED_THE_CV_STOPPED = "You said no, so I have deleted your CV.";
+const SET_ASIDE_THE_CV_STOPPED = "You said no, so I have deleted your CV and set aside what I read from it.";
 // P254. A CV that arrives while its own field is open, or ahead of it. Vahid:
 // *"The open question yields… The honest question when entries exist names
 // them and says plainly that a yes starts the list again… A document held in
@@ -3445,6 +3532,14 @@ export class RunDriver {
           const held = existing.find((record) => isHeldByAPerson(record.status));
           if (held !== undefined) return this.#heldPosition(held, input.conversationId);
 
+          // ── An application that has ended starts nothing more here (P313) ──
+          //
+          // What is left is `completed` or `abandoned`, both terminal. Before
+          // P313 this fell through to `startRun` with the run id that exists,
+          // which threw `RunAlreadyExistsError` and answered 500. A new
+          // application lives in a new conversation (ADR-0006).
+          if (existing.length > 0) return { ok: false, refusal: { kind: "application_ended" } };
+
           // ── The case's first event ────────────────────────────────────
           //
           // Written before the run, because a run whose case has no log is a
@@ -3682,6 +3777,9 @@ export class RunDriver {
       entry,
     });
     if (latest === null) return { ok: false, refusal: { kind: "no_prior_application" } };
+    // P313: a second attempt is not instructed from a conversation that holds
+    // an application of its own; see `reapply`.
+    if (await this.#holdsAnApplication(bound.caseId, latest.caseId)) return { ok: false, refusal: { kind: "application_ended" } };
 
     // ── No `nextIntake`, and that is deliberate ─────────────────────────
     //
@@ -3767,6 +3865,17 @@ export class RunDriver {
 
     const latest = await this.#latestAttempt({ studentRef, entry });
     if (latest === null) return { ok: false, refusal: { kind: "no_prior_application" } };
+    // ── Never from a conversation that holds an application (P313) ──────
+    //
+    // The new case's id is this conversation's, `case_<conversation>`. In a
+    // conversation that already holds a case — the prior's own, or an earlier
+    // attempt's (the P313 review) — the instruction below would be written onto
+    // the LATEST case, the start would then fail on the run this one already
+    // has, and the domain would refuse every later re-application as "already
+    // led to a second one". Refused before anything is written. A new
+    // conversation, refused `already_applying`, holds a binding and an empty
+    // case, and passes.
+    if (await this.#holdsAnApplication(bound.caseId, latest.caseId)) return { ok: false, refusal: { kind: "application_ended" } };
 
     // ── The recommendation, read back rather than taken from the caller ──
     //
@@ -4989,9 +5098,18 @@ export class RunDriver {
     // choice for a form that will not be filled.
     const byHandAsksNothing =
       situation.ok && situation.state.inputs.submittedByHand !== undefined && handoffFor(situation.step) === null;
-    const pending = situation.ok && !heldAhead && !byHandAsksNothing
-      ? await this.#pendingDecision(record.caseId, conversationId, situation.step, { entry, state: situation.state })
+    // ADR-0108: what is owed, from the case log — the same record a
+    // specialist reads, and the one the student's word closes.
+    const events = await this.#options.stores.cases.read(record.caseId);
+    const folded = events.length === 0 ? null : fold(events);
+    // P313, item 2: a stopped application publishes nothing to press but the
+    // account's hand-back. Before P313 the playback that stood when the
+    // student stopped was drawn, and a press on it asked the next question.
+    const stopped = applicationStopOf(record, folded);
+    const found = situation.ok && !heldAhead && !byHandAsksNothing
+      ? await this.#pendingDecision(record.caseId, conversationId, situation.step, { entry, state: situation.state }, stopped !== null)
       : null;
+    const pending = stopped !== null && found?.decision !== "confirm_handoff" ? null : found;
     const run: RunPosition = {
       runId: record.runId,
       caseId: record.caseId,
@@ -5021,15 +5139,11 @@ export class RunDriver {
       resumed: true,
       concerns: [],
     };
-    // ADR-0108: what is owed, from the case log — the same record a
-    // specialist reads, and the one the student's word closes.
-    const events = await this.#options.stores.cases.read(record.caseId);
-    const folded = events.length === 0 ? null : fold(events);
     const ownActs = folded === null ? [] : ownActReadingsOf(folded.ownActs);
     // ADR-0131: the portal's consent notice and the student's choice on it.
     const consent = await this.#consentReading(entry, record.studentRef);
     const byHand = folded?.submittedByHand;
-    return { run, pending, ownActs, consent, submitted: byHand === undefined ? null : { on: byHand.submittedOn } };
+    return { run, pending, ownActs, consent, submitted: byHand === undefined ? null : { on: byHand.submittedOn }, stopped };
   }
 
   /**
@@ -5100,17 +5214,23 @@ export class RunDriver {
     step: RunStep,
     /** P290: what an offer of the form's own list is derived from, where the caller holds it. */
     offerFrom?: { readonly entry: CatalogueEntry; readonly state: RunState },
+    /**
+     * P313: a stopped application's read asks for the hand-back alone, so a CV
+     * question that stood before the stop does not hide its buttons.
+     */
+    handBackOnly = false,
   ): Promise<PendingDecision | null> {
+    if (handBackOnly && handoffFor(step) === null) return null;
     // P251, ADR-0151: the CV question, while it stands. Derived from the
     // readings table, never from the client.
-    const offered = await this.#options.readings?.heldFor(conversationId);
+    const offered = handBackOnly ? null : await this.#options.readings?.heldFor(conversationId);
     if (offered !== undefined && offered !== null && offered.state === "offered") {
       const asked = await this.#documentQuestion(conversationId, offered.studentId);
       return { decision: "use_document", documentId: offered.documentId, ...asked };
     }
     // P253, row 108: the honest question after a reading nobody was asked
     // about, while it stands.
-    const unasked = await this.#options.readings?.unaskedFor(conversationId);
+    const unasked = handBackOnly ? null : await this.#options.readings?.unaskedFor(conversationId);
     if (unasked !== undefined && unasked !== null && unasked.askedAfterReadingAt !== null) {
       return { decision: "use_document", documentId: unasked.documentId, question: READ_BEFORE_ASKING_QUESTION, situation: "read_before_asking" };
     }
@@ -5118,7 +5238,7 @@ export class RunDriver {
     // ADR-0131: the consent question, in the banner's own words. No hash —
     // the answer is a choice of the student's own, not agreement to
     // something shown.
-    const consent = consentQuestionOf(step);
+    const consent = handBackOnly ? null : consentQuestionOf(step);
     if (consent !== null) {
       return { decision: "consent_choice", question: consentBannerReading(consent.portalHost, consent.banner) };
     }
@@ -5459,6 +5579,9 @@ export class RunDriver {
     // Before the run's situation is asked, as the owed act is: the question
     // stands on the readings table, and the answer moves it there.
     if (input.decision.kind === "use_document") {
+      // P313: no reading starts for a stopped application, so a yes is not
+      // taken. A no is: it deletes the CV, as every no to it does (ADR-0151).
+      if (input.decision.use && (await this.#applicationStopFor(input.conversationId)) !== null) return { ok: false, reason: "not_asked" };
       const held = await this.#options.readings?.heldFor(input.conversationId);
       if (held !== undefined && held !== null && held.state === "offered") {
         if (held.documentId !== input.decision.documentId) return { ok: false, reason: "refused" };
@@ -5547,6 +5670,16 @@ export class RunDriver {
         },
       });
       return { ok: true };
+    }
+
+    // ── A stopped application takes no answer (P313, item 2) ──────────────
+    //
+    // Until P313 a press on the playback that stood when the student stopped
+    // was confirmed into the profile and the next question asked. The consent
+    // choice above is per student and portal, not this application's, and stays
+    // changeable; the stop, the hand-back and what they owe are below and above.
+    if (applicationStopOf(record, held) !== null && STOPPED_TAKES_NO.has(input.decision.kind)) {
+      return { ok: false, reason: "not_asked" };
     }
 
     if (input.decision.kind === "existing_account") {
@@ -6464,6 +6597,17 @@ export class RunDriver {
     // A plain yes to D31's offer: the details are meant (P275).
     if (await this.#acceptedTheDetailsOffer(input.conversationId, answer)) return;
 
+    // ── A stopped application reads nothing as an answer (P313, item 2) ──
+    //
+    // After the deletion readings above, which the stop itself promised
+    // ("If you want your data deleted rather than just stopped, tell me"), and
+    // before everything that would read the message as an answer, a
+    // correction or a word on the CV.
+    // A plain no to a CV question that stood at the stop deletes the CV, as
+    // every no to it does (ADR-0151); a yes is not taken.
+    if (await this.#declinedTheCvAfterTheStop(input.conversationId, answer)) return;
+    if (await this.#saidToAStoppedApplication(input.conversationId)) return;
+
     // ── The CV question, answered in words rather than pressed (P251) ────
     //
     // While the question stands, a plain yes or no is the decision; anything
@@ -6542,18 +6686,7 @@ export class RunDriver {
     // is kept on the log as they sent it, records nothing, and is answered
     // once, pointing at the two buttons.
     if (handoffFor(situated.step) === "registration_email") {
-      const email = situated.state.account === undefined ? null : unwrapConfirmed(situated.state.account.email);
-      await this.#options.conversations.append({
-        conversationId: input.conversationId,
-        event: {
-          kind: "message",
-          actor: "assistant",
-          content:
-            `Please answer with one of the two buttons under my question: whether the e-mail from ` +
-            `${situated.entry.blueprint.institutionName}'s application portal has reached ` +
-            `${email ?? "your e-mail address"}.`,
-        },
-      });
+      await this.#pointAtTheRegistrationButtons(input.conversationId, situated);
       return;
     }
     if (interviewActionOf(situated.step) === null) return;
@@ -6567,6 +6700,9 @@ export class RunDriver {
       answer,
       this.#options.model,
     );
+    // P313: a stop pressed while the model read the answer stops it here,
+    // before anything of it is written.
+    if (await this.#saidToAStoppedApplication(input.conversationId)) return;
     if (outcome.kind === "ambiguous") {
       // P225. The answer reads more than one way: the readings are put to the
       // student to pick from. Nothing is asked again and nothing is counted —
@@ -7176,6 +7312,81 @@ export class RunDriver {
    * Everything `answerStudent` and `recordDecision` need about a conversation,
    * or `null` when it is not in an interview at all.
    */
+  /**
+   * Whether the conversation's own case is an application already: the latest
+   * attempt itself, or a case with a log or a run (P313).
+   */
+  async #holdsAnApplication(boundCaseId: string, latestCaseId: CaseId): Promise<boolean> {
+    if (String(latestCaseId) === boundCaseId) return true;
+    const own = makeCaseId(boundCaseId);
+    if ((await this.#options.stores.cases.currentSequence(own)) > 0) return true;
+    return (await this.#options.stores.runs.findByCase(own)).length > 0;
+  }
+
+  /** The registration e-mail question's answer to a typed line: its two buttons (P306, ADR-0159 O3). */
+  async #pointAtTheRegistrationButtons(
+    conversationId: string,
+    situated: { readonly entry: CatalogueEntry; readonly state: RunState },
+  ): Promise<void> {
+    const email = situated.state.account === undefined ? null : unwrapConfirmed(situated.state.account.email);
+    await this.#options.conversations.append({
+      conversationId,
+      event: {
+        kind: "message",
+        actor: "assistant",
+        content:
+          `Please answer with one of the two buttons under my question: whether the e-mail from ` +
+          `${situated.entry.blueprint.institutionName}'s application portal has reached ` +
+          `${email ?? "your e-mail address"}.`,
+      },
+    });
+  }
+
+  /**
+   * This conversation's application, when it is stopped (P313, item 2): the
+   * stop and the case it was read from; `null` while it is not stopped, or
+   * there is no application.
+   */
+  async #applicationStopFor(conversationId: string): Promise<{ readonly stop: ApplicationStop; readonly held: ReturnType<typeof fold> | null } | null> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null) return null;
+    const record = (await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId)))[0];
+    if (record === undefined) return null;
+    const log = await this.#options.stores.cases.read(record.caseId);
+    const held = log.length === 0 ? null : fold(log);
+    const stop = applicationStopOf(record, held);
+    return stop === null ? null : { stop, held };
+  }
+
+  /**
+   * Answers a typed line on a stopped application, and says whether it did
+   * (P313, item 2): nothing typed is read as an answer.
+   */
+  async #saidToAStoppedApplication(conversationId: string): Promise<boolean> {
+    const found = await this.#applicationStopFor(conversationId);
+    if (found === null) return false;
+    // While it winds down with the registration question standing inside the
+    // hand-back, a typed line is answered as P306 answers it, pointing at the
+    // two buttons (ADR-0159 O3): the question stands, and the buttons are the
+    // way to answer it (the P313 review).
+    if (!found.stop.concluded) {
+      const situated = await this.#interviewSituation(conversationId);
+      if (situated !== null && handoffFor(situated.step) === "registration_email") {
+        await this.#pointAtTheRegistrationButtons(conversationId, situated);
+        return true;
+      }
+    }
+    await this.#options.conversations.append({
+      conversationId,
+      event: {
+        kind: "message",
+        actor: "assistant",
+        content: stoppedApplicationMessage(found.stop, found.held?.submittedByHand?.submittedOn),
+      },
+    });
+    return true;
+  }
+
   async #interviewSituation(conversationId: string): Promise<{
     readonly entry: CatalogueEntry;
     readonly record: WorkflowRunRecord;
@@ -7194,6 +7405,15 @@ export class RunDriver {
     // A completed run asks nothing more (P307: only a case recorded as
     // submitted by hand completes one, and it said nothing more would be done).
     if (record.status === "completed") return null;
+    // NOT refused for a stopped application (the P313 review): the hand-back,
+    // a person's resume and its re-plan read their situation here while the
+    // stop winds down. What a stopped application must not do — ask, take an
+    // answer, offer a press, put the CV question — is refused where each is
+    // done, each through `#applicationStopFor`: `answerStudent` (before the
+    // answer is read and again after the model returns), `#askTheStudent`,
+    // `#putTheQuestion` (inside the lock), `#putToTheStudent`,
+    // `#askAfterWriting`, `#askAgainAfterResolution`, `recordDecision`,
+    // `runFor`, `sayAgain`, `#quietForTheCv` and `#sayWhatArrived`.
     const situation = await this.#situation({
       entry,
       record,
@@ -7275,6 +7495,8 @@ export class RunDriver {
     if (pending === undefined) return;
     const action = await nextAction(state, this.#options.model);
     if (action.kind !== "confirm") return;
+    // P313: no playback is put to a stopped application.
+    if ((await this.#applicationStopFor(conversationId)) !== null) return;
 
     // ── The words first, then the record (P263) ──────────────────────────
     //
@@ -7336,6 +7558,9 @@ export class RunDriver {
   async #askTheStudent(conversationId: string, step: RunStep): Promise<void> {
     const action = interviewActionOf(step);
     if (action === null || action.kind !== "ask") return;
+    // P313, item 2: a stopped application asks nothing more. Every press,
+    // reading and repair that asks the next question comes through here.
+    if ((await this.#applicationStopFor(conversationId)) !== null) return;
     await this.#putTheQuestion(conversationId, action);
   }
 
@@ -7357,6 +7582,8 @@ export class RunDriver {
   ): Promise<void> {
     await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
       const events = await this.#options.conversations.wholeLog(conversationId);
+      // P313: checked again inside the lock, after any model call that came before it.
+      if ((await this.#applicationStopFor(conversationId)) !== null) return null;
       // A question already stands, or a reading is waiting to be confirmed.
       // Either way this run is not short of something for the student to do,
       // and asking again would be the service talking over itself.
@@ -7426,6 +7653,9 @@ export class RunDriver {
    * derived again or the question would be about the field just finished.
    */
   async #askAfterWriting(conversationId: string): Promise<void> {
+    // P313, item 2: a stopped application asks nothing, says nothing that
+    // arrived, and is not stopped for a person again.
+    if ((await this.#applicationStopFor(conversationId)) !== null) return;
     const situated = await this.#interviewSituation(conversationId);
     if (situated === null) return;
     // P256: what arrived while the student had something to answer is said
@@ -7730,6 +7960,8 @@ export class RunDriver {
     const events = await this.#options.conversations.wholeLog(conversationId);
     const open = openProposal(events);
     if (open === null) return { ok: false, reason: "nothing_open" };
+    // P313: a playback that stood when the student stopped is not put again.
+    if ((await this.#applicationStopFor(conversationId)) !== null) return { ok: false, reason: "no_run" };
     const situated = await this.#interviewSituation(conversationId);
     if (situated === null) return { ok: false, reason: "no_run" };
     const action = await nextAction(situated.state.interview, this.#options.model);
@@ -8912,6 +9144,9 @@ export class RunDriver {
   async #askAgainAfterResolution(held: StoredIntervention, field: string): Promise<void> {
     const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
     if (conversationId === null) return;
+    // P313, item 2: a person's resume on a stopped application releases the
+    // run to wind down; it is not "moving again" and asks nothing more.
+    if ((await this.#applicationStopFor(conversationId)) !== null) return;
     const situated = await this.#interviewSituation(conversationId);
     if (situated === null) return;
     // P307, the review's D3: a case recorded as submitted by hand asks nothing
@@ -10664,6 +10899,9 @@ export class RunDriver {
    * field's, which the CV question may replace (P254).
    */
   async #quietForTheCv(conversationId: string): Promise<boolean> {
+    // P313: never quiet on a stopped application, so its CV question is not put
+    // over the hand-back, or to an application that will not run (the review).
+    if ((await this.#applicationStopFor(conversationId)) !== null) return false;
     const situated = await this.#interviewSituation(conversationId);
     const events = await this.#options.conversations.wholeLog(conversationId);
     if (openProposal(events) !== null) return false;
@@ -10681,6 +10919,8 @@ export class RunDriver {
    * demand. `true` when a question was put, so the caller asks nothing more.
    */
   async #sayWhatArrived(conversationId: string, situated: { readonly entry: CatalogueEntry; readonly record: WorkflowRunRecord; readonly step: RunStep; readonly state: RunState } | null): Promise<boolean> {
+    // P313: nothing that arrives is put to a stopped application.
+    if ((await this.#applicationStopFor(conversationId)) !== null) return false;
     const readings = this.#options.readings;
     const events = await this.#options.conversations.wholeLog(conversationId);
     if (openProposal(events) !== null) return false;
@@ -10973,7 +11213,8 @@ export class RunDriver {
       await say(late ? LATE_READING_THE_CV : READING_THE_CV);
     } else {
       await this.#options.disclosure?.vault.purgeContents(held.documentId, now);
-      await say(late ? LATE_DECLINED_THE_CV : DECLINED_THE_CV);
+      const stopped = (await this.#applicationStopFor(conversationId)) !== null;
+      await say(late ? LATE_DECLINED_THE_CV : stopped ? DECLINED_THE_CV_STOPPED : DECLINED_THE_CV);
     }
     await this.#askAfterWriting(conversationId);
     return true;
@@ -11001,10 +11242,28 @@ export class RunDriver {
       await say(USING_WHAT_I_READ);
     } else {
       await this.#options.disclosure?.vault.purgeContents(unasked.documentId, now);
-      await say(SET_ASIDE_THE_CV);
+      await say((await this.#applicationStopFor(conversationId)) !== null ? SET_ASIDE_THE_CV_STOPPED : SET_ASIDE_THE_CV);
     }
     await this.#askAfterWriting(conversationId);
     return true;
+  }
+
+  /**
+   * A plain no, typed, to a CV question that stood when the application was
+   * stopped (P313): the CV is deleted, as every no to it is (ADR-0151, P251).
+   * A yes is not taken here: no reading starts for a stopped application, and
+   * the stopped line answers it. `true` when the message was that no.
+   */
+  async #declinedTheCvAfterTheStop(conversationId: string, answer: StudentAnswer): Promise<boolean> {
+    const readings = this.#options.readings;
+    if (readings === undefined) return false;
+    if ((await this.#applicationStopFor(conversationId)) === null) return false;
+    const held = await readings.heldFor(conversationId);
+    const offered = held !== null && held.state === "offered";
+    const unasked = offered ? null : await readings.unaskedFor(conversationId);
+    if (!offered && (unasked === null || unasked.askedAfterReadingAt === null)) return false;
+    if ((yesOrNo(answer) ?? readUseRequest(answer)) !== false) return false;
+    return this.answerDocumentUse(conversationId, false);
   }
 
   /**

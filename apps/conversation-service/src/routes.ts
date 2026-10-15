@@ -451,6 +451,11 @@ function reapplicationProblem(res: Response, refusal: RunRefusal): void {
     case "case_not_bindable":
       problem(res, "forbidden");
       return;
+    case "application_ended":
+      // P313. A second attempt is instructed from a new conversation, never
+      // from the first one's own: there its new case would be the old one.
+      problem(res, "forbidden");
+      return;
     case "email_not_verified":
       problem(res, "email_not_verified");
       return;
@@ -1255,6 +1260,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
               // cannot be made.
               problem(res, "forbidden");
               return;
+            case "application_ended":
+              // P313. This conversation's application has ended and a
+              // conversation owns at most one case; before P313 this reached
+              // `startRun` with the run id that exists and answered 500. The
+              // page never asks here: it offers a new application instead.
+              problem(res, "forbidden");
+              return;
             case "purpose_not_supported":
               // A specialist's problem: the orchestrator and the published
               // contract disagree about what a password may be asked for. The
@@ -1837,6 +1849,9 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           // P308, his D7 addition: the date a submission made by hand was
           // recorded as made on, so the page says it whatever the status.
           submitted: reading?.submitted ?? null,
+          // P313, item 2: the application is stopped, and whether it has
+          // concluded; `null` while it is not.
+          stopped: reading?.stopped ?? null,
         });
       })().catch(next);
     },

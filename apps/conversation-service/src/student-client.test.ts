@@ -1606,7 +1606,7 @@ describeIfDatabase("the student's page", () => {
     const mine = await pool.query<{ id: string }>("SELECT id FROM conversations WHERE student_id = $1", [student]);
     const conversationId = mine.rows[0]!.id;
     const said = "You submitted your application on the university's website on 14 October 2026.";
-    const serve = async (status: string): Promise<void> => {
+    const serve = async (status: string, stopped: { readonly concluded: boolean } | null = null): Promise<void> => {
       await page.unroute("**/v1/conversations/*/runs");
       await page.route("**/v1/conversations/*/runs", async (route) => {
         await route.fulfill({
@@ -1626,6 +1626,7 @@ describeIfDatabase("the student's page", () => {
               chosen: { id: "accept", label: "Accept all", chosenAt: "2026-10-01T09:00:00Z" },
             },
             submitted: { on: "2026-10-14" },
+            stopped,
           }),
         });
       });
@@ -1671,11 +1672,15 @@ describeIfDatabase("the student's page", () => {
       expect(offered).not.toContain("Apply to this for me");
 
       // Abandoned after the record: the line says it is stopped, and no stop is offered.
-      await serve("abandoned");
+      // As the service sends it since P313: stopped, and concluded.
+      await serve("abandoned", { concluded: true });
       expect(await page.locator("#pending .position").textContent()).toBe(
         `${said} Stopping did not withdraw it, and there is nothing more for me to do on it.`,
       );
       expect((await page.locator("#pending button").allTextContents()).filter((label) => label.startsWith("Stop"))).toEqual([]);
+      // P313's review: nothing offers to apply for a submitted application
+      // again; whether anything may is his (it touches submitting).
+      expect(await page.locator("#pending button").allTextContents(), "no new application over a recorded submission").not.toContain("Start a new application");
     } finally {
       await page.unroute("**/v1/conversations/*/target-offers");
       await page.unroute("**/v1/conversations/*/runs");
@@ -1869,6 +1874,67 @@ describeIfDatabase("the second attempt, from the student's own page", () => {
       { ...attempt2.submissionIdentity, attemptOrdinal: 1 },
       "same student, same target — a second attempt at something else is not a re-application",
     ).toEqual(attempt1.submissionIdentity);
+  }, 300_000);
+
+  it("after a stop pressed on the page: no stop and nothing to press, nothing typed read as an answer, and a new application that leads to the second attempt (P313, items 2 and 3)", async () => {
+    // His words (docs/run-a/p313-his-message-as-sent.txt): *"The "Stop this
+    // application" button is still shown on the closed application."* — *"my
+    // typed "Apply for me to the MSc at Sheffield" was read as an answer to the
+    // EU question."* — *"After a stop, the page offers no way to start a new
+    // application."* The stop is pressed on the page here, not concluded by a
+    // fixture: nothing was created at a portal, so it concludes at once.
+    const fresh = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p313', true) RETURNING id",
+    );
+    const owner = fresh.rows[0]!.id;
+    await visitAs(owner);
+    await applyToTheFirstTarget("Please apply to the MSc for me.");
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").includes("Stop this application"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    await page.locator("#pending button", { hasText: "Stop this application" }).click();
+
+    // ── Closed: nothing to press but the way to a new application ───────
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").includes("Start a new application"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    expect(await page.locator("#pending button").allTextContents(), "no stop, no playback, no choice").toEqual(["Start a new application"]);
+
+    // ── Typed, and not read as an answer ─────────────────────────────────
+    await page.locator("#say").fill("Apply for me to the MSc at Sheffield");
+    await page.locator("#composer button").click();
+    await page.waitForFunction(
+      () => (document.querySelector("#transcript")?.textContent ?? "").includes("I have not read your message as an answer"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    const asked = await pool.query(
+      `SELECT 1 FROM conversation_events e JOIN conversations c ON c.id = e.conversation_id
+        WHERE c.student_id = $1 AND e.kind IN ('answer_unread', 'value_proposed', 'value_offered')`,
+      [owner],
+    );
+    expect(asked.rowCount, "nothing read as an answer").toBe(0);
+    // The line names a button "below", and it is there (the promise rule).
+    expect(await page.locator("#pending button", { hasText: "Start a new application" }).count()).toBe(1);
+
+    // ── The way back: a new conversation, the target, the second attempt ─
+    await page.locator("#pending button", { hasText: "Start a new application" }).click();
+    await page.waitForFunction(
+      () => document.querySelectorAll("#targets .target button").length > 0,
+      undefined,
+      { timeout: 20_000 },
+    );
+    const conversations = await pool.query("SELECT 1 FROM conversations WHERE student_id = $1", [owner]);
+    expect(conversations.rowCount, "a new conversation, opened by the page").toBe(2);
+    expect((await page.locator("#transcript").textContent()) ?? "", "the page is in the new one").not.toContain("I have not read your message");
+    await applyToTheFirstTarget("The same one again, please.");
+    const offered = await textOf("#reapplication", 20_000);
+    expect(offered).toContain("You have applied for this before");
+    expect((await page.locator("#notice").textContent()) ?? "", "no \"Here it is.\" over nothing shown").not.toContain("Here it is");
   }, 300_000);
 
   it("does NOT offer a second attempt while the first one is still live", async () => {

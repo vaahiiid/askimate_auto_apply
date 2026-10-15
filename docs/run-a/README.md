@@ -276,8 +276,12 @@ curl -s -b "$JAR" -H 'content-type: application/json' \
 ```
 
 `GET /v1/conversations/$CONV` is the conversation itself (id, title, ordinal) — not the run.
-`/reapplication/*` is only for a conversation that already holds a concluded case; a fresh one
-answers 404 there, correctly. There is no `/offers` route.
+`/reapplication/*` is for a NEW conversation, after a start there has been refused
+`409 already_applying` with `concluded: true` (that refused start writes the binding; see blocker 46
+below). On the page this is "Start a new application" (P313). A fresh conversation with no start yet
+answers 404 there, correctly; a conversation that holds an application of its own, the concluded one
+included, answers 403 (P313: there the instruction would be written onto the latest attempt and
+then fail). There is no `/offers` route.
 
 ## A third attempt from a fresh conversation, when two cases are already concluded (blocker 46)
 

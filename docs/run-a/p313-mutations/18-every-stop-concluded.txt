@@ -1,0 +1,18 @@
+mutation 18-every-stop-concluded on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P313|P307
+exit: 1
+restored byte for byte: True
+
+   × a stopped application with nothing open asks nothing, raises no one, and puts nothing that arrives (the P313 re-review) > a person's resume of an interview stop, while the stop winds down, is not 'moving again' and asks nothing (the P313 re-review) 393ms
+     → winding down: expected { concluded: true } to deeply equal { concluded: false }
+   × a message typed while a stop winds down is read as no answer, and the hand-back still works (P313, item 2) > points at the registration question's buttons, offers no new application, publishes the hand-back alone, and takes its yes 353ms
+     → P306's reply: the question stands, and its buttons answer it: expected 'This application is stopped and close…' to contain 'Please answer with one of the two but…'
+   ✓ a stop while the registration e-mail question is open (P306 review) > stopped with the question open, a 'no', then a person's resume: the question is asked again, with why (the P313 review) 471ms
+   ✓ a submission made by hand (P307, ADR-0159 O10) > his case: the run held before the course page, and a person records the submission once, as its actor; the student told once 334ms
+   ✓ a stop after a submission made by hand says what was recorded (P307) > records while the run is running: the hand-back starts at once; a stop then says it was recorded, never that nothing was submitted 507ms
+   ✓ the P307 review: a student's stop, an interview stop, and work in flight, after a submission made by hand > D3: an interview stop resolved after the record asks nothing and does not say 'moving again'; an answer while held asks nothing either 503ms
+ Test Files  1 failed (1)
+      Tests  2 failed | 33 passed | 388 skipped (423)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a stopped application with nothing open asks nothing, raises no one, and puts nothing that arrives (the P313 re-review) > a person's resume of an interview stop, while the stop winds down, is not 'moving again' and asks nothing (the P313 re-review)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a message typed while a stop winds down is read as no answer, and the hand-back still works (P313, item 2) > points at the registration question's buttons, offers no new application, publishes the hand-back alone, and takes its yes

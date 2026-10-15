@@ -158,6 +158,7 @@ Promises written after P269's measurement, each shipped with its assertion. RDT 
 | P14 | client/words.ts, `SUBMITTED_TAIL` (P308) | *"What is left of it is with a member of the team, and I will tell you when it is finished."* — the page's line for an `escalated` or `uncertain` run after a record | RDT, the P307 describes: his case's page-12 hold resolved after the record ends with *"That is the last of it"*, and so does the hold only a person can settle. **Partly asserted:** a run is `uncertain` only from a runner's report, and no work is handed out after a record, so the line shows for one only if it was already `uncertain` when recorded; no test drives that one to its close |
 | P15 | run-driver.ts, `abandonedMessage` (P308) | *"Someone on the team has stopped work on your … application, and I will not start anything new on it."* — P272's promise, in the words for a recorded case | RDT: no work is handed out after a record (the P307 describes), and none for an abandoned run (P272's test); both branches of the abandon after a record are asserted (the P308 describe) |
 | P16 | run-driver.ts, `consentMetAtCreationPressMessage` (P310) | *"I will ask you which choice you want next, and then ask for your password again, because the one you typed was spent on this try."* — said when the account creation met the consent notice at its press, the password typed | RDT, *the consent notice met at the creation's PRESS* (P310): the next step is `consent_choice` with no box opened; after the choice, `request_secret` with one new box; the creation then handed out carries the new password's handle, never the spent one, and the choice |
+| P17 | run-driver.ts, `stoppedApplicationMessage` (P313) | *"This application is stopped and closed, so I have not read your message as an answer, and I am not asking anything more for it. To apply again, press "Start a new application"."* — said to a typed line on a stopped application once its stop has concluded | RDT, *after the student stops, nothing more is asked* (P313): after the line, nothing is asked, proposed, offered or read for that message, and a press on the playback that stood is refused and writes nothing; the page shows the button it names (`student-client.test.ts`, the P313 test). P313 also tests the stop's own *"I will not start anything new on it"* that way: nothing is asked after it |
 
 P16 was found by `git diff HEAD -U0 -- apps packages scripts`, test files, compiled output and
 comment lines excluded, grepped for `\bI will\b|\bI'll\b`: two lines. The other is D12's
@@ -166,6 +167,10 @@ comment lines excluded, grepped for `\bI will\b|\bI'll\b`: two lines. The other 
 It is D12's promise and stays where D12 is: the escalation is asserted (the second P310 test), and
 nothing resolves the intervention and sees the student told. The same search over P306's diff
 returns its three lines, as recorded below: the positive control.
+
+P17 was not found by that search: the same search over P313's diff returns no line, and the same
+search over P306's diff returns its three, the positive control. P17 promises without *"I will"*,
+in a form the pattern cannot see; it is listed by hand, from the sentence's own words.
 
 P10 was found by the same search over the lines P291 added. It returned two lines: P10, and P8's line, which the edit moved.
 

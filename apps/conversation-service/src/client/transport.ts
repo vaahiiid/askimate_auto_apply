@@ -142,6 +142,8 @@ export interface RunReading {
   readonly consent: PortalConsentReading | null;
   /** P308: the date a submission made by hand was recorded as made on, as stated; `null` when none. */
   readonly submitted: { readonly on: string } | null;
+  /** P313: the application is stopped, and whether it has concluded; `null` while it is not. */
+  readonly stopped: { readonly concluded: boolean } | null;
 }
 
 /**
@@ -407,7 +409,15 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
       if (typeof on !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(on)) return null;
       submitted = { on };
     }
-    return { run, pending, ownActs, consent, submitted };
+    // P313. Absent from an older service reads as not stopped; malformed refuses the read.
+    const rawStopped = body["stopped"];
+    let stopped: { readonly concluded: boolean } | null = null;
+    if (rawStopped !== undefined && rawStopped !== null) {
+      const concluded = typeof rawStopped === "object" ? (rawStopped as Record<string, unknown>)["concluded"] : undefined;
+      if (typeof concluded !== "boolean") return null;
+      stopped = { concluded };
+    }
+    return { run, pending, ownActs, consent, submitted, stopped };
   });
 }
 

@@ -1,0 +1,11 @@
+My live run today, after P312. Findings, in order:
+
+1. I pressed "Stop this application" by mistake. One click closed the whole application. It must ask for confirmation first.
+2. After the stop, the case said "this application is closed", but the interview kept asking questions (EU, British passport), and my typed "Apply for me to the MSc at Sheffield" was read as an answer to the EU question. The "Stop this application" button is still shown on the closed application.
+3. After a stop, the page offers no way to start a new application. The "Apply to University of Sheffield" lines are text, not buttons. Tell me exactly how I restart my own application now (student 5774ff16), keeping my profile corrections, without editing my database by hand.
+4. Entry choices: I pressed "PHD" for my award title (I said "DBA") and "International Studies" for my subject (I said "International Business"). Both were wrong presses; the stop discarded them. When a student chooses a listed entry whose words differ from their own, ask once to confirm before recording it. And give a way to change a recorded choice before any page is saved.
+5. Redundant questions: "lived outside your country of permanent residence in the last three years" (yes) was followed by "always lived in your country of permanent residence" — the second follows from the first.
+6. New messages did not appear until I reloaded. The page must show replies without a reload, and show that it is working while it works.
+7. For the record, as design: with the real model, the interview understands free answers ("United Kingdom" as yes, "Feb 2016 - Dec 2016" as start and end) and plays back its reading for confirmation. Matching to a form's list stays exact, after normalising case, spaces and numbers ("20" = "20.0"); a near match is only ever suggested, never chosen.
+
+Under my rule, apply your recommendations except where they touch the four. Fix 2 and 3 first, since they block my run; record the rest as rows with your recommendation.

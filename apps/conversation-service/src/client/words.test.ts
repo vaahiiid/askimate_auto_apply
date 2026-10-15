@@ -115,7 +115,12 @@ describe("no internal word ever reaches a student's screen (P227, ADR-0147)", ()
     expect(stopLabelFor("stopped_by_student", on)).toBe(SUBMITTED_STOP_LABEL);
     expect(stopLabelFor("running", null)).toBe("Stop this application");
     expect(stopLabelFor(undefined, null), "before any run, as before").toBe("Stop this application");
-    expect(stopLabelFor("abandoned", null), "without a record, unchanged").toBe("Stop this application");
+    // P313, his finding 2: *"The "Stop this application" button is still
+    // shown on the closed application."* Until P313 this line pinned it.
+    expect(stopLabelFor("abandoned", null), "a closed application offers no stop").toBeNull();
+    expect(stopLabelFor("running", null, { concluded: false }), "nor one that is winding down from a stop").toBeNull();
+    expect(stopLabelFor("running", on, { concluded: false })).toBeNull();
+    expect(stopLabelFor("running", null, null), "a run that is not stopped, as before").toBe("Stop this application");
   });
 
   it("describes a running run by its step, in the present tense", () => {

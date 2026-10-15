@@ -4906,6 +4906,43 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P313 — a stopped application asks nothing, and a new one starts from the page
+
+*2026-10-15.* His live run met a stop he had not meant. He pressed "Stop this application" by
+mistake, and one press closed the application; after it, the interview went on asking, and his
+typed "Apply for me to the MSc at Sheffield" was read as an answer to the EU question; the stop
+button stayed; and the page offered no way to start again. In his words
+(`docs/run-a/p313-his-message-as-sent.txt`): *"Fix 2 and 3 first, since they block my run; record
+the rest as rows with your recommendation."*
+
+The stop had told him *"I will not start anything new on it"*, and nothing on his own path asked
+whether the application was still open: the interview found its situation, the decisions were
+taken without a look at the case, and the page was handed a playback to press. Now a stopped
+application answers a typed line once and reads it as no answer, asks nothing, takes no press for
+the interview, offers nothing but the account's hand-back, and draws no stop. A request about his
+data is still taken, because the stop invited one.
+
+The way back is on the page now: "Start a new application" opens a new conversation, the targets
+there are buttons, and the second-attempt exchange follows. The old conversation refuses cleanly
+instead of answering 500, and a second attempt can no longer be instructed from a conversation that
+holds an application, where it used to write onto the latest attempt and then fail for good. His
+own restart is written out step by step in `docs/run-a/p313-restart-steps.md`, with a read-only
+check for anything confirmed after his stop.
+
+The review mattered: my first build put the check in the one place every path shares, and that
+silenced the account's hand-back and a person's resume while a stop winds down. It now sits where
+each thing is asked or taken. A second review found five places the first move had left open,
+among them a person's resume that said "moving again" over a stopped application and a stop that
+landed while the model was reading his answer, and one place where I had gone too far: a no to a
+CV question standing at the stop no longer deleted the CV, which he decided it always must. All
+five are closed, each with a test seen to fail without its fix. What a CV arriving after a stop is
+told, and whether one accepted before it is still read, are his (row 196). The other five points
+of his message are rows 191 to 195, each with my recommendation and whether it is his.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P312 — six defects his stalled run showed
 
 *2026-10-15.* His live run stood still after he resolved a stop. Read from the code, read-only,

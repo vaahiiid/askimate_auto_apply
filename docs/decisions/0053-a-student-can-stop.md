@@ -250,6 +250,57 @@ student reads the P272 sentence followed by the stop's own account and completio
 on the pass that finishes it, *"That is the last of it."* A case already winding down is not
 cancelled twice; a case that cannot take the stop keeps the abandon as it was before.
 
+
+## Amended 2026-10-15 (P313): a stopped application asks nothing, and the stop is to ask first
+
+His live run of 2026-10-15, in his words (`docs/run-a/p313-his-message-as-sent.txt`):
+
+> *"1. I pressed "Stop this application" by mistake. One click closed the whole application. It
+> must ask for confirmation first."*
+>
+> *"2. After the stop, the case said "this application is closed", but the interview kept asking
+> questions (EU, British passport), and my typed "Apply for me to the MSc at Sheffield" was read as
+> an answer to the EU question. The "Stop this application" button is still shown on the closed
+> application."*
+
+**Item 2, built in P313.** The stop said *"I will not start anything new on it"*, and nothing on
+the student's own path asked whether the application was still open. Now a stopped application
+(its case winding down or cancelled, or its run set aside):
+
+- reads nothing typed as an answer. A typed line is answered once: *"This application is stopped
+  and closed, so I have not read your message as an answer, and I am not asking anything more for
+  it. To apply again, press "Start a new application"."* While it winds down, the line leaves out
+  the second half, because the account's hand-back may still ask its own question; and while the
+  registration e-mail question stands inside the hand-back, a typed line gets that question's own
+  reply, pointing at its two buttons (ADR-0159 O3). After a submission recorded by hand it says
+  the student submitted it (P308) and offers nothing to apply for;
+- still takes a request about the student's data, which the stop's own message invites;
+- asks no interview question, puts no playback again, and does not put the CV question; a person's
+  resume of a hold on it is not "moving again" and asks nothing; a message that leads back to the
+  interview does not raise a person again; and a stop that lands while the model reads an answer
+  stops the answer too (checked after the model returns and again inside the question's lock);
+- takes no answer by press (`confirm_value`, `choose_reading`, `choose_entry`, `correct_entry`,
+  `existing_account` and a yes to `use_document` are refused `not_asked`), while the stop, the
+  hand-back, what the student owes and the consent choice are taken as before;
+- still takes a no to a CV question that stood at the stop, pressed or typed, and deletes the CV,
+  as every no to it does (ADR-0151; the first P313 build refused it with everything else, and the
+  second review found it). It says *"You said no, so I have deleted your CV."* and not the usual
+  *"I will ask you about your jobs and qualifications as usual"*, which a stopped application would
+  not keep;
+- publishes no decision to press but the account's hand-back, and tells the page it is stopped
+  (`stopped`, with whether it has concluded), so the page draws no stop on it.
+
+The check is made where each of those happens, not in the interview's shared situation: the
+hand-back and a person's resume read that situation while the stop winds down (P313's review found
+the first build silenced them). What a CV that arrives after the stop is told, and whether a
+reading accepted before it is still read, touch what is held of a student's data and are his
+(row 196, points 10 and 11).
+
+**Item 1, his decision, not built in P313.** *"It must ask for confirmation first."* This amends
+§1's *"A student must be able to stop immediately"* for the press on the page. The domain
+transition stays unguarded ("Entering it is never refused"); the confirmation is the page's. How it
+is built is row 191, my recommendation.
+
 ---
 
 *Accepted 2026-09-02. P15 implements it.*

@@ -312,6 +312,25 @@ The case binding at the transmission gate, the authorisation content hash (§5 a
 removes nothing), and the mandatory-review categories: §4's pass runs only after their review, and
 never for a case whose minor conditions are not met.
 
+## His words of 2026-10-15, recorded as design (P313, row 195)
+
+In his words (`docs/run-a/p313-his-message-as-sent.txt`, item 7): *"For the record, as design: with
+the real model, the interview understands free answers ("United Kingdom" as yes, "Feb 2016 - Dec
+2016" as start and end) and plays back its reading for confirmation. Matching to a form's list stays
+exact, after normalising case, spaces and numbers ("20" = "20.0"); a near match is only ever
+suggested, never chosen."*
+
+They change two things this ADR and others record, and are newer than them:
+
+- **Case, spaces and numbers.** §2.1 says *"Not a case-folded match"*, and his own words of
+  2026-10-12 above say *"Exact match to the student's own words: pick it … No guessing ever."* His
+  words of 2026-10-15 keep the match exact *after* normalising case, spaces and numbers.
+- **A near match.** ADR-0155, ADR-0156 and §2 here say nothing offers "did you mean". His words of
+  2026-10-15 allow a near match to be suggested, never chosen.
+
+Nothing of it is built. What stands in the way, and my recommendation, is row 195: it touches what
+goes on the form (submitting) and, for the model, money and a student's personal data, so it is his.
+
 ## Not built
 
 All of it. Approving it would make the next build: the resolution pass (one of §4's three, his

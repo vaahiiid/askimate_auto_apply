@@ -134,6 +134,30 @@ blueprint by id and does not list. Advising a student to wait for an intake nobo
 would be inventing a fact about the world. Production therefore advises `six_months`, and the
 `next_intake` branch stays unreachable until a listing answers the question honestly.
 
+## The way back from the page, and never from an application's own conversation — amended 2026-10-15 (P313)
+
+His words (`docs/run-a/p313-his-message-as-sent.txt`, item 3): *"After a stop, the page offers no
+way to start a new application. The "Apply to University of Sheffield" lines are text, not
+buttons."* Until P313 the exchange in §3 was reachable only by opening a conversation from outside
+the page.
+
+- **From the page.** An application whose stop has concluded shows one button, "Start a new
+  application". It opens a new conversation and the page shows it; there the targets are buttons,
+  a start is refused `already_applying` with `concluded: true`, and the exchange of §3 follows (what
+  happened, the advice, the instruction in the student's own words). Not offered while a stop winds
+  down (a second attempt is refused then), nor over a submission recorded by hand (whether one may
+  be offered there touches submitting, and is his).
+- **Never from a conversation that holds an application.** A start in such a conversation is
+  refused `application_ended` (403); before P313 it reached `startRun` with the run id that existed
+  and answered 500. The advice and the instruction are refused the same way from any conversation
+  whose own case has a log or a run: there, the new case's id would be that conversation's own, the
+  instruction would be written onto the latest attempt, the start would fail, and every later
+  instruction would be refused as "already led to a second one".
+- **The prior outcome is still the student's word, one of two.** A student who stopped before
+  anything was submitted must answer "It was rejected" or "I withdrew it". A third outcome recorded
+  from the case itself is my recommendation (row 196); it touches what is recorded about the
+  student, so it is his.
+
 ## Consequences
 
 - Duplicate submission remains structurally impossible: the only path to a new attempt is an

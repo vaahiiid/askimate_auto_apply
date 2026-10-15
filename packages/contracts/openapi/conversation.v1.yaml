@@ -664,6 +664,26 @@ paths:
                       the page says that the student submitted it, on that
                       date, whatever the run's status. `null` when none is
                       recorded. Absent from an older service.
+                  stopped:
+                    oneOf:
+                      - type: object
+                        additionalProperties: false
+                        required: [concluded]
+                        properties:
+                          concluded: { type: boolean }
+                      - type: "null"
+                    description: >-
+                      P313. The application is stopped: by the student, or
+                      set aside by a person. `concluded` is false while it
+                      winds down (an account still to be handed back) and
+                      true once its case is terminal, which is when a second
+                      attempt may be instructed, from a new conversation. A
+                      stopped application publishes no `pending` decision but
+                      the account's hand-back (what the student owes stays in
+                      `ownActs`, closable as before), and reads nothing typed
+                      as an answer to the application: a request about their
+                      data is still taken. `null` while it is not stopped.
+                      Absent from an older service.
                   ownActs:
                     type: array
                     maxItems: 200
@@ -729,7 +749,10 @@ paths:
           description: >-
             The case cannot be bound here — it belongs to a different student, or
             another conversation already owns it. Refused by the database's
-            composite foreign key, not by a check in a handler.
+            composite foreign key, not by a check in a handler. Also (P313)
+            when this conversation's own application has ended — completed,
+            or stopped and set aside: a conversation owns at most one case,
+            and a new application lives in a new conversation.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "404":
@@ -817,6 +840,14 @@ paths:
             application/json: { schema: { $ref: "#/components/schemas/WaitRecommendation" } }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403":
+          description: >-
+            P313. This conversation holds an application of its own. A second
+            attempt is instructed from a new conversation, after a start there
+            is refused `already_applying`; from one that holds a case, the
+            instruction would be written onto the latest attempt and then fail.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "404":
           description: >-
             The conversation is not this student's, or they have no application
@@ -890,6 +921,8 @@ paths:
             concluded, the statement is empty, the recommendation was shown
             after the fact, or that application already led to a second one. The
             reason names a case and quotes a rule, so it stays out of the body.
+            Also (P313) when this conversation holds an application of its own:
+            a second attempt is instructed from a new conversation.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "404":

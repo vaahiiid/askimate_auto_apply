@@ -68,6 +68,8 @@ import {
   toStoredEntry,
 } from "@askimate/aas-profile";
 import { DeterministicModelClient } from "@askimate/aas-llm";
+import type { InterpretationRequest, ModelClient, NotUnderstood } from "@askimate/aas-llm";
+import type { ProposedValue } from "@askimate/aas-domain";
 import {
   FIXTURE_BLUEPRINT,
   FIXTURE_MAPPING_SET,
@@ -119,7 +121,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { NothingToHaveHappenedError, answeredQuestion, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
+import { NothingToHaveHappenedError, answeredQuestion, stoppedApplicationMessage, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
@@ -436,6 +438,8 @@ function buildInstance(
   overrides: {
     readonly conversations?: (pool: pg.Pool) => ConversationEventStore;
     readonly runs?: (pool: pg.Pool) => PostgresWorkflowRunStore;
+    /** P313: a model a test holds mid-answer, so a stop can land while it reads. */
+    readonly model?: ModelClient;
   } = {},
 ): {
   readonly pool: pg.Pool;
@@ -451,7 +455,7 @@ function buildInstance(
     },
     bindings: new ApplicationBindingStore(instancePool),
     catalogue,
-    model: new DeterministicModelClient(),
+    model: overrides.model ?? new DeterministicModelClient(),
     // ADR-0044: the profile comes from the database, so a new instance resumes
     // an interview where the last one left it.
     profiles: new PostgresConfirmedProfileStore(instancePool),
@@ -9034,6 +9038,547 @@ describeIfDatabase("the student stops before anything was created", () => {
   }, 300_000);
 });
 
+describeIfDatabase("after the student stops, nothing more is asked and nothing they type is read as an answer (P313, item 2)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // His live run (docs/run-a/p313-his-message-as-sent.txt): *"After the stop,
+  // the case said "this application is closed", but the interview kept asking
+  // questions (EU, British passport), and my typed "Apply for me to the MSc at
+  // Sheffield" was read as an answer to the EU question."*
+  //
+  // The stop said *"I will not start anything new on it"*, and nothing on the
+  // student's own path asked whether the application was still open: the
+  // interview's situation refused only a completed run, the decisions were
+  // dispatched without a look at the case, and the read published a playback
+  // to press. Stopped here mid-interview, with a playback standing, as his was.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03131";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let student = "";
+  let runId = "";
+  let standingHash = "";
+  let stoppedAt = 0;
+
+  async function events(): Promise<{ ordinal: number; kind: string; actor: string | null; content: string | null; field: string | null }[]> {
+    const rows = await pool.query<{ ordinal: string; kind: string; actor: string | null; content: string | null; field: string | null }>(
+      `SELECT e.ordinal, e.kind, e.actor, b.content, e.field_key AS field
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }));
+  }
+
+  async function since(ordinal: number): Promise<{ ordinal: number; kind: string; actor: string | null; content: string | null; field: string | null }[]> {
+    return (await events()).filter((event) => event.ordinal > ordinal);
+  }
+
+  async function say(what: string): Promise<number> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      return written.event.ordinal;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function caseEventCount(): Promise<number> {
+    return Number((await pool.query<{ n: string }>("SELECT count(*) AS n FROM case_events WHERE case_id = $1", [caseRef])).rows[0]?.n ?? 0);
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p313-stopped', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "contact.email", "parisa@example.test", "parisa@example.test", student);
+      await confirmInto(profiles, "identity.given_name", "Parisa", "Parisa", student);
+      await confirmInto(profiles, "identity.family_name", "Karimi", "Karimi", student);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    } finally {
+      await instance.pool.end();
+    }
+    // An answer the interview reads, so a playback stands when they stop.
+    await say("1989-08-11");
+    const instance2 = buildInstance(connectionString(), opener());
+    try {
+      const before = await instance2.driver.runFor(conversation);
+      if (before?.pending?.decision !== "confirm_value") expect.unreachable(`no playback stood before the stop: ${JSON.stringify(before?.pending)}`);
+      standingHash = before.pending.contentHash;
+      expect(await instance2.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+    } finally {
+      await instance2.pool.end();
+    }
+    stoppedAt = (await events()).at(-1)?.ordinal ?? 0;
+    expect((await events()).at(-1)?.content ?? "", "the stop is said, and concluded").toContain("this application is closed");
+  }, 300_000);
+
+  it("publishes nothing to press, and says the application is stopped and concluded", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.run.status).toBe("abandoned");
+      expect(reading?.pending, "the playback that stood is not offered on a stopped application").toBeNull();
+      expect(reading?.stopped, "the page is told it is stopped, and concluded").toEqual({ concluded: true });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("refuses a press on the playback that stood when they stopped, and writes nothing", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(
+        await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: standingHash } }),
+      ).toEqual({ ok: false, reason: "not_asked" });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await since(stoppedAt), "nothing confirmed, nothing asked").toEqual([]);
+    const stored = await pool.query("SELECT 1 FROM profile_entries WHERE student_id = $1 AND field_key = 'identity.date_of_birth'", [student]);
+    expect(stored.rowCount, "and nothing reached the profile").toBe(0);
+  }, 300_000);
+
+  it("reads nothing typed as an answer, asks nothing, and says so once, pointing to a new application (his words)", async () => {
+    const typed = await say("Apply for me to the MSc at Sheffield");
+    const after = await since(typed);
+    expect(after.map((event) => event.kind), "one reply, and no question, reading or attempt").toEqual(["message"]);
+    const reply = after[0]?.content ?? "";
+    expect(reply).toBe(stoppedApplicationMessage({ concluded: true }));
+    expect(reply).toContain("I have not read your message as an answer");
+    expect(reply).toContain("press \"Start a new application\"");
+    // The promise the stop made: "I will not start anything new on it".
+    expect((await since(stoppedAt)).filter((event) => ["value_asked", "value_proposed", "value_offered", "answer_unread", "value_confirmed"].includes(event.kind))).toEqual([]);
+  }, 300_000);
+
+  it("still takes a deletion request, as the stop told them it would", async () => {
+    const typed = await say("please delete my details");
+    const after = await since(typed);
+    expect(after.at(-1)?.content ?? "", "not the stopped line").not.toContain("I have not read your message as an answer");
+    const open = await pool.query("SELECT 1 FROM data_deletion_requests WHERE conversation_id = $1 AND closed_at IS NULL", [conversation]);
+    expect(open.rowCount, "the request reaches a person").toBe(1);
+  }, 300_000);
+
+  it("a start on this conversation is refused as an ended application, not a 500 (the map: RunAlreadyExistsError)", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const again = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      expect(again).toEqual({ ok: false, refusal: { kind: "application_ended" } });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a re-application from this conversation is refused before anything is written to the stopped case", async () => {
+    // Its new case would be this conversation's own, `case_<conversation>`,
+    // which IS the stopped case: the instruction would be written to it, the
+    // start would fail on the run that exists, and the domain would then refuse
+    // every later re-application as "already led to a second one".
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const advised = await instance.driver.adviseReapplication({ conversationId: conversation, priorOutcome: "withdrawn" });
+      expect(advised.ok ? "advised" : advised.refusal.kind, "the advice is refused here").toBe("application_ended");
+      // The path the instruction itself would take: advice standing in this
+      // conversation, written as the advice route writes it (as before P313,
+      // or by an older service), so that `reapply`'s own guard is what holds.
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "reapplication_advised", priorCaseId: makeCaseId(caseRef), priorOutcome: "withdrawn", advice: "none" },
+      });
+      const before = await caseEventCount();
+      const reapplied = await instance.driver.reapply({ conversationId: conversation, studentStatement: "I stopped it by mistake." });
+      expect(reapplied.ok ? "reapplied" : reapplied.refusal.kind).toBe("application_ended");
+      expect(await caseEventCount(), "the stopped case is untouched").toBe(before);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a portal account cannot be declared on a stopped application, and nothing is written to its case", async () => {
+    const before = await caseEventCount();
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "existing_account" } })).toEqual({ ok: false, reason: "not_asked" });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseEventCount()).toBe(before);
+  }, 300_000);
+
+  it("the way back is a new conversation: refused as already applying and concluded, advised, and the second attempt asks first what was never confirmed, not what was (P313, item 3)", async () => {
+    // His words: *"Tell me exactly how I restart my own application now …
+    // keeping my profile corrections, without editing my database by hand."*
+    // The steps the page now takes, through the driver: a new conversation,
+    // the refusal that names the stopped case as concluded, the advice, the
+    // instruction.
+    const second = "01JBXQ8Z9WKTQ6M4H2NPC03132";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [second, student]);
+    // A live clock, as P38's re-application exchange has: the advice is stamped
+    // with the database's own time, and the instruction must come after it.
+    const instance = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => new Date());
+    try {
+      const refused = await instance.driver.start({ conversationId: second, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (refused.ok || refused.refusal.kind !== "already_applying") expect.unreachable(`not refused as already applying: ${JSON.stringify(refused)}`);
+      expect(refused.refusal.concluded, "the stopped application has concluded").toBe(true);
+      const advised = await instance.driver.adviseReapplication({ conversationId: second, priorOutcome: "withdrawn" });
+      expect(advised.ok ? "advised" : advised.refusal.kind).toBe("advised");
+      const reapplied = await instance.driver.reapply({ conversationId: second, studentStatement: "I stopped it by mistake." });
+      if (!reapplied.ok) expect.unreachable(`reapply refused: ${JSON.stringify(reapplied.refusal)}`);
+      expect(String(reapplied.position.caseId), "a new case, in the new conversation").toBe(`case_${second.toLowerCase()}`);
+      // The interview, before any yes, as in the first conversation: it asks
+      // the date of birth, which was never confirmed (the press after the
+      // stop was refused), and nothing they had confirmed before the stop.
+      expect(reapplied.position.step).toBe("interview");
+      const asked = await instance.driver.advance({ runId: reapplied.position.runId, conversationId: second });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    } finally {
+      await instance.pool.end();
+    }
+    const questions = await pool.query<{ field: string }>(
+      "SELECT field_key AS field FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_asked' ORDER BY ordinal",
+      [second],
+    );
+    expect(questions.rows.map((row) => row.field), "the date of birth, never confirmed; none of the four confirmed").toEqual(["identity.date_of_birth"]);
+  }, 300_000);
+
+  it("once a second attempt exists, the first conversation still cannot instruct one, and the second's case is untouched (the P313 review)", async () => {
+    // The chain the review found: the guard compared only the LATEST attempt
+    // with this conversation's case. Now the latest is the second attempt's,
+    // and this conversation still holds the first, stopped one.
+    const secondCase = makeCaseId(`case_${"01JBXQ8Z9WKTQ6M4H2NPC03132".toLowerCase()}`);
+    const count = async (): Promise<number> => Number((await pool.query<{ n: string }>("SELECT count(*) AS n FROM case_events WHERE case_id = $1", [secondCase])).rows[0]?.n ?? 0);
+    const before = await count();
+    expect(before, "the second attempt exists").toBeGreaterThan(0);
+    const instance = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => new Date());
+    try {
+      const advised = await instance.driver.adviseReapplication({ conversationId: conversation, priorOutcome: "withdrawn" });
+      expect(advised.ok ? "advised" : advised.refusal.kind).toBe("application_ended");
+      const reapplied = await instance.driver.reapply({ conversationId: conversation, studentStatement: "Again." });
+      expect(reapplied.ok ? "reapplied" : reapplied.refusal.kind).toBe("application_ended");
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await count(), "nothing written onto the second attempt").toBe(before);
+  }, 300_000);
+
+  it("the repair that says a playback again does not say the one that stood at the stop (the P313 re-review)", async () => {
+    // The playback's words, gone the way P263 found them gone, so that the
+    // stop is the only thing refusing the repair: without it the words are
+    // written again, over buttons the stopped application no longer offers.
+    await pool.query(
+      `UPDATE message_bodies SET content = NULL, redacted_at = now()
+        WHERE id IN (SELECT e.body_id FROM conversation_events e
+                      WHERE e.conversation_id = $1 AND e.actor = 'assistant'
+                        AND e.ordinal < (SELECT max(ordinal) FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_proposed')
+                      ORDER BY e.ordinal DESC LIMIT 1)`,
+      [conversation],
+    );
+    const before = (await events()).at(-1)?.ordinal ?? 0;
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(await instance.driver.sayAgain(conversation)).toEqual({ ok: false, reason: "no_run" });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await since(before), "nothing said again").toEqual([]);
+  }, 300_000);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The P313 re-review: the stop is checked wherever the service would speak on
+// the student's path, not only where the first build looked. Stopped here with
+// NOTHING open — the interview gave up on the date of birth, a person was
+// raised, the student stopped, and the person's hold was then closed — which is
+// the state in which each check below is the only thing between the stopped
+// application and a question, a CV's sentence, or a second person's hold.
+// ═══════════════════════════════════════════════════════════════════════════
+describeIfDatabase("a stopped application with nothing open asks nothing, raises no one, and puts nothing that arrives (the P313 re-review)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03135";
+  let student = "";
+  let runId = "";
+
+  async function events(): Promise<{ ordinal: number; kind: string; actor: string | null; content: string | null; field: string | null }[]> {
+    const rows = await pool.query<{ ordinal: string; kind: string; actor: string | null; content: string | null; field: string | null }>(
+      `SELECT e.ordinal, e.kind, e.actor, b.content, e.field_key AS field
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }));
+  }
+
+  async function since(ordinal: number): Promise<{ ordinal: number; kind: string; actor: string | null; content: string | null; field: string | null }[]> {
+    return (await events()).filter((event) => event.ordinal > ordinal);
+  }
+
+  async function say(what: string): Promise<number> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      return written.event.ordinal;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function openHolds(): Promise<number> {
+    return (await pool.query("SELECT 1 FROM interventions WHERE run_id = $1 AND resolved_at IS NULL", [runId])).rowCount ?? 0;
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p313-quiet', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "contact.email", "mina@example.test", "mina@example.test", student);
+      await confirmInto(profiles, "identity.given_name", "Mina", "Mina", student);
+      await confirmInto(profiles, "identity.family_name", "Rahimi", "Rahimi", student);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iran", student);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", student);
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    } finally {
+      await instance.pool.end();
+    }
+    // P223's three failed attempts: the interview gives up on the date of birth.
+    for (const answer of ["30/02/1989", "31/11/1989", "11 Aug 1989", "no, that is wrong"]) await say(answer);
+    const instance2 = buildInstance(connectionString(), opener());
+    try {
+      const seen = await instance2.driver.advance({ runId, conversationId: conversation });
+      expect(seen.ok ? seen.position.status : `refused:${seen.refusal.kind}`).toBe("escalated");
+      expect(await openHolds(), "the interview's stop is with a person").toBe(1);
+      expect(await instance2.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      // The person closes the hold after the stop, with nothing to resume.
+      const held = await pool.query<{ intervention_id: string }>("SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL", [runId]);
+      await new PostgresInterventionStore(instance2.pool).resolve({
+        interventionId: makeInterventionId(held.rows[0]?.intervention_id ?? ""),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the log.", resolution: "The student stopped.", resolvedAt: NOW, outcome: "abandon" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
+      });
+      expect((await instance2.driver.runFor(conversation))?.stopped).toEqual({ concluded: true });
+    } finally {
+      await instance2.pool.end();
+    }
+    expect(await openHolds()).toBe(0);
+  }, 300_000);
+
+  it("a message that leads back to the interview neither asks nor stops for a person again", async () => {
+    // "don't delete anything" is answered as P235 answers it, and then goes
+    // back to where the interview was — which, for this application, is the
+    // interview's given-up field. Before the re-review that raised a second
+    // person's hold and told the student "I asked … three times" again.
+    const typed = await say("please don't delete anything");
+    const after = await since(typed);
+    expect(after.map((event) => event.kind), "the answer to the message, and nothing else").toEqual(["message"]);
+    expect(after[0]?.content ?? "").toContain("Understood — I am not deleting anything.");
+    expect(await openHolds(), "no one is raised again").toBe(0);
+  }, 300_000);
+
+  it("a CV that arrives after the stop is not put to it as a question (what it is told instead is his: row 196)", async () => {
+    const documentId = "01JBXQ8Z9WKTQ6M4H2NPC0CV35";
+    const vault = fakeVault([
+      { documentId, studentId: student, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash: "e".repeat(64), contentType: "application/pdf", sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null },
+    ]);
+    const before = (await events()).at(-1)?.ordinal ?? 0;
+    const instance = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, vault);
+    try {
+      await instance.driver.requestReading({ documentId, conversationId: conversation, studentId: student, contentHash: "e".repeat(64) });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await since(before), "no question and no sentence put to the stopped application").toEqual([]);
+    const reading = await pool.query<{ state: string }>("SELECT state FROM document_readings WHERE document_id = $1", [documentId]);
+    expect(reading.rows[0]?.state, "held, and not read").toBe("held");
+  }, 300_000);
+
+  it("a stop that lands while the model reads an answer stops the answer too (the P313 re-review)", async () => {
+    // A second conversation, asked its first question; its answer is held in
+    // the model while the student presses Stop, then let go. Before the
+    // re-review the answer was then recorded and its playback put after the
+    // "I have stopped" line.
+    const racing = "01JBXQ8Z9WKTQ6M4H2NPC03137";
+    const raceOwner = await ownConversation(racing);
+    let reached = (): void => undefined;
+    const atTheModel = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let release = (): void => undefined;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    class HeldAtTheAnswer extends DeterministicModelClient {
+      public override async interpretAnswer<T>(request: InterpretationRequest<T>): Promise<ProposedValue<T> | NotUnderstood> {
+        reached();
+        await released;
+        return super.interpretAnswer(request);
+      }
+    }
+    const first = buildInstance(connectionString(), opener());
+    let raceRun = "";
+    try {
+      const profiles = new PostgresConfirmedProfileStore(first.pool);
+      await confirmInto(profiles, "contact.email", "mina@example.test", "mina@example.test", raceOwner);
+      await confirmInto(profiles, "identity.given_name", "Mina", "Mina", raceOwner);
+      await confirmInto(profiles, "identity.family_name", "Rahimi", "Rahimi", raceOwner);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iran", raceOwner);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", raceOwner);
+      const started = await pastTheYes(first, racing);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      raceRun = started.position.runId;
+      const asked = await first.driver.advance({ runId: raceRun, conversationId: racing });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    } finally {
+      await first.pool.end();
+    }
+    const held = buildInstance(connectionString(), opener(), CATALOGUE, "wired", null, () => NOW, null, null, { model: new HeldAtTheAnswer() });
+    const stopper = buildInstance(connectionString(), opener());
+    let stopAt = 0;
+    try {
+      const written = await new ConversationEventStore(held.pool).append({ conversationId: racing, event: { kind: "message", actor: "student", content: "11 August 1989" } });
+      const answering = held.driver.answerStudent({ conversationId: racing, event: written.event });
+      await atTheModel;
+      expect(await stopper.driver.recordDecision({ conversationId: racing, runId: raceRun, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      const stopLine = await pool.query<{ ordinal: string }>("SELECT max(ordinal) AS ordinal FROM conversation_events WHERE conversation_id = $1", [racing]);
+      stopAt = Number(stopLine.rows[0]?.ordinal ?? 0);
+      release();
+      await answering;
+    } finally {
+      release();
+      await held.pool.end();
+      await stopper.pool.end();
+    }
+    const after = await pool.query<{ kind: string; content: string | null }>(
+      `SELECT e.kind, b.content FROM conversation_events e LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.ordinal > $2 ORDER BY e.ordinal ASC`,
+      [racing, stopAt],
+    );
+    expect(after.rows.map((row) => row.kind), "the stopped line alone: no part, no playback").toEqual(["message"]);
+    expect(after.rows[0]?.content).toBe(stoppedApplicationMessage({ concluded: true }));
+  }, 300_000);
+
+  it("a run a person set aside before P278, its case left open, reads as stopped: a typed line is not read as an answer (the P313 mutations)", async () => {
+    // Before P278 a person's abandon set the run aside and left the case where
+    // it stood, so the run's own status is all that says it is stopped. The
+    // mutations found nothing tested that reading.
+    const legacy = "01JBXQ8Z9WKTQ6M4H2NPC0313A";
+    const legacyOwner = await ownConversation(legacy);
+    const built = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(built.pool);
+      await confirmInto(profiles, "contact.email", "mina@example.test", "mina@example.test", legacyOwner);
+      await confirmInto(profiles, "identity.given_name", "Mina", "Mina", legacyOwner);
+      await confirmInto(profiles, "identity.family_name", "Rahimi", "Rahimi", legacyOwner);
+      await confirmInto(profiles, "identity.nationality", "IR", "Iran", legacyOwner);
+      await confirmInto(profiles, "study.personal_statement", "I want to study data science.", "I want to study data science.", legacyOwner);
+      const started = await pastTheYes(built, legacy);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const asked = await built.driver.advance({ runId: started.position.runId, conversationId: legacy });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      await pool.query("UPDATE workflow_runs SET status = 'abandoned' WHERE run_id = $1", [started.position.runId]);
+      expect((await built.driver.runFor(legacy))?.stopped, "stopped, and its case not concluded").toEqual({ concluded: false });
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: legacy, event: { kind: "message", actor: "student", content: "11 August 1989" } });
+      await built.driver.answerStudent({ conversationId: legacy, event: written.event });
+      const after = await pool.query<{ kind: string; content: string | null }>(
+        `SELECT e.kind, b.content FROM conversation_events e LEFT JOIN message_bodies b ON b.id = e.body_id
+          WHERE e.conversation_id = $1 AND e.ordinal > $2 ORDER BY e.ordinal ASC`,
+        [legacy, written.event.ordinal],
+      );
+      expect(after.rows).toEqual([{ kind: "message", content: stoppedApplicationMessage({ concluded: false }) }]);
+    } finally {
+      await built.pool.end();
+    }
+  }, 300_000);
+
+  it("a person's resume of an interview stop, while the stop winds down, is not 'moving again' and asks nothing (the P313 re-review)", async () => {
+    // The account is owed, so the stop winds down and the run stays with a
+    // person; the person's resume releases it. Before the re-review the resume
+    // re-planned the interview and said the application was moving again.
+    const windingDown = "01JBXQ8Z9WKTQ6M4H2NPC03136";
+    const REQUEST = `sr_${"0".repeat(31)}6`;
+    const said = async (): Promise<string[]> =>
+      (await pool.query<{ content: string }>(
+        `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+          WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+        [windingDown],
+      )).rows.map((row) => row.content);
+    await ownConversation(windingDown);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(windingDown));
+      const started = await pastTheYes(instance, windingDown);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const windRun = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({ conversationId: windingDown, event: { kind: "secret_received", requestId: REQUEST, handle: `sh_${"8".repeat(32)}` } });
+      await instance.driver.advance({ runId: windRun, conversationId: windingDown });
+      const runRef = makeRunId(windRun);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: windRun });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: windRun, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await log.append({ conversationId: windingDown, event: { kind: "secret_consumed", requestId: REQUEST } });
+      await instance.driver.advance({ runId: windRun, conversationId: windingDown });
+      expect(await instance.driver.recordDecision({ conversationId: windingDown, runId: windRun, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      for (let poll = 0; poll < 3; poll++) await instance.driver.advance({ runId: windRun, conversationId: windingDown });
+      expect((await instance.driver.runFor(windingDown))?.stopped, "winding down").toEqual({ concluded: false });
+
+      // An interview stop held by a person on this run: the closed hold from
+      // the group above, copied onto this run and opened, and the run with it.
+      await pool.query(
+        `INSERT INTO interventions (intervention_id, run_id, idempotency_key, case_id, student_ref, reason, priority,
+                                    encountered, expected, checkpoint, context, raised_at, announced_at, lifecycle)
+         SELECT 'iv_p313_resume_winding_down', $2, idempotency_key || ':p313', $3,
+                (SELECT student_ref FROM workflow_runs WHERE run_id = $2), reason, priority,
+                encountered, expected, checkpoint, context, raised_at, raised_at, 'captured'
+           FROM interventions WHERE run_id = $1 LIMIT 1`,
+        [runId, windRun, `case_${windingDown.toLowerCase()}`],
+      );
+      await pool.query("UPDATE workflow_runs SET status = 'escalated' WHERE run_id = $1", [windRun]);
+      const before = (await said()).length;
+      const resolved = await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId("iv_p313_resume_winding_down"),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the log.", resolution: "Ask again.", resolvedAt: NOW, outcome: "resume" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
+        didHappen: false,
+      });
+      expect(resolved.said.map((item) => item.about), "nothing said").toEqual([]);
+      expect((await said()).slice(before), "not 'moving again', and no question").toEqual([]);
+      const asked = await pool.query("SELECT 1 FROM conversation_events WHERE conversation_id = $1 AND kind IN ('value_asked', 'stop_resolved')", [windingDown]);
+      expect(asked.rowCount).toBe(0);
+      const after = await instance.driver.runFor(windingDown);
+      expect(after?.pending?.decision, "the hand-back still stands").toBe("confirm_handoff");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
 describeIfDatabase("a correction the student makes late", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000D0";
   const caseRef = `case_${conversation.toLowerCase()}`;
@@ -16723,6 +17268,110 @@ describeIfDatabase("a CV is read only on the student's word, asked when its firs
   }, 300_000);
 });
 
+// The P313 re-review: the CV question stood when the student stopped. A no
+// still deletes the CV, as every no to it does (ADR-0151, P251) — the first
+// P313 build refused it with everything else — and a yes is still not taken.
+describeIfDatabase("a CV question standing at the stop: a no still deletes the CV, a yes is not taken (the P313 re-review)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03138";
+  const documentId = "01JQDOCREAD000000000003138";
+  // A second, stopped the same way, for the no pressed rather than typed.
+  const pressed = "01JBXQ8Z9WKTQ6M4H2NPC03139";
+  const pressedDocument = "01JQDOCREAD000000000003139";
+  const contentHash = "d".repeat(64);
+  let runId = "";
+  let pressedRun = "";
+  let vault: ReturnType<typeof fakeVault>;
+
+  function instance(): ReturnType<typeof buildInstance> {
+    return buildInstance(connectionString(), opener(), catalogueOf(QUALIFICATIONS_REQUIRED), "wired", null, () => NOW, vault);
+  }
+  async function since(ordinal: number): Promise<{ kind: string; content: string | null }[]> {
+    return (await pool.query<{ kind: string; content: string | null }>(
+      `SELECT e.kind, b.content FROM conversation_events e LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.ordinal > $2 ORDER BY e.ordinal ASC`,
+      [conversation, ordinal],
+    )).rows;
+  }
+  async function last(): Promise<number> {
+    return Number((await pool.query<{ n: string }>("SELECT max(ordinal) AS n FROM conversation_events WHERE conversation_id = $1", [conversation])).rows[0]?.n ?? 0);
+  }
+  async function readingState(of: string = documentId): Promise<string | undefined> {
+    return (await pool.query<{ state: string }>("SELECT state FROM document_readings WHERE document_id = $1", [of])).rows[0]?.state;
+  }
+  const cvOf = (id: string, studentId: string): DocumentRecord => ({
+    documentId: id, studentId, documentType: "cv", purpose: "cv_section_filling", state: "confirmed", contentHash, contentType: "application/pdf",
+    sizeBytes: 1000, uploadedAt: NOW, dates: {}, retentionPolicyReference: "AAS-RET-ADR0148-10", retentionTriggeredAt: null,
+  });
+  /** The CV question standing, and then the stop: the run's id. */
+  async function standingAtTheStop(conversationId: string, cv: string, owner: string): Promise<string> {
+    const built = instance();
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(built.pool), owner);
+      await built.driver.requestReading({ documentId: cv, conversationId, studentId: owner, contentHash });
+      const started = await built.driver.start({ conversationId, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(await readingState(cv), "the CV question stands").toBe("offered");
+      expect(await built.driver.recordDecision({ conversationId, runId: started.position.runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      return started.position.runId;
+    } finally {
+      await built.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    const owner = await ownConversation(conversation);
+    const pressedOwner = await ownConversation(pressed);
+    vault = fakeVault([cvOf(documentId, owner), cvOf(pressedDocument, pressedOwner)]);
+    runId = await standingAtTheStop(conversation, documentId, owner);
+    pressedRun = await standingAtTheStop(pressed, pressedDocument, pressedOwner);
+  }, 300_000);
+
+  it("a pressed yes is refused, and nothing is read or said", async () => {
+    const before = await last();
+    const built = instance();
+    try {
+      expect(await built.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "use_document", documentId, use: true } })).toEqual({ ok: false, reason: "not_asked" });
+    } finally {
+      await built.pool.end();
+    }
+    expect(await readingState()).toBe("offered");
+    expect(await since(before)).toEqual([]);
+  }, 300_000);
+
+  it("a typed no deletes the CV, says so without promising to ask anything, and asks nothing", async () => {
+    const built = instance();
+    let typed = 0;
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: "no" } });
+      typed = written.event.ordinal;
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+    expect(await readingState()).toBe("declined");
+    expect(vault.records.find((record) => record.documentId === documentId)?.state, "deleted, as every no deletes it").toBe("purged");
+    expect(await since(typed), "the deletion said, and nothing asked").toEqual([{ kind: "message", content: "You said no, so I have deleted your CV." }]);
+  }, 300_000);
+
+  it("a pressed no deletes the CV too, from a page that still shows the buttons", async () => {
+    const before = Number((await pool.query<{ n: string }>("SELECT max(ordinal) AS n FROM conversation_events WHERE conversation_id = $1", [pressed])).rows[0]?.n ?? 0);
+    const built = instance();
+    try {
+      expect(await built.driver.recordDecision({ conversationId: pressed, runId: pressedRun, decision: { kind: "use_document", documentId: pressedDocument, use: false } })).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+    expect(await readingState(pressedDocument)).toBe("declined");
+    expect(vault.records.find((record) => record.documentId === pressedDocument)?.state).toBe("purged");
+    const after = await pool.query<{ kind: string; content: string | null }>(
+      `SELECT e.kind, b.content FROM conversation_events e LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.ordinal > $2 ORDER BY e.ordinal ASC`,
+      [pressed, before],
+    );
+    expect(after.rows).toEqual([{ kind: "message", content: "You said no, so I have deleted your CV." }]);
+  }, 300_000);
+});
+
 describeIfDatabase("a CV uploaded after both its fields are confirmed is asked about at once, never held in silence; a no deletes it and leaves the fields; a yes goes back and confirms again (P252, row 107)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-09-30, row 107: *"ask, do not hold silently. A CV uploaded
@@ -19801,6 +20450,83 @@ describeIfDatabase("the registration e-mail question (P306, ADR-0159 O3)", () =>
   }, 120_000);
 });
 
+// P313, item 2, while the stop winds down: the account is still to be handed
+// back, so the application is stopped but not concluded. With the registration
+// question standing inside the hand-back, a typed line gets P306's own reply,
+// pointing at its two buttons (ADR-0159 O3; the P313 review found the first
+// build answered it with the stopped line instead). Nothing is read as an
+// answer, no new application is offered, and the hand-back's yes still works.
+describeIfDatabase("a message typed while a stop winds down is read as no answer, and the hand-back still works (P313, item 2)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03133";
+  const CREATION_REQUEST = `sr_${"0".repeat(31)}3`;
+
+  async function assistantSaid(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("points at the registration question's buttons, offers no new application, publishes the hand-back alone, and takes its yes", async () => {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({ conversationId: conversation, event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: `sh_${"6".repeat(32)}` } });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      for (let poll = 0; poll < 3; poll++) await instance.driver.advance({ runId, conversationId: conversation });
+
+      const before = (await assistantSaid()).length;
+      const written = await log.append({ conversationId: conversation, event: { kind: "message", actor: "student", content: "Apply for me to the MSc at Sheffield" } });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      const replies = (await assistantSaid()).slice(before);
+      expect(replies, "one reply").toHaveLength(1);
+      expect(replies[0], "P306's reply: the question stands, and its buttons answer it").toContain("Please answer with one of the two buttons under my question");
+      expect(replies[0], "no new application while it winds down").not.toContain("Start a new application");
+      const read = await pool.query(
+        "SELECT 1 FROM conversation_events WHERE conversation_id = $1 AND kind IN ('answer_unread', 'value_proposed', 'value_offered', 'value_asked') AND ordinal > $2",
+        [conversation, written.event.ordinal],
+      );
+      expect(read.rowCount, "nothing read as an answer, nothing asked").toBe(0);
+
+      // A CV question standing on the stopped application, as an upload during
+      // the wind-down would leave one: the read publishes the hand-back alone,
+      // so its buttons are not hidden (the P313 review), and the question is
+      // not pressed into a reading.
+      const cv = "01JBXQ8Z9WKTQ6M4H2NPC0CV13";
+      const readings = new PostgresDocumentReadingStore(instance.pool);
+      await readings.request({ documentId: cv, conversationId: conversation, studentId: ownerOf(conversation), contentHash: "a".repeat(64), now: NOW });
+      await readings.ask(cv, NOW);
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "use_document", documentId: cv, use: true } })).toEqual({ ok: false, reason: "not_asked" });
+
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.stopped, "stopped, not concluded").toEqual({ concluded: false });
+      const pending = reading?.pending;
+      if (pending?.decision !== "confirm_handoff") expect.unreachable(`the hand-back is not pending: ${JSON.stringify(pending)}`);
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_handoff", contentHash: pending.contentHash } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
 // The P306 review, F1: the student stops while the registration question is
 // open. The step becomes the hand-back, awaiting the same handoff; its words
 // must be said, so the yes/no they can press is over a message they read.
@@ -19854,6 +20580,64 @@ describeIfDatabase("a stop while the registration e-mail question is open (P306 
       expect(pending.contentHash, "over the message the student read").toBe(`sha256:${createHash("sha256").update(read).digest("hex")}`);
       expect(reading?.run.step, "the step is the hand-back").toBe("hand_over_account");
       expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_handoff", contentHash: pending.contentHash } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("stopped with the question open, a 'no', then a person's resume: the question is asked again, with why (the P313 review)", async () => {
+    // The first P313 build checked the stop in the interview's shared
+    // situation, and this resume then said nothing: the buttons came back
+    // under "passed it to a member of the team". The stop is now checked where
+    // things are asked, and the hand-back keeps its own words.
+    const stopped = "01JBXQ8Z9WKTQ6M4H2NPC03134";
+    const REQUEST = `sr_${"0".repeat(31)}4`;
+    const said = async (): Promise<string[]> =>
+      (await pool.query<{ content: string }>(
+        `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+          WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+        [stopped],
+      )).rows.map((row) => row.content);
+    await ownConversation(stopped);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(stopped));
+      const started = await pastTheYes(instance, stopped);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({ conversationId: stopped, event: { kind: "secret_received", requestId: REQUEST, handle: `sh_${"7".repeat(32)}` } });
+      await instance.driver.advance({ runId, conversationId: stopped });
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await log.append({ conversationId: stopped, event: { kind: "secret_consumed", requestId: REQUEST } });
+      await instance.driver.advance({ runId, conversationId: stopped });
+      expect(await instance.driver.recordDecision({ conversationId: stopped, runId, decision: { kind: "cancel" } })).toEqual({ ok: true });
+      for (let poll = 0; poll < 3; poll++) await instance.driver.advance({ runId, conversationId: stopped });
+
+      const before = await instance.driver.runFor(stopped);
+      if (before?.pending?.decision !== "confirm_handoff") expect.unreachable(`the hand-back is pending: ${JSON.stringify(before?.pending)}`);
+      expect(await instance.driver.recordDecision({ conversationId: stopped, runId, decision: { kind: "decline_handoff", contentHash: before.pending.contentHash } })).toEqual({ ok: true });
+      for (let poll = 0; poll < 2; poll++) await instance.driver.advance({ runId, conversationId: stopped });
+      const open = await pool.query<{ intervention_id: string }>("SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NULL", [runId]);
+      const held = open.rows[0]?.intervention_id;
+      if (held === undefined) expect.unreachable("a person holds it after the 'no'");
+
+      const resolved = await instance.driver.resolveIntervention({
+        interventionId: makeInterventionId(held),
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Asked the student to look again.", resolution: "Ask again.", resolvedAt: NOW, outcome: "resume" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "registration" },
+        didHappen: false,
+      });
+      expect(resolved.said.map((item) => item.about), "asked again, with why").toEqual(["registration_asked_again", "registration_question"]);
+      const lines = await said();
+      expect(lines.at(-2)).toBe("Someone on the team has looked at your Gated University application, so I am asking you again.");
+      expect(lines.at(-1)).toContain("has an e-mail from Gated University's application portal reached");
+      const after = await instance.driver.runFor(stopped);
+      expect(after?.pending?.decision, "its yes/no, as before").toBe("confirm_handoff");
     } finally {
       await instance.pool.end();
     }
@@ -20138,6 +20922,9 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
       const after = await instance.driver.runFor(conversation);
       expect(after?.run.status).toBe("completed");
       expect(after?.pending ?? null, "nothing offered: no yes, no password").toBeNull();
+      // P313: a start on a completed application's conversation is refused as
+      // ended. Before P313 it reached `startRun` with the run id that exists.
+      expect(await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT })).toEqual({ ok: false, refusal: { kind: "application_ended" } });
     } finally {
       await instance.pool.end();
     }
@@ -20282,6 +21069,30 @@ describeIfDatabase("a stop after a submission made by hand says what was recorde
         "That is the last of it. You submitted your Gated University application on the university's website on 30 August 2026. " +
           "Stopping did not withdraw it. The account at Gated University is yours now, and nothing is outstanding here.",
       );
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("after the recorded case concludes, a typed line says they submitted it and offers no new application; a start here is refused as ended (P313, the review)", async () => {
+    // P308, his words: *"whatever the case's internal state, what the student
+    // sees must say plainly that the application was submitted, by them, on
+    // that date."* The first P313 build said "stopped and closed … To apply
+    // again" here. Whether a recorded case may be offered a new application at
+    // all touches submitting, so none is offered until he says.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const before = (await assistantSaid()).length;
+      const written = await new ConversationEventStore(instance.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: "Apply for me to the MSc again" } });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      expect((await assistantSaid()).slice(before)).toEqual([
+        "You submitted your application on the university's website on 30 August 2026. My work on it here is stopped, so I have not read your message as an answer to a question about it.",
+      ]);
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.stopped).toEqual({ concluded: true });
+      expect(reading?.submitted).toEqual({ on: "2026-08-30" });
+      expect(reading?.pending).toBeNull();
+      expect(await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT })).toEqual({ ok: false, refusal: { kind: "application_ended" } });
     } finally {
       await instance.pool.end();
     }

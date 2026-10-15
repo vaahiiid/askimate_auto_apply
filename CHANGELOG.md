@@ -19,6 +19,43 @@ not shipped artefacts.
 
 ---
 
+## [0.306.0] — 2026-10-15
+
+**P313 — a stopped application asks nothing, and a new one starts from the page.** His live run,
+in his words (`docs/run-a/p313-his-message-as-sent.txt`): *"Fix 2 and 3 first, since they block my
+run; record the rest as rows with your recommendation."*
+
+- **A stopped application asks nothing and reads nothing typed as an answer (item 2).** His words:
+  *"After the stop, the case said "this application is closed", but the interview kept asking
+  questions (EU, British passport), and my typed "Apply for me to the MSc at Sheffield" was read as
+  an answer to the EU question."* A typed line is answered once and read as no answer; no question,
+  playback or CV question is put; no press is taken for the interview; the read publishes nothing
+  to press but the account's hand-back, and says the application is stopped. A request about the
+  student's data is still taken, as the stop's own message invites; the registration e-mail
+  question inside a hand-back keeps its own reply; after a submission recorded by hand, the line
+  says the student submitted it. Checked where each act happens, not in the interview's shared
+  situation (the review found the first build silenced the hand-back and a person's resume). The
+  second review found five more places and P313 closed them: a person's resume of a hold on a
+  stopped application said "moving again"; a message that led back to the interview raised a
+  person again; a stop that landed while the model read an answer let the answer through; a no to
+  a CV question that stood at the stop no longer deleted the CV (ADR-0151; restored, pressed or
+  typed, without promising to ask anything); and four guards had no test that failed without them.
+- **No stop on a closed application (item 2).** Nor on one winding down from a stop.
+- **A new application from the page (item 3).** His words: *"After a stop, the page offers no way
+  to start a new application."* A concluded stop shows "Start a new application": a new
+  conversation, the targets as buttons, then the second-attempt exchange (ADR-0006). The restart of
+  his own application, step by step, is `docs/run-a/p313-restart-steps.md`.
+- **The old conversation refuses cleanly.** A start there answered 500; it is refused
+  `application_ended` (403). The advice and the instruction of a second attempt are refused from
+  any conversation that holds an application of its own: there the instruction was written onto
+  the latest attempt and then failed, after which every later attempt was refused.
+- **Items 1, 4, 5, 6 and 7 are rows 191–195**, each with my recommendation and whether it touches
+  the four; row 196 holds what P313 leaves.
+
+Proven against the deterministic stand-in only.
+
+---
+
 ## [0.305.0] — 2026-10-15
 
 **P312 — the six defects his stalled live run showed.** His words

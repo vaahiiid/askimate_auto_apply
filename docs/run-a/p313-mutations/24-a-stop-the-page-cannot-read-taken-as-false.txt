@@ -1,0 +1,11 @@
+mutation 24-a-stop-the-page-cannot-read-taken-as-false on apps/conversation-service/src/client/transport.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/client/transport-stopped.test.ts
+exit: 1
+restored byte for byte: True
+
+   × the run reading's stop (P313) > refuses the whole read for a stop it cannot read, rather than drawing a stop button or a new application on a guess 8ms
+     → true: expected true to be false // Object.is equality
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |unit|  apps/conversation-service/src/client/transport-stopped.test.ts > the run reading's stop (P313) > refuses the whole read for a stop it cannot read, rather than drawing a stop button or a new application on a guess

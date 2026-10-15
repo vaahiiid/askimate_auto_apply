@@ -1,0 +1,11 @@
+mutation 20-a-stop-label-on-a-stopped-application on apps/conversation-service/src/client/words.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/client/words.test.ts
+exit: 1
+restored byte for byte: True
+
+   × no internal word ever reaches a student's screen (P227, ADR-0147) > offers no stop where nothing is left to stop: a completed run, and an abandoned one after a record (P307; the P308 review) 8ms
+     → its line has just said it is stopped: expected 'Stop here (this does not withdraw the…' to be null
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |unit|  apps/conversation-service/src/client/words.test.ts > no internal word ever reaches a student's screen (P227, ADR-0147) > offers no stop where nothing is left to stop: a completed run, and an abandoned one after a record (P307; the P308 review)

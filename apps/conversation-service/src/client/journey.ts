@@ -106,7 +106,7 @@ interface View {
 const view: View = {
   conversationId: null,
   events: [],
-  run: { run: null, pending: null, ownActs: [], consent: null, submitted: null },
+  run: { run: null, pending: null, ownActs: [], consent: null, submitted: null, stopped: null },
   targets: [],
   offer: null,
   preview: null,
@@ -266,7 +266,7 @@ async function readAndDraw(): Promise<void> {
   }
   if (run.ok) view.run = run.value;
   else {
-    view.run = { run: null, pending: null, ownActs: [], consent: null, submitted: null };
+    view.run = { run: null, pending: null, ownActs: [], consent: null, submitted: null, stopped: null };
     report(run.code);
   }
 
@@ -725,8 +725,9 @@ function drawPending(): void {
   // the architecture says a stop button that only worked sometimes would not
   // be one — not because a read mentioned it. Not on a completed run (P307):
   // there is nothing left to stop, and the service refuses it.
-  // And not on an abandoned run after a record (the P308 review).
-  const stop = stopLabelFor(view.run.run?.status, view.run.submitted);
+  // And not on an abandoned run after a record (the P308 review), nor on any
+  // application that is stopped (P313, his finding 2).
+  const stop = stopLabelFor(view.run.run?.status, view.run.submitted, view.run.stopped);
   if (stop !== null) {
     panel.append(
       button(
@@ -738,6 +739,38 @@ function drawPending(): void {
       ),
     );
   }
+
+  // ── The way to a new application, once this one has concluded (P313) ───
+  //
+  // His words: *"After a stop, the page offers no way to start a new
+  // application."* A conversation owns at most one case, so a new application
+  // lives in a new conversation (ADR-0006), and the page opens one and lands
+  // there: the newest conversation is the one it shows. Only once the stop has
+  // CONCLUDED: a second attempt is refused while the first winds down. And not
+  // over a submission recorded as made by hand (P308; the P313 review): a new
+  // application there is a duplicate of a submitted one, and whether one may
+  // be offered touches submitting, which is his to say.
+  if (view.run.stopped?.concluded === true && view.run.submitted === null) {
+    panel.append(
+      button("Start a new application", () => {
+        void startANewApplication();
+      }),
+    );
+  }
+}
+
+/** Opens a conversation for a new application and shows it (P313, item 3). */
+async function startANewApplication(): Promise<void> {
+  view.notice = "";
+  const opened = await api.openConversation();
+  if (!opened.ok) {
+    report(opened.code);
+    draw();
+    return;
+  }
+  // The page holds nothing about a conversation but its id, and `start` lands
+  // on the newest; a reload is the one path that is already tested end to end.
+  location.reload();
 }
 
 /** The secure step, in a cross-origin frame this page cannot read into. */
@@ -1281,6 +1314,10 @@ async function applyForOffer(offerHash: string): Promise<void> {
       problem?.code === "already_applying" && problem.concluded
         ? { existingCaseId: problem.existingCaseId, advice: null }
         : null;
+    // P313: over a CONCLUDED application, "Here it is." pointed at nothing
+    // shown — the old one is in another conversation. The panel says what
+    // there is to say ("You have applied for this before").
+    if (view.reapplication !== null) view.notice = "";
   } else {
     view.offer = null;
     view.reapplication = null;

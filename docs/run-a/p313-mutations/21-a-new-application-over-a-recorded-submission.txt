@@ -1,0 +1,12 @@
+mutation 21-a-new-application-over-a-recorded-submission on apps/conversation-service/src/client/journey.ts
+command: pnpm exec vitest run --project chromium apps/conversation-service/src/student-client.test.ts -t P313|P308
+exit: 1
+restored byte for byte: True
+
+   × the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition) 630ms
+     → no new application over a recorded submission: expected [ 'I have attached this myself', …(1) ] to not include 'Start a new application'
+   ✓ the second attempt, from the student's own page > after a stop pressed on the page: no stop and nothing to press, nothing typed read as an answer, and a new application that leads to the second attempt (P313, items 2 and 3) 1271ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 30 skipped (32)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |chromium|  apps/conversation-service/src/student-client.test.ts > the student's page > after a record, every surface it draws says the student submitted it, on that date, and offers nothing to apply for (P308, his D7 addition)
