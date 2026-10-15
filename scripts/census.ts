@@ -244,7 +244,7 @@ function main(): void {
     console.error(
       `\nTHE SUITE SKIPPED ${String(skipped)} TESTS — a census of a run that did not run them counts nothing, ` +
         `and the table is NOT written. The database-backed suites skip themselves when ` +
-        `AAS_TEST_DATABASE_URL and AAS_TEST_REDIS_URL are unset; set them, with ` +
+        `AAS_TEST_DATABASE_URL, AAS_TEST_REDIS_URL and AAS_TEST_SCRATCH_REDIS_URL (a second Redis, for the tests that change a server's settings) are unset; set them, with ` +
         `AAS_REQUIRE_DATABASE=1 and AAS_REQUIRE_REDIS=1 so a missing service fails instead.`,
     );
     process.exitCode = 1;

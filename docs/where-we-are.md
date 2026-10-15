@@ -4933,6 +4933,14 @@ every read behind it, so each read is bounded. It also found a resolution that c
 telling the student, which then told the person "refused". Both are fixed. His run's log may still
 hold the two copies of the offer said before this phase; the log is append-only and they stay.
 
+After the commit, CI's Integration job was red on main twice and green on its branch, both times
+on the local stack's start: *"the fill agent did not come up within 90s"*. CI's own timestamps put
+a test that sets the shared Redis to evict, for a second, inside that start both times, and the
+Secure Service and Fill Agent refuse to start on such a cache. That fits, but it is not the Fill
+Agent's own word: the test removed its logs. So the tests that change a server's settings now
+have a Redis of their own, CI's shared one refuses a settings change, a stack that does not come
+up prints what each process said, and the stack suites keep their logs when a test fails.
+
 ## Declared-but-unreachable surface
 
 **Three** — unchanged.

@@ -37,7 +37,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import pg from "pg";
 import { Redis } from "ioredis";
 import { chromium, type Browser } from "playwright";
@@ -322,12 +322,29 @@ beforeAll(async () => {
   cookie = set.split(";")[0] ?? "";
 
   studentBrowser = await chromium.launch({ headless: true });
+  ready = true;
 }, 300_000);
+
+/**
+ * Set when a test here fails, or the stack never finished starting (P312):
+ * the state directory, with each process's own log, and the two databases are
+ * then kept and named. Until P312 they were removed on every run, the failed
+ * ones included. The next run drops the databases before it starts.
+ */
+let failed = false;
+let ready = false;
+beforeEach(({ onTestFailed }) => {
+  onTestFailed(() => {
+    failed = true;
+  });
+});
 
 afterAll(async () => {
   if (!HAVE_DATABASE || !HAVE_REDIS) return;
-  await studentBrowser.close().catch(() => undefined);
-  await conversationPool.end().catch(() => undefined);
+  if (ready) {
+    await studentBrowser.close().catch(() => undefined);
+    await conversationPool.end().catch(() => undefined);
+  }
   // `AAS_LOCAL_STACK_KEEP=1` leaves the processes, the state directory and the
   // two databases in place, for reading what happened by hand
   // (docs/runbook-local-stack.md, "Reading what happened").
@@ -335,11 +352,13 @@ afterAll(async () => {
     process.stdout.write(`P121: kept the stack in ${dir} and the databases ${PREFIX}_conversation / ${PREFIX}_secure\n`);
     return;
   }
-  if (dir.length > 0) {
-    await script("stop", dir, portal.baseUrl).catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
-  }
+  if (dir.length > 0) await script("stop", dir, portal.baseUrl).catch(() => undefined);
   await portal.stop().catch(() => undefined);
+  if (failed || !ready) {
+    process.stdout.write(`P312: kept, because a test here failed or the stack never finished starting: the stack's state and logs in ${dir} and the databases ${PREFIX}_conversation / ${PREFIX}_secure\n`);
+    return;
+  }
+  if (dir.length > 0) await rm(dir, { recursive: true, force: true });
   await dropDatabases();
 }, 300_000);
 

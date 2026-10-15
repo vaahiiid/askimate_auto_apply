@@ -20,7 +20,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join } from "node:path";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import { Redis } from "ioredis";
 
@@ -38,6 +38,13 @@ const ROOT = join(import.meta.dirname, "..");
  */
 const TSX = join(ROOT, "node_modules", ".bin", "tsx");
 const REDIS_URL = process.env["AAS_TEST_REDIS_URL"] ?? "redis://127.0.0.1:56379";
+/**
+ * A Redis no other test uses, for the one test here that makes a cache unsafe
+ * (P312). Every suite that starts a Secure Service or a Fill Agent uses the
+ * shared one at the same moment, and each refuses to start while it would
+ * evict; CI's shared one refuses `CONFIG SET` outright.
+ */
+const SCRATCH_REDIS_URL = process.env["AAS_TEST_SCRATCH_REDIS_URL"] ?? "redis://127.0.0.1:56380";
 
 const CONVERSATION_DB = "aas_p18_conversation";
 const SECURE_DB = "aas_p18_secure";
@@ -46,8 +53,8 @@ const SESSION_SECRET = "a-p18-session-secret-that-is-long-enough-to-pass";
 const HAVE_DATABASE = await databaseReachable();
 if (!HAVE_DATABASE) announceSkip("P18 — the five deployables, started as real processes");
 
-async function redisReachable(): Promise<boolean> {
-  const probe = new Redis(REDIS_URL, {
+async function redisReachable(url: string): Promise<boolean> {
+  const probe = new Redis(url, {
     enableOfflineQueue: false,
     maxRetriesPerRequest: 1,
     lazyConnect: true,
@@ -62,7 +69,7 @@ async function redisReachable(): Promise<boolean> {
     await probe.quit().catch(() => undefined);
   }
 }
-const HAVE_REDIS = HAVE_DATABASE ? await redisReachable() : false;
+const HAVE_REDIS = HAVE_DATABASE ? await redisReachable(REDIS_URL) : false;
 if (HAVE_DATABASE && !HAVE_REDIS) {
   const banner =
     "\n" + "█".repeat(78) + "\n" +
@@ -73,8 +80,20 @@ if (HAVE_DATABASE && !HAVE_REDIS) {
   console.warn(banner);
 }
 
+const HAVE_SCRATCH_REDIS = HAVE_DATABASE ? await redisReachable(SCRATCH_REDIS_URL) : false;
+if (HAVE_DATABASE && !HAVE_SCRATCH_REDIS) {
+  const banner =
+    "\n" + "█".repeat(78) + "\n" +
+    "██  NOT CHECKED: the Secure Service REFUSING a cache that would evict\n" +
+    `██  No Redis at ${SCRATCH_REDIS_URL} (AAS_TEST_SCRATCH_REDIS_URL)\n` +
+    "█".repeat(78) + "\n";
+  if (process.env["AAS_REQUIRE_REDIS"] === "1") throw new Error(banner);
+  console.warn(banner);
+}
+
 const describeIfDatabase = HAVE_DATABASE ? describe : describe.skip;
 const describeIfBoth = HAVE_DATABASE && HAVE_REDIS ? describe : describe.skip;
+const describeIfScratch = HAVE_DATABASE && HAVE_SCRATCH_REDIS ? describe : describe.skip;
 
 function urlFor(database: string): string {
   const url = new URL(TEST_DATABASE_URL);
@@ -226,14 +245,10 @@ beforeAll(async () => {
   };
 }, 180_000);
 
-afterAll(async () => {
-  if (!HAVE_DATABASE || !HAVE_REDIS) return;
-  const client = new Redis(REDIS_URL, { enableOfflineQueue: false, lazyConnect: true });
-  await client.connect();
-  const keys = await client.keys("aas:envelope:*");
-  if (keys.length > 0) await client.del(...keys);
-  await client.quit().catch(() => undefined);
-});
+// No cleanup of the shared Redis here (P312). This file writes no envelope,
+// and it deleted every `aas:envelope:*` key on the way out: on the Redis every
+// stack suite shares at once, that is any other suite's envelope in flight.
+// The server expires each envelope at its own deadline (`PXAT`).
 
 describeIfDatabase("refusing to start", () => {
   it("lists EVERY missing variable at once, and exits non-zero", async () => {
@@ -610,18 +625,23 @@ describeIfBoth("the Secure Service and the Fill Agent SHARE a cache", () => {
       expect(await secure.stop("SIGTERM")).toBe(0);
     }
   }, 240_000);
+});
 
+describeIfScratch("the Secure Service's startup check, on a Redis no other test uses (P312)", () => {
   it("REFUSES to start against a cache that would evict under pressure", async () => {
     // The startup control from `secure-plane-deployment.md` §3.2, running for
-    // the first time. Changed on the real server and put back afterwards.
-    const client = new Redis(REDIS_URL, { enableOfflineQueue: false, lazyConnect: true });
+    // the first time. Changed on a real server and put back afterwards — on a
+    // Redis of its own since P312. On the shared one, this second fell inside
+    // another suite's stack start in both CI runs where that start's Fill Agent
+    // "did not come up", and after it in the run that passed.
+    const client = new Redis(SCRATCH_REDIS_URL, { enableOfflineQueue: false, lazyConnect: true });
     await client.connect();
     const before = await client.config("GET", "maxmemory-policy");
     await client.config("SET", "maxmemory-policy", "allkeys-lru");
     try {
       const finished = await runToCompletion("secure-service", {
         ...secureEnv,
-        AAS_ENVELOPE_CACHE_URL: REDIS_URL,
+        AAS_ENVELOPE_CACHE_URL: SCRATCH_REDIS_URL,
       });
       expect(finished.code).toBe(1);
       expect(finished.stderr).toContain("spontaneous cancellation");

@@ -51,6 +51,15 @@ after his run stood still past a resolution; each was seen failing before its ch
 - **The page draws without replaying the log (item 6).** It reads first and opens its stream
   after the last event it read; reads are serialised, one in flight and one queued, each bounded;
   a frame never overtakes a read, the student's own act does.
+- **CI's Integration job, red on main twice for the P312 commit, green on its branch.** In both
+  red runs `local-stack.test.ts` said *"the fill agent did not come up within 90s"*. From CI's
+  own timestamps, p18-startup's test that sets the shared Redis to evict ran inside that start
+  in both red runs and after it in the green one. Every Secure Service and Fill Agent refuses to
+  start on such a cache, so this fits; the Fill Agent's own words from those runs were never
+  read, because the test removed its logs. Now: the tests that change a server's settings use a
+  second Redis no other test uses, CI's shared one answers `CONFIG SET` with NOPERM, a stack
+  that does not come up prints each process's last 30 lines, and the three stack suites keep
+  their logs when a test fails.
 
 Proven against the deterministic stand-in only.
 

@@ -338,6 +338,16 @@ wait_for() {
     sleep 1
   done
   echo "$what did not come up within ${seconds}s — see $DIR/*.log" >&2
+  # What each process said, printed here (P312): a caller that removes $DIR
+  # afterwards — a test's cleanup, a fresh start — would otherwise take with
+  # it the one record of why the stack did not come up.
+  local app
+  for app in $APPS; do
+    if [ -s "$DIR/$app.log" ]; then
+      echo "--- the last 30 lines of $DIR/$app.log ---" >&2
+      tail -n 30 "$DIR/$app.log" >&2
+    fi
+  done
   return 1
 }
 

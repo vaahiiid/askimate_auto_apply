@@ -156,15 +156,32 @@ jobs:
       # save points on by default — so it would, correctly, be refused. A
       # service container cannot override the command; this can, which also
       # makes this file an executable statement of what §3.2 requires.
-      - name: Start Redis for the shared envelope cache
+      #
+      # The shared one refuses `CONFIG SET` (P312). Every suite that starts a
+      # Secure Service or a Fill Agent uses it at the same moment, and each of
+      # those refuses to start while it would evict or write to disk; a test
+      # that set it to evict for a second fell inside a stack's start in both
+      # of P312's failed runs. The tests that change a server's settings use
+      # the second one, `aas-redis-scratch`, which nothing else touches.
+      - name: Start Redis for the shared envelope cache, and one for the tests that change settings
         run: |
           docker run -d --name aas-redis -p 6379:6379 redis:7-alpine \
+            redis-server --save "" --appendonly no --maxmemory-policy noeviction --user default on nopass '~*' '&*' '+@all' '-config|set'
+          docker run -d --name aas-redis-scratch -p 6380:6379 redis:7-alpine \
             redis-server --save "" --appendonly no --maxmemory-policy noeviction
-          for _ in $(seq 1 30); do
-            docker exec aas-redis redis-cli ping >/dev/null 2>&1 && break
-            sleep 1
+          for name in aas-redis aas-redis-scratch; do
+            for _ in $(seq 1 30); do
+              docker exec "$name" redis-cli ping >/dev/null 2>&1 && break
+              sleep 1
+            done
+            docker exec "$name" redis-cli ping
           done
-          docker exec aas-redis redis-cli ping
+          # Shown, not assumed: the shared one must refuse a settings change.
+          if docker exec aas-redis redis-cli config set maxmemory-policy allkeys-lru | grep -q NOPERM; then
+            echo "the shared Redis refuses CONFIG SET, as it must"
+          else
+            echo "::error::the shared Redis accepted CONFIG SET"; exit 1
+          fi
 
       # The WHOLE suite, not a list of paths.
       #
@@ -195,6 +212,7 @@ jobs:
           AAS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test
           AAS_REQUIRE_DATABASE: "1"
           AAS_TEST_REDIS_URL: redis://localhost:6379
+          AAS_TEST_SCRATCH_REDIS_URL: redis://localhost:6380
           AAS_REQUIRE_REDIS: "1"
 
       - name: The committed census is current

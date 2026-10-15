@@ -175,6 +175,20 @@ describe("CI still runs the database-backed security suites", () => {
     expect(ci).toContain("--maxmemory-policy noeviction");
   });
 
+  it("keeps that Redis's settings out of every test's reach, and gives the tests that change settings a Redis of their own (P312)", () => {
+    // Every suite that starts a Secure Service or a Fill Agent shares that
+    // Redis at once, and each refuses to start while it would evict or write
+    // to disk. A test that set it to evict for a second fell inside a stack's
+    // start in both of P312's failed Integration runs. The shared one now
+    // answers `CONFIG SET` with NOPERM, so such a test fails at once and by
+    // name; the refusals are tested on the second Redis, which nothing else uses.
+    const shared = /docker run -d --name aas-redis -p 6379:6379 redis:7-alpine \\\n\s*redis-server ([^\n]*)/.exec(ci);
+    expect(shared, "the shared Redis's command line").not.toBeNull();
+    expect(shared?.[1]).toContain("--user default on nopass '~*' '&*' '+@all' '-config|set'");
+    expect(ci).toMatch(/docker run -d --name aas-redis-scratch -p 6380:6379 redis:7-alpine/);
+    expect(ci).toMatch(/AAS_TEST_SCRATCH_REDIS_URL:\s*redis:\/\/localhost:6380/);
+  });
+
   it("runs the WHOLE suite there, rather than a list of paths that can go stale", () => {
     // ── The intent, which survived the command changing ──────────────────
     //

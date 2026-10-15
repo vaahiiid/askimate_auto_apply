@@ -18,7 +18,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import pg from "pg";
 import { Redis } from "ioredis";
 
@@ -153,10 +153,25 @@ async function writeStartLines(scratch: string): Promise<void> {
   await writeFile(join(scratch, "cv-reader.log"), `cv reader reader-local-1 polling http://127.0.0.1:${String(VERIFY_BASE)} — model: the deterministic stand-in (not for production)\n`);
 }
 
+/**
+ * Set when a test here fails (P312). The stack's state directory holds each
+ * process's own log. Until P312 this file removed it on every run, the failed
+ * ones included, and neither of P312's two failed CI runs left a word from the
+ * Fill Agent on why it did not come up. It is now removed only when every
+ * test here passed.
+ */
+let failed = false;
+beforeEach(({ onTestFailed }) => {
+  onTestFailed(() => {
+    failed = true;
+  });
+});
+
 afterAll(async () => {
   if (dir.length > 0) {
     await script("stop", dir).catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
+    if (failed) process.stdout.write(`P312: a test here failed, so the stack's state and logs are kept in ${dir}\n`);
+    else await rm(dir, { recursive: true, force: true });
   }
   if (!HAVE_DATABASE) return;
   const admin = new pg.Pool({ connectionString: TEST_DATABASE_URL });

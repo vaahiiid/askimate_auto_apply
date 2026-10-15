@@ -48,7 +48,10 @@
 #   scripts/p18-startup    — P18. The five deployables started as REAL child
 #                            processes: what they refuse, what they print, and
 #                            the Secure Service and Fill Agent sharing one
-#                            Redis. Set AAS_TEST_REDIS_URL for the last group.
+#                            Redis. Set AAS_TEST_REDIS_URL for the last group,
+#                            and AAS_TEST_SCRATCH_REDIS_URL (a second Redis no
+#                            other test uses) for its one test that changes a
+#                            server's settings (P312).
 #   apps/worker            — P14/P40. The worker's leases: two workers cannot do
 #                            one job at once, a dead worker's lease lapses with
 #                            nobody noticing, and an orderly stop gives back a

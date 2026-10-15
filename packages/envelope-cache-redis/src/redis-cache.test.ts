@@ -17,10 +17,18 @@ import type { Envelope } from "@askimate/aas-secrets";
 import { CacheUnsafeError, RedisEnvelopeCache, decodeEnvelope, encodeEnvelope } from "./redis-cache.js";
 
 const URL_ = process.env["AAS_TEST_REDIS_URL"] ?? "redis://127.0.0.1:56379";
+/**
+ * A Redis no other test uses, for the tests that change a server's settings
+ * (P312). The shared one above is used at the same moment by every suite that
+ * starts a Secure Service or a Fill Agent, and each of those refuses to start
+ * while the cache would evict or write to disk; CI's shared one refuses
+ * `CONFIG SET` outright, so a test that tries fails at once instead.
+ */
+const SCRATCH_URL = process.env["AAS_TEST_SCRATCH_REDIS_URL"] ?? "redis://127.0.0.1:56380";
 const REQUIRED = process.env["AAS_REQUIRE_REDIS"] === "1";
 
-async function reachable(): Promise<boolean> {
-  const probe = new Redis(URL_, { enableOfflineQueue: false, maxRetriesPerRequest: 1, lazyConnect: true });
+async function reachable(url: string): Promise<boolean> {
+  const probe = new Redis(url, { enableOfflineQueue: false, maxRetriesPerRequest: 1, lazyConnect: true });
   try {
     await probe.connect();
     await probe.ping();
@@ -32,7 +40,7 @@ async function reachable(): Promise<boolean> {
   }
 }
 
-const HAVE_REDIS = await reachable();
+const HAVE_REDIS = await reachable(URL_);
 if (!HAVE_REDIS) {
   const banner =
     "\n" +
@@ -47,6 +55,22 @@ if (!HAVE_REDIS) {
   console.warn(banner);
 }
 const describeIfRedis = HAVE_REDIS ? describe : describe.skip;
+
+const HAVE_SCRATCH = await reachable(SCRATCH_URL);
+if (!HAVE_SCRATCH) {
+  const banner =
+    "\n" +
+    "█".repeat(78) + "\n" +
+    "██  NOT CHECKED: the cache's refusal of an unsafe server (§3.2)\n" +
+    "██\n" +
+    `██  No Redis at ${SCRATCH_URL} (AAS_TEST_SCRATCH_REDIS_URL)\n` +
+    "██  The refusals are checked by changing a server's settings, and only\n" +
+    "██  ever on a Redis no other test uses. Whether they hold was NOT checked.\n" +
+    "█".repeat(78) + "\n";
+  if (REQUIRED) throw new Error(banner);
+  console.warn(banner);
+}
+const describeIfScratch = HAVE_SCRATCH ? describe : describe.skip;
 
 let client: Redis;
 let cache: RedisEnvelopeCache;
@@ -193,28 +217,48 @@ describeIfRedis("the shared envelope cache", () => {
     await expect(cache.verify()).resolves.toBeUndefined();
   });
 
+});
+
+describeIfScratch("the cache's refusal of an unsafe server, on a Redis no other test uses (P312)", () => {
+  // Until P312 these two changed the SHARED server for a moment, and a Secure
+  // Service or Fill Agent another suite started in that moment would refuse to
+  // start. p18-startup's test of the same kind fell inside a stack's start in
+  // CI's two failed runs of P312; these two are the same race.
+  let scratch: Redis;
+  let scratchCache: RedisEnvelopeCache;
+
+  beforeAll(async () => {
+    scratch = new Redis(SCRATCH_URL, { enableOfflineQueue: false });
+    scratchCache = new RedisEnvelopeCache({ url: SCRATCH_URL, client: scratch, prefix: "aas:test:" });
+    await scratchCache.ready();
+  });
+
+  afterAll(async () => {
+    await scratch.quit().catch(() => undefined);
+  });
+
   it("REFUSES a server that would evict under memory pressure", async () => {
     // `secure-plane-deployment.md` §3.2: silent eviction looks to a student like
     // a spontaneous cancellation, and a security control that fails quietly is
     // not one. Changed on the real server and put back afterwards.
-    const before = await client.config("GET", "maxmemory-policy");
-    await client.config("SET", "maxmemory-policy", "allkeys-lru");
+    const before = await scratch.config("GET", "maxmemory-policy");
+    await scratch.config("SET", "maxmemory-policy", "allkeys-lru");
     try {
-      await expect(cache.verify()).rejects.toThrow(CacheUnsafeError);
-      await expect(cache.verify()).rejects.toThrow(/spontaneous cancellation/);
+      await expect(scratchCache.verify()).rejects.toThrow(CacheUnsafeError);
+      await expect(scratchCache.verify()).rejects.toThrow(/spontaneous cancellation/);
     } finally {
-      await client.config("SET", "maxmemory-policy", before[1] ?? "noeviction");
+      await scratch.config("SET", "maxmemory-policy", before[1] ?? "noeviction");
     }
-    await expect(cache.verify(), "and it passes again once put back").resolves.toBeUndefined();
+    await expect(scratchCache.verify(), "and it passes again once put back").resolves.toBeUndefined();
   });
 
   it("REFUSES a server that would write ciphertext to disk", async () => {
-    const before = await client.config("GET", "appendonly");
-    await client.config("SET", "appendonly", "yes");
+    const before = await scratch.config("GET", "appendonly");
+    await scratch.config("SET", "appendonly", "yes");
     try {
-      await expect(cache.verify()).rejects.toThrow(/must not reach disk/);
+      await expect(scratchCache.verify()).rejects.toThrow(/must not reach disk/);
     } finally {
-      await client.config("SET", "appendonly", before[1] ?? "no");
+      await scratch.config("SET", "appendonly", before[1] ?? "no");
     }
   });
 });

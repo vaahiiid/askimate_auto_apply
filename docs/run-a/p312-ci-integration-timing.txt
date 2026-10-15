@@ -1,0 +1,99 @@
+CI's Integration job on commit 305458ca, three runs: the lines its timing rests on (P312).
+
+Source: each job's whole log, fetched with the GitHub MCP tool get_job_logs (return_content,
+tail_lines 4000; every log was shorter, so none is cut). Lines picked by the command below,
+with ANSI colour codes removed (sed 's/\x1b\[[0-9;]*m//g') and nothing else changed:
+
+  grep -nE '##\[group\]Run pnpm run census| (✓|❯) \|unit\| scripts/(p18-startup|local-stack)\.test\.ts|evict under pressure|the local stack, started by its own script > |did not come up' <log>
+
+== job 116387706884 (main, attempt 1 — failed)
+589:2026-10-15T11:05:31.0816588Z ##[group]Run pnpm run census
+693:2026-10-15T11:06:39.3724615Z  ✓ |unit| scripts/p18-startup.test.ts (18 tests) 36744ms
+711:2026-10-15T11:06:39.3906910Z    ✓ the Secure Service and the Fill Agent SHARE a cache > REFUSES to start against a cache that would evict under pressure 2298ms
+937:2026-10-15T11:08:18.1284913Z  ❯ |unit| scripts/local-stack.test.ts (10 tests | 1 failed) 110013ms
+938:2026-10-15T11:08:18.1288189Z    × the local stack, started by its own script > creates and migrates both databases, starts the five processes, and each answers where the script says 102169ms
+948:2026-10-15T11:08:18.1324470Z the fill agent did not come up within 90s — see /tmp/aas-local-stack-SssMmE/*.log
+950:2026-10-15T11:08:18.1327652Z    ✓ the local stack, started by its own script > runs the P159 repair through the REAL command, and refuses what it cannot name 1695ms
+951:2026-10-15T11:08:18.1330597Z    ✓ the local stack, started by its own script > runs the P177 repair through the REAL command, and refuses what it cannot name 1845ms
+952:2026-10-15T11:08:18.1333134Z    ✓ the local stack, started by its own script > runs the P263 repair through the REAL command, and refuses what it cannot name 1705ms
+953:2026-10-15T11:08:18.1335519Z    ✓ the local stack, started by its own script > stops all five on request, and nothing answers afterwards 1117ms
+1201:2026-10-15T11:18:22.1366153Z  FAIL |unit|  scripts/local-stack.test.ts > the local stack, started by its own script > creates and migrates both databases, starts the five processes, and each answers where the script says
+1211:2026-10-15T11:18:22.1416061Z the fill agent did not come up within 90s — see /tmp/aas-local-stack-SssMmE/*.log
+
+== job 116393706396 (main, attempt 2 — failed)
+589:2026-10-15T11:20:55.2053500Z ##[group]Run pnpm run census
+681:2026-10-15T11:21:34.8094526Z  ✓ |unit| scripts/p18-startup.test.ts (18 tests) 20950ms
+699:2026-10-15T11:21:34.8104989Z    ✓ the Secure Service and the Fill Agent SHARE a cache > REFUSES to start against a cache that would evict under pressure 1120ms
+940:2026-10-15T11:23:09.7209458Z  ❯ |unit| scripts/local-stack.test.ts (10 tests | 1 failed) 101095ms
+941:2026-10-15T11:23:09.7210858Z    × the local stack, started by its own script > creates and migrates both databases, starts the five processes, and each answers where the script says 96930ms
+951:2026-10-15T11:23:09.7221087Z the fill agent did not come up within 90s — see /tmp/aas-local-stack-pBwzRP/*.log
+953:2026-10-15T11:23:09.7221866Z    ✓ the local stack, started by its own script > runs the P159 repair through the REAL command, and refuses what it cannot name 520ms
+954:2026-10-15T11:23:09.7222516Z    ✓ the local stack, started by its own script > runs the P177 repair through the REAL command, and refuses what it cannot name 534ms
+955:2026-10-15T11:23:09.7223316Z    ✓ the local stack, started by its own script > runs the P263 repair through the REAL command, and refuses what it cannot name 521ms
+956:2026-10-15T11:23:09.7223917Z    ✓ the local stack, started by its own script > stops all five on request, and nothing answers afterwards 1046ms
+1121:2026-10-15T11:32:31.1951792Z  FAIL |unit|  scripts/local-stack.test.ts > the local stack, started by its own script > creates and migrates both databases, starts the five processes, and each answers where the script says
+1131:2026-10-15T11:32:31.1966677Z the fill agent did not come up within 90s — see /tmp/aas-local-stack-pBwzRP/*.log
+
+== job 116387706733 (branch claude/askimate-application-automation-ab22hz — passed)
+564:2026-10-15T11:05:38.3303107Z ##[group]Run pnpm run census
+670:2026-10-15T11:06:47.8162319Z  ✓ |unit| scripts/p18-startup.test.ts (18 tests) 36744ms
+688:2026-10-15T11:06:47.8276870Z    ✓ the Secure Service and the Fill Agent SHARE a cache > REFUSES to start against a cache that would evict under pressure 1030ms
+689:2026-10-15T11:06:54.2451376Z  ✓ |unit| scripts/local-stack.test.ts (10 tests) 19182ms
+690:2026-10-15T11:06:54.2471293Z    ✓ the local stack, started by its own script > creates and migrates both databases, starts the five processes, and each answers where the script says 11343ms
+691:2026-10-15T11:06:54.2494743Z    ✓ the local stack, started by its own script > runs the P159 repair through the REAL command, and refuses what it cannot name 1685ms
+692:2026-10-15T11:06:54.2500061Z    ✓ the local stack, started by its own script > runs the P177 repair through the REAL command, and refuses what it cannot name 1763ms
+693:2026-10-15T11:06:54.2502634Z    ✓ the local stack, started by its own script > runs the P263 repair through the REAL command, and refuses what it cannot name 1752ms
+694:2026-10-15T11:06:54.2505259Z    ✓ the local stack, started by its own script > stops all five on request, and nothing answers afterwards 1135ms
+
+== What the lines give, computed from them by the script below, not typed
+
+A test's end is its file's finish line less the durations of the tests printed after it; its
+start is its end less its own duration. A file's finish line comes after its afterAll, so each
+end is an upper bound, by the afterAll's time (p18-startup's deletes keys; local-stack's stops
+the stack, removes its directory and drops two databases).
+
+  job 116387706884 (main, attempt 1 — failed)
+    p18's evict test:               11:06:37.07 to 11:06:39.37
+    local-stack's start test:       11:06:29.59 to 11:08:11.76  (4 tests after it, 6362 ms)
+    its 90 s wait for the fill agent began no later than 11:06:41.76
+  job 116393706396 (main, attempt 2 — failed)
+    p18's evict test:               11:21:33.68 to 11:21:34.80
+    local-stack's start test:       11:21:30.16 to 11:23:07.09  (4 tests after it, 2621 ms)
+    its 90 s wait for the fill agent began no later than 11:21:37.09
+  job 116387706733 (branch claude/askimate-application-automation-ab22hz — passed)
+    p18's evict test:               11:06:46.78 to 11:06:47.81
+    local-stack's start test:       11:06:36.56 to 11:06:47.91  (4 tests after it, 6335 ms)
+
+So in both failed runs the evict test fell inside the stack's start, before its wait for the
+fill agent ended; in the passing run it fell in the last second of a start test that passed.
+This fits the refusal every Secure Service and Fill Agent makes on a cache that would evict.
+It is not the fill agent's own word: its log was on the runner, and the test removed it.
+
+-- the script (python3 -I <script> <this file>; it reads only the numbered log lines above)
+  # Windows from the excerpt's own lines (P312): each test's end is its file's
+  # finish line less the tests after it; its start is its end less its duration.
+  import re, sys
+  from datetime import datetime, timedelta
+  text = open(sys.argv[1]).read()
+  for block in text.split("== job ")[1:]:
+      head = block.splitlines()[0]
+      if not re.match(r"\d+ \(", head): continue  # a job's block only, never this script's text
+      # Only the log's own lines, numbered by grep: never this script's text.
+      lines = [l for l in block.splitlines()[1:] if re.match(r"\d+:\d{4}-\d\d-\d\dT", l)]
+      def ts(line): return datetime.strptime(line.split(":", 1)[1][:26], "%Y-%m-%dT%H:%M:%S.%f")
+      def ms(line): return int(re.search(r" (\d+)ms$", line).group(1))
+      def find(pat): return next(l for l in lines if re.search(pat, l))
+      p18_file = find(r"\|unit\| scripts/p18-startup")
+      evict = find(r"evict under pressure")
+      evict_end = ts(p18_file); evict_start = evict_end - timedelta(milliseconds=ms(evict))
+      ls_file = find(r"\|unit\| scripts/local-stack\.test")
+      start = find(r"creates and migrates both databases")
+      after = [l for l in lines if re.search(r"REAL command|stops all five", l)]
+      start_end = ts(ls_file) - timedelta(milliseconds=sum(ms(l) for l in after))
+      start_start = start_end - timedelta(milliseconds=ms(start))
+      f = lambda t: t.strftime("%H:%M:%S.%f")[:-4]
+      print(f"job {head}")
+      print(f"  p18's evict test:               {f(evict_start)} to {f(evict_end)}")
+      print(f"  local-stack's start test:       {f(start_start)} to {f(start_end)}  ({len(after)} tests after it, {sum(ms(l) for l in after)} ms)")
+      if any("did not come up within 90s" in l for l in lines):
+          print(f"  its 90 s wait for the fill agent began no later than {f(start_end - timedelta(seconds=90))}")
