@@ -1,0 +1,64 @@
+# P312 mutation 21-verify-reads-logs-of-a-down-stack
+# file: scripts/local-stack.sh
+# replaced:
+  if ! down="$(stack_up gaps)"; then
+# with:
+  if ! down="$(true)"; then
+# command: pnpm exec vitest run --project unit scripts/local-stack.test.ts -t P250|P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/local-stack.test.ts (10 tests | 2 failed | 6 skipped) 148ms
+   × the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify refuses, and reads no log, when nothing is running — whatever the logs left behind say (P312, item 1) 35ms
+     → expected +0 to be 2 // Object.is equality
+   × the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify says verified only while every process is alive and every endpoint answers, and names each that is not (P312, item 1) 37ms
+     → expected +0 to be 2 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 6 skipped (10)
+   Start at  10:45:16
+   Duration  582ms (transform 46ms, setup 0ms, collect 151ms, tests 148ms, environment 0ms, prepare 53ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/local-stack.test.ts > the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify refuses, and reads no log, when nothing is running — whatever the logs left behind say (P312, item 1)
+AssertionError: expected +0 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 0
+
+ ❯ scripts/local-stack.test.ts:220:25
+    218|       }
+    219|       const down = await scriptWith({ AAS_LOCAL_PORT_BASE: String(VERI…
+    220|       expect(down.code).toBe(2);
+       |                         ^
+    221|       expect(down.output).not.toContain("verified");
+    222|       for (const app of APPS) expect(down.output).toContain(`${app}: n…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  scripts/local-stack.test.ts > the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify says verified only while every process is alive and every endpoint answers, and names each that is not (P312, item 1)
+AssertionError: expected +0 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 0
+
+ ❯ scripts/local-stack.test.ts:246:31
+    244|       await rm(join(scratch, "cv-reader.pid"));
+    245|       const readerDown = await scriptWith(base, "verify", scratch);
+    246|       expect(readerDown.code).toBe(2);
+       |                               ^
+    247|       expect(readerDown.output).toContain("cv-reader: not running");
+    248|       expect(readerDown.output).not.toContain("verified");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

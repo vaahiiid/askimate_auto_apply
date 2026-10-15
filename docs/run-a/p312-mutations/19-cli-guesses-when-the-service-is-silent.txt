@@ -1,0 +1,58 @@
+# P312 mutation 19-cli-guesses-when-the-service-is-silent
+# file: scripts/interventions.ts
+# replaced:
+    lines.push("The service did not say what this resolution told the student; this command makes no claim about it.");
+# with:
+    lines.push("The student has been told it is moving again.");
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (31 tests | 1 failed | 24 skipped) 2875ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that ended in the offer of the form's list prints that, by its event number, and never 'moving again' 491ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said 'Good news' prints that once, and nothing hedged about what else might have been said 467ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > an abandon prints what the abandon said, and does not call the run abandoned on its own say-so 450ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said nothing says so, and nothing else about the student 370ms
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped 383ms
+     → expected 'Recorded against iv_1.\n\nThe student…' to contain 'The service did not say what this res…'
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolution that failed partway is not called refused: what was recorded and said is not known 355ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > what a recorded resolution said is printed even when the list cannot be read after it 358ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 24 skipped (31)
+   Start at  10:44:58
+   Duration  8.18s (transform 50ms, setup 0ms, collect 4.97s, tests 2.87s, environment 0ms, prepare 56ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped
+AssertionError: expected 'Recorded against iv_1.\n\nThe student…' to contain 'The service did not say what this res…'
+
+- Expected
++ Received
+
+- The service did not say what this resolution told the student; this command makes no claim about it.
++ Recorded against iv_1.
++
++ The student has been told it is moving again.
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++
+
+ ❯ scripts/demonstrations.test.ts:359:26
+    357|     it("a service that does not say what was said is not guessed at; a…
+    358|       const silent = await resolveAgainst({});
+    359|       expect(silent.out).toContain("The service did not say what this …
+       |                          ^
+    360|       expect(silent.out).not.toMatch(/has been told|moving again/u);
+    361|       const unknown = await resolveAgainst({ said: [{ ordinal: 7, at: …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

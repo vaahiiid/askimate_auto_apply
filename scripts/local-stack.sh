@@ -13,7 +13,11 @@
 #                                    they came up with — the service's documents
 #                                    word, the reader's model — against what the
 #                                    shell asked for, and exits 2 on any gap.
-#                                    start runs it before announcing anything.
+#                                    (P312) First it requires the stack up — every
+#                                    pid alive, every endpoint answering — and
+#                                    reads no log otherwise. start runs the
+#                                    asked-for half before announcing anything;
+#                                    its own waits are its up check.
 #   scripts/local-stack.sh status    which are running, and whether they answer
 #   scripts/local-stack.sh stop      SIGTERM each, wait for an orderly exit
 #   scripts/local-stack.sh finish-stopped <conversationId>
@@ -393,6 +397,21 @@ cmd_verify() {
   if [ ! -f "$DIR/conversation-service.log" ]; then
     echo "no logs at $DIR — run start first" >&2; exit 2
   fi
+  # P312. His words (docs/run-a/p312-his-stuck-run-message-as-sent.txt):
+  # "verify must not say verified when the stack is down." His start had
+  # failed with ECONNREFUSED; a start that stops before it starts the
+  # processes leaves the last run's logs where they were, and verify read them
+  # and said "verified". So the logs are read only of a stack that is up:
+  # every pid file names a live process, every endpoint status asks answers.
+  # A live pid's log was emptied just before that process started.
+  local down
+  if ! down="$(stack_up gaps)"; then
+    echo "REFUSED: the stack is not up, so its logs were not read — they may be an earlier run's (a start that stops before it starts the processes leaves the last run's logs where they were). Down:" >&2
+    printf '%s\n' "$down" | sed 's/^/  /' >&2
+    echo "Asked at port base $BASE: if start was given another AAS_LOCAL_PORT_BASE, give verify the same." >&2
+    echo "The logs are kept in $DIR. Read them, then run scripts/local-stack.sh stop and scripts/local-stack.sh start." >&2
+    exit 2
+  fi
   if verify_asked; then
     echo "verified: documents=$(service_documents), cv reader model=$(reader_model) — as asked"
   else
@@ -400,16 +419,35 @@ cmd_verify() {
   fi
 }
 
-cmd_status() {
-  local rc=0
+# Each process's pid and each endpoint (P120's status), shared by status and
+# verify so the two cannot drift (P312). $1 = all prints every line, as
+# status always has; $1 = gaps prints only what is down. Returns 1 when
+# anything is down. Plain if/else throughout, so a false last test cannot
+# trip set -e, and nothing beyond bash 3.2 (macOS ships it).
+stack_up() {
+  local show="$1" rc=0 app pair name url
   for app in $APPS; do
-    if alive "$app"; then echo "$app: running (pid $(cat "$DIR/$app.pid"))"; else echo "$app: not running"; rc=1; fi
+    if alive "$app"; then
+      if [ "$show" = all ]; then echo "$app: running (pid $(cat "$DIR/$app.pid"))"; fi
+    else
+      echo "$app: not running"; rc=1
+    fi
   done
   for pair in "conversation:$CONVERSATION_URL/healthz" "secure:$SECURE_URL/healthz" "agent:$AGENT_URL/healthz" "browser:$CDP_URL/json/version"; do
-    local name="${pair%%:*}" url="${pair#*:}"
-    if curl -fsS "$url" >/dev/null 2>&1; then echo "$name answers at $url"; else echo "$name does not answer at $url"; rc=1; fi
+    name="${pair%%:*}"; url="${pair#*:}"
+    # Bounded (P312): an endpoint that takes the connection and never answers
+    # would otherwise hold verify silent, a check that says nothing.
+    if curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then
+      if [ "$show" = all ]; then echo "$name answers at $url"; fi
+    else
+      echo "$name does not answer at $url"; rc=1
+    fi
   done
   return $rc
+}
+
+cmd_status() {
+  stack_up all
 }
 
 cmd_stop() {

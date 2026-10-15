@@ -1,0 +1,45 @@
+# P312 mutation 09-unknown-decision-drawn
+# file: apps/conversation-service/src/client/transport.ts
+# replaced:
+        // A decision this page does not know draws no button it cannot
+        // answer: the read is refused and said, as any other it cannot read.
+        return null;
+# with:
+        pending = { decision: String(raw["decision"]) as "authorise", contentHash: String(raw["contentHash"]) };
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/transport-pending-labels.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/transport-pending-labels.test.ts (5 tests | 1 failed) 23ms
+   × a handoff question's two answers (P312, item 5) > refuses a decision it does not know, and a hash that is not a string, rather than drawing a button that cannot be answered 9ms
+     → {"decision":"confirm_everything","contentHash":"sha256:e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"}: expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  10:43:39
+   Duration  541ms (transform 161ms, setup 0ms, collect 217ms, tests 23ms, environment 0ms, prepare 84ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/transport-pending-labels.test.ts > a handoff question's two answers (P312, item 5) > refuses a decision it does not know, and a hash that is not a string, rather than drawing a button that cannot be answered
+AssertionError: {"decision":"confirm_everything","contentHash":"sha256:e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"}: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ apps/conversation-service/src/client/transport-pending-labels.test.ts:70:48
+     68|       serve(reading(pending));
+     69|       const read = await readRun("c1");
+     70|       expect(read.ok, JSON.stringify(pending)).toBe(false);
+       |                                                ^
+     71|       if (!read.ok) expect(read.code).toBe("contract_mismatch");
+     72|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

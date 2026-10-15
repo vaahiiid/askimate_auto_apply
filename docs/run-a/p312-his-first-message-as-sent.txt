@@ -1,0 +1,5 @@
+Growth check output: [paste here]
+
+Fix all six as P312, tests failing first, as you proposed. Items 2 and 5 block my run, so they come first; the other four in the same phase. For item 3 (the offer posted twice), the student must see one offer only. For item 4, the CLI must say only what the student was actually told.
+
+When it is done, give me the steps to pull and restart, and say whether my run continues from the HHE choice without anything else to do.

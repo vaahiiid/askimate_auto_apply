@@ -203,3 +203,37 @@ export type ROUTE_FALLBACK_IS_NOT_ON_THE_WIRE = AssertNever<
 export type AN_OPEN_INTERVENTION_CARRIES_NO_POSITION = AssertNever<
   Extract<keyof OpenIntervention, "resumeFrom" | "resumeTo" | "cursor" | "position" | "checkpoint">
 >;
+
+/**
+ * What a resolution told the student, by KIND (P312, item 4). His words:
+ * "the CLI must say only what the student was actually told." The service
+ * learns it from the messages the resolution itself appended, and says each
+ * one's kind — never its words, which can name the student's e-mail address
+ * (the registration question) or quote their own values (the offer). A
+ * message no kind describes is still reported, as `undescribed`.
+ */
+export const WIRE_RESOLUTION_SAYINGS = [
+  "moving_again",
+  "asked_again",
+  "registration_asked_again",
+  "registration_question",
+  "entry_choice_offer",
+  "entry_choice_stands",
+  "stopped_again",
+  "held_page",
+  "abandoned",
+  "undescribed",
+] as const;
+export type WireResolutionSaying = (typeof WIRE_RESOLUTION_SAYINGS)[number];
+
+/** One message a resolution appended: where it is in the log, when, and what kind. */
+export interface ResolutionSaid {
+  readonly ordinal: number;
+  readonly at: string;
+  readonly about: WireResolutionSaying;
+}
+
+/** A resolution's report carries no words: a field named for them is a type error. */
+export type A_RESOLUTION_SAYING_CARRIES_NO_WORDS = AssertNever<
+  Extract<keyof ResolutionSaid, "content" | "words" | "text" | "message">
+>;

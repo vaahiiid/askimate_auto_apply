@@ -367,3 +367,38 @@ different reason than the refusal.
 
 None of this changes the decision above: a resolution still carries no position, still never
 authorises a repeat, and `route_fallback` is still refused.
+
+## Amended in P312 (2026-10-15): the resolution says what it told the student
+
+His resolution of his own stop printed *"The run is back in the pool. The student has been told it
+is moving again"*. The student had been told something else: the offer of the form's list. The
+command chose that sentence because no new stop was open, and read nothing the service had said.
+Each path added since (the offer in P290, the held page in P305, the registration question asked
+again in P306, the silent release after a submission made by hand in P307) made it more often
+untrue. In his words (`docs/run-a/p312-his-message-as-sent.txt`):
+
+> *"For item 4, the CLI must say only what the student was actually told."*
+
+- **The service learns it from its own appends.** A witness (`appendWitness`, the event store)
+  holds every event appended inside the resolution, and only those: a worker pass appending beside
+  it is not in it, and neither is a replayed write. An ordinal range would have counted the pass.
+- **It says each message's kind, never its words.** `said` on the resolution's answer lists each
+  message by its event number, its time and a closed kind (`WIRE_RESOLUTION_SAYINGS`), published in
+  the OpenAPI document. A message no kind describes is `undescribed`, never dropped.
+- **The command prints that, and nothing it would have to assume:** each message by event number
+  with a fixed sentence for its kind, *"Nothing was said to the student by this resolution."* when
+  there was none, and no claim at all when the service did not say. A stop open for the run after
+  the resolution is printed as a fact about the list, not about the student.
+- **Why not the words.** The registration question names the student's e-mail address, and the
+  offer quotes their own values; the stop record leaves both out on purpose (`run.ts`, *"no
+  address"*). Printing the words would change what is shown of a student's personal data, which is
+  his to decide. My recommendation is to keep the kinds. Item 4 changes nothing a resolution
+  does: the same branches, the same messages, in the same order. Item 3 of the same phase
+  (ADR-0155, amended in P312) changes what a resolution says when the offer was said before.
+- **A resolution that fails partway is not called refused.** The command says what was recorded,
+  and what the student was told, is not known to it, and to read the list and the conversation
+  before resolving again. What a recorded resolution said is printed before the list is read,
+  so a failure reading the list cannot lose it. And a resume that re-plans into a stop no longer
+  fails when a worker pass moved the run first: the stop's message has been said, its raise is
+  idempotent, and the next pass holds the run, as a held page's stop already did (mine, under
+  his rule).

@@ -1,0 +1,58 @@
+# P312 mutation 20-cli-drops-a-kind-it-does-not-know
+# file: scripts/interventions.ts
+# replaced:
+      lines.push(`  event ${String(item.ordinal)}  ${known ?? `a message this command has no description for (${about})`}`);
+# with:
+      if (known !== undefined) lines.push(`  event ${String(item.ordinal)}  ${known}`);
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (31 tests | 1 failed | 24 skipped) 2939ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that ended in the offer of the form's list prints that, by its event number, and never 'moving again' 384ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said 'Good news' prints that once, and nothing hedged about what else might have been said 407ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > an abandon prints what the abandon said, and does not call the run abandoned on its own say-so 361ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said nothing says so, and nothing else about the student 343ms
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped 716ms
+     → expected 'Recorded against iv_1.\n\nSaid to the…' to match /event 7 +a message this command has …/u
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolution that failed partway is not called refused: what was recorded and said is not known 340ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > what a recorded resolution said is printed even when the list cannot be read after it 385ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 24 skipped (31)
+   Start at  10:45:07
+   Duration  7.72s (transform 40ms, setup 0ms, collect 4.51s, tests 2.94s, environment 0ms, prepare 49ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped
+AssertionError: expected 'Recorded against iv_1.\n\nSaid to the…' to match /event 7 +a message this command has …/u
+
+- Expected: 
+/event 7 +a message this command has no description for \(something_new\)/u
+
++ Received: 
+"Recorded against iv_1.
+
+Said to the student by this resolution (1 message), in order:
+
+Recording this as vahid. That name is asserted, not authenticated: this command
+is admitted on the service credential, so the record says who CLAIMED to resolve it.
+That is acceptable while exactly one person holds that credential. The moment a second
+specialist exists, authenticated individual identity is required (ADR-0048 §3).
+
+"
+
+ ❯ scripts/demonstrations.test.ts:362:27
+    360|       expect(silent.out).not.toMatch(/has been told|moving again/u);
+    361|       const unknown = await resolveAgainst({ said: [{ ordinal: 7, at: …
+    362|       expect(unknown.out).toMatch(/event 7 +a message this command has…
+       |                           ^
+    363|     });
+    364| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

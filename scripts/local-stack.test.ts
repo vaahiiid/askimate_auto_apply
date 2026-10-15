@@ -13,7 +13,8 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -65,7 +66,6 @@ function scriptWith(extra: Readonly<Record<string, string>>, command: string, di
     const child = spawn("bash", ["scripts/local-stack.sh", command, ...rest], {
       cwd: ROOT,
       env: {
-        ...extra,
         PATH: process.env["PATH"] ?? "",
         HOME: process.env["HOME"] ?? "",
         ...(process.env["PLAYWRIGHT_BROWSERS_PATH"] === undefined ? {} : { PLAYWRIGHT_BROWSERS_PATH: process.env["PLAYWRIGHT_BROWSERS_PATH"] }),
@@ -74,6 +74,8 @@ function scriptWith(extra: Readonly<Record<string, string>>, command: string, di
         AAS_LOCAL_REDIS_URL: REDIS_URL,
         AAS_LOCAL_PORT_BASE: String(PORT_BASE),
         AAS_LOCAL_DB_PREFIX: PREFIX,
+        // Last, so a test can choose its own port base (P312).
+        ...extra,
       },
     });
     let output = "";
@@ -96,6 +98,60 @@ async function status(url: string): Promise<number> {
 }
 
 let dir = "";
+
+/** The six processes `local-stack.sh` starts, by the names of their pid and log files. */
+const APPS = ["conversation-service", "secure-service", "secure-filler", "browser-runner", "worker", "cv-reader"] as const;
+/** Free of every other suite's ports: 4950-4979 belong to the three local-stack suites. */
+const VERIFY_BASE = 4940;
+
+/**
+ * A stack that looks up to `verify` (P312): a pid file for each of the six
+ * naming a throwaway child — never this runner, since `stop` signals whatever
+ * a pid file names — and the four endpoints `status` asks, answering 200.
+ */
+async function fakeStack(scratch: string): Promise<{ readonly closeServer: (offset: number) => Promise<void>; readonly end: () => Promise<void> }> {
+  const servers = new Map<number, Server>();
+  try {
+    for (const offset of [0, 1, 2, 9]) {
+      const server = createServer((_request, response) => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end("{}");
+      });
+      // A port in use fails here, naming it, rather than as an unhandled error.
+      await new Promise<void>((done, fail) => {
+        server.once("error", fail);
+        server.listen(VERIFY_BASE + offset, "127.0.0.1", done);
+      });
+      servers.set(offset, server);
+    }
+  } catch (error) {
+    for (const server of servers.values()) server.close();
+    throw error;
+  }
+  // The child after the ports, so a failure above leaves no process behind.
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e9)"], { stdio: "ignore" });
+  for (const app of APPS) await writeFile(join(scratch, `${app}.pid`), String(child.pid));
+  const closeServer = (offset: number): Promise<void> =>
+    new Promise((done) => {
+      const server = servers.get(offset);
+      servers.delete(offset);
+      if (server === undefined) done();
+      else server.close(() => done());
+    });
+  return {
+    closeServer,
+    end: async (): Promise<void> => {
+      child.kill("SIGKILL");
+      for (const offset of [...servers.keys()]) await closeServer(offset);
+    },
+  };
+}
+
+/** The two lines `verify` reads, as the real processes write them. */
+async function writeStartLines(scratch: string): Promise<void> {
+  await writeFile(join(scratch, "conversation-service.log"), `conversation service listening on ${String(VERIFY_BASE)} (catalogue=fixtures, dev-session=true, identity=none, documents=none)\n`);
+  await writeFile(join(scratch, "cv-reader.log"), `cv reader reader-local-1 polling http://127.0.0.1:${String(VERIFY_BASE)} — model: the deterministic stand-in (not for production)\n`);
+}
 
 afterAll(async () => {
   if (dir.length > 0) {
@@ -124,22 +180,81 @@ describe("the stack announces what its processes SAY they came up with, and refu
   const VAULT = { AAS_LOCAL_DOCUMENTS: "vault", AAS_DOCUMENTS_BUCKET: "b", AAS_DOCUMENTS_KMS_KEY_ARN: "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000" };
 
   it("verify exits 2 when the service's own line says documents=none though the vault was asked, and when the reader's says stand-in though bedrock was", async () => {
-    // Made to fail on purpose: fabricated logs in which each process says the opposite of what was asked.
+    // Made to fail on purpose: fabricated logs in which each process says the
+    // opposite of what was asked. Since P312 verify reads the logs only of a
+    // stack that is up, so this runs on a stack faked up: before P312 its
+    // second half asserted "verified" with nothing running — the defect.
     const scratch = await mkdtemp(join(tmpdir(), "aas-local-stack-verify-"));
+    const stack = await fakeStack(scratch);
     try {
-      await writeFile(join(scratch, "conversation-service.log"), "conversation service listening on 4970 (catalogue=fixtures, dev-session=true, identity=none, documents=none)\n");
-      await writeFile(join(scratch, "cv-reader.log"), "cv reader reader-local-1 polling http://127.0.0.1:4970 — model: the deterministic stand-in (not for production)\n");
-      const refused = await scriptWith({ ...VAULT, AAS_LOCAL_READER_MODEL: "bedrock" }, "verify", scratch);
+      await writeStartLines(scratch);
+      const base = { AAS_LOCAL_PORT_BASE: String(VERIFY_BASE) };
+      const refused = await scriptWith({ ...base, ...VAULT, AAS_LOCAL_READER_MODEL: "bedrock" }, "verify", scratch);
       expect(refused.code).toBe(2);
       expect(refused.output).toContain("REFUSED: AAS_LOCAL_DOCUMENTS=vault was asked");
       expect(refused.output).toContain("documents=none");
       expect(refused.output).toContain("REFUSED: AAS_LOCAL_READER_MODEL=bedrock was asked");
       expect(refused.output).toContain("stand-in");
       // Nothing asked beyond the defaults: the same logs verify.
-      const fine = await scriptWith({}, "verify", scratch);
+      const fine = await scriptWith(base, "verify", scratch);
       expect(fine.code, fine.output).toBe(0);
       expect(fine.output).toContain("verified: documents=none, cv reader model=stand-in");
     } finally {
+      await stack.end();
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("verify refuses, and reads no log, when nothing is running — whatever the logs left behind say (P312, item 1)", async () => {
+    // His words (docs/run-a/p312-his-stuck-run-message-as-sent.txt): "verify
+    // must not say verified when the stack is down." His start had failed
+    // with ECONNREFUSED, and verify read the last run's lines and said
+    // "verified".
+    const scratch = await mkdtemp(join(tmpdir(), "aas-local-stack-down-"));
+    try {
+      await writeStartLines(scratch);
+      for (const offset of [0, 1, 2, 9]) {
+        expect(await status(`http://127.0.0.1:${String(VERIFY_BASE + offset)}/`), "the port is free, so 'down' is down").toBe(0);
+      }
+      const down = await scriptWith({ AAS_LOCAL_PORT_BASE: String(VERIFY_BASE) }, "verify", scratch);
+      expect(down.code).toBe(2);
+      expect(down.output).not.toContain("verified");
+      for (const app of APPS) expect(down.output).toContain(`${app}: not running`);
+      expect(down.output).toContain(`conversation does not answer at http://127.0.0.1:${String(VERIFY_BASE)}/healthz`);
+      expect(down.output).toContain(`browser does not answer at http://127.0.0.1:${String(VERIFY_BASE + 9)}/json/version`);
+      expect(down.output).toContain("were not read");
+      expect(down.output, "it names the base it asked at").toContain(`Asked at port base ${String(VERIFY_BASE)}`);
+      expect(down.output, "and says to stop before starting, which start requires").toContain("scripts/local-stack.sh stop and scripts/local-stack.sh start");
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("verify says verified only while every process is alive and every endpoint answers, and names each that is not (P312, item 1)", async () => {
+    const scratch = await mkdtemp(join(tmpdir(), "aas-local-stack-up-"));
+    const stack = await fakeStack(scratch);
+    const base = { AAS_LOCAL_PORT_BASE: String(VERIFY_BASE) };
+    try {
+      await writeStartLines(scratch);
+      const up = await scriptWith(base, "verify", scratch);
+      expect(up.code, up.output).toBe(0);
+      expect(up.output).toContain("verified: documents=none, cv reader model=stand-in — as asked");
+
+      const held = await readFile(join(scratch, "cv-reader.pid"), "utf8");
+      await rm(join(scratch, "cv-reader.pid"));
+      const readerDown = await scriptWith(base, "verify", scratch);
+      expect(readerDown.code).toBe(2);
+      expect(readerDown.output).toContain("cv-reader: not running");
+      expect(readerDown.output).not.toContain("verified");
+      await writeFile(join(scratch, "cv-reader.pid"), held);
+
+      await stack.closeServer(1);
+      const secureDown = await scriptWith(base, "verify", scratch);
+      expect(secureDown.code).toBe(2);
+      expect(secureDown.output).toContain(`secure does not answer at http://127.0.0.1:${String(VERIFY_BASE + 1)}/healthz`);
+      expect(secureDown.output).not.toContain("verified");
+    } finally {
+      await stack.end();
       await rm(scratch, { recursive: true, force: true });
     }
   }, 60_000);

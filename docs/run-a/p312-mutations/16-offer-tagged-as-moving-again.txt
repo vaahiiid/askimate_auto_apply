@@ -1,0 +1,46 @@
+# P312 mutation 16-offer-tagged-as-moving-again
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+about: "entry_choice_offer" };
+# with:
+about: "moving_again" };
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P312, item 3
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 1 failed | 398 skipped) 4459ms
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked 317ms
+     → and the resolution says it said the offer (item 4): expected [ 'moving_again' ] to deeply equal [ 'entry_choice_offer' ]
+   ✓ a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a worker pass and a person's resolution at the same moment say the offer ONCE: the check and the saying are under the conversation lock 3154ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed | 398 skipped (403)
+   Start at  10:44:32
+   Duration  7.74s (transform 1.99s, setup 0ms, collect 2.96s, tests 4.46s, environment 0ms, prepare 64ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked
+AssertionError: and the resolution says it said the offer (item 4): expected [ 'moving_again' ] to deeply equal [ 'entry_choice_offer' ]
+
+- Expected
++ Received
+
+  Array [
+-   "entry_choice_offer",
++   "moving_again",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19086:121
+    19084|     const runId = await startedUnder(conversation, ENTRY);
+    19085|     expect(await advanceUnder(ENTRY, runId, conversation, 3)).toBe("es…
+    19086|     expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "and…
+       |                                                                                                                         ^
+    19087|     expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 4)).t…
+    19088|     expect(offers(await assistantSaid(conversation)), "one offer, in t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

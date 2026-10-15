@@ -1,0 +1,56 @@
+# P312 mutation 27-partway-failure-called-refused
+# file: scripts/interventions.ts
+# replaced:
+    if (path.endsWith("/resolution") && response.status >= 500) {
+# with:
+    if (false) {
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (31 tests | 1 failed | 24 skipped) 2908ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that ended in the offer of the form's list prints that, by its event number, and never 'moving again' 348ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said 'Good news' prints that once, and nothing hedged about what else might have been said 367ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > an abandon prints what the abandon said, and does not call the run abandoned on its own say-so 352ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said nothing says so, and nothing else about the student 409ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped 686ms
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolution that failed partway is not called refused: what was recorded and said is not known 364ms
+     → expected '\nRecording this as vahid. That name …' to contain 'The service failed partway (internal_…'
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > what a recorded resolution said is printed even when the list cannot be read after it 381ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 24 skipped (31)
+   Start at  10:45:35
+   Duration  7.86s (transform 64ms, setup 0ms, collect 4.62s, tests 2.91s, environment 0ms, prepare 72ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolution that failed partway is not called refused: what was recorded and said is not known
+AssertionError: expected '\nRecording this as vahid. That name …' to contain 'The service failed partway (internal_…'
+
+- Expected
++ Received
+
+- The service failed partway (internal_error).
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++ The service refused: internal_error
++
+
+ ❯ scripts/demonstrations.test.ts:390:26
+    388|       const failed = await resolveWhere(500, 200);
+    389|       expect(failed.code).not.toBe(0);
+    390|       expect(failed.out).toContain("The service failed partway (intern…
+       |                          ^
+    391|       expect(failed.out).toContain("is not known to this command");
+    392|       expect(failed.out).not.toContain("refused");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

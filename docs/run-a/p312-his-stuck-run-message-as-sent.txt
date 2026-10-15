@@ -1,0 +1,10 @@
+My live run is stuck right after resuming. Facts, in order, all on my machine at main d575b42c, stack started with the registry catalogue, stand-in models:
+
+1. Postgres had a stale postmaster.pid after a reboot; I removed it (PID 951 was devicecheckd, no postgres running) and restarted. Note: scripts/local-stack.sh verify printed "verified: documents=none, cv reader model=stand-in — as asked" even when start had failed with ECONNREFUSED. verify must not say verified when the stack is down.
+2. In the chat I corrected: e-mail, doctorate award title (DBA), doctorate grade (20.0), Master's grade (19.7), Master's grade scale (20-point). Each was played back and confirmed.
+3. I resolved iv_703aec3e627c45cf95f68e5dea3f2d47 (render_refused, run_case_01m3rsgyy8dgcea6sagw09kghy_1) with --did-not-happen. The command said the run is back in the pool and the student has been told it is moving again.
+4. Since then: the student page at http://127.0.0.1:4870/ shows only the message box and Send, no conversation, even after a new /dev/session for 5774ff16 and a hard reload. Before the resolve, the same page showed the whole conversation and the "HHE is not on their list" offer.
+5. worker.log shows only its three startup lines; nothing after the resolve. conversation-service.log shows only startup and the open interventions. pnpm run interventions now lists only the two old af398e01 stops.
+6. Browser console on the student page: [I will paste it here]
+
+Find why, from the code, without guessing: why the page is blank, and whether the run advanced, is stuck, or is waiting for something. Give me the exact commands to check the run's state in my database, read-only, and what to do next. Do not change my database by hand.

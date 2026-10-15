@@ -1,0 +1,30 @@
+# P312 mutation 30-no-read-bound
+# file: apps/conversation-service/src/client/transport.ts
+# replaced:
+, signal: AbortSignal.timeout(READ_TIMEOUT_MS) });
+# with:
+ });
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/transport-events.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/transport-events.test.ts (7 tests | 1 failed) 5026ms
+   × a read that never answers is bounded (the P312 review) > fails as a read the page cannot use, so the reads queued behind it run 5003ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  10:46:01
+   Duration  5.58s (transform 157ms, setup 0ms, collect 214ms, tests 5.03s, environment 0ms, prepare 69ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/transport-events.test.ts > a read that never answers is bounded (the P312 review) > fails as a read the page cannot use, so the reads queued behind it run
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

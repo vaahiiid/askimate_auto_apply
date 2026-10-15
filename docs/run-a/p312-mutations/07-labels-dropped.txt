@@ -1,0 +1,50 @@
+# P312 mutation 07-labels-dropped
+# file: apps/conversation-service/src/client/transport.ts
+# replaced:
+          ...(labels === undefined ? {} : { labels }),
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/transport-pending-labels.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/transport-pending-labels.test.ts (5 tests | 1 failed) 39ms
+   × a handoff question's two answers (P312, item 5) > keeps the server's two answers on a confirm_handoff 22ms
+     → expected { decision: 'confirm_handoff', …(1) } to deeply equal { decision: 'confirm_handoff', …(2) }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  10:43:35
+   Duration  556ms (transform 174ms, setup 0ms, collect 225ms, tests 39ms, environment 0ms, prepare 54ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/transport-pending-labels.test.ts > a handoff question's two answers (P312, item 5) > keeps the server's two answers on a confirm_handoff
+AssertionError: expected { decision: 'confirm_handoff', …(1) } to deeply equal { decision: 'confirm_handoff', …(2) }
+
+- Expected
++ Received
+
+  Object {
+    "contentHash": "sha256:e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+    "decision": "confirm_handoff",
+-   "labels": Object {
+-     "no": "No, it has not arrived",
+-     "yes": "Yes, it has arrived",
+-   },
+  }
+
+ ❯ apps/conversation-service/src/client/transport-pending-labels.test.ts:32:32
+     30|     const read = await readRun("c1");
+     31|     if (!read.ok) expect.unreachable(`refused: ${read.code}`);
+     32|     expect(read.value.pending).toEqual({ decision: "confirm_handoff", …
+       |                                ^
+     33|   });
+     34| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

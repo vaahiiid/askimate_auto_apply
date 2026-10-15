@@ -267,7 +267,7 @@ describe("the published demonstrations", () => {
       "let resolved=false;" +
       "require('node:http').createServer((q,s)=>{let b='';q.on('data',d=>b+=d).on('end',()=>{" +
       "s.writeHead(200,{'content-type':'application/json'});" +
-      "if(q.method==='POST'){resolved=true;s.end(JSON.stringify({intervention:iv}));return;}" +
+      "if(q.method==='POST'){resolved=true;s.end(JSON.stringify({intervention:iv,said:[]}));return;}" +
       "s.end(JSON.stringify({interventions:resolved?[]:[iv]}));});})" +
       ".listen(0,'127.0.0.1',function(){console.log(this.address().port);});";
     it("lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student", async () => {
@@ -284,12 +284,120 @@ describe("the published demonstrations", () => {
           env,
         );
         expect(resolved.code).toBe(0);
-        expect(resolved.out).toContain("unless the case");
-        expect(resolved.out).toContain("holds a submission made by hand: then nothing is said here");
-        expect(resolved.out).not.toContain("The run is back in the pool, and the student has been told it is moving again.");
+        // P312, item 4: the hedge ("unless the case holds a submission made by
+        // hand: then nothing is said here") was this command guessing. It now
+        // prints what the service says the resolution told the student — here,
+        // as the service answers after a submission made by hand, nothing.
+        expect(resolved.out).toContain("Nothing was said to the student by this resolution.");
+        expect(resolved.out).not.toContain("moving again");
       } finally {
         stub.kill();
       }
+    });
+  });
+
+  describe("interventions resolve says only what the student was told (P312, item 4)", () => {
+    // His words (docs/run-a/p312-his-message-as-sent.txt): "the CLI must say
+    // only what the student was actually told." A stand-in service answers
+    // the resolution with `said` as given, and lists nothing open after it.
+    const stubAnswering = (answer: unknown): string =>
+      "const iv={interventionId:'iv_1',runId:'run_1',caseId:'case_1',studentRef:'s1',priority:'high'," +
+      "reason:'information_unobtainable',action:'advance_portal_page',target:'specialist:render_refused',portal:'gated.portal.test'," +
+      "phase:'filling',encountered:'x',expected:'x',raisedAt:new Date().toISOString(),announced:true};" +
+      `const answer=${JSON.stringify(answer)};` +
+      "require('node:http').createServer((q,s)=>{let b='';q.on('data',d=>b+=d).on('end',()=>{" +
+      "s.writeHead(200,{'content-type':'application/json'});" +
+      "if(q.method==='POST'){s.end(JSON.stringify(Object.assign({intervention:iv},answer)));return;}" +
+      "s.end(JSON.stringify({interventions:[]}));});})" +
+      ".listen(0,'127.0.0.1',function(){console.log(this.address().port);});";
+    async function resolveAgainst(answer: unknown, extra: readonly string[] = []): Promise<Run> {
+      const stub = spawn(process.execPath, ["-e", stubAnswering(answer)]);
+      try {
+        const port = await new Promise<string>((done) => stub.stdout.once("data", (chunk: Buffer) => done(chunk.toString().trim())));
+        return run(
+          "interventions.ts",
+          ["resolve", "iv_1", "--specialist", "vahid", "--did-not-happen", "--actions", "looked", "--resolution", "re-plan", ...extra],
+          { AAS_SERVICE_CERT: "operator", AAS_CONVERSATION_URL: `http://127.0.0.1:${port}` },
+        );
+      } finally {
+        stub.kill();
+      }
+    }
+    const AT = "2026-10-15T10:00:00.000Z";
+
+    it("a resolve that ended in the offer of the form's list prints that, by its event number, and never 'moving again'", async () => {
+      const resolved = await resolveAgainst({ said: [{ ordinal: 455, at: AT, about: "entry_choice_offer" }] });
+      expect(resolved.code).toBe(0);
+      expect(resolved.out).toContain("Said to the student by this resolution (1 message), in order:");
+      expect(resolved.out).toMatch(/event 455 +the offer of the form's own list and its escape, opened with "Someone on the team has looked at your … application\."/u);
+      expect(resolved.out).not.toContain("moving again");
+      expect(resolved.out).not.toContain("back in the pool");
+    });
+
+    it("a resolve that said 'Good news' prints that once, and nothing hedged about what else might have been said", async () => {
+      const resolved = await resolveAgainst({ said: [{ ordinal: 12, at: AT, about: "moving_again" }] });
+      expect(resolved.out).toMatch(/event 12 +the "Good news" message: it is moving again, and picks up where it stopped/u);
+      expect(resolved.out).not.toContain("unless the case");
+      expect(resolved.out).not.toContain("hand-back");
+    });
+
+    it("an abandon prints what the abandon said, and does not call the run abandoned on its own say-so", async () => {
+      const resolved = await resolveAgainst({ said: [{ ordinal: 30, at: AT, about: "abandoned" }] }, ["--abandon"]);
+      expect(resolved.out).toMatch(/event 30 +that a person stopped work on it, with what that leaves/u);
+      expect(resolved.out).not.toContain("The run is abandoned.");
+      expect(resolved.out).not.toContain("has NOT been told");
+    });
+
+    it("a resolve that said nothing says so, and nothing else about the student", async () => {
+      const resolved = await resolveAgainst({ said: [] });
+      expect(resolved.out).toContain("Nothing was said to the student by this resolution.");
+      expect(resolved.out).not.toMatch(/has been told|was told|moving again|hand-back/u);
+    });
+
+    it("a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped", async () => {
+      const silent = await resolveAgainst({});
+      expect(silent.out).toContain("The service did not say what this resolution told the student; this command makes no claim about it.");
+      expect(silent.out).not.toMatch(/has been told|moving again/u);
+      const unknown = await resolveAgainst({ said: [{ ordinal: 7, at: AT, about: "something_new" }] });
+      expect(unknown.out).toMatch(/event 7 +a message this command has no description for \(something_new\)/u);
+    });
+
+    /** A stand-in that answers the resolution with `postStatus` and the list with `listStatus`. */
+    async function resolveWhere(postStatus: number, listStatus: number): Promise<Run> {
+      const script =
+        "require('node:http').createServer((q,s)=>{let b='';q.on('data',d=>b+=d).on('end',()=>{" +
+        "const iv={interventionId:'iv_1',runId:'run_1',caseId:'case_1',studentRef:'s1',priority:'high',reason:'x',action:'a',target:'t',portal:'p',phase:'f',encountered:'x',expected:'x',raisedAt:new Date().toISOString(),announced:true};" +
+        `if(q.method==='POST'){s.writeHead(${String(postStatus)},{'content-type':'application/json'});` +
+        `s.end(JSON.stringify(${String(postStatus)}===200?{intervention:iv,said:[{ordinal:9,at:'${AT}',about:'abandoned'}]}:{code:'internal_error'}));return;}` +
+        `s.writeHead(${String(listStatus)},{'content-type':'application/json'});s.end(JSON.stringify({code:'service_unavailable'}));});})` +
+        ".listen(0,'127.0.0.1',function(){console.log(this.address().port);});";
+      const stub = spawn(process.execPath, ["-e", script]);
+      try {
+        const port = await new Promise<string>((done) => stub.stdout.once("data", (chunk: Buffer) => done(chunk.toString().trim())));
+        return run(
+          "interventions.ts",
+          ["resolve", "iv_1", "--specialist", "vahid", "--did-not-happen", "--actions", "looked", "--resolution", "stop", "--abandon"],
+          { AAS_SERVICE_CERT: "operator", AAS_CONVERSATION_URL: `http://127.0.0.1:${port}` },
+        );
+      } finally {
+        stub.kill();
+      }
+    }
+
+    it("a resolution that failed partway is not called refused: what was recorded and said is not known", async () => {
+      const failed = await resolveWhere(500, 200);
+      expect(failed.code).not.toBe(0);
+      expect(failed.out).toContain("The service failed partway (internal_error).");
+      expect(failed.out).toContain("is not known to this command");
+      expect(failed.out).not.toContain("refused");
+    });
+
+    it("what a recorded resolution said is printed even when the list cannot be read after it", async () => {
+      const recorded = await resolveWhere(200, 503);
+      expect(recorded.code).toBe(0);
+      expect(recorded.out).toMatch(/event 9 +that a person stopped work on it/u);
+      expect(recorded.out).toContain("The list could not be read after the resolution.");
+      expect(recorded.out).not.toContain("refused");
     });
   });
 

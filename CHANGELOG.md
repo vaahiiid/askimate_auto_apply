@@ -19,6 +19,43 @@ not shipped artefacts.
 
 ---
 
+## [0.305.0] — 2026-10-15
+
+**P312 — the six defects his stalled live run showed.** His words
+(`docs/run-a/p312-his-message-as-sent.txt`): *"Fix all six as P312, tests failing first, as you proposed.
+Items 2 and 5 block my run, so they come first; the other four in the same phase."* All six were found by a read-only reading of the code
+after his run stood still past a resolution; each was seen failing before its change.
+
+- **The run reads its whole log (item 2).** Every reading the run made of its own conversation
+  stopped at event 500: past it, an offer or a question was said again on every pass of the
+  worker, and an answer was read against no question and dropped. The store's `since` now takes a
+  page size with no default; `wholeLog` reads everything, and all 29 of the driver's readings use
+  it. The internal retry guard finds a transition anywhere in the log. The events route refuses a
+  `limit` below one or not a whole number. The page reads every page until none remain.
+- **The registration e-mail question's two answers reach the page (item 5).** The service had
+  sent them since P306; the page's reader dropped them, so the page drew one button in its own
+  words and never the No. It keeps them, refuses them anywhere else, and refuses a decision it
+  does not know or a hash that is not a string.
+- **One offer only (item 3).** His words: *"the student must see one offer only."* An offer is
+  said once in either of its forms, under the conversation lock. A resolution that finds it said,
+  with something else said since, says one line pointing to it instead of saying it again (mine,
+  under his rule).
+- **The command says only what the student was told (item 4).** His words: *"the CLI must say
+  only what the student was actually told."* The service reports each message the resolution
+  itself appended, by event number and kind, never the words; the command prints that, or that
+  nothing was said, or that it cannot tell. A failure partway is no longer called "refused".
+- **`verify` refuses when the stack is down (item 1).** His words
+  (`docs/run-a/p312-his-stuck-run-message-as-sent.txt`): *"verify must not say verified when the
+  stack is down."* It requires every process alive and every endpoint answering before it reads a
+  log, and names what is down.
+- **The page draws without replaying the log (item 6).** It reads first and opens its stream
+  after the last event it read; reads are serialised, one in flight and one queued, each bounded;
+  a frame never overtakes a read, the student's own act does.
+
+Proven against the deterministic stand-in only.
+
+---
+
 ## [0.304.0] — 2026-10-14
 
 **P311 — a correction to a fixed-choice answer works.** His live run stopped before the portal on

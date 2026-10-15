@@ -210,7 +210,7 @@ async function sendMessage(conversationId: string, content: string): Promise<num
 }
 
 async function eventKinds(conversationId: string): Promise<string[]> {
-  return (await conversationStore.since(conversationId, 0)).map((event) => event.kind);
+  return (await conversationStore.wholeLog(conversationId)).map((event) => event.kind);
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -390,7 +390,7 @@ describeIfDatabase("a retry cannot duplicate a durable lifecycle event", () => {
 
     // ONE event, after two deliveries of the same transition.
     expect(await eventKinds(conversation)).toEqual(["secret_cancelled"]);
-    const stored = await conversationStore.since(conversation, 0);
+    const stored = await conversationStore.wholeLog(conversation);
     expect(stored.map((event) => event.ordinal)).toEqual([1]);
   }, 60_000);
 

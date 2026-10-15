@@ -838,6 +838,11 @@ final submit; the student still submits on the university's website after the ha
   asked whether the portal's registration e-mail reached them, with two buttons, "Yes" and "No".
   A "yes" is a completed handoff, `registration_email`. A "no" is a new event, `HandoffDeclined`,
   and the run stops for a person (`registration_email_not_received`).
+  *Corrected in P312 (2026-10-15):* the service sent both answers from P306, but the student's
+  page read neither: its reader built every hashed decision in one branch that never read
+  `labels`, so from P306 until P312 the page drew one button in its own words, *"Done — I have
+  completed that"*, and never the No. No test had gone through the page's reader. Since P312 it
+  keeps them, refuses them anywhere else, and a browser test presses both.
 - **O1, the telling.** The question and the handover both say not to change the password until the
   application is submitted, and advise changing it after (decision 1's words).
 - **A changed password.** ADR-0120's two messages, after a refused sign-in, now say to type a

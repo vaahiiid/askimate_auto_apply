@@ -35,6 +35,8 @@
 
 import { parseArgs } from "node:util";
 
+import type { WireResolutionSaying } from "@askimate/aas-contracts";
+
 const SERVICE = process.env["AAS_CONVERSATION_URL"] ?? "http://127.0.0.1:4000";
 const CERT = process.env["AAS_SERVICE_CERT"];
 
@@ -116,6 +118,16 @@ async function call(path: string, init?: RequestInit): Promise<unknown> {
           "  pnpm run submission-by-hand <caseId> --by <your-name> --at <time> --observed|--stated\n" +
           "If only the page was saved by hand, abandon instead: the case cannot record a page saved\n" +
           "by hand, and a resume would save the page a second time.",
+      );
+    }
+    // P312: a resolution that failed partway may already be recorded and
+    // the student may already have been told something. "Refused" would be a
+    // claim this command cannot make.
+    if (path.endsWith("/resolution") && response.status >= 500) {
+      fail(
+        `The service failed partway (${code}). Whether this resolution was recorded, and what the\n` +
+          "student was told, is not known to this command. Run `pnpm run interventions` and read the\n" +
+          "conversation before resolving again.",
       );
     }
     fail(`The service refused: ${code}`);
@@ -231,31 +243,65 @@ async function resolve(argv: readonly string[]): Promise<void> {
     }),
   });
 
-  const resolved = (body as { intervention?: OpenIntervention } | null)?.intervention;
-  // P288, row 135: the service re-plans at a resume before it tells the
-  // student anything. A run that stops again has a NEW intervention open
-  // already, and this says so rather than "it is moving".
-  const again =
-    values.abandon === true || resolved === undefined
-      ? undefined
-      : ((await call("/internal/v1/interventions")) as { interventions?: OpenIntervention[] } | null)?.interventions?.find(
-          (item) => item.runId === resolved.runId && item.interventionId !== resolved.interventionId,
-        );
-  process.stdout.write(
-    `Recorded against ${resolved?.interventionId ?? id}.\n\n` +
-      (values.abandon === true
-        ? "The run is abandoned. The student has NOT been told it is moving again, because it\nis not.\n"
-        : again !== undefined
-          ? `The run re-planned and stopped again at once: ${again.interventionId} is open for it\n` +
-            `(${again.target}). The student was told once that someone looked and it still cannot\n` +
-            "go on — not that it is moving.\n"
-          : "The run is back in the pool. The student has been told it is moving again, unless the case\n" +
-            "holds a submission made by hand: then nothing is said here, and the hand-back of their\n" +
-            "account follows (P308). It picks up from where the intent ledger says it got to — not\n" +
-            "from the beginning, and not from anything you just typed: a resolution carries no\n" +
-            "position (ADR-0048 §5).\n"),
-  );
+  const answered = body as { intervention?: OpenIntervention; said?: unknown } | null;
+  const resolved = answered?.intervention;
+  // P312, item 4. His words: "the CLI must say only what the student was
+  // actually told." So it prints what the service says THIS resolution
+  // appended to the student's conversation — each message by its event number
+  // and kind, never its words — and nothing it would have to assume. What
+  // it printed before was inferred from flags and the queue, and was wrong
+  // for every path P290, P305, P306 and P307 added.
+  const lines = [`Recorded against ${resolved?.interventionId ?? id}${values.abandon === true ? ", as an abandon" : ""}.`, ""];
+  const said = answered?.said;
+  if (!Array.isArray(said)) {
+    lines.push("The service did not say what this resolution told the student; this command makes no claim about it.");
+  } else if (said.length === 0) {
+    lines.push("Nothing was said to the student by this resolution.");
+  } else {
+    lines.push(`Said to the student by this resolution (${String(said.length)} message${said.length === 1 ? "" : "s"}), in order:`);
+    for (const item of said as readonly { ordinal?: unknown; about?: unknown }[]) {
+      const about = typeof item.about === "string" ? item.about : "undescribed";
+      const known = (DESCRIBED as Readonly<Record<string, string>>)[about];
+      lines.push(`  event ${String(item.ordinal)}  ${known ?? `a message this command has no description for (${about})`}`);
+    }
+  }
+  // Printed before anything else is asked of the service: what was recorded
+  // and said must not be lost to a failure reading the list after it.
+  process.stdout.write(`${lines.join("\n")}\n`);
+  // A fact about the queue, not about the student: a stop open for this run
+  // now, as the list reads after the resolution.
+  if (resolved === undefined) return;
+  try {
+    const listed = await fetch(`${SERVICE}/internal/v1/interventions`, { headers: { "x-service-cert": CERT ?? "" } });
+    const open = listed.ok ? ((await listed.json()) as { interventions?: OpenIntervention[] }).interventions : undefined;
+    if (open === undefined) {
+      process.stdout.write("\nThe list could not be read after the resolution.\n");
+      return;
+    }
+    const again = open.find((item) => item.runId === resolved.runId && item.interventionId !== resolved.interventionId);
+    if (again !== undefined) process.stdout.write(`\nOpen for this run now, as the list reads after the resolution: ${again.interventionId} (${again.target}).\n`);
+  } catch {
+    process.stdout.write("\nThe list could not be read after the resolution.\n");
+  }
 }
+
+/**
+ * What each kind of message a resolution can append says, in a sentence that
+ * holds no student value (P312). The kinds are the contract's
+ * `WIRE_RESOLUTION_SAYINGS`; a kind not here is printed with its name.
+ */
+const DESCRIBED: Readonly<Record<WireResolutionSaying, string>> = {
+  moving_again: 'the "Good news" message: it is moving again, and picks up where it stopped',
+  asked_again: "the interview's question, asked again",
+  registration_asked_again: "that someone looked, so the registration e-mail question is asked again",
+  registration_question: "the registration e-mail question (it names their address, so it is not printed here)",
+  entry_choice_offer: 'the offer of the form\'s own list and its escape, opened with "Someone on the team has looked at your … application."',
+  entry_choice_stands: "that someone looked, and that the choice of the form's list put to them before still stands",
+  stopped_again: "the message of a stop: it cannot go on, and it is with a person again",
+  held_page: "that it stopped before a held page, and a person has been asked",
+  abandoned: "that a person stopped work on it, with what that leaves",
+  undescribed: "a message the service could not say the kind of",
+};
 
 const [command, ...rest] = process.argv.slice(2);
 if (command === undefined || command === "list") {

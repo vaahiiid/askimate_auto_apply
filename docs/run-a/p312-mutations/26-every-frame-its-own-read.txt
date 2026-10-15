@@ -1,0 +1,41 @@
+# P312 mutation 26-every-frame-its-own-read
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+  queued ??= reading.then(next, next);
+  return queued;
+# with:
+  return readAndDraw();
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/journey-refresh.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/journey-refresh.test.ts (6 tests | 1 failed) 2469ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a load over 1,200 events opens its stream after the last event it read, and makes a bounded number of reads 602ms
+   × the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a burst of 50 frames during a read costs at most two more reads 347ms
+     → expected 50 to be less than or equal to 2
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > draws while the stream keeps sending, and each draw holds what was read 460ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a read in flight when the student acts does not draw; the read the act started does (P221, kept) 389ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > an act during a read's LAST read (the form's targets) still stops it drawing 441ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  10:45:30
+   Duration  2.78s (transform 218ms, setup 0ms, collect 38ms, tests 2.47s, environment 0ms, prepare 55ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/journey-refresh.test.ts > the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a burst of 50 frames during a read costs at most two more reads
+AssertionError: expected 50 to be less than or equal to 2
+ ❯ apps/conversation-service/src/client/journey-refresh.test.ts:153:76
+    151|     }
+    152|     await settle(200);
+    153|     expect((harness.reads.get("/v1/conversations/c1/runs") ?? 0) - bef…
+       |                                                                            ^
+    154|     expect(harness.draws.at(-1), "and what it draws is the log after t…
+    155|     await client.refresh();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -1,0 +1,43 @@
+# P312 mutation 02-offer-check-reads-a-page
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+const assistant = (await this.#options.conversations.wholeLog(input.conversationId)).filter(
+# with:
+const assistant = (await this.#options.conversations.since(input.conversationId, 0, 500)).filter(
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P312, item 2
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 1 failed | 399 skipped) 2581ms
+   × past event 500 the run still reads its whole log: the offer of the form's list is said once (P312, item 2) > says the offer ONCE however often the run is advanced, though it was said after event 500 239ms
+     → said once, past 500 as before it: expected [ { ordinal: 521 }, …(5) ] to have a length of 1 but got 6
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 399 skipped (403)
+   Start at  10:43:04
+   Duration  5.83s (transform 2.03s, setup 0ms, collect 2.88s, tests 2.58s, environment 0ms, prepare 88ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > past event 500 the run still reads its whole log: the offer of the form's list is said once (P312, item 2) > says the offer ONCE however often the run is advanced, though it was said after event 500
+AssertionError: said once, past 500 as before it: expected [ { ordinal: 521 }, …(5) ] to have a length of 1 but got 6
+
+- Expected
++ Received
+
+- 1
++ 6
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18918:54
+    18916|     expect(reached).toBe("running:specialist");
+    18917|     const said = await offersSaid();
+    18918|     expect(said, "said once, past 500 as before it").toHaveLength(1);
+       |                                                      ^
+    18919|     expect(said[0]!.ordinal, "and it was said after event 500, where t…
+    18920|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -248,14 +248,17 @@ export {
 // ── Specialist interventions (ADR-0048) ──────────────────────────────────
 export type {
   OpenIntervention,
+  ResolutionSaid,
   ResolutionSubmission,
   WireResolutionKind,
   WireResolutionOutcome,
+  WireResolutionSaying,
   WireReusabilityScope,
 } from "./interventions.js";
 export {
   WIRE_RESOLUTION_KINDS,
   WIRE_RESOLUTION_OUTCOMES,
+  WIRE_RESOLUTION_SAYINGS,
   WIRE_REUSABILITY_SCOPES,
   parseResolutionSubmission,
   parseWireResolutionKind,

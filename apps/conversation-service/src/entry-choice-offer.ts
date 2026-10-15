@@ -299,6 +299,24 @@ export function entryChoiceMessage(institutionName: string, offer: EntryChoiceOf
   return sentences.join(" ");
 }
 
+/**
+ * The offer as it can be said (P312, item 3): plain, and after a person's
+ * resolution, which is the plain one with one opening sentence. ONE offer in
+ * either form — his words: "the student must see one offer only."
+ */
+export function entryChoiceForms(institutionName: string, offer: EntryChoiceOffer): readonly [string, string] {
+  return [entryChoiceMessage(institutionName, offer), entryChoiceMessage(institutionName, offer, true)];
+}
+
+/**
+ * What a person's resolution says when the offer was already said before the
+ * stop it resolves (P312): that someone looked, and that the choice above is
+ * still theirs — the offer itself is not said a second time.
+ */
+export function entryChoiceStandsMessage(institutionName: string): string {
+  return `Someone on the team has looked at your ${institutionName} application. The choice I put to you above still stands, with its buttons below: nothing is chosen until you press one.`;
+}
+
 /** What the student reads after choosing: what was recorded, beside their own words. */
 export function entryChosenMessage(offer: EntryChoiceOffer, chosen: OfferedEntry): string {
   return chosen.id === ESCAPE_ID

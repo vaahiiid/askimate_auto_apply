@@ -1,0 +1,51 @@
+# P312 mutation 32-second-overtaken-check-removed
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+  // Overtaken by an act while the preview or the targets were read (P312):
+  // the check above ran before those reads, and an act during them is newer.
+  if (mine !== latestRefresh) return;
+# with:
+  // (removed)
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/journey-refresh.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/journey-refresh.test.ts (6 tests | 1 failed) 2576ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a load over 1,200 events opens its stream after the last event it read, and makes a bounded number of reads 626ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a burst of 50 frames during a read costs at most two more reads 356ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > draws while the stream keeps sending, and each draw holds what was read 472ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a read in flight when the student acts does not draw; the read the act started does (P221, kept) 419ms
+   × the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > an act during a read's LAST read (the form's targets) still stops it drawing 465ms
+     → only the act's read drew: expected [ 6, 7 ] to deeply equal [ 7 ]
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  10:46:13
+   Duration  2.91s (transform 247ms, setup 0ms, collect 35ms, tests 2.58s, environment 0ms, prepare 52ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/journey-refresh.test.ts > the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > an act during a read's LAST read (the form's targets) still stops it drawing
+AssertionError: only the act's read drew: expected [ 6, 7 ] to deeply equal [ 7 ]
+
+- Expected
++ Received
+
+  Array [
++   6,
+    7,
+  ]
+
+ ❯ apps/conversation-service/src/client/journey-refresh.test.ts:220:74
+    218|     harness.log.push(line(7));
+    219|     await client.refresh();
+    220|     expect(harness.draws.slice(drawnBefore), "only the act's read drew…
+       |                                                                          ^
+    221|   }, 30_000);
+    222| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

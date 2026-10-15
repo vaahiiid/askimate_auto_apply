@@ -1,0 +1,44 @@
+# P312 mutation 05-retry-guard-reads-a-page
+# file: apps/conversation-service/src/routes.ts
+# replaced:
+: await options.store.transitionFor(conversationId, event.kind, requestId);
+# with:
+: ((await options.store.since(conversationId, 0, 500)).find((candidate) => candidate.kind === event.kind && "requestId" in candidate && candidate.requestId === requestId) ?? null);
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/routes.test.ts -t P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/routes.test.ts (33 tests | 1 failed | 30 skipped) 3808ms
+   × the guard still fails closed > is idempotent on a retried lifecycle transition when the log is past event 500 (P312, item 2) 1222ms
+     → the retry finds the first copy past event 500: expected 201 to be 200 // Object.is equality
+   ✓ reading the transcript > a log past 500 events is read whole by walking the cursor until no more remain — the route as before P312, which the page's reader now relies on 2311ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed | 30 skipped (33)
+   Start at  10:43:25
+   Duration  6.33s (transform 1.37s, setup 0ms, collect 2.18s, tests 3.81s, environment 0ms, prepare 65ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/routes.test.ts > the guard still fails closed > is idempotent on a retried lifecycle transition when the log is past event 500 (P312, item 2)
+AssertionError: the retry finds the first copy past event 500: expected 201 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 201
+
+ ❯ apps/conversation-service/src/routes.test.ts:373:75
+    371|       ).status;
+    372|     expect(await post()).toBe(201);
+    373|     expect(await post(), "the retry finds the first copy past event 50…
+       |                                                                           ^
+    374|     const copies = await pool.query<{ n: string }>(
+    375|       "SELECT count(*)::text AS n FROM conversation_events WHERE conve…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

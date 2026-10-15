@@ -1,0 +1,89 @@
+# P312 mutation 18-cli-says-moving-again-when-nothing-was-said
+# file: scripts/interventions.ts
+# replaced:
+    lines.push("Nothing was said to the student by this resolution.");
+# with:
+    lines.push("The run is back in the pool. The student has been told it is moving again.");
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t P312|P308
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (31 tests | 2 failed | 22 skipped) 5071ms
+   × the published demonstrations > interventions, after a submission made by hand (P308) > lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student 735ms
+     → expected 'Recorded against iv_held.\n\nThe run …' to contain 'Nothing was said to the student by th…'
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that ended in the offer of the form's list prints that, by its event number, and never 'moving again' 373ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said 'Good news' prints that once, and nothing hedged about what else might have been said 370ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > an abandon prints what the abandon said, and does not call the run abandoned on its own say-so 374ms
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said nothing says so, and nothing else about the student 372ms
+     → expected 'Recorded against iv_1.\n\nThe run is …' to contain 'Nothing was said to the student by th…'
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped 778ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolution that failed partway is not called refused: what was recorded and said is not known 364ms
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > what a recorded resolution said is printed even when the list cannot be read after it 386ms
+   ✓ the published demonstrations > submission-by-hand > REFUSES a date that does not exist and a zone no place keeps, before the service (the P308 review) 1318ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 7 passed | 22 skipped (31)
+   Start at  10:44:46
+   Duration  10.12s (transform 45ms, setup 0ms, collect 4.77s, tests 5.07s, environment 0ms, prepare 64ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions, after a submission made by hand (P308) > lists each stop with its case, which is what submission-by-hand takes, and says what a resume tells the student
+AssertionError: expected 'Recorded against iv_held.\n\nThe run …' to contain 'Nothing was said to the student by th…'
+
+- Expected
++ Received
+
+- Nothing was said to the student by this resolution.
++ Recorded against iv_held.
++
++ The run is back in the pool. The student has been told it is moving again.
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++
+
+ ❯ scripts/demonstrations.test.ts:291:30
+    289|         // prints what the service says the resolution told the studen…
+    290|         // as the service answers after a submission made by hand, not…
+    291|         expect(resolved.out).toContain("Nothing was said to the studen…
+       |                              ^
+    292|         expect(resolved.out).not.toContain("moving again");
+    293|       } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said nothing says so, and nothing else about the student
+AssertionError: expected 'Recorded against iv_1.\n\nThe run is …' to contain 'Nothing was said to the student by th…'
+
+- Expected
++ Received
+
+- Nothing was said to the student by this resolution.
++ Recorded against iv_1.
++
++ The run is back in the pool. The student has been told it is moving again.
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++
+
+ ❯ scripts/demonstrations.test.ts:353:28
+    351|     it("a resolve that said nothing says so, and nothing else about th…
+    352|       const resolved = await resolveAgainst({ said: [] });
+    353|       expect(resolved.out).toContain("Nothing was said to the student …
+       |                            ^
+    354|       expect(resolved.out).not.toMatch(/has been told|was told|moving …
+    355|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

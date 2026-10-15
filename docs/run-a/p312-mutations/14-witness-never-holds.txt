@@ -1,0 +1,140 @@
+# P312 mutation 14-witness-never-holds
+# file: apps/conversation-service/src/event-store.ts
+# replaced:
+      witness?.appended.push({ conversationId: input.conversationId, event: written });
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/event-store.test.ts apps/conversation-service/src/run-driver.test.ts -t P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/event-store.test.ts (24 tests | 2 failed | 21 skipped) 2658ms
+   × what a resolution appended, witnessed (P312, item 4) > witnesses, in order, the appends made inside it, and not one started outside it 35ms
+     → the resolution's own two, not the pass's: expected [] to deeply equal [ 1, 3 ]
+   × what a resolution appended, witnessed (P312, item 4) > does not witness a replayed idempotent append: nothing new was said 13ms
+     → expected [] to have a length of 1 but got +0
+   ✓ reading the log > reads the whole log past any page, and a page stays a page (P312, item 2) 2333ms
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 3 failed | 394 skipped) 6644ms
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked 148ms
+     → and the resolution says it said the offer (item 4): expected [] to deeply equal [ 'entry_choice_offer' ]
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > an offer said before a later stop is not said again when that stop is resolved: the resolve says someone looked and points to it 217ms
+     → item 4: what it said, by kind: expected [] to deeply equal [ 'entry_choice_stands' ]
+   ✓ a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a worker pass and a person's resolution at the same moment say the offer ONCE: the check and the saying are under the conversation lock 3145ms
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a resume that re-plans into a stop, while another writer moves the run, says the stop once and reports it — it does not fail after the student was told 120ms
+     → the stop's message, reported as said: expected [] to deeply equal [ 'stopped_again' ]
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 7 passed | 415 skipped (427)
+   Start at  10:44:15
+   Duration  9.24s (transform 2.50s, setup 0ms, collect 4.46s, tests 9.30s, environment 0ms, prepare 121ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/event-store.test.ts > what a resolution appended, witnessed (P312, item 4) > witnesses, in order, the appends made inside it, and not one started outside it
+AssertionError: the resolution's own two, not the pass's: expected [] to deeply equal [ 1, 3 ]
+
+- Expected
++ Received
+
+- Array [
+-   1,
+-   3,
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/event-store.test.ts:571:108
+    569|     const whole = await store.wholeLog(conversation);
+    570|     expect(whole.map((event) => (event.kind === "message" ? event.cont…
+    571|     expect(witness.appended.map((item) => item.event.ordinal), "the re…
+       |                                                                                                            ^
+    572|   }, 60_000);
+    573| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/event-store.test.ts > what a resolution appended, witnessed (P312, item 4) > does not witness a replayed idempotent append: nothing new was said
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/event-store.test.ts:584:30
+    582|       await append();
+    583|     });
+    584|     expect(witness.appended).toHaveLength(1);
+       |                              ^
+    585|   }, 60_000);
+    586| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked
+AssertionError: and the resolution says it said the offer (item 4): expected [] to deeply equal [ 'entry_choice_offer' ]
+
+- Expected
++ Received
+
+- Array [
+-   "entry_choice_offer",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19086:121
+    19084|     const runId = await startedUnder(conversation, ENTRY);
+    19085|     expect(await advanceUnder(ENTRY, runId, conversation, 3)).toBe("es…
+    19086|     expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "and…
+       |                                                                                                                         ^
+    19087|     expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 4)).t…
+    19088|     expect(offers(await assistantSaid(conversation)), "one offer, in t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > an offer said before a later stop is not said again when that stop is resolved: the resolve says someone looked and points to it
+AssertionError: item 4: what it said, by kind: expected [] to deeply equal [ 'entry_choice_stands' ]
+
+- Expected
++ Received
+
+- Array [
+-   "entry_choice_stands",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19105:100
+    19103|     expect(await advanceUnder(ENTRY, runId, conversation, 1)).toBe("es…
+    19104|     const before = (await assistantSaid(conversation)).length;
+    19105|     expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "ite…
+       |                                                                                                    ^
+    19106|     expect((await assistantSaid(conversation)).slice(before), "one lin…
+    19107|     expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 3)).t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a resume that re-plans into a stop, while another writer moves the run, says the stop once and reports it — it does not fail after the student was told
+AssertionError: the stop's message, reported as said: expected [] to deeply equal [ 'stopped_again' ]
+
+- Expected
++ Received
+
+- Array [
+-   "stopped_again",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19189:95
+    19187|       });
+    19188|       expect(armed, "the other writer's revision was met").toBe(false);
+    19189|       expect(resolved.said.map((item) => item.about), "the stop's mess…
+       |                                                                                               ^
+    19190|     } finally {
+    19191|       await instance.pool.end();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+

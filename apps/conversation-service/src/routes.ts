@@ -24,7 +24,7 @@ import type { NextFunction, Request, Response, Router } from "express";
 import { Router as makeRouter } from "express";
 import { createHash } from "node:crypto";
 
-import type { ConversationEvent, PriorOutcome, ProblemCode } from "@askimate/aas-contracts";
+import type { ConversationEvent, PriorOutcome, ProblemCode, ResolutionSaid } from "@askimate/aas-contracts";
 import {
   PROBLEM_STATUS,
   PROBLEM_TITLES,
@@ -261,7 +261,7 @@ export interface RunCoordinator {
     readonly resolution: RecoveryResolution;
     readonly reusability: ReusabilityAssessment;
     readonly didHappen: boolean;
-  }): Promise<StoredIntervention>;
+  }): Promise<{ readonly intervention: StoredIntervention; readonly said: readonly ResolutionSaid[] }>;
   /** Every request to delete confirmed details waiting for a person, oldest first (P275). */
   openDeletionRequests(): Promise<readonly DataDeletionRequest[]>;
   /** A person closes one, and the student is told (P275). `null` when there is no such request. */
@@ -372,6 +372,8 @@ export interface ConversationRoutesOptions {
 }
 
 const DEFAULT_POLL_MS = 1_000;
+/** The stream's backfill, a page at a time: its own bound, stated (P312). */
+const STREAM_PAGE = 500;
 const DEFAULT_HEARTBEAT_MS = 15_000;
 /**
  * Five minutes. Long enough that a reconnect is rare, short enough that a
@@ -1521,7 +1523,16 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           problem(res, "validation_failed", { pointers: ["/after"] });
           return;
         }
-        const limit = Math.min(Number(req.query["limit"] ?? 200) || 200, 500);
+        // A whole number of at least one (P312): `limit=-1` read as LIMIT 0
+        // and answered no events with `hasMore: true`, a page that never moves
+        // under a client walking the cursor. Above 500 it is still clamped.
+        const rawLimit = req.query["limit"];
+        const asked = rawLimit === undefined ? 200 : Number(rawLimit);
+        if (!Number.isSafeInteger(asked) || asked < 1) {
+          problem(res, "validation_failed", { pointers: ["/limit"] });
+          return;
+        }
+        const limit = Math.min(asked, 500);
         const events = await options.store.since(conversationId, after, limit + 1);
         res.status(200).json({
           events: events.slice(0, limit),
@@ -1588,7 +1599,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
 
         const drain = async (): Promise<void> => {
           if (closed) return;
-          for (const event of await options.store.since(conversationId, cursor)) send(event);
+          for (const event of await options.store.since(conversationId, cursor, STREAM_PAGE)) send(event);
         };
         // A store that can no longer be read ends the stream, honestly and
         // once. Until P231's follow-up the poll ran `void drain()`, so a store
@@ -1679,16 +1690,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           const requestId = isSecureEventKind(event.kind) && "requestId" in event
             ? event.requestId
             : null;
+          // Found wherever it is in the log (P312): this read stopped at
+          // event 500, and past it a retried transition was recorded twice.
           const already =
             requestId === null
-              ? undefined
-              : (await options.store.since(conversationId, 0)).find(
-                  (candidate) =>
-                    candidate.kind === event.kind &&
-                    "requestId" in candidate &&
-                    candidate.requestId === requestId,
-                );
-          if (already !== undefined) {
+              ? null
+              : await options.store.transitionFor(conversationId, event.kind, requestId);
+          if (already !== null) {
             res.status(200).json(already);
             return;
           }
@@ -2110,13 +2118,16 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         };
 
         try {
-          const resolved = await options.runs.resolveIntervention({
+          const { intervention, said } = await options.runs.resolveIntervention({
             interventionId: makeInterventionId(String(req.params["interventionId"])),
             resolution,
             reusability,
             didHappen: submission.didHappen,
           });
-          res.status(200).json({ intervention: onTheWire(resolved) });
+          // P312, item 4: what this resolution told the student, by event and
+          // kind — so the person who resolved it is told what was said, not
+          // what this command assumes was.
+          res.status(200).json({ intervention: onTheWire(intervention), said });
         } catch (error) {
           if (error instanceof InterventionNotFoundError) {
             problem(res, "not_found");

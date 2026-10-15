@@ -35,6 +35,7 @@ import {
   SECRET_LIFECYCLES,
 } from "./vocabulary.js";
 import { READING_FAILURES, READING_OUTCOMES } from "./reading.js";
+import { WIRE_RESOLUTION_SAYINGS } from "./interventions.js";
 
 type Json = Record<string, unknown>;
 
@@ -161,6 +162,10 @@ function enumOf(spec: Json, schemaName: string): string[] {
 }
 
 describe("the published contract and the code do not drift", () => {
+  it("agrees on what a resolution can say it told the student (P312, item 4)", () => {
+    expect(enumOf(CONVERSATION, "ResolutionSaying").sort()).toEqual([...WIRE_RESOLUTION_SAYINGS].sort());
+  });
+
   it("agrees on the rejection reasons, in both documents and both directions", () => {
     for (const [name, spec] of SPECS) {
       expect(enumOf(spec, "RejectionReason").sort(), name).toEqual(

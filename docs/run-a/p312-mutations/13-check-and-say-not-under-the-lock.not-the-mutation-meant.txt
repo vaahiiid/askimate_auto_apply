@@ -1,0 +1,193 @@
+# P312 mutation 13-check-and-say-not-under-the-lock
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+      await this.#options.bindings.withConversationLock(input.conversationId, async (): Promise<null> => {
+        const assistant = (await this.#options.conversations.wholeLog
+# with:
+      await (async (): Promise<null> => {
+        const assistant = (await this.#options.conversations.wholeLog
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P312|P290|P291
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 8 failed | 388 skipped) 3748ms
+   × a value not on the form's list is the student's to choose — an entry, or the form's own escape (P290, ADR-0155, ADR-0109 amended) > offers the list and the escape, ONCE however often the run is advanced, asks no person, and holds the run for the press 104ms
+     → said once, in either of its forms (P312): expected [] to have a length of 1 but got +0
+   × a value not on the form's list is the student's to choose — an entry, or the form's own escape (P290, ADR-0155, ADR-0109 amended) > the run carries on with it: the nationality stops nothing, and what stops this fixture next is its own 64ms
+     → the offer is not said again, in either form (P312): expected [] to have a length of 1 but got +0
+   × a run already with a person, once the list is on file, is resolved into the student's choice — not stopped again (P290) > says ONE thing — someone looked, and here is the list and its escape — and holds the run for the student's press 124ms
+     → expected [] to have a length of 1 but got +0
+   × past event 500 the run still reads its whole log: the offer of the form's list is said once (P312, item 2) > says the offer ONCE however often the run is advanced, though it was said after event 500 106ms
+     → said once, past 500 as before it: expected [] to have a length of 1 but got +0
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked 114ms
+     → and the resolution says it said the offer (item 4): expected [] to deeply equal [ 'entry_choice_offer' ]
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > an offer said before a later stop is not said again when that stop is resolved: the resolve says someone looked and points to it 62ms
+     → expected [] to deeply equal [ Array(1) ]
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a worker pass and a person's resolution at the same moment say the offer ONCE: the check and the saying are under the conversation lock 97ms
+     → one offer, whichever of the two said it: expected [] to have a length of 1 but got +0
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a resolve right after the offer was said says nothing more: the offer is the last thing the student read 100ms
+     → the offer was said while the run was with a person: expected [] to deeply equal [ Array(1) ]
+
+ Test Files  1 failed (1)
+      Tests  8 failed | 7 passed | 388 skipped (403)
+   Start at  10:44:07
+   Duration  6.59s (transform 1.78s, setup 0ms, collect 2.55s, tests 3.75s, environment 0ms, prepare 55ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a value not on the form's list is the student's to choose — an entry, or the form's own escape (P290, ADR-0155, ADR-0109 amended) > offers the list and the escape, ONCE however often the run is advanced, asks no person, and holds the run for the press
+AssertionError: said once, in either of its forms (P312): expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18710:138
+    18708|     expect(await advance(3)).toBe("running:specialist");
+    18709|     const said = await assistantSaid();
+    18710|     expect(said.filter((line) => line === OFFER || line.endsWith(` app…
+       |                                                                                                                                          ^
+    18711|     expect(said.join("\n")).not.toContain("member of the team");
+    18712|     expect(await withDriver((driver) => driver.openInterventions()).th…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a value not on the form's list is the student's to choose — an entry, or the form's own escape (P290, ADR-0155, ADR-0109 amended) > the run carries on with it: the nationality stops nothing, and what stops this fixture next is its own
+AssertionError: the offer is not said again, in either form (P312): expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18780:167
+    18778|     const open = await withDriver((driver) => driver.openInterventions…
+    18779|     expect(open.map((item) => item.escalation.checkpoint.target)).toEq…
+    18780|     expect((await assistantSaid()).filter((line) => line === OFFER || …
+       |                                                                                                                                                                       ^
+    18781|   }, 300_000);
+    18782| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run already with a person, once the list is on file, is resolved into the student's choice — not stopped again (P290) > says ONE thing — someone looked, and here is the list and its escape — and holds the run for the student's press
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18837:20
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > past event 500 the run still reads its whole log: the offer of the form's list is said once (P312, item 2) > says the offer ONCE however often the run is advanced, though it was said after event 500
+AssertionError: said once, past 500 as before it: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18918:54
+    18916|     expect(reached).toBe("running:specialist");
+    18917|     const said = await offersSaid();
+    18918|     expect(said, "said once, past 500 as before it").toHaveLength(1);
+       |                                                      ^
+    18919|     expect(said[0]!.ordinal, "and it was said after event 500, where t…
+    18920|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked
+AssertionError: and the resolution says it said the offer (item 4): expected [] to deeply equal [ 'entry_choice_offer' ]
+
+- Expected
++ Received
+
+- Array [
+-   "entry_choice_offer",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19086:121
+    19084|     const runId = await startedUnder(conversation, ENTRY);
+    19085|     expect(await advanceUnder(ENTRY, runId, conversation, 3)).toBe("es…
+    19086|     expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "and…
+       |                                                                                                                         ^
+    19087|     expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 4)).t…
+    19088|     expect(offers(await assistantSaid(conversation)), "one offer, in t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > an offer said before a later stop is not said again when that stop is resolved: the resolve says someone looked and points to it
+AssertionError: expected [] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+- Array [
+-   "Their form asks you to choose your nationality from its own list, and it does not hold \"Persian\", which is what you told me. It holds the 3 entries below, in its own order. If one of them is yours, choose it. If none is, choose \"Not in list\": that is the form's own option for exactly this, and I will type your own words, \"Persian\", into the box it opens. Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19101:55
+    19099|     const runId = await startedUnder(conversation, CHOICE_ENTRY);
+    19100|     expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 2)).t…
+    19101|     expect(offers(await assistantSaid(conversation))).toEqual([OFFER]);
+       |                                                       ^
+    19102|     // The same run under an entry with no escape: nothing to offer, s…
+    19103|     expect(await advanceUnder(ENTRY, runId, conversation, 1)).toBe("es…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a worker pass and a person's resolution at the same moment say the offer ONCE: the check and the saying are under the conversation lock
+AssertionError: one offer, whichever of the two said it: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19154:98
+    19152|       await passing.pool.end();
+    19153|     }
+    19154|     expect(offers(await assistantSaid(conversation)), "one offer, whic…
+       |                                                                                                  ^
+    19155|   }, 300_000);
+    19156| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a resolve right after the offer was said says nothing more: the offer is the last thing the student read
+AssertionError: the offer was said while the run was with a person: expected [] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+- Array [
+-   "Their form asks you to choose your nationality from its own list, and it does not hold \"Persian\", which is what you told me. It holds the 3 entries below, in its own order. If one of them is yours, choose it. If none is, choose \"Not in list\": that is the form's own option for exactly this, and I will type your own words, \"Persian\", into the box it opens. Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19207:85
+    19205|     await advanceUnder(CHOICE_ENTRY, runId, conversation, 1);
+    19206|     const atResolve = await assistantSaid(conversation);
+    19207|     expect(offers(atResolve), "the offer was said while the run was wi…
+       |                                                                                     ^
+    19208|     expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "ite…
+    19209|     expect((await assistantSaid(conversation)).slice(atResolve.length)…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+

@@ -41,6 +41,7 @@
  * was lost". Density is what makes `Last-Event-ID` a complete answer.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 
 import type { Pool, PoolClient } from "pg";
@@ -155,6 +156,21 @@ export interface AppendResult {
   /** True when an idempotency key replayed a write that had already happened. */
   readonly replayed: boolean;
 }
+
+/** What a witness holds: every event appended inside it, in order. */
+export interface AppendWitness {
+  readonly appended: { readonly conversationId: string; readonly event: ConversationEvent }[];
+}
+
+/**
+ * Witnesses the appends made inside `appendWitness.run(...)` (P312, item 4):
+ * how a resolution learns what it said to the student from what it actually
+ * appended — not from an ordinal range, which a worker pass appending beside
+ * it would fill. Read on `append`'s first line, before any await, so it is
+ * the caller's context that decides; an append started outside the run is
+ * not witnessed, and neither is a replayed one: nothing new was said.
+ */
+export const appendWitness = new AsyncLocalStorage<AppendWitness>();
 
 /** The bound `content_is_bounded` (0001) holds a message body to. */
 export const MESSAGE_BODY_BOUND = 8000;
@@ -470,6 +486,7 @@ export class ConversationEventStore {
     readonly idempotency?: { readonly key: string; readonly studentId: string;
                              readonly digest: string };
   }): Promise<AppendResult> {
+    const witness = appendWitness.getStore();
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
@@ -517,6 +534,7 @@ export class ConversationEventStore {
       }
 
       await client.query("COMMIT");
+      witness?.appended.push({ conversationId: input.conversationId, event: written });
       this.#notify(input.conversationId, written);
       return { event: written, replayed: false };
     } catch (error) {
@@ -692,11 +710,17 @@ export class ConversationEventStore {
     };
   }
 
-  /** Events after `afterOrdinal`, ascending. The transcript, and the backfill. */
+  /**
+   * A PAGE of events after `afterOrdinal`, ascending: the events route and
+   * the stream's backfill. The limit has no default (P312): a default of 500
+   * was what every whole-log reading of the run used, and past event 500 the
+   * run read a log that stopped there — an offer said again on every pass, a
+   * question asked again, an answer dropped. For the whole log, `wholeLog`.
+   */
   public async since(
     conversationId: string,
     afterOrdinal: Ordinal,
-    limit = 500,
+    limit: number,
   ): Promise<readonly ConversationEvent[]> {
     const rows = await this.#pool.query(
       `${SELECT_EVENT}
@@ -706,6 +730,42 @@ export class ConversationEventStore {
       [conversationId, afterOrdinal, limit],
     );
     return rows.rows.map((row) => rowToEvent(row as Record<string, unknown>));
+  }
+
+  /**
+   * Every event of one conversation, ascending: the whole log, never a page
+   * (P312). What every reading of "what was said, what stands" must use. One
+   * statement, so one snapshot, over `conversation_events_in_order`.
+   */
+  public async wholeLog(conversationId: string): Promise<readonly ConversationEvent[]> {
+    const rows = await this.#pool.query(
+      `${SELECT_EVENT}
+        WHERE e.conversation_id = $1
+        ORDER BY e.ordinal ASC`,
+      [conversationId],
+    );
+    return rows.rows.map((row) => rowToEvent(row as Record<string, unknown>));
+  }
+
+  /**
+   * The first event of `kind` carrying `requestId`, wherever it is in the log
+   * (P312): the internal route's retry guard, which read a page that stopped
+   * at event 500 and so recorded a retried transition a second time past it.
+   */
+  public async transitionFor(
+    conversationId: string,
+    kind: ConversationEvent["kind"],
+    requestId: string,
+  ): Promise<ConversationEvent | null> {
+    const rows = await this.#pool.query(
+      `${SELECT_EVENT}
+        WHERE e.conversation_id = $1 AND e.request_id = $2 AND e.kind = $3
+        ORDER BY e.ordinal ASC
+        LIMIT 1`,
+      [conversationId, requestId, kind],
+    );
+    const row = rows.rows[0] as Record<string, unknown> | undefined;
+    return row === undefined ? null : rowToEvent(row);
   }
 
   /**

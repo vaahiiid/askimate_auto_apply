@@ -1,0 +1,73 @@
+# P312 mutation 23-stack-up-asks-no-endpoint
+# file: scripts/local-stack.sh
+# replaced:
+    if curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then
+# with:
+    if true; then
+# command: pnpm exec vitest run --project unit scripts/local-stack.test.ts -t P250|P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/local-stack.test.ts (10 tests | 2 failed | 6 skipped) 217ms
+   × the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify refuses, and reads no log, when nothing is running — whatever the logs left behind say (P312, item 1) 42ms
+     → expected 'REFUSED: the stack is not up, so its …' to contain 'conversation does not answer at http:…'
+   × the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify says verified only while every process is alive and every endpoint answers, and names each that is not (P312, item 1) 78ms
+     → expected +0 to be 2 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 6 skipped (10)
+   Start at  10:45:20
+   Duration  684ms (transform 55ms, setup 0ms, collect 152ms, tests 217ms, environment 0ms, prepare 54ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/local-stack.test.ts > the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify refuses, and reads no log, when nothing is running — whatever the logs left behind say (P312, item 1)
+AssertionError: expected 'REFUSED: the stack is not up, so its …' to contain 'conversation does not answer at http:…'
+
+- Expected
++ Received
+
+- conversation does not answer at http://127.0.0.1:4940/healthz
++ REFUSED: the stack is not up, so its logs were not read — they may be an earlier run's (a start that stops before it starts the processes leaves the last run's logs where they were). Down:
++   conversation-service: not running
++   secure-service: not running
++   secure-filler: not running
++   browser-runner: not running
++   worker: not running
++   cv-reader: not running
++ Asked at port base 4940: if start was given another AAS_LOCAL_PORT_BASE, give verify the same.
++ The logs are kept in /tmp/aas-local-stack-down-l4OS6Z. Read them, then run scripts/local-stack.sh stop and scripts/local-stack.sh start.
++
+
+ ❯ scripts/local-stack.test.ts:223:27
+    221|       expect(down.output).not.toContain("verified");
+    222|       for (const app of APPS) expect(down.output).toContain(`${app}: n…
+    223|       expect(down.output).toContain(`conversation does not answer at h…
+       |                           ^
+    224|       expect(down.output).toContain(`browser does not answer at http:/…
+    225|       expect(down.output).toContain("were not read");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  scripts/local-stack.test.ts > the stack announces what its processes SAY they came up with, and refuses a gap (P250) > verify says verified only while every process is alive and every endpoint answers, and names each that is not (P312, item 1)
+AssertionError: expected +0 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 0
+
+ ❯ scripts/local-stack.test.ts:253:31
+    251|       await stack.closeServer(1);
+    252|       const secureDown = await scriptWith(base, "verify", scratch);
+    253|       expect(secureDown.code).toBe(2);
+       |                               ^
+    254|       expect(secureDown.output).toContain(`secure does not answer at h…
+    255|       expect(secureDown.output).not.toContain("verified");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

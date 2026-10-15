@@ -36,7 +36,7 @@ import type { SpecialistNotice, SpecialistNotifier } from "@askimate/aas-notify"
 import type { StoredIntervention } from "@askimate/aas-case-store/interventions";
 import type { WorkflowRunStore } from "@askimate/aas-case-store";
 import { InterventionAlreadyResolvedError } from "@askimate/aas-case-store/interventions";
-import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
+import { MIGRATIONS_DIR as CASE_MIGRATIONS, RunConcurrencyError } from "@askimate/aas-case-store";
 import {
   askimateActor,
   canTransitionStatus,
@@ -429,17 +429,25 @@ function buildInstance(
   vault: DocumentVault | null = null,
   /** P305, ADR-0160: the held-page register; the kept one (`HELD_PAGES`) when absent. */
   heldPages: readonly HeldPage[] | null = null,
+  /**
+   * P312: a store a test stands in for the real one, built on the instance's
+   * own pool — to hold an append, or move a run, at the moment a race needs.
+   */
+  overrides: {
+    readonly conversations?: (pool: pg.Pool) => ConversationEventStore;
+    readonly runs?: (pool: pg.Pool) => PostgresWorkflowRunStore;
+  } = {},
 ): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
   readonly app: ReturnType<typeof createConversationApp>;
 } {
   const instancePool = new pg.Pool({ connectionString, max: 8 });
-  const store = new ConversationEventStore(instancePool);
+  const store = overrides.conversations?.(instancePool) ?? new ConversationEventStore(instancePool);
   const driver = new RunDriver({
     stores: {
       cases: new PostgresCaseStore(instancePool),
-      runs: new PostgresWorkflowRunStore(instancePool),
+      runs: overrides.runs?.(instancePool) ?? new PostgresWorkflowRunStore(instancePool),
     },
     bindings: new ApplicationBindingStore(instancePool),
     catalogue,
@@ -4059,7 +4067,7 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
 
     const instance = buildInstance(connectionString());
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: held.interventionId,
         resolution: {
           specialistId: "specialist_vahid",
@@ -4074,7 +4082,8 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
           signature: "gated:page-one",
         },
         didHappen: true,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["moving_again"]);
     } finally {
       await instance.pool.end();
     }
@@ -4372,7 +4381,7 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
 
     const instance = buildInstance(connectionString());
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: held.interventionId,
         resolution: {
           specialistId: "specialist_vahid",
@@ -4383,7 +4392,8 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
         },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "abandoned" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["abandoned"]);
     } finally {
       await instance.pool.end();
     }
@@ -4704,6 +4714,16 @@ describeIfDatabase("the internal specialist routes", () => {
         { method: "POST", headers: CERT, body: JSON.stringify(goodBody) },
       );
       expect(first.status).toBe(200);
+      // P312, item 4: what this resolution said to the student, by event and
+      // kind — never the words, which can name the student's address.
+      const answered = (await first.json()) as Record<string, unknown>;
+      expect(Object.keys(answered).sort()).toEqual(["intervention", "said"]);
+      const said = answered["said"];
+      if (!Array.isArray(said)) expect.unreachable("said is a list");
+      for (const item of said as readonly Record<string, unknown>[]) {
+        expect(Object.keys(item).sort()).toEqual(["about", "at", "ordinal"]);
+      }
+      expect((said as readonly Record<string, unknown>[]).map((item) => item["about"]), "this resume says it is moving again").toEqual(["moving_again"]);
 
       const second = await fetch(
         `${base}/internal/v1/interventions/${interventionId}/resolution`,
@@ -6867,7 +6887,7 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
     );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(held.rows[0]?.intervention_id ?? ""),
         resolution: {
           specialistId: "specialist_vahid",
@@ -6878,7 +6898,8 @@ describeIfDatabase("an unreadable answer is answered with why, counts, and stops
         },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["moving_again", "asked_again"]);
     } finally {
       await instance.pool.end();
     }
@@ -7119,12 +7140,13 @@ describeIfDatabase("a confirmed answer is corrected by asking, and the stop that
     if (held === undefined) expect.unreachable("an intervention is open");
     const instance = buildInstance(connectionString(), opener(), catalogueOf(EXACT_ENTRY_TRAP));
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: held.interventionId,
         resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the plan.", resolution: "Re-plan on the profile as it stands.", resolvedAt: NOW, outcome: "resume" },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "p288" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["stopped_again"]);
     } finally {
       await instance.pool.end();
     }
@@ -7685,12 +7707,13 @@ describeIfDatabase("an application a person abandons before any account exists i
     const before = (await said()).length;
     const instance = buildInstance(connectionString(), opener());
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(interventionId),
         resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the log.", resolution: "Not one we can complete.", resolvedAt: NOW, outcome: "abandon" },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["abandoned"]);
     } finally {
       await instance.pool.end();
     }
@@ -12613,12 +12636,13 @@ describeIfDatabase("a run that holds an account never loses sight of it when an 
       expect(encountered).toContain("cannot be shown to have been handed back");
       expect(encountered).not.toContain("has not been handed back");
       expect(encountered).toContain("Forgot password");
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(interventionId),
         resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the entry.", resolution: "Not one we can complete.", resolvedAt: NOW, outcome: "abandon" },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "account:authentication_unobserved" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["abandoned"]);
     } finally {
       await instance.pool.end();
     }
@@ -16009,7 +16033,7 @@ describeIfDatabase("a page the portal would not save without a part becomes ONE 
     expect(question, "and nothing the student already gave").not.toContain("first line of your address");
     expect(question).not.toContain("town or city");
 
-    const demands = demandsFrom(await new ConversationEventStore(pool).since(conversation, 0));
+    const demands = demandsFrom(await new ConversationEventStore(pool).wholeLog(conversation));
     expect([...demands.keys()]).toEqual(["contact.address"]);
     expect(demands.get("contact.address")?.partKey).toBe("region");
 
@@ -16057,7 +16081,7 @@ describeIfDatabase("a page the portal would not save without a part becomes ONE 
     }
     const stored = await pool.query<{ value: unknown }>("SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = $2", [ownerOf(conversation), "contact.address"]);
     expect(stored.rows[0]?.value).toMatchObject({ line1: "12 Valiasr Street", city: "Tehran", region: "Tehran Province", postalCode: "1966733411", countryCode: "IR" });
-    expect(demandsFrom(await new ConversationEventStore(pool).since(conversation, 0)).size, "the confirmation closed the demand").toBe(0);
+    expect(demandsFrom(await new ConversationEventStore(pool).wholeLog(conversation)).size, "the confirmation closed the demand").toBe(0);
     expect(await stepOf(), "the run has moved off the interview").not.toBe("interview");
     expect((await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status).toBe("running");
   }, 300_000);
@@ -18683,7 +18707,7 @@ describeIfDatabase("a value not on the form's list is the student's to choose �
   it("offers the list and the escape, ONCE however often the run is advanced, asks no person, and holds the run for the press", async () => {
     expect(await advance(3)).toBe("running:specialist");
     const said = await assistantSaid();
-    expect(said.filter((line) => line === OFFER), "said once").toHaveLength(1);
+    expect(said.filter((line) => line === OFFER || line.endsWith(` application. ${OFFER}`)), "said once, in either of its forms (P312)").toHaveLength(1);
     expect(said.join("\n")).not.toContain("member of the team");
     expect(await withDriver((driver) => driver.openInterventions()).then((open) => open.filter((item) => item.runId === runId))).toEqual([]);
 
@@ -18753,7 +18777,7 @@ describeIfDatabase("a value not on the form's list is the student's to choose �
     expect(await advance(2)).toBe("escalated:specialist");
     const open = await withDriver((driver) => driver.openInterventions()).then((all) => all.filter((item) => item.runId === runId));
     expect(open.map((item) => item.escalation.checkpoint.target)).toEqual(["specialist:preview_refused"]);
-    expect((await assistantSaid()).filter((line) => line === OFFER), "the offer is not said again").toHaveLength(1);
+    expect((await assistantSaid()).filter((line) => line === OFFER || line.endsWith(` application. ${OFFER}`)), "the offer is not said again, in either form (P312)").toHaveLength(1);
   }, 300_000);
 });
 
@@ -18820,6 +18844,371 @@ describeIfDatabase("a run already with a person, once the list is on file, is re
     } finally {
       await after.pool.end();
     }
+  }, 300_000);
+});
+
+/**
+ * P312, item 2. Lines that close no question and match no said-once text:
+ * a `system` message is neither the student's answer nor the assistant's
+ * words, so what the run reads of its log is unchanged by them — except that
+ * the log is now past event 500, the page the store used to stop at.
+ */
+async function padPast500(conversationId: string, count = 520): Promise<void> {
+  const store = new ConversationEventStore(pool);
+  for (let line = 1; line <= count; line += 1) {
+    await store.append({ conversationId, event: { kind: "message", actor: "system", content: `P312 padding line ${String(line)}` } });
+  }
+}
+
+describeIfDatabase("past event 500 the run still reads its whole log: the offer of the form's list is said once (P312, item 2)", () => {
+  // His run stood at 454 events when it stopped, and the rest of it will pass
+  // 500 (docs/run-a/p312-his-message-as-sent.txt). Every reading the driver
+  // made of its log stopped at event 500: past it, the offer's said-once check
+  // could not see the offer and said it again on every worker pass.
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX31201";
+  const OFFER =
+    'Their form asks you to choose your nationality from its own list, and it does not hold "Persian", which is what you told me. ' +
+    "It holds the 3 entries below, in its own order. If one of them is yours, choose it. " +
+    'If none is, choose "Not in list": that is the form\'s own option for exactly this, and I will type your own words, "Persian", into the box it opens. ' +
+    "Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.";
+  let runId = "";
+
+  async function withDriver<T>(act: (driver: RunDriver) => Promise<T>): Promise<T> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(CHOICE_ENTRY));
+    try {
+      return await act(instance.driver);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function offersSaid(): Promise<{ ordinal: number }[]> {
+    const rows = await pool.query<{ ordinal: string }>(
+      `SELECT e.ordinal::text AS ordinal FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' AND b.content = $2 ORDER BY e.ordinal ASC`,
+      [conversation, OFFER],
+    );
+    return rows.rows.map((row) => ({ ordinal: Number(row.ordinal) }));
+  }
+
+  beforeAll(async () => {
+    const owner = await ownConversation(conversation);
+    await padPast500(conversation);
+    await withDriver(async (driver) => {
+      const profiles = new PostgresConfirmedProfileStore(pool);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", owner);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", owner);
+      await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", owner);
+      await confirmInto(profiles, "identity.nationality", "Persian", "Persian", owner);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", owner);
+      await confirmInto(profiles, "study.personal_statement", "Because it is the course I want.", "…", owner);
+      const started = await driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    });
+  }, 300_000);
+
+  it("says the offer ONCE however often the run is advanced, though it was said after event 500", async () => {
+    let reached = "";
+    for (let pass = 0; pass < 5; pass += 1) {
+      const moved = await withDriver((driver) => driver.advance({ runId, conversationId: conversation }));
+      reached = moved.ok ? `${moved.position.status}:${moved.position.step}` : `refused:${moved.refusal.kind}`;
+    }
+    expect(reached).toBe("running:specialist");
+    const said = await offersSaid();
+    expect(said, "said once, past 500 as before it").toHaveLength(1);
+    expect(said[0]!.ordinal, "and it was said after event 500, where the old read stopped").toBeGreaterThan(500);
+  }, 300_000);
+
+  it("the offer said past 500 is the one the page is asked to answer, and the press is taken", async () => {
+    const pending = (await withDriver((driver) => driver.runFor(conversation)))?.pending;
+    if (pending?.decision !== "choose_entry") expect.unreachable(`expected choose_entry, got ${JSON.stringify(pending)}`);
+    expect(pending.question).toBe(OFFER);
+    const decided = await withDriver((driver) =>
+      driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "choose_entry", contentHash: pending.contentHash, choice: pending.escape.id } }),
+    );
+    expect(decided).toEqual({ ok: true });
+    const held = await new EntryChoiceStore(pool).forCase(`case_${conversation.toLowerCase()}`);
+    expect(held).toHaveLength(1);
+  }, 300_000);
+});
+
+describeIfDatabase("past event 500 a question is asked once, and the answer to it is read (P312, item 2)", () => {
+  // The same cap, at the interview: past event 500 an open question was not
+  // seen as open, so every poll asked it again, and the student's answer was
+  // read against no question and dropped with nothing said (`answering ===
+  // null` returned). Same shape as "the interview loop, closed", padded.
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX31202";
+
+  async function events(): Promise<{ ordinal: number; kind: string; field: string | null }[]> {
+    const rows = await pool.query<{ ordinal: string; kind: string; field: string | null }>(
+      `SELECT e.ordinal::text AS ordinal, e.kind, e.field_key AS field FROM conversation_events e
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ ordinal: Number(row.ordinal), kind: row.kind, field: row.field }));
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p312-interview', true) RETURNING id",
+    );
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, created.rows[0]!.id]);
+    await padPast500(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step, "nothing is known yet").toBe("interview");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("asks the question once, past event 500, however often the run is polled", async () => {
+    for (let poll = 0; poll < 3; poll += 1) {
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        expect((await instance.driver.currentFor(conversation))?.ok).toBe(true);
+      } finally {
+        await instance.pool.end();
+      }
+    }
+    const asked = (await events()).filter((event) => event.kind === "value_asked");
+    expect(asked.map((event) => event.field), "one question, asked once").toEqual(["contact.email"]);
+    expect(asked[0]!.ordinal).toBeGreaterThan(500);
+  }, 300_000);
+
+  it("reads the answer to it, and puts the reading back — never drops it", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    let answeredAt = 0;
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: "niloofar@example.test" },
+      });
+      answeredAt = written.event.ordinal;
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+    const proposed = (await events()).filter((event) => event.kind === "value_proposed" && event.ordinal > answeredAt);
+    expect(proposed.map((event) => event.field), "the answer was read against the question it answers").toEqual(["contact.email"]);
+  }, 300_000);
+});
+
+describeIfDatabase("a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3)", () => {
+  // His words (docs/run-a/p312-his-message-as-sent.txt): "For item 3 (the
+  // offer posted twice), the student must see one offer only." The resolve
+  // said the offer opened with "Someone on the team has looked at your …
+  // application."; the next worker pass compared its plain words by exact
+  // text, did not find them, and said the offer again.
+  const OFFER =
+    'Their form asks you to choose your nationality from its own list, and it does not hold "Persian", which is what you told me. ' +
+    "It holds the 3 entries below, in its own order. If one of them is yours, choose it. " +
+    'If none is, choose "Not in list": that is the form\'s own option for exactly this, and I will type your own words, "Persian", into the box it opens. ' +
+    "Whichever you choose is your answer and is recorded as yours. I will not choose for you, and nothing is chosen until you press one.";
+  const AFTER = `Someone on the team has looked at your Example University application. ${OFFER}`;
+  const STANDS =
+    "Someone on the team has looked at your Example University application. The choice I put to you above still stands, with its buttons below: nothing is chosen until you press one.";
+
+  async function assistantSaid(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  const offers = (said: readonly string[]): string[] => said.filter((line) => line === OFFER || line === AFTER);
+
+  async function startedUnder(conversation: string, entry: CatalogueEntry): Promise<string> {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(entry));
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar", owner);
+      await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini", owner);
+      await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", owner);
+      await confirmInto(profiles, "identity.nationality", "Persian", "Persian", owner);
+      await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test", owner);
+      await confirmInto(profiles, "study.personal_statement", "Because it is the course I want.", "…", owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      return started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  async function advanceUnder(entry: CatalogueEntry, runId: string, conversation: string, times: number): Promise<string> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(entry));
+    try {
+      let reached = "";
+      for (let pass = 0; pass < times; pass += 1) {
+        const moved = await instance.driver.advance({ runId, conversationId: conversation });
+        reached = moved.ok ? `${moved.position.status}:${moved.position.step}` : `refused:${moved.refusal.kind}`;
+      }
+      return reached;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+  /** What the resolution says it told the student (P312, item 4): its kinds, in order. */
+  async function resolveUnder(entry: CatalogueEntry, runId: string, conversation: string): Promise<readonly string[]> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(entry));
+    try {
+      const held = (await instance.driver.openInterventions()).filter((item) => item.runId === runId);
+      expect(held.map((item) => item.escalation.checkpoint.target)).toEqual(["specialist:render_refused"]);
+      const resolved = await instance.driver.resolveIntervention({
+        interventionId: held[0]!.interventionId,
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Signed the entry that records the escape.", resolution: "Re-plan.", resolvedAt: NOW, outcome: "resume" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "p312" },
+        didHappen: false,
+      });
+      // Each item names a message the resolution itself appended: its event
+      // number is one the log holds, said by the assistant.
+      for (const item of resolved.said) {
+        const row = await pool.query<{ actor: string }>(
+          "SELECT actor FROM conversation_events WHERE conversation_id = $1 AND ordinal = $2",
+          [conversation, item.ordinal],
+        );
+        expect(row.rows[0]?.actor, `event ${String(item.ordinal)}`).toBe("assistant");
+      }
+      return resolved.said.map((item) => item.about);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX31203";
+    const runId = await startedUnder(conversation, ENTRY);
+    expect(await advanceUnder(ENTRY, runId, conversation, 3)).toBe("escalated:specialist");
+    expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "and the resolution says it said the offer (item 4)").toEqual(["entry_choice_offer"]);
+    expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 4)).toBe("running:specialist");
+    expect(offers(await assistantSaid(conversation)), "one offer, in the form the resolve said it").toEqual([AFTER]);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(CHOICE_ENTRY));
+    try {
+      expect((await instance.driver.runFor(conversation))?.pending?.decision).toBe("choose_entry");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("an offer said before a later stop is not said again when that stop is resolved: the resolve says someone looked and points to it", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX31205";
+    const runId = await startedUnder(conversation, CHOICE_ENTRY);
+    expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 2)).toBe("running:specialist");
+    expect(offers(await assistantSaid(conversation))).toEqual([OFFER]);
+    // The same run under an entry with no escape: nothing to offer, so a person.
+    expect(await advanceUnder(ENTRY, runId, conversation, 1)).toBe("escalated:specialist");
+    const before = (await assistantSaid(conversation)).length;
+    expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "item 4: what it said, by kind").toEqual(["entry_choice_stands"]);
+    expect((await assistantSaid(conversation)).slice(before), "one line, and it is not the offer").toEqual([STANDS]);
+    expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 3)).toBe("running:specialist");
+    const said = await assistantSaid(conversation);
+    expect(offers(said), "the offer, once, as it was first said").toEqual([OFFER]);
+    expect(said.filter((line) => line === STANDS), "and the pointer once").toHaveLength(1);
+  }, 300_000);
+
+  it("a worker pass and a person's resolution at the same moment say the offer ONCE: the check and the saying are under the conversation lock", async () => {
+    // The P312 review: nothing tested the lock. A store that holds the first
+    // offer it is asked to append until a second one is asked for, or three
+    // seconds pass. Without the lock both callers find the offer unsaid and
+    // both append it; with it, the second waits for the first and finds it.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX31206";
+    const runId = await startedUnder(conversation, ENTRY);
+    expect(await advanceUnder(ENTRY, runId, conversation, 3)).toBe("escalated:specialist");
+    let arrivals = 0;
+    let second: () => void = () => undefined;
+    const secondArrived = new Promise<void>((done) => {
+      second = done;
+    });
+    class HoldingStore extends ConversationEventStore {
+      public override async append(input: Parameters<ConversationEventStore["append"]>[0]): ReturnType<ConversationEventStore["append"]> {
+        if (input.event.kind === "message" && input.event.actor === "assistant" && input.event.content.endsWith(OFFER)) {
+          arrivals += 1;
+          if (arrivals === 1) await Promise.race([secondArrived, new Promise((done) => setTimeout(done, 3_000))]);
+          else second();
+        }
+        return super.append(input);
+      }
+    }
+    const holding = { conversations: (instancePool: pg.Pool) => new HoldingStore(instancePool) };
+    const resolving = buildInstance(connectionString(), opener(), catalogueOf(CHOICE_ENTRY), "wired", null, () => NOW, null, null, holding);
+    const passing = buildInstance(connectionString(), opener(), catalogueOf(CHOICE_ENTRY), "wired", null, () => NOW, null, null, holding);
+    try {
+      const held = (await resolving.driver.openInterventions()).filter((item) => item.runId === runId);
+      await Promise.all([
+        resolving.driver.resolveIntervention({
+          interventionId: held[0]!.interventionId,
+          resolution: { specialistId: "specialist_vahid", actionsTaken: "Signed the entry.", resolution: "Re-plan.", resolvedAt: NOW, outcome: "resume" },
+          reusability: { scope: "this_case_only", kind: "guidance", signature: "p312-lock" },
+          didHappen: false,
+        }),
+        passing.driver.advance({ runId, conversationId: conversation }),
+      ]);
+    } finally {
+      await resolving.pool.end();
+      await passing.pool.end();
+    }
+    expect(offers(await assistantSaid(conversation)), "one offer, whichever of the two said it").toHaveLength(1);
+  }, 300_000);
+
+  it("a resume that re-plans into a stop, while another writer moves the run, says the stop once and reports it — it does not fail after the student was told", async () => {
+    // The P312 review: the resume releases the run before it re-plans, so a
+    // worker pass can move it in between; the stop's save then met a newer
+    // revision and the resolution failed AFTER its message was said, and the
+    // command said "refused". Stood in by a store whose first save to
+    // `escalated` meets a newer revision, as that pass would leave it.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX31207";
+    const runId = await startedUnder(conversation, ENTRY);
+    expect(await advanceUnder(ENTRY, runId, conversation, 3)).toBe("escalated:specialist");
+    let armed = true;
+    class MovedFirst extends PostgresWorkflowRunStore {
+      public override async saveCheckpoint(input: Parameters<PostgresWorkflowRunStore["saveCheckpoint"]>[0]): ReturnType<PostgresWorkflowRunStore["saveCheckpoint"]> {
+        if (armed && input.status === "escalated") {
+          armed = false;
+          throw new RunConcurrencyError(input.runId, input.expectedRevision, input.expectedRevision + 1);
+        }
+        return super.saveCheckpoint(input);
+      }
+    }
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(ENTRY), "wired", null, () => NOW, null, null, {
+      runs: (instancePool: pg.Pool) => new MovedFirst(instancePool),
+    });
+    const before = (await assistantSaid(conversation)).length;
+    try {
+      const held = (await instance.driver.openInterventions()).filter((item) => item.runId === runId);
+      const resolved = await instance.driver.resolveIntervention({
+        interventionId: held[0]!.interventionId,
+        resolution: { specialistId: "specialist_vahid", actionsTaken: "Looked.", resolution: "Re-plan.", resolvedAt: NOW, outcome: "resume" },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "p312-moved" },
+        didHappen: false,
+      });
+      expect(armed, "the other writer's revision was met").toBe(false);
+      expect(resolved.said.map((item) => item.about), "the stop's message, reported as said").toEqual(["stopped_again"]);
+    } finally {
+      await instance.pool.end();
+    }
+    const after = (await assistantSaid(conversation)).slice(before);
+    expect(after, "told once").toHaveLength(1);
+    expect(after[0]).toMatch(/^Someone on the team has looked at your Example University application/u);
+  }, 300_000);
+
+  it("a resolve right after the offer was said says nothing more: the offer is the last thing the student read", async () => {
+    // The race a worker pass and a resolve can run: the pass says the offer,
+    // then the resolve speaks. Made here by asking the run under the entry
+    // that has the escape while it is still with a person.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPX31204";
+    const runId = await startedUnder(conversation, ENTRY);
+    expect(await advanceUnder(ENTRY, runId, conversation, 3)).toBe("escalated:specialist");
+    await advanceUnder(CHOICE_ENTRY, runId, conversation, 1);
+    const atResolve = await assistantSaid(conversation);
+    expect(offers(atResolve), "the offer was said while the run was with a person").toEqual([OFFER]);
+    expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "item 4: it says it said nothing").toEqual([]);
+    expect((await assistantSaid(conversation)).slice(atResolve.length), "the resolve adds nothing").toEqual([]);
+    expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 3)).toBe("running:specialist");
+    expect(offers(await assistantSaid(conversation))).toEqual([OFFER]);
   }, 300_000);
 });
 
@@ -19132,7 +19521,7 @@ describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
     const before = await pool.query<{ revision: string }>("SELECT revision FROM workflow_runs WHERE run_id = $1", [runId]);
     const instance = held();
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId("iv_p305_another_stop"),
         resolution: {
           specialistId: "specialist_vahid",
@@ -19143,7 +19532,10 @@ describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
         },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "other" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      // The hold was raised, and told, before this resolve: raising it again
+      // says nothing, so the resolve reports that it said nothing.
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual([]);
     } finally {
       await instance.pool.end();
     }
@@ -19179,7 +19571,7 @@ describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
     await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
     const instance = held();
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId("iv_p305_lost_escalation"),
         resolution: {
           specialistId: "specialist_vahid",
@@ -19190,7 +19582,10 @@ describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
         },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "lost" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      // The hold was raised, and told, before this resolve: raising it again
+      // says nothing, so the resolve reports that it said nothing.
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual([]);
     } finally {
       await instance.pool.end();
     }
@@ -19205,7 +19600,7 @@ describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
     if (hold === undefined) expect.unreachable("the hold's intervention is open");
     const instance = held();
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(hold.intervention_id),
         resolution: {
           specialistId: "specialist_vahid",
@@ -19216,7 +19611,8 @@ describeIfDatabase("a held page is never handed out (P305, ADR-0160)", () => {
         },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "held" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["abandoned"]);
     } finally {
       await instance.pool.end();
     }
@@ -19375,7 +19771,7 @@ describeIfDatabase("the registration e-mail question (P306, ADR-0159 O3)", () =>
     );
     const stop = open.rows[0]?.intervention_id;
     if (stop === undefined) expect.unreachable("the stop is open");
-    await withInstance((instance) =>
+    const resolved = await withInstance((instance) =>
       instance.driver.resolveIntervention({
         interventionId: makeInterventionId(stop),
         resolution: {
@@ -19389,6 +19785,7 @@ describeIfDatabase("the registration e-mail question (P306, ADR-0159 O3)", () =>
         didHappen: false,
       }),
     );
+    expect(resolved.said.map((item) => item.about), "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["registration_asked_again", "registration_question"]);
     const said = await saidTo();
     expect(said.filter((content) => content === ASKED_AGAIN), "why, once").toHaveLength(1);
     expect(said.filter((content) => content.includes(QUESTION)), "asked a second time, once").toHaveLength(2);
@@ -19693,7 +20090,7 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
     if (hold === undefined) expect.unreachable("the hold's intervention is open");
     const instance = held();
     try {
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(hold.intervention_id),
         resolution: {
           specialistId: "specialist_vahid",
@@ -19704,7 +20101,8 @@ describeIfDatabase("a submission made by hand (P307, ADR-0159 O10)", () => {
         },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual([]);
       expect(await openHolds(), "the hold is closed").toHaveLength(0);
       expect((await saidTo()).some((content) => content.includes(MOVING_AGAIN)), "no 'moving again'").toBe(false);
       const moved = await instance.driver.advance({ runId, conversationId: conversation });
@@ -20083,7 +20481,7 @@ describeIfDatabase("a submission made by hand whose account only a person can se
       await runs.completeIntent(runRef, key, "failed_cleanly", NOW);
       const [open] = raised.rows;
       if (open === undefined) expect.unreachable("the hold's intervention is open");
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(open.intervention_id),
         resolution: {
           specialistId: "specialist_vahid",
@@ -20094,7 +20492,8 @@ describeIfDatabase("a submission made by hand whose account only a person can se
         },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand-owed" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual([]);
       for (let poll = 0; poll < 2; poll++) await instance.driver.advance({ runId, conversationId: conversation });
       expect((await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status).toBe("completed");
       expect((await assistantSaid()).filter((content) => content === FINISHED_NO_ACCOUNT), "the promise kept, once").toHaveLength(1);
@@ -20229,12 +20628,13 @@ describeIfDatabase("the P307 review: a student's stop, an interview stop, and wo
 
     const resolving = buildInstance(connectionString(), opener());
     try {
-      await resolving.driver.resolveIntervention({
+      const p312Said = (await resolving.driver.resolveIntervention({
         interventionId: makeInterventionId(stop.rows[0]?.intervention_id ?? ""),
         resolution: { specialistId: "specialist_vahid", actionsTaken: "Read the log.", resolution: "Submitted by hand.", resolvedAt: NOW, outcome: "resume" },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "interview:identity.date_of_birth" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual([]);
       const lines = (await said(conversation)).slice(afterRecord).map((line) => line.content);
       expect(lines.some((content) => content.includes("it is moving again")), "no 'moving again'").toBe(false);
       expect(lines.some((content) => content.includes("date of birth")), "no question asked again").toBe(false);
@@ -20460,12 +20860,13 @@ describeIfDatabase("what the student sees says they submitted it, on the date st
       );
       const [hold] = open.rows;
       if (hold === undefined) expect.unreachable("a person holds the account");
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(hold.intervention_id),
         resolution: { specialistId: "specialist_vahid", actionsTaken: "Looked.", resolution: "Set aside.", resolvedAt: NOW, outcome: "abandon" },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand-abandon" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["abandoned"]);
     } finally {
       await instance.pool.end();
     }
@@ -20527,12 +20928,13 @@ describeIfDatabase("what the student sees says they submitted it, on the date st
           reason: "Terminal before the person abandons it.",
         },
       ]);
-      await instance.driver.resolveIntervention({
+      const p312Said = (await instance.driver.resolveIntervention({
         interventionId: makeInterventionId(hold.intervention_id),
         resolution: { specialistId: "specialist_vahid", actionsTaken: "Looked.", resolution: "Set aside.", resolvedAt: NOW, outcome: "abandon" },
         reusability: { scope: "this_case_only", kind: "guidance", signature: "by-hand-abandon-terminal" },
         didHappen: false,
-      });
+      })).said.map((item) => item.about);
+      expect(p312Said, "what the resolution says it told the student, by kind (P312, item 4)").toEqual(["abandoned"]);
     } finally {
       await instance.pool.end();
     }

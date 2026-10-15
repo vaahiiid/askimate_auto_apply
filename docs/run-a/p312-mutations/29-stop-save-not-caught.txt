@@ -1,0 +1,45 @@
+# P312 mutation 29-stop-save-not-caught
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+        // review). As `#holdBeforePage` does.
+        if (!(error instanceof Error) || error.name !== "RunConcurrencyError") throw error;
+# with:
+        // review). As `#holdBeforePage` does.
+        throw error;
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P312, item 3
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 1 failed | 398 skipped) 4517ms
+   ✓ a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked 313ms
+   ✓ a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a worker pass and a person's resolution at the same moment say the offer ONCE: the check and the saying are under the conversation lock 3147ms
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a resume that re-plans into a stop, while another writer moves the run, says the stop once and reports it — it does not fail after the student was told 253ms
+     → Concurrent modification of run run_case_01jbxq8z9wktq6m4h2npx31207_1: expected revision 2, store is at 3. Another process is resuming this run. Re-load and decide again.
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed | 398 skipped (403)
+   Start at  10:45:52
+   Duration  7.75s (transform 2.01s, setup 0ms, collect 2.89s, tests 4.52s, environment 0ms, prepare 60ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a resume that re-plans into a stop, while another writer moves the run, says the stop once and reports it — it does not fail after the student was told
+RunConcurrencyError: Concurrent modification of run run_case_01jbxq8z9wktq6m4h2npx31207_1: expected revision 2, store is at 3. Another process is resuming this run. Re-load and decide again.
+ ❯ MovedFirst.saveCheckpoint apps/conversation-service/src/run-driver.test.ts:19171:17
+    19169|         if (armed && input.status === "escalated") {
+    19170|           armed = false;
+    19171|           throw new RunConcurrencyError(input.runId, input.expectedRev…
+       |                 ^
+    19172|         }
+    19173|         return super.saveCheckpoint(input);
+ ❯ RunDriver.#stopForSpecialist apps/conversation-service/src/run-driver.ts:8113:41
+ ❯ RunDriver.#announceResumed apps/conversation-service/src/run-driver.ts:9049:23
+ ❯ RunDriver.#resolveIntervention apps/conversation-service/src/run-driver.ts:8757:12
+ ❯ RunDriver.resolveIntervention apps/conversation-service/src/run-driver.ts:8591:26
+ ❯ apps/conversation-service/src/run-driver.test.ts:19182:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

@@ -1,0 +1,98 @@
+# P312 mutation 01-whole-log-is-a-page-again
+# file: apps/conversation-service/src/event-store.ts
+# replaced:
+      `${SELECT_EVENT}
+        WHERE e.conversation_id = $1
+        ORDER BY e.ordinal ASC`,
+      [conversationId],
+# with:
+      `${SELECT_EVENT}
+        WHERE e.conversation_id = $1
+        ORDER BY e.ordinal ASC
+        LIMIT 500`,
+      [conversationId],
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P312, item 2
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 3 failed | 399 skipped) 2899ms
+   × past event 500 the run still reads its whole log: the offer of the form's list is said once (P312, item 2) > says the offer ONCE however often the run is advanced, though it was said after event 500 244ms
+     → said once, past 500 as before it: expected [ { ordinal: 521 }, …(5) ] to have a length of 1 but got 6
+   × past event 500 a question is asked once, and the answer to it is read (P312, item 2) > asks the question once, past event 500, however often the run is polled 126ms
+     → one question, asked once: expected [ 'contact.email', …(3) ] to deeply equal [ 'contact.email' ]
+   × past event 500 a question is asked once, and the answer to it is read (P312, item 2) > reads the answer to it, and puts the reading back — never drops it 45ms
+     → the answer was read against the question it answers: expected [] to deeply equal [ 'contact.email' ]
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed | 399 skipped (403)
+   Start at  10:42:57
+   Duration  5.90s (transform 1.86s, setup 0ms, collect 2.68s, tests 2.90s, environment 0ms, prepare 68ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > past event 500 the run still reads its whole log: the offer of the form's list is said once (P312, item 2) > says the offer ONCE however often the run is advanced, though it was said after event 500
+AssertionError: said once, past 500 as before it: expected [ { ordinal: 521 }, …(5) ] to have a length of 1 but got 6
+
+- Expected
++ Received
+
+- 1
++ 6
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18918:54
+    18916|     expect(reached).toBe("running:specialist");
+    18917|     const said = await offersSaid();
+    18918|     expect(said, "said once, past 500 as before it").toHaveLength(1);
+       |                                                      ^
+    18919|     expect(said[0]!.ordinal, "and it was said after event 500, where t…
+    18920|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > past event 500 a question is asked once, and the answer to it is read (P312, item 2) > asks the question once, past event 500, however often the run is polled
+AssertionError: one question, asked once: expected [ 'contact.email', …(3) ] to deeply equal [ 'contact.email' ]
+
+- Expected
++ Received
+
+  Array [
+    "contact.email",
++   "contact.email",
++   "contact.email",
++   "contact.email",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18977:75
+    18975|     }
+    18976|     const asked = (await events()).filter((event) => event.kind === "v…
+    18977|     expect(asked.map((event) => event.field), "one question, asked onc…
+       |                                                                           ^
+    18978|     expect(asked[0]!.ordinal).toBeGreaterThan(500);
+    18979|   }, 300_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > past event 500 a question is asked once, and the answer to it is read (P312, item 2) > reads the answer to it, and puts the reading back — never drops it
+AssertionError: the answer was read against the question it answers: expected [] to deeply equal [ 'contact.email' ]
+
+- Expected
++ Received
+
+- Array [
+-   "contact.email",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18995:105
+    18993|     }
+    18994|     const proposed = (await events()).filter((event) => event.kind ===…
+    18995|     expect(proposed.map((event) => event.field), "the answer was read …
+       |                                                                                                         ^
+    18996|   }, 300_000);
+    18997| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

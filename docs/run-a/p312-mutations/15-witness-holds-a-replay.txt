@@ -1,0 +1,47 @@
+# P312 mutation 15-witness-holds-a-replay
+# file: apps/conversation-service/src/event-store.ts
+# replaced:
+        if (replayed !== null) {
+          await client.query("COMMIT");
+# with:
+        if (replayed !== null) {
+          witness?.appended.push({ conversationId: input.conversationId, event: replayed });
+          await client.query("COMMIT");
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/event-store.test.ts -t P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/event-store.test.ts (24 tests | 1 failed | 21 skipped) 2648ms
+   × what a resolution appended, witnessed (P312, item 4) > does not witness a replayed idempotent append: nothing new was said 18ms
+     → expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+   ✓ reading the log > reads the whole log past any page, and a page stays a page (P312, item 2) 2312ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed | 21 skipped (24)
+   Start at  10:44:26
+   Duration  4.90s (transform 1.23s, setup 0ms, collect 1.92s, tests 2.65s, environment 0ms, prepare 67ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/event-store.test.ts > what a resolution appended, witnessed (P312, item 4) > does not witness a replayed idempotent append: nothing new was said
+AssertionError: expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ apps/conversation-service/src/event-store.test.ts:584:30
+    582|       await append();
+    583|     });
+    584|     expect(witness.appended).toHaveLength(1);
+       |                              ^
+    585|   }, 60_000);
+    586| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

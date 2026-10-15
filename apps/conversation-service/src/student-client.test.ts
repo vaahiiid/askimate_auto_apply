@@ -357,13 +357,15 @@ function connectionString(): string {
  *
  * A fresh context per student, so one student's cookie jar is never the other's.
  */
-async function visitAs(subject: string): Promise<void> {
+async function visitAs(subject: string, onRequest?: (url: string) => void): Promise<void> {
   await closeCurrentPage();
   // `ignoreHTTPSErrors` is for the BUCKET's self-signed certificate only; the
   // page itself is plain loopback HTTP, where `__Host-` is accepted.
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   page = await context.newPage();
   watch(page);
+  // Before the page loads, so its first requests are seen too (P312).
+  if (onRequest !== undefined) page.on("request", (request) => onRequest(request.url()));
 
   const minted = await page.request.post(`${BASE}/dev/session`, {
     data: { subject },
@@ -986,7 +988,7 @@ describeIfDatabase("the student's page", () => {
     );
   }, 300_000);
 
-  it("keeps the confirmation button when an OLDER run reading lands after a newer one (P221)", async () => {
+  it("keeps the confirmation button when an older run reading is held in flight: the read after it draws the button, and nothing lands after it (P221; since P312 reads are serialised)", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Vahid's item-6 run, 2026-09-25: the playback asked "Is that right?"
     // and the page showed nothing to answer it with. The message route
@@ -1041,13 +1043,16 @@ describeIfDatabase("the student's page", () => {
     await page.locator("#say").fill("stale@example.test");
     await page.locator("#composer button").click();
 
-    // The stream's refreshes draw the button…
+    // The button is drawn… Since P312 reads are serialised: the held read is
+    // the one in flight, the stream's frames queue ONE read behind it, and
+    // that read — started after the held one landed — draws the button.
     await page.waitForFunction(
       () => (document.querySelector("#pending")?.textContent ?? "").includes("Yes, that's right"),
       undefined,
       { timeout: 20_000 },
     );
-    // …and the older reading, landing after them, does not take it away.
+    // …and the older reading does not take it away: before P312 it could land
+    // after the newer reads; now no read can land after one started later.
     const until = Date.now() + 8_000;
     while (!landed && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 100));
     expect(landed, "the held reading was delivered").toBe(true);
@@ -1362,6 +1367,95 @@ describeIfDatabase("the student's page", () => {
     await page.unroute("**/v1/conversations/*/runs/run_p290/decision");
     await page.unroute("**/v1/conversations/*/runs");
   }, 180_000);
+
+  it("draws the registration e-mail question's two answers in the server's own words, at one weight, and the No sends decline_handoff with the server's hash (P312, item 5)", async () => {
+    // P306 put both answers on the wire; the page's reader dropped them, so
+    // the page drew one button in its own words and never the No. Served at
+    // the network boundary, so the REAL reader is what is tested.
+    await visitAs(student);
+    // The page opens a conversation if the student has none; wait for it, so
+    // this test stands alone when the ones before it are filtered out.
+    await expect
+      .poll(async () => (await pool.query("SELECT 1 FROM conversations WHERE student_id = $1", [student])).rowCount, { timeout: 20_000 })
+      .toBeGreaterThan(0);
+    const mine = await pool.query<{ id: string }>("SELECT id FROM conversations WHERE student_id = $1 ORDER BY created_at DESC", [student]);
+    const conversationId = mine.rows[0]!.id;
+    const hash = `sha256:${"e5".repeat(32)}`;
+    await page.route("**/v1/conversations/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          run: { runId: "run_p312", caseId: "case_p312", conversationId, status: "running", phase: "awaiting_student_handoff", step: "student_handoff", revision: 1, resumed: true },
+          pending: { decision: "confirm_handoff", contentHash: hash, labels: { yes: "Yes, it has arrived", no: "No, it has not arrived" } },
+        }),
+      });
+    });
+    const sent: unknown[] = [];
+    await page.route("**/v1/conversations/*/runs/run_p312/decision", async (route) => {
+      sent.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    // Either the server's yes or the page's own words: a missing No then fails
+    // on the list of buttons, not on a bare timeout.
+    await page.waitForFunction(
+      () => /Yes, it has arrived|Done — I have completed that/u.test(document.querySelector("#pending")?.textContent ?? ""),
+      undefined,
+      { timeout: 20_000 },
+    );
+    const buttons = page.locator("#pending button");
+    const labels = await buttons.allTextContents();
+    expect(labels).toEqual(expect.arrayContaining(["Yes, it has arrived", "No, it has not arrived"]));
+    expect(labels).not.toContain("Done — I have completed that");
+    const yes = page.locator("#pending button", { hasText: "Yes, it has arrived" });
+    const no = page.locator("#pending button", { hasText: "No, it has not arrived" });
+    expect(await yes.getAttribute("class"), "one weight for both").toBe(await no.getAttribute("class"));
+
+    await no.click();
+    await expect.poll(() => sent.length, { timeout: 10_000 }).toBe(1);
+    expect(sent[0]).toEqual({ kind: "decline_handoff", contentHash: hash });
+    await page.waitForFunction(() => (document.querySelector("#pending")?.textContent ?? "").includes("Yes, it has arrived"), undefined, { timeout: 20_000 });
+    await page.locator("#pending button", { hasText: "Yes, it has arrived" }).click();
+    await expect.poll(() => sent.length, { timeout: 10_000 }).toBe(2);
+    expect(sent[1]).toEqual({ kind: "confirm_handoff", contentHash: hash });
+    await page.unroute("**/v1/conversations/*/runs/run_p312/decision");
+    await page.unroute("**/v1/conversations/*/runs");
+  }, 180_000);
+
+  it("a page over a log of 1,200 events reads it whole, opens its stream after the last event it read, and makes a bounded number of reads (P312, items 2 and 6)", async () => {
+    // His run's page stood blank at 454 events: opened with no lower bound,
+    // the stream replayed every event, each frame started three reads, and a
+    // read drew only if no newer one had started. Past 500 it would also
+    // have shown the log cut at 500.
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p312-long-log', true) RETURNING id",
+    );
+    const subject = created.rows[0]!.id;
+    await visitAs(subject);
+    const ownerOf = async (): Promise<string | undefined> =>
+      (await pool.query<{ id: string }>("SELECT id FROM conversations WHERE student_id = $1", [subject])).rows[0]?.id;
+    await expect.poll(ownerOf, { timeout: 20_000 }).toBeDefined();
+    const conversationId = (await ownerOf())!;
+    await closeCurrentPage();
+    const store = new ConversationEventStore(pool);
+    const before = (await store.wholeLog(conversationId)).filter((event) => event.kind === "message").length;
+    for (let line = 1; line <= 1200; line += 1) {
+      await store.append({ conversationId, event: { kind: "message", actor: "assistant", content: `P312 line ${String(line)}` } });
+    }
+    const requests: string[] = [];
+    await visitAs(subject, (url) => requests.push(url));
+    await page.waitForFunction((count) => document.querySelectorAll("#transcript li").length >= count, before + 1200, { timeout: 60_000 });
+    // Three of the stream's polls: a replay, had there been one, would be under way.
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    expect(await page.locator("#transcript li").last().textContent(), "the newest line, past event 500").toBe("P312 line 1200");
+    const paths = requests.map((url) => new URL(url));
+    const stream = paths.filter((url) => url.pathname.endsWith("/stream"));
+    const last = (await store.wholeLog(conversationId)).at(-1)?.ordinal;
+    expect(stream.at(-1)?.searchParams.get("lastEventId"), "opened after the last event read").toBe(String(last));
+    const runs = paths.filter((url) => url.pathname === `/v1/conversations/${conversationId}/runs`);
+    expect(runs.length, "one read of the run, not one per event").toBeLessThanOrEqual(2);
+  }, 240_000);
 
   it("shows a run handed to a PERSON as exactly that, not as a live interview", async () => {
     // ═══════════════════════════════════════════════════════════════════

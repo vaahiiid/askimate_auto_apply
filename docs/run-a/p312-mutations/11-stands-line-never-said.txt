@@ -1,0 +1,47 @@
+# P312 mutation 11-stands-line-never-said
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+        } else if (input.afterResolution === true && !isTheOffer(assistant.at(-1)?.content)) {
+# with:
+        } else if (false) {
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P312, item 3
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 1 failed | 398 skipped) 4340ms
+   ✓ a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > his path: stopped before any list was on file, resolved into the offer, then four worker passes — one offer, the one that says someone looked 306ms
+   × a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > an offer said before a later stop is not said again when that stop is resolved: the resolve says someone looked and points to it 207ms
+     → item 4: what it said, by kind: expected [] to deeply equal [ 'entry_choice_stands' ]
+   ✓ a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > a worker pass and a person's resolution at the same moment say the offer ONCE: the check and the saying are under the conversation lock 3163ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed | 398 skipped (403)
+   Start at  10:43:49
+   Duration  7.65s (transform 2.00s, setup 0ms, collect 2.96s, tests 4.34s, environment 0ms, prepare 56ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a run resolved into the student's choice says the offer ONCE, in either of its forms, however often it is advanced after (P312, item 3) > an offer said before a later stop is not said again when that stop is resolved: the resolve says someone looked and points to it
+AssertionError: item 4: what it said, by kind: expected [] to deeply equal [ 'entry_choice_stands' ]
+
+- Expected
++ Received
+
+- Array [
+-   "entry_choice_stands",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:19105:100
+    19103|     expect(await advanceUnder(ENTRY, runId, conversation, 1)).toBe("es…
+    19104|     const before = (await assistantSaid(conversation)).length;
+    19105|     expect(await resolveUnder(CHOICE_ENTRY, runId, conversation), "ite…
+       |                                                                                                    ^
+    19106|     expect((await assistantSaid(conversation)).slice(before), "one lin…
+    19107|     expect(await advanceUnder(CHOICE_ENTRY, runId, conversation, 3)).t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

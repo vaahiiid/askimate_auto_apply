@@ -220,13 +220,14 @@ import { readingSentence, structureOf } from "./reading-account.js";
 import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore, ConversationCase } from "./application-store.js";
-import type { ConversationEvent } from "@askimate/aas-contracts";
+import type { ConversationEvent, ResolutionSaid, WireResolutionSaying } from "@askimate/aas-contracts";
 import type { ProposedValue } from "@askimate/aas-domain";
 import { isReadInPart, proposeValue, provenanceOf, unwrapProposed } from "@askimate/aas-domain";
 import { decideRetention } from "@askimate/aas-domain";
 import type { RetentionSchedule } from "@askimate/aas-domain";
 
 import type { ConversationEventStore } from "./event-store.js";
+import { appendWitness, type AppendWitness } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
 import type { WorkLease, WorkLeaseStore } from "./work-store.js";
 import type { RunSessionStore } from "./session-store.js";
@@ -235,7 +236,7 @@ import type { TransmissionStore } from "./transmission-store.js";
 import type { DataDeletionRequest, DataDeletionRequestStore, DeletionOutcome } from "./data-deletion-request-store.js";
 import type { EntryChoiceStore } from "./entry-choice-store.js";
 import type { EntryChoiceOffer } from "./entry-choice-offer.js";
-import { entryChoiceMessage, entryChoiceOffer, entryChosenMessage, ESCAPE_ID } from "./entry-choice-offer.js";
+import { entryChoiceForms, entryChoiceMessage, entryChoiceOffer, entryChoiceStandsMessage, entryChosenMessage, ESCAPE_ID } from "./entry-choice-offer.js";
 
 /**
  * A reviewed blueprint and its reviewed mapping set, by id.
@@ -4089,7 +4090,7 @@ export class RunDriver {
     // Secure Plane published, and `latestSecretRequest` is the one reading of it
     // (ADR-0041). Rebuilding it here is what stops a second call re-opening a
     // step the student is already looking at.
-    const events = await this.#options.conversations.since(input.conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(input.conversationId);
     const secret = latestSecretRequest(events);
     const deployment = deploymentOf(input.entry);
     // P251: while the reader works on a CV the student said yes to, its two
@@ -4773,7 +4774,7 @@ export class RunDriver {
     if (entry !== null) {
       // The date the case holds, so the chat and the page say the same day.
       const message = submittedByHandMessage(entry, (before ?? input).submittedOn);
-      const said = await this.#options.conversations.since(conversationId, 0);
+      const said = await this.#options.conversations.wholeLog(conversationId);
       if (!said.some((event) => event.kind === "message" && (event.content === message || (event.content !== null && toldUnderP307(event.content))))) {
         await this.#options.conversations.append({
           conversationId,
@@ -5167,7 +5168,7 @@ export class RunDriver {
     // is interviewing, and the two above are later steps. An offer of
     // readings (P225) is the same exchange one step earlier: it stands only
     // while no reading has been proposed from it.
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const offer = openOffer(events);
     if (offer !== null) {
       return {
@@ -6186,7 +6187,7 @@ export class RunDriver {
   ): Promise<
     { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
   > {
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const offer = openOffer(events);
     if (offer === null) return { ok: false, reason: "not_asked" };
     if (offer.offerHash !== decision.contentHash) return { ok: false, reason: "content_changed" };
@@ -6229,7 +6230,7 @@ export class RunDriver {
   ): Promise<
     { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
   > {
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const open = openProposal(events);
     if (open === null) return { ok: false, reason: "not_asked" };
     if (open.playbackHash !== decision.contentHash) {
@@ -6488,7 +6489,7 @@ export class RunDriver {
     // through `receiveConfirmation`'s corrected branch, which produces a new
     // proposal that must itself be confirmed — a correction is never a
     // confirmation of something else.
-    const open = openProposal(await this.#options.conversations.since(input.conversationId, 0));
+    const open = openProposal(await this.#options.conversations.wholeLog(input.conversationId));
     if (open !== null) {
       // A correction's playback (P288): a plain "leave it" withdraws it, and
       // the answer stays as it was confirmed. P289: and nothing typed does
@@ -6499,7 +6500,7 @@ export class RunDriver {
       // without the correction's opening, so "leave it" no longer reads. A
       // correction is confirmed by the press alone.
       if (await this.#withdrewTheCorrection(input.conversationId, answer)) return;
-      if (openCorrection(await this.#options.conversations.since(input.conversationId, 0)) !== null) {
+      if (openCorrection(await this.#options.conversations.wholeLog(input.conversationId)) !== null) {
         await this.#options.conversations.append({
           conversationId: input.conversationId,
           event: { kind: "message", actor: "assistant", content: CORRECTION_PRESS_OR_LEAVE },
@@ -6556,7 +6557,7 @@ export class RunDriver {
       return;
     }
     if (interviewActionOf(situated.step) === null) return;
-    const answering = answeredQuestion(await this.#options.conversations.since(input.conversationId, 0));
+    const answering = answeredQuestion(await this.#options.conversations.wholeLog(input.conversationId));
     if (answering === null) return;
     const asking = answering.fieldKey as ProfileFieldKey;
 
@@ -6595,7 +6596,7 @@ export class RunDriver {
       await this.#options.conversations.append({ conversationId: input.conversationId, event: { kind: "answer_unread", fieldKey: asking } });
       const answered: RunState = {
         ...situated.state,
-        interview: { ...outcome.state, attempts: failedAnswersFrom(await this.#options.conversations.since(input.conversationId, 0)) },
+        interview: { ...outcome.state, attempts: failedAnswersFrom(await this.#options.conversations.wholeLog(input.conversationId)) },
       };
       const step = await nextStep(answered, this.#options.model);
       const stopped = await this.#stopIfTheInterviewGaveUp(
@@ -6790,7 +6791,7 @@ export class RunDriver {
 
   /** The last thing the assistant said in a conversation, or `null`. */
   async #lastAssistantLine(conversationId: string): Promise<string | null> {
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const last = [...events].reverse().find((event) => event.kind === "message" && event.actor === "assistant");
     return last === undefined || last.kind !== "message" ? null : (last.content ?? null);
   }
@@ -6846,7 +6847,7 @@ export class RunDriver {
   async #correctedAtRequest(conversationId: string, text: StudentAnswer): Promise<boolean> {
     const reading = readCorrectionRequest(text);
     if (reading.kind === "not_a_request") return false;
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     if (openProposal(events) !== null) return false;
     const answering = answeredQuestion(events) !== null;
     const say = async (content: string): Promise<true> => {
@@ -6938,7 +6939,7 @@ export class RunDriver {
   /** A plain "leave it" while a correction's playback is open (P288): withdrawn, nothing changed. */
   async #withdrewTheCorrection(conversationId: string, answer: StudentAnswer): Promise<boolean> {
     if (!LEAVE_IT.test(answer)) return false;
-    const correction = openCorrection(await this.#options.conversations.since(conversationId, 0));
+    const correction = openCorrection(await this.#options.conversations.wholeLog(conversationId));
     if (correction === null) return false;
     await this.#withdrawCorrection(conversationId, correction, "");
     return true;
@@ -7159,7 +7160,7 @@ export class RunDriver {
    * question asked again, since this message was not an answer to it.
    */
   async #declinedTheDeletionQuestion(conversationId: string, answer: StudentAnswer): Promise<boolean> {
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const lastAssistant = [...events].reverse().find((event) => event.kind === "message" && event.actor === "assistant");
     if (lastAssistant === undefined || lastAssistant.kind !== "message" || !(lastAssistant.content ?? "").startsWith(DELETION_QUESTION)) return false;
     if (!/^\s*(no|nope|nah|never mind|nevermind|not that|nothing|no thanks|no thank you|neither|none|i didn'?t mean that|carry on|i meant something else)\b/i.test(answer)) return false;
@@ -7355,7 +7356,7 @@ export class RunDriver {
     action: Extract<InterviewAction, { kind: "ask" }>,
   ): Promise<void> {
     await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
-      const events = await this.#options.conversations.since(conversationId, 0);
+      const events = await this.#options.conversations.wholeLog(conversationId);
       // A question already stands, or a reading is waiting to be confirmed.
       // Either way this run is not short of something for the student to do,
       // and asking again would be the service talking over itself.
@@ -7474,7 +7475,7 @@ export class RunDriver {
   ): Promise<
     { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
   > {
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const open = openProposal(events);
     if (open === null) return { ok: false, reason: "not_asked" };
     if (open.playbackHash !== decision.contentHash) return { ok: false, reason: "content_changed" };
@@ -7726,7 +7727,7 @@ export class RunDriver {
   public async sayAgain(conversationId: string): Promise<SaidAgain> {
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null) return { ok: false, reason: "unknown_conversation" };
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const open = openProposal(events);
     if (open === null) return { ok: false, reason: "nothing_open" };
     const situated = await this.#interviewSituation(conversationId);
@@ -7894,7 +7895,7 @@ export class RunDriver {
   /** The stop's words (P224, P256): the question as the student read it, how many times it was asked, and what happened to the answers — from the log. */
   async #unobtainable(entry: CatalogueEntry, conversationId: string, field: ProfileFieldKey | undefined, failures: number | undefined): Promise<string> {
     if (field === undefined) return unobtainableMessage(entry, "for some of what I need", undefined, 0, 0);
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const question = questionOf(field);
     const asked = question === undefined ? `for your ${FIELD_LABELS[field].toLowerCase()}` : `"${question.replace(/ Please answer yes or no\.$/, "")}"`;
     const rejections = rejectionsSinceConfirmed(events, field);
@@ -8108,12 +8109,22 @@ export class RunDriver {
     });
 
     if (input.record.status === "running") {
-      await this.#options.stores.runs.saveCheckpoint({
-        runId: input.record.runId,
-        checkpoint: input.record.checkpoint,
-        expectedRevision: input.record.revision,
-        status: "escalated",
-      });
+      try {
+        await this.#options.stores.runs.saveCheckpoint({
+          runId: input.record.runId,
+          checkpoint: input.record.checkpoint,
+          expectedRevision: input.record.revision,
+          status: "escalated",
+        });
+      } catch (error) {
+        // Another writer moved the run first — a worker pass beside a
+        // person's resolution, which releases the run before it re-plans. The
+        // raise above is idempotent and has said its one message, so the next
+        // pass holds the run again; failing here failed the resolution AFTER
+        // the student was told, and its command said "refused" (the P312
+        // review). As `#holdBeforePage` does.
+        if (!(error instanceof Error) || error.name !== "RunConcurrencyError") throw error;
+      }
     }
 
     return {
@@ -8156,15 +8167,40 @@ export class RunDriver {
     // offer can settle goes to a person exactly as before.
     const offer = this.#entryChoiceOffer(input.entry, state);
     if (offer !== null) {
-      const question = entryChoiceMessage(input.entry.blueprint.institutionName, offer, input.afterResolution === true);
-      const said = await this.#options.conversations.since(input.conversationId, 0);
-      // Said once per offer: the worker re-derives this step on every pass.
-      if (!said.some((event) => event.kind === "message" && event.content === question)) {
-        await this.#options.conversations.append({
-          conversationId: input.conversationId,
-          event: { kind: "message", actor: "assistant", content: question },
-        });
-      }
+      const name = input.entry.blueprint.institutionName;
+      const forms: readonly string[] = entryChoiceForms(name, offer);
+      // ONE offer, in either of its forms (P312, item 3). His words: "the
+      // student must see one offer only." The resolve said it opened with
+      // "Someone on the team has looked at your … application."; the next
+      // worker pass compared its plain words by exact text, did not find them,
+      // and said it again. Under the conversation lock, so a pass and a resolve
+      // cannot both find it unsaid; never called with that lock held.
+      await this.#options.bindings.withConversationLock(input.conversationId, async (): Promise<null> => {
+        const assistant = (await this.#options.conversations.wholeLog(input.conversationId)).filter(
+          (event): event is Extract<ConversationEvent, { kind: "message" }> => event.kind === "message" && event.actor === "assistant",
+        );
+        const isTheOffer = (content: string | null | undefined): boolean => content !== null && content !== undefined && forms.includes(content);
+        let say: { readonly content: string; readonly about: WireResolutionSaying } | null = null;
+        if (!assistant.some((event) => isTheOffer(event.content))) {
+          say = { content: entryChoiceMessage(name, offer, input.afterResolution === true), about: "entry_choice_offer" };
+        } else if (input.afterResolution === true && !isTheOffer(assistant.at(-1)?.content)) {
+          // A person's resolution, the offer already said in either form, and
+          // something else said since (a stop, a correction sent to a person,
+          // any other line): the student is told someone looked and pointed to
+          // the choice — the offer itself is not said a second time.
+          say = { content: entryChoiceStandsMessage(name), about: "entry_choice_stands" };
+        }
+        if (say !== null) {
+          this.#tag(
+            await this.#options.conversations.append({
+              conversationId: input.conversationId,
+              event: { kind: "message", actor: "assistant", content: say.content },
+            }),
+            say.about,
+          );
+        }
+        return null;
+      });
       return {
         ok: true,
         position: {
@@ -8220,6 +8256,8 @@ export class RunDriver {
     readonly expected: string;
     readonly message: string;
     readonly now: Date;
+    /** What a resolution reaching this stop reports it said (P312, item 4). */
+    readonly about?: WireResolutionSaying;
   }): Promise<void> {
     const interventions = this.#options.interventions;
     if (interventions === undefined) return;
@@ -8264,10 +8302,13 @@ export class RunDriver {
     });
     const held = await interventions.find(raised.interventionId);
     if (held !== null && held.announcedAt === undefined) {
-      await this.#options.conversations.append({
-        conversationId: input.conversationId,
-        event: { kind: "message", actor: "assistant", content: input.message },
-      });
+      this.#tag(
+        await this.#options.conversations.append({
+          conversationId: input.conversationId,
+          event: { kind: "message", actor: "assistant", content: input.message },
+        }),
+        input.about ?? "stopped_again",
+      );
       await interventions.markAnnounced(raised.interventionId, input.now);
     }
   }
@@ -8309,6 +8350,7 @@ export class RunDriver {
         `this page is handed out.`,
       message: heldPageMessage(input.entry, input.held),
       now: input.now,
+      about: "held_page",
     });
     if (input.record.status === "running") {
       try {
@@ -8363,18 +8405,24 @@ export class RunDriver {
     const question = situated === null ? null : handoffMessageOf(situated.step);
     if (situated === null || question === null || handoffFor(situated.step) !== "registration_email") return true;
     await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
-      await this.#options.conversations.append({
-        conversationId,
-        event: {
-          kind: "message",
-          actor: "assistant",
-          content: `Someone on the team has looked at your ${situated.entry.blueprint.institutionName} application, so I am asking you again.`,
-        },
-      });
-      await this.#options.conversations.append({
-        conversationId,
-        event: { kind: "message", actor: "assistant", content: question },
-      });
+      this.#tag(
+        await this.#options.conversations.append({
+          conversationId,
+          event: {
+            kind: "message",
+            actor: "assistant",
+            content: `Someone on the team has looked at your ${situated.entry.blueprint.institutionName} application, so I am asking you again.`,
+          },
+        }),
+        "registration_asked_again",
+      );
+      this.#tag(
+        await this.#options.conversations.append({
+          conversationId,
+          event: { kind: "message", actor: "assistant", content: question },
+        }),
+        "registration_question",
+      );
       return null;
     });
     return true;
@@ -8533,6 +8581,35 @@ export class RunDriver {
     readonly resolution: RecoveryResolution;
     readonly reusability: ReusabilityAssessment;
     /** What the specialist established: did the action happen? */
+    readonly didHappen: boolean;
+  }): Promise<{ readonly intervention: StoredIntervention; readonly said: readonly ResolutionSaid[] }> {
+    // P312, item 4. His words: "the CLI must say only what the student was
+    // actually told." What this resolution appended, witnessed as it was
+    // appended — a worker pass appending beside it is not in it — and each
+    // message's kind, never its words. Nothing the resolution does changes.
+    const witness: AppendWitness = { appended: [] };
+    const intervention = await appendWitness.run(witness, () => this.#resolveIntervention(input));
+    const said = witness.appended
+      .filter((item) => item.event.kind === "message")
+      .map((item): ResolutionSaid => ({
+        ordinal: Number(item.event.ordinal),
+        at: item.event.createdAt,
+        about: this.#sayings.get(item.event) ?? "undescribed",
+      }));
+    return { intervention, said };
+  }
+
+  /** The kind of each message a resolution can append (P312, item 4); read only by `resolveIntervention`. */
+  readonly #sayings = new WeakMap<ConversationEvent, WireResolutionSaying>();
+
+  #tag(written: { readonly event: ConversationEvent }, about: WireResolutionSaying): void {
+    this.#sayings.set(written.event, about);
+  }
+
+  async #resolveIntervention(input: {
+    readonly interventionId: InterventionId;
+    readonly resolution: RecoveryResolution;
+    readonly reusability: ReusabilityAssessment;
     readonly didHappen: boolean;
   }): Promise<StoredIntervention> {
     const interventions = this.#options.interventions;
@@ -8696,7 +8773,7 @@ export class RunDriver {
     // The step's own words (ADR-0144): they say whether the notice stands in
     // the way of the sign-in or of the account's creation.
     const question = consent.say;
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     if (events.some((event) => event.kind === "message" && event.content === question)) return;
     await this.#options.conversations.append({
       conversationId,
@@ -8785,7 +8862,7 @@ export class RunDriver {
       // message they read (ADR-0050), so the open handoff's current words are
       // said once, the log being the memory, as `#askConsentChoice` does.
       if (message === null || held.openHandoffKind !== kind) return;
-      const said = await this.#options.conversations.since(input.conversationId, 0);
+      const said = await this.#options.conversations.wholeLog(input.conversationId);
       if (said.some((event) => event.kind === "message" && event.content === message)) return;
       await this.#options.conversations.append({
         conversationId: input.conversationId,
@@ -8849,19 +8926,19 @@ export class RunDriver {
     const next = await nextAction(worklist, this.#options.model);
 
     await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
-      const say = async (content: string): Promise<void> => {
-        await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } });
+      const say = async (content: string, about: WireResolutionSaying): Promise<void> => {
+        this.#tag(await this.#options.conversations.append({ conversationId, event: { kind: "message", actor: "assistant", content } }), about);
       };
       if (next.kind !== "ask") {
         // Nothing left to ask: the sentence alone is true, since the next
         // act is the run's, not the student's.
-        await say(resumeMessage(situated.entry));
+        await say(resumeMessage(situated.entry), "moving_again");
         return null;
       }
       // The resolution's own mark first (P259, migration 0036), then the
       // asking with the count it would have had anyway — the Nth time asked,
       // which is all an attempt number means.
-      const events = await this.#options.conversations.since(conversationId, 0);
+      const events = await this.#options.conversations.wholeLog(conversationId);
       await this.#options.conversations.append({
         conversationId,
         event: { kind: "stop_resolved", fieldKey: field },
@@ -8870,8 +8947,8 @@ export class RunDriver {
         conversationId,
         event: { kind: "value_asked", fieldKey: next.fieldKey, attempt: nextAttemptFor(events, next.fieldKey) },
       });
-      await say(resumeMessage(situated.entry));
-      await say(next.say);
+      await say(resumeMessage(situated.entry), "moving_again");
+      await say(next.say, "asked_again");
       return null;
     });
   }
@@ -8930,14 +9007,17 @@ export class RunDriver {
             now: this.#options.now(),
           })
         : null;
-    await this.#options.conversations.append({
-      conversationId,
-      event: {
-        kind: "message",
-        actor: "assistant",
-        content: abandonedMessage(entry, accounts.length > 0, conclusion, theCase.submittedByHand?.submittedOn),
-      },
-    });
+    this.#tag(
+      await this.#options.conversations.append({
+        conversationId,
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content: abandonedMessage(entry, accounts.length > 0, conclusion, theCase.submittedByHand?.submittedOn),
+        },
+      }),
+      "abandoned",
+    );
   }
 
   async #announceResumed(held: StoredIntervention): Promise<void> {
@@ -8994,10 +9074,13 @@ export class RunDriver {
         return;
       }
     }
-    await this.#options.conversations.append({
-      conversationId,
-      event: { kind: "message", actor: "assistant", content: resumeMessage(entry) },
-    });
+    this.#tag(
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content: resumeMessage(entry) },
+      }),
+      "moving_again",
+    );
   }
 
   /**
@@ -9779,7 +9862,7 @@ export class RunDriver {
     // between the two says nothing twice, and loses nothing (the review).
     const accounts = await this.#accountsOn(input.record, input.entry);
     const finished = submittedByHandFinishedMessage(input.entry, accounts.length > 0, submittedByHand.submittedOn);
-    const said = await this.#options.conversations.since(input.conversationId, 0);
+    const said = await this.#options.conversations.wholeLog(input.conversationId);
     if (!said.some((event) => event.kind === "message" && event.content === finished)) {
       await this.#options.conversations.append({
         conversationId: input.conversationId,
@@ -9883,7 +9966,7 @@ export class RunDriver {
         input.conversationId,
         async (): Promise<RunOutcome | null> => {
           const live = latestSecretRequest(
-            await this.#options.conversations.since(input.conversationId, 0),
+            await this.#options.conversations.wholeLog(input.conversationId),
           );
           // A request a failed creation spent is settled whatever the log says
           // yet (ADR-0114): the Secure Plane's `secret_consumed` arrives through
@@ -10582,7 +10665,7 @@ export class RunDriver {
    */
   async #quietForTheCv(conversationId: string): Promise<boolean> {
     const situated = await this.#interviewSituation(conversationId);
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     if (openProposal(events) !== null) return false;
     if (situated !== null && (await this.#pendingDecision(situated.record.caseId, conversationId, situated.step, situated)) !== null) return false;
     const open = openQuestion(events);
@@ -10599,7 +10682,7 @@ export class RunDriver {
    */
   async #sayWhatArrived(conversationId: string, situated: { readonly entry: CatalogueEntry; readonly record: WorkflowRunRecord; readonly step: RunStep; readonly state: RunState } | null): Promise<boolean> {
     const readings = this.#options.readings;
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     if (openProposal(events) !== null) return false;
     // With the state, so an open choice from the form's list (P290) counts:
     // a CV question is not put over it — one thing to answer at a time (P256).
@@ -10660,7 +10743,7 @@ export class RunDriver {
     studentId: string,
   ): Promise<{ readonly kind: "late" } | { readonly kind: "begun"; readonly entries: readonly { readonly fieldKey: ProfileFieldKey; readonly count: number }[] } | { readonly kind: "open" } | { readonly kind: "ahead" }> {
     if (await this.#lateForTheCv(conversationId, studentId)) return { kind: "late" };
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     const walks = partsReadFrom(events);
     const begun = CV_LIST_FIELDS.filter((field) => walks.has(field));
     if (begun.length > 0) {
@@ -10880,7 +10963,7 @@ export class RunDriver {
     // P254: a yes on a begun field starts its list again from the CV, on the
     // same mark — the walk before it is not this walk's, and the seeding
     // counts from here.
-    const reopenedAfter = use && (late || cv.kind === "begun") ? ((await this.#options.conversations.since(conversationId, 0)).at(-1)?.ordinal ?? 0) : undefined;
+    const reopenedAfter = use && (late || cv.kind === "begun") ? ((await this.#options.conversations.wholeLog(conversationId)).at(-1)?.ordinal ?? 0) : undefined;
     const decided = await readings.decide(held.documentId, use, now, reopenedAfter);
     if (decided === null) return false;
     const say = async (content: string): Promise<void> => {
@@ -11015,7 +11098,7 @@ export class RunDriver {
   async #seedWalkFromReading(conversationId: string, documentId: string, fieldKey: string, entries: readonly WireEntryReading[], after = 0): Promise<boolean> {
     const spec = FIELD_SPECS[fieldKey as ProfileFieldKey] as FieldSpec<unknown> | undefined;
     if (spec === undefined || !isList(spec)) return false;
-    const events = await this.#options.conversations.since(conversationId, 0);
+    const events = await this.#options.conversations.wholeLog(conversationId);
     if (events.some((event: ConversationEvent) => event.ordinal > after && (event.kind === "value_confirmed" || event.kind === "value_proposed" || event.kind === "value_part_read") && event.fieldKey === fieldKey)) return false;
     // An entry the reader could not read into parts (P266) is offered too —
     // with nothing taken, to be asked by hand. Until P266 it was counted in
@@ -11291,7 +11374,7 @@ export class RunDriver {
     if (record === null) return {};
     const conversationId = await this.#options.bindings.conversationForCase(record.caseId);
     if (conversationId === null) return {};
-    const secret = latestSecretRequest(await this.#options.conversations.since(conversationId, 0));
+    const secret = latestSecretRequest(await this.#options.conversations.wholeLog(conversationId));
     if (secret === null || secret.handle === undefined) return {};
     return { spentSecretRequestId: secret.requestId };
   }

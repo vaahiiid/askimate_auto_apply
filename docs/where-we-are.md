@@ -4906,6 +4906,37 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P312 — six defects his stalled run showed
+
+*2026-10-15.* His live run stood still after he resolved a stop. Read from the code, read-only,
+without touching his database, it was not stuck: it was waiting for him to choose from Sheffield's
+list. The page was blank because it replayed the whole conversation, one read per event, before
+drawing anything, and four more defects stood in the same path. His growth check showed 454 events,
+steady. In his words (`docs/run-a/p312-his-message-as-sent.txt`): *"Fix all six as P312, tests
+failing first, as you proposed. Items 2 and 5 block my run, so they come first; the other four in
+the same phase."*
+
+The run read its own conversation only up to event 500. Past it, it would have said an offer or a
+question again on every pass of the worker, and dropped an answer. His run would have passed 500
+soon. It now reads the whole log, and so does the page. The registration e-mail question's "No"
+never reached his page, because the page's reader dropped the two answers the service sent; it
+keeps them now, and a browser test presses both. After a person's resolution the offer was said
+twice, once opening with "someone has looked" and once plain; now it is said once, in either form.
+The command he resolves with said "the student has been told it is moving again" without reading
+what the student was told; the service now reports what it said, by kind and never in the words,
+because one of those messages names the student's e-mail address. `verify` said "verified" with
+the stack down; it now checks that everything is up first. And the page reads first and then
+listens from where it read, so it draws at once.
+
+The review found a flaky test of mine, which I fixed, and that one read hanging could now hold
+every read behind it, so each read is bounded. It also found a resolution that could fail after
+telling the student, which then told the person "refused". Both are fixed. His run's log may still
+hold the two copies of the offer said before this phase; the log is append-only and they stay.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P311 — a fixed-choice answer can be corrected
 
 *2026-10-14.* His live run stopped before the portal. In the chat he could not correct his

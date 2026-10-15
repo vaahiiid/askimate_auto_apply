@@ -1,0 +1,27 @@
+# P312 mutation 33-first-overtaken-check-removed
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+  // Overtaken: a newer refresh has started since these reads were asked for,
+  // and its answer is the one that describes the run now.
+  if (mine !== latestRefresh) return;
+# with:
+  // (removed)
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/journey-refresh.test.ts
+# exit status: 0
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ✓ |unit| apps/conversation-service/src/client/journey-refresh.test.ts (6 tests) 2625ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a load over 1,200 events opens its stream after the last event it read, and makes a bounded number of reads 637ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a burst of 50 frames during a read costs at most two more reads 360ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > draws while the stream keeps sending, and each draw holds what was read 483ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a read in flight when the student acts does not draw; the read the act started does (P221, kept) 460ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > an act during a read's LAST read (the form's targets) still stops it drawing 457ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  10:46:17
+   Duration  2.97s (transform 245ms, setup 0ms, collect 36ms, tests 2.63s, environment 0ms, prepare 56ms)
+

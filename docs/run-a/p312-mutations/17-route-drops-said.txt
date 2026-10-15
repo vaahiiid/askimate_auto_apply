@@ -1,0 +1,47 @@
+# P312 mutation 17-route-drops-said
+# file: apps/conversation-service/src/routes.ts
+# replaced:
+res.status(200).json({ intervention: onTheWire(intervention), said });
+# with:
+res.status(200).json({ intervention: onTheWire(intervention) });
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t the internal specialist routes
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 1 failed | 397 skipped) 636ms
+   × the internal specialist routes > records a resolution, and answers 409 to a second one 113ms
+     → expected [ 'intervention' ] to deeply equal [ 'intervention', 'said' ]
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed | 397 skipped (403)
+   Start at  10:44:41
+   Duration  3.73s (transform 1.92s, setup 0ms, collect 2.75s, tests 636ms, environment 0ms, prepare 64ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the internal specialist routes > records a resolution, and answers 409 to a second one
+AssertionError: expected [ 'intervention' ] to deeply equal [ 'intervention', 'said' ]
+
+- Expected
++ Received
+
+  Array [
+    "intervention",
+-   "said",
+  ]
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:4720:44
+    4718|       // kind — never the words, which can name the student's address.
+    4719|       const answered = (await first.json()) as Record<string, unknown>;
+    4720|       expect(Object.keys(answered).sort()).toEqual(["intervention", "s…
+       |                                            ^
+    4721|       const said = answered["said"];
+    4722|       if (!Array.isArray(said)) expect.unreachable("said is a list");
+ ❯ withServer apps/conversation-service/src/run-driver.test.ts:4557:14
+ ❯ apps/conversation-service/src/run-driver.test.ts:4711:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

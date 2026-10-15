@@ -1,0 +1,44 @@
+# P312 mutation 08-labels-taken-on-any-decision
+# file: apps/conversation-service/src/client/transport.ts
+# replaced:
+          if (decision !== "confirm_handoff") return null;
+
+# with:
+
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/transport-pending-labels.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/transport-pending-labels.test.ts (5 tests | 1 failed) 24ms
+   × a handoff question's two answers (P312, item 5) > refuses labels on any decision but confirm_handoff 7ms
+     → confirm_value: expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  10:43:37
+   Duration  543ms (transform 169ms, setup 0ms, collect 215ms, tests 24ms, environment 0ms, prepare 62ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/transport-pending-labels.test.ts > a handoff question's two answers (P312, item 5) > refuses labels on any decision but confirm_handoff
+AssertionError: confirm_value: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ apps/conversation-service/src/client/transport-pending-labels.test.ts:47:33
+     45|       serve(reading({ decision, contentHash: HASH, labels: LABELS }));
+     46|       const read = await readRun("c1");
+     47|       expect(read.ok, decision).toBe(false);
+       |                                 ^
+     48|       if (!read.ok) expect(read.code).toBe("contract_mismatch");
+     49|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

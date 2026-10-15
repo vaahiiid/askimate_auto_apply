@@ -180,8 +180,25 @@ async function refusal(
   return { status: response.status, code, problem };
 }
 
+/**
+ * How long one read may take (P312). The page's reads are serialised, so a
+ * read that never settles would hold every read after it; bounded, it fails
+ * like any read the page cannot use, and the next one runs.
+ */
+const READ_TIMEOUT_MS = 30_000;
+
 async function get<T>(path: string, read: (value: unknown) => T | null): Promise<Outcome<T>> {
-  const response = await fetch(path, { headers: { Accept: "application/json" } });
+  let response: Response;
+  try {
+    response = await fetch(path, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(READ_TIMEOUT_MS) });
+  } catch (error) {
+    // Only the bound is turned into an answer; any other failure is thrown,
+    // as it always was.
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return { ok: false, status: 0, code: "service_unavailable", problem: null };
+    }
+    throw error;
+  }
   if (!response.ok) return { ok: false, ...(await refusal(response)) };
   const parsed = read(await response.json().catch(() => null));
   // A body the contract's own parser refuses is a failure, not something to
@@ -244,13 +261,44 @@ export function openConversation(): Promise<Outcome<Conversation>> {
   });
 }
 
-export function readEvents(conversationId: string): Promise<Outcome<readonly ConversationEvent[]>> {
-  return get(`/v1/conversations/${conversationId}/events?limit=500`, (value) => {
-    const rows = asRecord(value)?.["events"];
-    if (!Array.isArray(rows)) return null;
-    const parsed = rows.map((row) => parseConversationEvent(row));
-    return parsed.some((row) => row === null) ? null : (parsed as ConversationEvent[]);
-  });
+/** The route's ceiling on one page (routes.ts, `conversation.v1.yaml`). */
+const EVENT_PAGE_LIMIT = 500;
+
+function readEventPage(value: unknown): { readonly events: readonly ConversationEvent[]; readonly hasMore: boolean } | null {
+  const body = asRecord(value);
+  const rows = body?.["events"];
+  const hasMore = body?.["hasMore"];
+  // `EventPage` requires both; a page that does not say whether more remain
+  // cannot be walked.
+  if (!Array.isArray(rows) || typeof hasMore !== "boolean") return null;
+  const parsed = rows.map((row) => parseConversationEvent(row));
+  return parsed.some((row) => row === null) ? null : { events: parsed as ConversationEvent[], hasMore };
+}
+
+/**
+ * The WHOLE log, page by page, until the route says no more remain (P312).
+ * One page of 500 was asked for and `hasMore` never read, so past event 500
+ * the page showed a conversation cut at 500 — and a secure step asked for
+ * after it was never mounted. Nothing is kept between calls: each read walks
+ * the log from its start, as every read on this page starts from the server.
+ */
+export async function readEvents(conversationId: string): Promise<Outcome<readonly ConversationEvent[]>> {
+  const all: ConversationEvent[] = [];
+  let after = 0;
+  for (;;) {
+    const page = await get(
+      `/v1/conversations/${conversationId}/events?after=${String(after)}&limit=${String(EVENT_PAGE_LIMIT)}`,
+      readEventPage,
+    );
+    // A page that failed fails the read: never a log cut short shown as whole.
+    if (!page.ok) return page;
+    all.push(...page.value.events);
+    if (!page.value.hasMore) return { ok: true, value: all };
+    const last = page.value.events.at(-1)?.ordinal;
+    // "More remain" from a page that did not move is not walked forever.
+    if (last === undefined || last <= after) return { ok: false, status: 200, code: "contract_mismatch", problem: null };
+    after = last;
+  }
 }
 
 /**
@@ -307,7 +355,12 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
           escape: { id: escape["id"], label: escape["label"] },
           entries,
         };
-      } else {
+      } else if (raw["decision"] === "confirm_value" || raw["decision"] === "authorise" || raw["decision"] === "confirm_handoff") {
+        const decision = raw["decision"];
+        const contentHash = raw["contentHash"];
+        // A hash this page did not get is not one it may send (P312): it was
+        // coerced to the string "undefined" and posted as if the server's.
+        if (typeof contentHash !== "string") return null;
         const list = raw["entries"];
         const entries: { index: number; label: string }[] = [];
         if (Array.isArray(list)) {
@@ -317,11 +370,27 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
             entries.push({ index: entry["index"], label: entry["label"] });
           }
         }
+        // P312, item 5: the server's two answers to a handoff question,
+        // kept, and only where the contract puts them. This branch never read
+        // them, so from P306 to P312 the registration e-mail question drew one
+        // button in this page's own words and never the No.
+        let labels: { readonly yes: string; readonly no: string } | undefined;
+        if (raw["labels"] !== undefined) {
+          if (decision !== "confirm_handoff") return null;
+          const read = readHandoffLabels(raw["labels"]);
+          if (read === null) return null;
+          labels = read;
+        }
         pending = {
-          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" | "choose_reading" | "choose_entry" | "use_document" }>["decision"],
-          contentHash: String(raw["contentHash"]),
+          decision,
+          contentHash,
           ...(entries.length === 0 ? {} : { entries }),
+          ...(labels === undefined ? {} : { labels }),
         };
+      } else {
+        // A decision this page does not know draws no button it cannot
+        // answer: the read is refused and said, as any other it cannot read.
+        return null;
       }
     }
     // ADR-0108. Absent from an older service reads as nothing owed; malformed refuses the read.
@@ -340,6 +409,21 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
     }
     return { run, pending, ownActs, consent, submitted };
   });
+}
+
+/**
+ * A handoff question's two answers (P312): both non-empty strings and nothing
+ * else, or the read is refused — a third answer added on the server would
+ * otherwise vanish the way the No did.
+ */
+function readHandoffLabels(value: unknown): { readonly yes: string; readonly no: string } | null {
+  const held = asRecord(value);
+  if (held === null || Array.isArray(value)) return null;
+  if (Object.keys(held).some((key) => key !== "yes" && key !== "no")) return null;
+  const yes = held["yes"];
+  const no = held["no"];
+  if (typeof yes !== "string" || typeof no !== "string" || yes.length === 0 || no.length === 0) return null;
+  return { yes, no };
 }
 
 function parseConsentBanner(value: unknown): ConsentBannerReading | null {

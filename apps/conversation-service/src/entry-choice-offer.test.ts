@@ -8,7 +8,7 @@ import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fi
 import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 
-import { entryChoiceMessage, entryChoiceOffer, entryChosenMessage, ESCAPE_ID } from "./entry-choice-offer.js";
+import { entryChoiceForms, entryChoiceMessage, entryChoiceOffer, entryChoiceStandsMessage, entryChosenMessage, ESCAPE_ID } from "./entry-choice-offer.js";
 
 // P290, ADR-0155. The message of 2026-10-05, 15:02 UTC, which speaks of Vahid
 // in the third person: *"The system never pre-selects, never orders by
@@ -122,6 +122,18 @@ describe("what the student is offered when the form's list does not hold their v
     expect(offer.escape).toEqual({ id: ESCAPE_ID, value: ESCAPE, label: "Not in list" });
     expect(offer.ownWordsBox).toEqual({ label: "If not listed, your nationality:", text: "Persian (Tehran)" });
     expect(offer.offerHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("is ONE offer in either of its two forms, and after a stop it is pointed to, not said again (P312, item 3)", () => {
+    // His words: "the student must see one offer only." The form said after
+    // a person's resolution is the plain one with one opening sentence.
+    const offer = offerOn(blueprintWith({}));
+    if (offer === null) expect.unreachable("an offer");
+    const plain = entryChoiceMessage("Example University", offer);
+    expect(entryChoiceForms("Example University", offer)).toEqual([plain, `Someone on the team has looked at your Example University application. ${plain}`]);
+    expect(entryChoiceStandsMessage("Example University")).toBe(
+      "Someone on the team has looked at your Example University application. The choice I put to you above still stands, with its buttons below: nothing is chosen until you press one.",
+    );
   });
 
   it("says what it offers, promises only what the plan does, and never chooses", () => {

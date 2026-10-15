@@ -247,7 +247,7 @@ describeIfDatabase("sending a message", () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(200);
     expect(accepted(second.body).ordinal).toBe(accepted(first.body).ordinal);
-    const events = await store.since(conversation, 0);
+    const events = await store.wholeLog(conversation);
     expect(events).toHaveLength(1);
   }, 30_000);
 
@@ -351,8 +351,32 @@ describeIfDatabase("the guard still fails closed", () => {
       ).status;
     expect(await post()).toBe(201);
     expect(await post()).toBe(200);
-    expect(await store.since(conversation, 0)).toHaveLength(1);
+    expect(await store.wholeLog(conversation)).toHaveLength(1);
   }, 30_000);
+
+  it("is idempotent on a retried lifecycle transition when the log is past event 500 (P312, item 2)", async () => {
+    // The retry guard looked for the first copy in a read that stopped at
+    // event 500, so past it a retried transition was recorded a second time.
+    const conversation = await newConversation();
+    for (let line = 1; line <= 520; line += 1) {
+      await store.append({ conversationId: conversation, event: { kind: "message", actor: "system", content: `P312 padding line ${String(line)}` } });
+    }
+    const post = async (): Promise<number> =>
+      (
+        await fetch(`${BASE}/internal/v1/conversations/${conversation}/events`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-service-cert": "secure-service" },
+          body: JSON.stringify({ kind: "secret_expired", requestId: REQUEST_ID }),
+        })
+      ).status;
+    expect(await post()).toBe(201);
+    expect(await post(), "the retry finds the first copy past event 500").toBe(200);
+    const copies = await pool.query<{ n: string }>(
+      "SELECT count(*)::text AS n FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_expired'",
+      [conversation],
+    );
+    expect(copies.rows[0]?.n, "recorded once").toBe("1");
+  }, 60_000);
 });
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -464,6 +488,40 @@ describeIfDatabase("reading the transcript", () => {
     );
     expect(response.status).toBe(400);
   }, 30_000);
+
+  it("refuses a limit below one or not a whole number, so a client paging the log cannot spin on an empty page (P312, item 2)", async () => {
+    // `limit=-1` read as SQL LIMIT 0 and answered `{events: [], hasMore: true}`:
+    // a page that says there is more and never moves.
+    const conversation = await newConversation();
+    await send(conversation, "one line");
+    for (const limit of ["-1", "0", "1.5", "many"]) {
+      const response = await fetch(
+        `${BASE}/v1/conversations/${conversation}/events?limit=${limit}`,
+        { headers: { "x-student": studentId } },
+      );
+      expect(response.status, `limit=${limit}`).toBe(400);
+    }
+  }, 30_000);
+
+  it("a log past 500 events is read whole by walking the cursor until no more remain — the route as before P312, which the page's reader now relies on", async () => {
+    const conversation = await newConversation();
+    for (let line = 1; line <= 1203; line += 1) {
+      await store.append({ conversationId: conversation, event: { kind: "message", actor: "system", content: `line ${String(line)}` } });
+    }
+    const ordinals: number[] = [];
+    let after = 0;
+    for (let page = 0; page < 10; page += 1) {
+      const response = await fetch(
+        `${BASE}/v1/conversations/${conversation}/events?after=${String(after)}&limit=500`,
+        { headers: { "x-student": studentId } },
+      );
+      const body = (await response.json()) as { events: ConversationEvent[]; hasMore: boolean };
+      ordinals.push(...body.events.map((event) => event.ordinal));
+      if (!body.hasMore) break;
+      after = body.events.at(-1)!.ordinal;
+    }
+    expect(ordinals).toEqual(Array.from({ length: 1203 }, (_unused, index) => index + 1));
+  }, 120_000);
 });
 
 
@@ -657,9 +715,9 @@ describeIfDatabase("a stream whose store can no longer be read ENDS, and raises 
     const failing = new Proxy(store, {
       get(target, property, receiver) {
         if (property === "since") {
-          return (conversationId: string, after: number) => {
+          return (conversationId: string, after: number, limit: number) => {
             reads += 1;
-            return reads === 1 ? target.since(conversationId, after) : Promise.reject(new Error("Cannot use a pool after calling end on the pool"));
+            return reads === 1 ? target.since(conversationId, after, limit) : Promise.reject(new Error("Cannot use a pool after calling end on the pool"));
           };
         }
         // Bound to the real store: its methods read private fields, which a

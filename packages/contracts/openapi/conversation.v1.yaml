@@ -250,6 +250,7 @@ paths:
           description: A page of events in ordinal order.
           content:
             application/json: { schema: { $ref: "#/components/schemas/EventPage" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404": { $ref: "#/components/responses/NotFound" }
 
@@ -1189,15 +1190,21 @@ paths:
             schema: { $ref: "#/components/schemas/ResolutionSubmission" }
       responses:
         "200":
-          description: The intervention as it now stands.
+          description: >-
+            The intervention as it now stands, and what this resolution told the
+            student (P312): each message it appended, by event and kind, in order
+            — never the words. Empty when it said nothing.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: false
-                required: [intervention]
+                required: [intervention, said]
                 properties:
                   intervention: { $ref: "#/components/schemas/OpenIntervention" }
+                  said:
+                    type: array
+                    items: { $ref: "#/components/schemas/ResolutionSaid" }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "403":
           description: Client certificate missing or not permitted.
@@ -3884,6 +3891,33 @@ components:
         recordedBy: { type: string, minLength: 1, maxLength: 200 }
         submittedAt: { type: string, format: date-time }
         source: { type: string, enum: [observed, stated] }
+
+    ResolutionSaying:
+      type: string
+      description: >-
+        The kind of a message a resolution appended (P312). Closed: a message no
+        kind describes is reported as `undescribed`, never dropped.
+      enum:
+        - moving_again
+        - asked_again
+        - registration_asked_again
+        - registration_question
+        - entry_choice_offer
+        - entry_choice_stands
+        - stopped_again
+        - held_page
+        - abandoned
+        - undescribed
+
+    ResolutionSaid:
+      type: object
+      additionalProperties: false
+      required: [ordinal, at, about]
+      description: One message a resolution appended to the student's conversation. No words.
+      properties:
+        ordinal: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        about: { $ref: "#/components/schemas/ResolutionSaying" }
 
     OpenIntervention:
       type: object

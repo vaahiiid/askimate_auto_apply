@@ -1,6 +1,6 @@
 # ADR-0155 — A student chooses from the form's own list, the form's escape among the choices
 
-**Status:** Accepted · 2026-10-05 · the shape from the message of 15:02 UTC, which speaks of Vahid in the third person; the escape and the single build decided by Vahid in his own words, 15:52 UTC · amends ADR-0109 · built in P290
+**Status:** Accepted · 2026-10-05 · the shape from the message of 15:02 UTC, which speaks of Vahid in the third person; the escape and the single build decided by Vahid in his own words, 15:52 UTC · amends ADR-0109 · built in P290 · amended in P312 (2026-10-15), in his words: *"the student must see one offer only"*
 
 ## Why this exists
 
@@ -177,3 +177,34 @@ His reads, on his own account with nothing saved, are saved whole as he sent the
 - **A search box's word is not a choice.** The preview says *"typed to search their list, for what
   you chose for …"*. Before, it said *"you chose this on their list"* of a word nobody chose.
 - **The entry sentence names the list:** *"entry 1 of the 2 in your previous qualifications"*.
+
+## Amended in P312 (2026-10-15): one offer only
+
+His run, resolved by a person into the offer of the form's list, was told the offer twice: once
+by the resolution, opening *"Someone on the team has looked at your … application."*, and again,
+plain, by the next pass of the worker, which compared the offer by its exact words, did not find
+the plain words, and said them. In his words (`docs/run-a/p312-his-message-as-sent.txt`):
+
+> *"For item 3 (the offer posted twice), the student must see one offer only."*
+
+- **One offer in either of its forms.** The form said after a person's resolution is the plain
+  one with one opening sentence (`entryChoiceForms`). A pass of the worker, or a resolution,
+  never says an offer already said in either form.
+- **Under the conversation lock.** The check and the saying go together, so a pass and a
+  resolution running side by side cannot both find the offer unsaid.
+- **Read from the whole log.** Until P312 the check read the conversation's first 500 events
+  only; past them it could not see the offer at all and said it on every pass (P312, item 2).
+- **When a resolution finds the offer already said, and something else said since**, the offer
+  is not said again. Something else is a stop's message (*"There is not yet a way to make that
+  choice here"*), a correction sent to a person, or any other line, so one line follows
+  (`entryChoiceStandsMessage`): *"Someone on the team has looked at your … application. The
+  choice I put to you above still stands, with its buttons below: nothing is chosen until you
+  press one."* When the offer is the last thing said, the resolution says nothing more. That
+  line, and the choice to say it rather than nothing or the offer again, are mine, applied under
+  his rule of 2026-10-14 (CLAUDE.md); his words decide only that the offer is seen once. Paths
+  that reach it: a correction sent to a person while the offer stands, then resumed; an offer
+  said by a worker pass between the resolution's release of the run and its announcement, with
+  another line after it; and an offer that stops being derivable and returns.
+- **The offers already in a log stay there.** The log is append-only, and taking a line out of a
+  student's conversation is not mine to do. His own run's log may hold the two copies said
+  before P312.

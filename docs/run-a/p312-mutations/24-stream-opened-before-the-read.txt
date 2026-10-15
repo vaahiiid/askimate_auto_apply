@@ -1,0 +1,67 @@
+# P312 mutation 24-stream-opened-before-the-read
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+  try {
+    await refresh();
+  } finally {
+    listen(conversation.id, heldThrough);
+  }
+# with:
+  listen(conversation.id, undefined);
+  await refresh();
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/journey-refresh.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/journey-refresh.test.ts (6 tests | 2 failed) 2459ms
+   × the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a load over 1,200 events opens its stream after the last event it read, and makes a bounded number of reads 619ms
+     → expected '/v1/conversations/c1/stream' to be '/v1/conversations/c1/stream?lastEvent…' // Object.is equality
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a burst of 50 frames during a read costs at most two more reads 352ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > draws while the stream keeps sending, and each draw holds what was read 461ms
+   × the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a first read the student's own send overtakes still bounds the stream: it opens after the last event read 148ms
+     → expected '/v1/conversations/c1/stream' to be '/v1/conversations/c1/stream?lastEvent…' // Object.is equality
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a read in flight when the student acts does not draw; the read the act started does (P221, kept) 419ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > an act during a read's LAST read (the form's targets) still stops it drawing 459ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 4 passed (6)
+   Start at  10:45:22
+   Duration  2.82s (transform 231ms, setup 0ms, collect 38ms, tests 2.46s, environment 0ms, prepare 77ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/journey-refresh.test.ts > the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a load over 1,200 events opens its stream after the last event it read, and makes a bounded number of reads
+AssertionError: expected '/v1/conversations/c1/stream' to be '/v1/conversations/c1/stream?lastEvent…' // Object.is equality
+
+Expected: "/v1/conversations/c1/stream?lastEventId=1200"
+Received: "/v1/conversations/c1/stream"
+
+ ❯ apps/conversation-service/src/client/journey-refresh.test.ts:136:34
+    134|     await client.start(() => new Date("2026-10-15T10:00:00Z"));
+    135|     await settle(300);
+    136|     expect(harness.stream().url).toBe("/v1/conversations/c1/stream?las…
+       |                                  ^
+    137|     expect(harness.reads.get("/v1/conversations/c1/runs") ?? 0, "one r…
+    138|     expect(harness.draws.at(-1), "the whole log is drawn").toBe(1200);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/journey-refresh.test.ts > the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a first read the student's own send overtakes still bounds the stream: it opens after the last event read
+AssertionError: expected '/v1/conversations/c1/stream' to be '/v1/conversations/c1/stream?lastEvent…' // Object.is equality
+
+Expected: "/v1/conversations/c1/stream?lastEventId=5"
+Received: "/v1/conversations/c1/stream"
+
+ ❯ apps/conversation-service/src/client/journey-refresh.test.ts:188:34
+    186|     await started;
+    187|     await act;
+    188|     expect(harness.stream().url).toBe("/v1/conversations/c1/stream?las…
+       |                                  ^
+    189|     await client.refresh();
+    190|   }, 30_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

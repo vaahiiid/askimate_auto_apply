@@ -58,7 +58,8 @@ ADR-0158."* The steps below are today's code.
    - If your Postgres superuser is your macOS user, put
      `AAS_LOCAL_ADMIN_DATABASE_URL=postgresql://<your macOS user name>@127.0.0.1:5432/postgres`
      before `start`.
-   - `verify` should end `verified: documents=none, cv reader model=stand-in — as asked`.
+   - `verify` should end `verified: documents=none, cv reader model=stand-in — as asked`. Since
+     P312 it says so only while every process is up; otherwise it refuses and names what is down.
 
 2. **Optional: read what your profile holds now**, so that the "not …" half of each correction is
    your stored text exactly.
@@ -135,8 +136,9 @@ ADR-0158."* The steps below are today's code.
    typed and the creation runs again on the same password, unless the five minutes have passed.
    If it arrived after (P310), your password was typed and is spent: the chat says so, asks the
    question, then opens the password box again; type it once more. Then the chat asks whether
-   Sheffield's registration e-mail has arrived: press **"Yes, it has arrived"** only if it did.
-   Nothing is filled until you answer.
+   Sheffield's registration e-mail has arrived: press **"Yes, it has arrived"** only if it did,
+   or **"No, it has not arrived"**. Before P312 the page showed neither, only "Done — I have
+   completed that". Nothing is filled until you answer.
 
 9. **The fill.** Pages 3, 4, 5, 7 (once per qualification), 8 (once per job) and 9. Pages 6, 10
    and 11 have nothing mapped and are not opened.

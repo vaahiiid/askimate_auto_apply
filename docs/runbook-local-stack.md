@@ -37,7 +37,7 @@ AAS_LOCAL_REDIS_URL=redis://127.0.0.1:6379 \
 AAS_LOCAL_PORT_BASE=4870 \
 scripts/local-stack.sh start
 
-scripts/local-stack.sh verify   # what the processes say they came up with, against what was asked (P250)
+scripts/local-stack.sh verify   # what the processes say they came up with, against what was asked (P250); refuses unless every process is up (P312)
 scripts/local-stack.sh status
 scripts/local-stack.sh stop
 ```
@@ -130,7 +130,13 @@ day, one line each with its age — `open intervention iv_… on run … raised 
 right after the listening line;
 `scripts/local-stack.sh verify` repeats that reading on a running stack. Vahid, on the start that
 announced six services with the vault absent: *"the same class as the banner that said Bedrock and
-called somewhere else."*
+called somewhere else."* Since P312 it first requires the stack up — every pid file naming a live
+process, every endpoint `status` asks answering — and otherwise reads no log and refuses, naming
+what is down: a start that stopped before it started the processes leaves the last run's logs where
+they were, and `verify` read them and said "verified" (his words,
+`docs/run-a/p312-his-stuck-run-message-as-sent.txt`: *"verify must not say verified when the stack
+is down"*). It asks at the port base in its own environment: a stack started with another
+`AAS_LOCAL_PORT_BASE` is checked with the same one.
 
 **What to expect, step by step:**
 

@@ -1,0 +1,45 @@
+# P312 mutation 03-answer-read-against-a-page
+# file: apps/conversation-service/src/run-driver.ts
+# replaced:
+const answering = answeredQuestion(await this.#options.conversations.wholeLog(input.conversationId));
+# with:
+const answering = answeredQuestion(await this.#options.conversations.since(input.conversationId, 0, 500));
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P312, item 2
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/run-driver.test.ts (403 tests | 1 failed | 399 skipped) 2787ms
+   × past event 500 a question is asked once, and the answer to it is read (P312, item 2) > reads the answer to it, and puts the reading back — never drops it 93ms
+     → the answer was read against the question it answers: expected [] to deeply equal [ 'contact.email' ]
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 399 skipped (403)
+   Start at  10:43:11
+   Duration  5.79s (transform 1.81s, setup 0ms, collect 2.66s, tests 2.79s, environment 0ms, prepare 62ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > past event 500 a question is asked once, and the answer to it is read (P312, item 2) > reads the answer to it, and puts the reading back — never drops it
+AssertionError: the answer was read against the question it answers: expected [] to deeply equal [ 'contact.email' ]
+
+- Expected
++ Received
+
+- Array [
+-   "contact.email",
+- ]
++ Array []
+
+ ❯ apps/conversation-service/src/run-driver.test.ts:18995:105
+    18993|     }
+    18994|     const proposed = (await events()).filter((event) => event.kind ===…
+    18995|     expect(proposed.map((event) => event.field), "the answer was read …
+       |                                                                                                         ^
+    18996|   }, 300_000);
+    18997| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

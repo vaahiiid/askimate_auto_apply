@@ -1,0 +1,74 @@
+# P312 mutation 25-a-frame-overtakes-the-read
+# file: apps/conversation-service/src/client/journey.ts
+# replaced:
+function refreshOnFrame(): Promise<void> {
+  return enqueue();
+# with:
+function refreshOnFrame(): Promise<void> {
+  return refresh();
+# command: pnpm exec vitest run --project unit apps/conversation-service/src/client/journey-refresh.test.ts
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| apps/conversation-service/src/client/journey-refresh.test.ts (6 tests | 1 failed) 2507ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a load over 1,200 events opens its stream after the last event it read, and makes a bounded number of reads 604ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a burst of 50 frames during a read costs at most two more reads 352ms
+   × the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > draws while the stream keeps sending, and each draw holds what was read 445ms
+     → drawn while frames kept arriving: expected 0 to be greater than 1
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > a read in flight when the student acts does not draw; the read the act started does (P221, kept) 419ms
+   ✓ the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > an act during a read's LAST read (the form's targets) still stops it drawing 453ms
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+     Errors  1 error
+   Start at  10:45:26
+   Duration  2.82s (transform 218ms, setup 0ms, collect 30ms, tests 2.51s, environment 0ms, prepare 50ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  apps/conversation-service/src/client/journey-refresh.test.ts > the page's reads are bounded, and it draws while the stream keeps sending (P312, item 6) > draws while the stream keeps sending, and each draw holds what was read
+AssertionError: drawn while frames kept arriving: expected 0 to be greater than 1
+ ❯ apps/conversation-service/src/client/journey-refresh.test.ts:171:63
+    169|     clearInterval(timer);
+    170|     const during = harness.draws.slice(drawnBefore);
+    171|     expect(during.length, "drawn while frames kept arriving").toBeGrea…
+       |                                                               ^
+    172|     expect(during.at(-1)!, "and later draws hold more of the log").toB…
+    173|     // The read in flight and the one queued behind it finish before t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: Failed to parse URL from /v1/conversations/c1/runs
+ ❯ node:internal/deps/undici/undici:14976:13
+ ❯ get apps/conversation-service/src/client/transport.ts:193:16
+ ❯ readAndDraw apps/conversation-service/src/client/journey.ts:245:36
+
+This error originated in "apps/conversation-service/src/client/journey-refresh.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "a first read the student's own send overtakes still bounds the stream: it opens after the last event read". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+Caused by: TypeError: Invalid URL
+ ❯ new URL node:internal/url:818:25
+ ❯ new Request node:internal/deps/undici/undici:9804:25
+ ❯ fetch node:internal/deps/undici/undici:10533:25
+ ❯ fetch node:internal/deps/undici/undici:14974:10
+ ❯ fetch node:internal/bootstrap/web/exposed-window-or-worker:75:12
+ ❯ get apps/conversation-service/src/client/transport.ts:193:22
+ ❯ Module.readRun apps/conversation-service/src/client/transport.ts:312:10
+ ❯ readAndDraw apps/conversation-service/src/client/journey.ts:247:9
+ ❯ enqueue apps/conversation-service/src/client/journey.ts:226:15
+ ❯ next apps/conversation-service/src/client/journey.ts:234:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ERR_INVALID_URL', input: '/v1/conversations/c1/runs' }
+

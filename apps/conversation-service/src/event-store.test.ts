@@ -23,6 +23,8 @@ import {
 
 import { MIGRATIONS_DIR } from "./index.js";
 import {
+  appendWitness,
+  type AppendWitness,
   ConversationEventStore,
   IdempotencyConflictError,
   MessageBodyTooLongError,
@@ -232,8 +234,8 @@ describeIfDatabase(
         ),
       );
       const [a, b] = await Promise.all([
-        store.since(conversation, 0),
-        store.since(conversation, 0),
+        store.wholeLog(conversation),
+        store.wholeLog(conversation),
       ]);
       expect(a.map((event) => event.ordinal)).toEqual(
         b.map((event) => event.ordinal),
@@ -261,7 +263,7 @@ describeIfDatabase("an asking carries its own count (0026, ADR-0145)", () => {
     const store = new ConversationEventStore(pool);
     await store.append({ conversationId: conversation, event: { kind: "value_asked", fieldKey: "contact.email" } });
     await store.append({ conversationId: conversation, event: { kind: "value_asked", fieldKey: "contact.email", attempt: 2 } });
-    const log = await store.since(conversation, 0);
+    const log = await store.wholeLog(conversation);
     expect(log.map((event) => (event.kind === "value_asked" ? event.attempt : "-"))).toEqual([undefined, 2]);
   });
 
@@ -300,7 +302,7 @@ describeIfDatabase("an offer of readings is on the log (0027, ADR-0146)", () => 
     ];
     await store.append({ conversationId: conversation, event: { kind: "value_offered", fieldKey: "identity.date_of_birth", readings, offerHash: "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1" } });
     await store.append({ conversationId: conversation, event: { kind: "value_offered", fieldKey: "identity.passport", partKey: "expiry", readings, offerHash: "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2" } });
-    const log = await store.since(conversation, 0);
+    const log = await store.wholeLog(conversation);
     expect(log).toMatchObject([
       { kind: "value_offered", fieldKey: "identity.date_of_birth", readings, offerHash: "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1" },
       { kind: "value_offered", fieldKey: "identity.passport", partKey: "expiry", readings, offerHash: "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2" },
@@ -319,7 +321,7 @@ describeIfDatabase("an offer of readings is on the log (0027, ADR-0146)", () => 
     await store.append({ conversationId: conversation, event: { kind: "value_part_demanded", fieldKey: "contact.address", partKey: "region", demand } });
     const unknowing = { page: "Employment", empty: ["full-time or part-time"], unseen: [] };
     await store.append({ conversationId: conversation, event: { kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item1.basis", demand: unknowing } });
-    const log = await store.since(conversation, 0);
+    const log = await store.wholeLog(conversation);
     expect(log).toMatchObject([
       { kind: "value_part_demanded", fieldKey: "contact.address", partKey: "region", demand },
       { kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item1.basis", demand: unknowing },
@@ -415,11 +417,11 @@ describeIfDatabase("a message past the store's bound is refused by name, before 
     // The bound is `content_is_bounded` in 0001; until P263 a body past it
     // was refused by the database alone, which the log named as `error`.
     const conversation = await newConversation();
-    const before = await store.since(conversation, 0);
+    const before = await store.wholeLog(conversation);
     await expect(
       store.append({ conversationId: conversation, event: { kind: "message", actor: "assistant", content: "x".repeat(8001) } }),
     ).rejects.toThrow(MessageBodyTooLongError);
-    expect((await store.since(conversation, 0)).length).toBe(before.length);
+    expect((await store.wholeLog(conversation)).length).toBe(before.length);
   });
 });
 
@@ -541,7 +543,63 @@ describeIfDatabase("a retried write does not appear twice", () => {
 // Reading, and the guard
 // ───────────────────────────────────────────────────────────────────────────
 
+describeIfDatabase("what a resolution appended, witnessed (P312, item 4)", () => {
+  // His words: "the CLI must say only what the student was actually told."
+  // The service learns that from its own appends inside the resolution — not
+  // from an ordinal range, which a worker pass appending beside it would fill.
+  it("witnesses, in order, the appends made inside it, and not one started outside it", async () => {
+    const conversation = await newConversation();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    // Started OUTSIDE the witness and released from inside it: a worker pass
+    // appending while a resolution is under way.
+    const beside = (async (): Promise<void> => {
+      await gate;
+      await store.append({ conversationId: conversation, event: { kind: "message", actor: "assistant", content: "from a worker pass" } });
+    })();
+    const witness: AppendWitness = { appended: [] };
+    await appendWitness.run(witness, async () => {
+      await store.append({ conversationId: conversation, event: { kind: "message", actor: "assistant", content: "one" } });
+      release();
+      await beside;
+      await store.append({ conversationId: conversation, event: { kind: "message", actor: "assistant", content: "two" } });
+    });
+    const whole = await store.wholeLog(conversation);
+    expect(whole.map((event) => (event.kind === "message" ? event.content : event.kind))).toEqual(["one", "from a worker pass", "two"]);
+    expect(witness.appended.map((item) => item.event.ordinal), "the resolution's own two, not the pass's").toEqual([1, 3]);
+  }, 60_000);
+
+  it("does not witness a replayed idempotent append: nothing new was said", async () => {
+    const conversation = await newConversation();
+    const key = "w".repeat(20);
+    const append = (): ReturnType<ConversationEventStore["append"]> =>
+      store.append({ conversationId: conversation, event: { kind: "message", actor: "student", content: "once" }, idempotency: { key, studentId, digest: "d".repeat(64) } });
+    const witness: AppendWitness = { appended: [] };
+    await appendWitness.run(witness, async () => {
+      await append();
+      await append();
+    });
+    expect(witness.appended).toHaveLength(1);
+  }, 60_000);
+});
+
 describeIfDatabase("reading the log", () => {
+  it("reads the whole log past any page, and a page stays a page (P312, item 2)", async () => {
+    // `since` with no limit stopped at 500 events, and every reading the run
+    // made of its log was such a read. The whole log is its own method now,
+    // and a page must say how big it is.
+    const conversation = await newConversation();
+    for (let line = 1; line <= 1201; line += 1) {
+      await store.append({ conversationId: conversation, event: { kind: "message", actor: "system", content: `line ${String(line)}` } });
+    }
+    const whole = await store.wholeLog(conversation);
+    expect(whole.map((event) => event.ordinal)).toEqual(Array.from({ length: 1201 }, (_unused, index) => index + 1));
+    expect(await store.since(conversation, 0, 500)).toHaveLength(500);
+    expect((await store.since(conversation, 1000, 500)).map((event) => event.ordinal).at(-1)).toBe(1201);
+  }, 120_000);
+
   it("round-trips every event kind with its fields intact", async () => {
     const conversation = await newConversation();
     await store.append({
@@ -570,7 +628,7 @@ describeIfDatabase("reading the log", () => {
       },
     });
 
-    const events = await store.since(conversation, 0);
+    const events = await store.wholeLog(conversation);
     expect(events.map((event) => event.kind)).toEqual([
       "message",
       "secret_requested",
@@ -606,7 +664,7 @@ describeIfDatabase("reading the log", () => {
       event: { kind: "target_requested", offerHash },
     });
 
-    const events = await store.since(conversation, 0);
+    const events = await store.wholeLog(conversation);
     expect(events.map((event) => event.kind)).toEqual([
       "target_offered",
       "target_requested",
@@ -640,9 +698,9 @@ describeIfDatabase("reading the log", () => {
       });
     }
     expect(
-      (await store.since(conversation, 3)).map((event) => event.ordinal),
+      (await store.since(conversation, 3, 500)).map((event) => event.ordinal),
     ).toEqual([4, 5]);
-    expect(await store.since(conversation, 5)).toEqual([]);
+    expect(await store.since(conversation, 5, 500)).toEqual([]);
   }, 60_000);
 
   it("reports the open step, and a rejection does not close it", async () => {

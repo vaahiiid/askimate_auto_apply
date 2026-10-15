@@ -39,8 +39,8 @@
  * An SSE frame tells this client that SOMETHING happened. It does not tell it
  * what the run should do about it, and a client that worked that out from the
  * event would be a second workflow engine — the exact thing the boundary
- * forbids. So every frame triggers the same read a fresh page load makes, and
- * the screen is drawn from the answer.
+ * forbids. So every frame triggers — or, since P312, joins — the same read a
+ * fresh page load makes, and the screen is drawn from the answer.
  */
 
 import {
@@ -176,14 +176,70 @@ function button(
  * "Yes, that's right" button — and take the button away. The page then shows
  * a playback asking "Is that right?" with nothing to answer it. The last read
  * to START is the one that says where things stand; the last to FINISH is not.
+ * Since P312 reads are serialised, so the two are the same read, and this
+ * counter is bumped only by the page's own reads: what overtakes a read in
+ * flight is an act, never a frame.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 let latestRefresh = 0;
+/**
+ * P312, item 6: one read in flight, and at most one queued behind it, shared
+ * by every trigger that arrives meanwhile. Every frame started its own
+ * refresh of three reads, and a page opened over a long log was replayed the
+ * whole of it — one frame per event — so it made thousands of reads and drew
+ * nothing until they drained, and nothing while frames kept coming. Reads are
+ * now serialised: the last to START is the last to FINISH, so drawing the one
+ * in flight can never take the screen backwards (P221, now by construction).
+ */
+let reading: Promise<void> | null = null;
+let queued: Promise<void> | null = null;
+/**
+ * The last event of the last events read that succeeded, drawn or not (P312):
+ * the bound the stream opens from. Taken from `view.events` it would be lost
+ * when the student's own send overtakes the first read, and the stream would
+ * open from the beginning.
+ */
+let heldThrough: number | undefined;
 
-async function refresh(): Promise<void> {
+/**
+ * A read the page asks for itself — on load, and after each act. A read
+ * already in flight is overtaken and does not draw: the act may have changed
+ * what the screen holds on the strength of an answer newer than that read
+ * (P221). Resolves once a read that STARTED after this call has finished.
+ */
+function refresh(): Promise<void> {
+  latestRefresh += 1;
+  return enqueue();
+}
+
+/**
+ * A read a stream frame asks for: it joins the one queued, never more than
+ * one, and it overtakes nothing — a frame only says something happened, and
+ * a read in flight still draws what it read.
+ */
+function refreshOnFrame(): Promise<void> {
+  return enqueue();
+}
+
+function enqueue(): Promise<void> {
+  if (reading === null) {
+    reading = readAndDraw().finally(() => {
+      reading = null;
+    });
+    return reading;
+  }
+  // On BOTH paths: a read that failed must not stop every read after it.
+  const next = (): Promise<void> => {
+    queued = null;
+    return enqueue();
+  };
+  queued ??= reading.then(next, next);
+  return queued;
+}
+
+async function readAndDraw(): Promise<void> {
   const id = view.conversationId;
   if (id === null) return;
-  latestRefresh += 1;
   const mine = latestRefresh;
 
   const [events, run, documents] = await Promise.all([
@@ -191,6 +247,7 @@ async function refresh(): Promise<void> {
     api.readRun(id),
     api.readDocuments(id),
   ]);
+  if (events.ok) heldThrough = events.value.at(-1)?.ordinal ?? heldThrough;
   // Overtaken: a newer refresh has started since these reads were asked for,
   // and its answer is the one that describes the run now.
   if (mine !== latestRefresh) return;
@@ -240,20 +297,32 @@ async function refresh(): Promise<void> {
     if (targets.ok) view.targets = targets.value;
   }
 
+  // Overtaken by an act while the preview or the targets were read (P312):
+  // the check above ran before those reads, and an act during them is newer.
+  if (mine !== latestRefresh) return;
   draw();
 }
 
-/** Re-reads on every durable event. The frame is a trigger, never a source. */
-function listen(conversationId: string): void {
+/**
+ * Re-reads on every durable event. The frame is a trigger, never a source.
+ *
+ * Opened from the last event this page has read (P312, item 6): opened with
+ * no lower bound, the service replays every event of the conversation, one
+ * frame each, though the page has just read them all. The route takes
+ * `?lastEventId=` for exactly this (conversation.v1.yaml); on a reconnect the
+ * browser's own Last-Event-ID, set by every frame's id, wins over it.
+ */
+function listen(conversationId: string, heldThrough: number | undefined): void {
   stream?.close();
-  const source = new EventSource(`/v1/conversations/${conversationId}/stream`);
+  const from = heldThrough === undefined ? "" : `?lastEventId=${String(heldThrough)}`;
+  const source = new EventSource(`/v1/conversations/${conversationId}/stream${from}`);
   source.addEventListener(SSE_EVENT_NAME, (event: Event) => {
     // Parsed to confirm it is an event this contract publishes, and then
     // DISCARDED: what it says does not decide anything here.
     const data: unknown = (event as MessageEvent).data;
     if (typeof data !== "string") return;
     if (parseConversationEvent(JSON.parse(data) as unknown) === null) return;
-    void refresh();
+    void refreshOnFrame();
   });
   stream = source;
 }
@@ -1479,8 +1548,15 @@ async function start(now: () => Date): Promise<void> {
   }
 
   view.conversationId = conversation.id;
-  listen(conversation.id);
-  await refresh();
+  // Read first, then listen from what was read (P312, item 6): anything
+  // appended between the two is after the bound, so the stream's first drain
+  // sends it. A first events read that failed leaves no bound, and the stream
+  // then starts from the beginning, its frames coalesced into a read at a time.
+  try {
+    await refresh();
+  } finally {
+    listen(conversation.id, heldThrough);
+  }
 }
 
 if (typeof document !== "undefined") {

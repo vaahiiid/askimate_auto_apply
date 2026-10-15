@@ -1,0 +1,188 @@
+# P312 mutation 28-said-printed-after-the-list
+# file: scripts/interventions.ts
+# replaced:
+  process.stdout.write(`${lines.join("\n")}\n`);
+  // A fact about the queue
+# with:
+  // A fact about the queue
+# command: pnpm exec vitest run --project unit scripts/demonstrations.test.ts -t P312
+# exit status: 1
+# file restored byte for byte afterwards: True
+# --- output, unedited ---
+
+ RUN  v2.1.9 /home/user/askimate_auto_apply
+
+ ❯ |unit| scripts/demonstrations.test.ts (31 tests | 6 failed | 24 skipped) 2534ms
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that ended in the offer of the form's list prints that, by its event number, and never 'moving again' 380ms
+     → expected '\nRecording this as vahid. That name …' to contain 'Said to the student by this resolutio…'
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said 'Good news' prints that once, and nothing hedged about what else might have been said 338ms
+     → expected '\nRecording this as vahid. That name …' to match /event 12 +the "Good news" message: i…/u
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > an abandon prints what the abandon said, and does not call the run abandoned on its own say-so 369ms
+     → expected '\nRecording this as vahid. That name …' to match /event 30 +that a person stopped work…/u
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said nothing says so, and nothing else about the student 346ms
+     → expected '\nRecording this as vahid. That name …' to contain 'Nothing was said to the student by th…'
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped 340ms
+     → expected '\nRecording this as vahid. That name …' to contain 'The service did not say what this res…'
+   ✓ the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolution that failed partway is not called refused: what was recorded and said is not known 369ms
+   × the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > what a recorded resolution said is printed even when the list cannot be read after it 391ms
+     → expected '\nThe list could not be read after th…' to match /event 9 +that a person stopped work …/u
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 1 passed | 24 skipped (31)
+   Start at  10:45:44
+   Duration  7.14s (transform 44ms, setup 0ms, collect 4.31s, tests 2.53s, environment 0ms, prepare 55ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that ended in the offer of the form's list prints that, by its event number, and never 'moving again'
+AssertionError: expected '\nRecording this as vahid. That name …' to contain 'Said to the student by this resolutio…'
+
+- Expected
++ Received
+
+- Said to the student by this resolution (1 message), in order:
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++
+
+ ❯ scripts/demonstrations.test.ts:331:28
+    329|       const resolved = await resolveAgainst({ said: [{ ordinal: 455, a…
+    330|       expect(resolved.code).toBe(0);
+    331|       expect(resolved.out).toContain("Said to the student by this reso…
+       |                            ^
+    332|       expect(resolved.out).toMatch(/event 455 +the offer of the form's…
+    333|       expect(resolved.out).not.toContain("moving again");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said 'Good news' prints that once, and nothing hedged about what else might have been said
+AssertionError: expected '\nRecording this as vahid. That name …' to match /event 12 +the "Good news" message: i…/u
+
+- Expected: 
+/event 12 +the "Good news" message: it is moving again, and picks up where it stopped/u
+
++ Received: 
+"
+Recording this as vahid. That name is asserted, not authenticated: this command
+is admitted on the service credential, so the record says who CLAIMED to resolve it.
+That is acceptable while exactly one person holds that credential. The moment a second
+specialist exists, authenticated individual identity is required (ADR-0048 §3).
+
+"
+
+ ❯ scripts/demonstrations.test.ts:339:28
+    337|     it("a resolve that said 'Good news' prints that once, and nothing …
+    338|       const resolved = await resolveAgainst({ said: [{ ordinal: 12, at…
+    339|       expect(resolved.out).toMatch(/event 12 +the "Good news" message:…
+       |                            ^
+    340|       expect(resolved.out).not.toContain("unless the case");
+    341|       expect(resolved.out).not.toContain("hand-back");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > an abandon prints what the abandon said, and does not call the run abandoned on its own say-so
+AssertionError: expected '\nRecording this as vahid. That name …' to match /event 30 +that a person stopped work…/u
+
+- Expected: 
+/event 30 +that a person stopped work on it, with what that leaves/u
+
++ Received: 
+"
+Recording this as vahid. That name is asserted, not authenticated: this command
+is admitted on the service credential, so the record says who CLAIMED to resolve it.
+That is acceptable while exactly one person holds that credential. The moment a second
+specialist exists, authenticated individual identity is required (ADR-0048 §3).
+
+"
+
+ ❯ scripts/demonstrations.test.ts:346:28
+    344|     it("an abandon prints what the abandon said, and does not call the…
+    345|       const resolved = await resolveAgainst({ said: [{ ordinal: 30, at…
+    346|       expect(resolved.out).toMatch(/event 30 +that a person stopped wo…
+       |                            ^
+    347|       expect(resolved.out).not.toContain("The run is abandoned.");
+    348|       expect(resolved.out).not.toContain("has NOT been told");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a resolve that said nothing says so, and nothing else about the student
+AssertionError: expected '\nRecording this as vahid. That name …' to contain 'Nothing was said to the student by th…'
+
+- Expected
++ Received
+
+- Nothing was said to the student by this resolution.
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++
+
+ ❯ scripts/demonstrations.test.ts:353:28
+    351|     it("a resolve that said nothing says so, and nothing else about th…
+    352|       const resolved = await resolveAgainst({ said: [] });
+    353|       expect(resolved.out).toContain("Nothing was said to the student …
+       |                            ^
+    354|       expect(resolved.out).not.toMatch(/has been told|was told|moving …
+    355|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > a service that does not say what was said is not guessed at; a kind this command does not know is printed, not dropped
+AssertionError: expected '\nRecording this as vahid. That name …' to contain 'The service did not say what this res…'
+
+- Expected
++ Received
+
+- The service did not say what this resolution told the student; this command makes no claim about it.
++
++ Recording this as vahid. That name is asserted, not authenticated: this command
++ is admitted on the service credential, so the record says who CLAIMED to resolve it.
++ That is acceptable while exactly one person holds that credential. The moment a second
++ specialist exists, authenticated individual identity is required (ADR-0048 §3).
++
++
+
+ ❯ scripts/demonstrations.test.ts:359:26
+    357|     it("a service that does not say what was said is not guessed at; a…
+    358|       const silent = await resolveAgainst({});
+    359|       expect(silent.out).toContain("The service did not say what this …
+       |                          ^
+    360|       expect(silent.out).not.toMatch(/has been told|moving again/u);
+    361|       const unknown = await resolveAgainst({ said: [{ ordinal: 7, at: …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL |unit|  scripts/demonstrations.test.ts > the published demonstrations > interventions resolve says only what the student was told (P312, item 4) > what a recorded resolution said is printed even when the list cannot be read after it
+AssertionError: expected '\nThe list could not be read after th…' to match /event 9 +that a person stopped work …/u
+
+- Expected: 
+/event 9 +that a person stopped work on it/u
+
++ Received: 
+"
+The list could not be read after the resolution.
+
+Recording this as vahid. That name is asserted, not authenticated: this command
+is admitted on the service credential, so the record says who CLAIMED to resolve it.
+That is acceptable while exactly one person holds that credential. The moment a second
+specialist exists, authenticated individual identity is required (ADR-0048 §3).
+
+"
+
+ ❯ scripts/demonstrations.test.ts:398:28
+    396|       const recorded = await resolveWhere(200, 503);
+    397|       expect(recorded.code).toBe(0);
+    398|       expect(recorded.out).toMatch(/event 9 +that a person stopped wor…
+       |                            ^
+    399|       expect(recorded.out).toContain("The list could not be read after…
+    400|       expect(recorded.out).not.toContain("refused");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
