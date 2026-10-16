@@ -1,0 +1,17 @@
+mutation 01-the-underscore-not-taken on apps/conversation-service/migrations/0040_a_part_key_may_carry_an_underscore.sql
+command: pnpm exec vitest run --project unit apps/conversation-service/src/schema.test.ts apps/conversation-service/src/run-driver.test.ts -t P314
+exit: 1
+restored byte for byte: True
+
+   × the database refuses a word it does not know > accepts every part key the interview writes, the seven claims of the UK status among them (P314) 172ms
+     → part keys the log refuses: expected [ 'british_passport', …(6) ] to deeply equal []
+   × a typed no to the British passport question is read, and the next claim is asked (P314) > reads his next no as the passport claim, records it, and asks the next claim in the same request 132ms
+     → new row for relation "conversation_events" violates check constraint "conversation_events_part_key_check"
+   × a typed no to the British passport question is read, and the next claim is asked (P314) > walks the other six claims and plays all seven back, and a yes puts them in his profile 66ms
+     → new row for relation "conversation_events" violates check constraint "conversation_events_part_key_check"
+ Test Files  2 failed (2)
+      Tests  3 failed | 475 skipped (478)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a typed no to the British passport question is read, and the next claim is asked (P314) > reads his next no as the passport claim, records it, and asks the next claim in the same request
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a typed no to the British passport question is read, and the next claim is asked (P314) > walks the other six claims and plays all seven back, and a yes puts them in his profile
+ FAIL |unit|  apps/conversation-service/src/schema.test.ts > the database refuses a word it does not know > accepts every part key the interview writes, the seven claims of the UK status among them (P314)

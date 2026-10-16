@@ -1,0 +1,13 @@
+mutation 03-the-field-key-loop-sees-a-refusal on apps/conversation-service/src/schema.test.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/schema.test.ts apps/conversation-service/src/run-driver.test.ts -t P314
+exit: 1
+restored byte for byte: True
+
+   × the database refuses a word it does not know > accepts every part key the interview writes, the seven claims of the UK status among them (P314) 139ms
+     → field keys the log refuses: expected [ 'Bad.Key' ] to deeply equal []
+ ✓ |unit| apps/conversation-service/src/run-driver.test.ts (426 tests | 424 skipped) 1094ms
+   ✓ a typed no to the British passport question is read, and the next claim is asked (P314) > walks the other six claims and plays all seven back, and a yes puts them in his profile 451ms
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 2 passed | 475 skipped (478)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |unit|  apps/conversation-service/src/schema.test.ts > the database refuses a word it does not know > accepts every part key the interview writes, the seven claims of the UK status among them (P314)

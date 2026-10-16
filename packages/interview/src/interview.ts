@@ -979,10 +979,15 @@ export async function receiveAnswer(
     }
     // The part stays unanswered, so the SAME part is asked again: an
     // unreadable expiry is not a reason to move on with the expiry left blank.
+    // P314: and asked with why, as a whole field is (P223). Until P314 a part
+    // carried no `unread`, so the question came back word for word, with
+    // nothing saying the answer had not been read. A decline keeps the
+    // model's own words, as it does for a whole field.
+    const opening = interpreted.clarification !== undefined ? `${interpreted.clarification}` : `I could not read ${question.expectedShape} from "${utterance}".`;
     return {
       kind: "not_understood",
-      state: { ...state, transcript, attempts },
-      reason: interpreted.reason,
+      state: { ...state, transcript, attempts, unread: { fieldKey, reason: opening } },
+      reason: interpreted.clarification !== undefined ? interpreted.reason : opening,
     };
   }
 
@@ -1075,6 +1080,10 @@ function withPartRead(
     ...alongside,
     [partKey, interpreted],
   ]);
+  // A part read clears what could not be read before it (P314), as a whole
+  // field's reading does: the next question is not opened with an old reason.
+  const { unread: _cleared, ...cleared } = state;
+  state = cleared;
 
   // More parts to ask: hold what has been read and carry on. Nothing is put
   // for confirmation yet, because the student confirms the WHOLE value — for

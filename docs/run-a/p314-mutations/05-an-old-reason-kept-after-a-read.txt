@@ -1,0 +1,13 @@
+mutation 05-an-old-reason-kept-after-a-read on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts apps/conversation-service/src/run-driver.test.ts -t P314
+exit: 1
+restored byte for byte: True
+
+   × an answer to a part that cannot be read is asked again with why (P314) > drops the reason once the part is read: the next part's question opens with its own words 25ms
+     → expected 'I could not read yes or no from "mayb…' not to contain 'could not read'
+ ✓ |unit| apps/conversation-service/src/run-driver.test.ts (428 tests | 424 skipped) 1119ms
+   ✓ a typed no to the British passport question is read, and the next claim is asked (P314) > walks the other six claims and plays all seven back, and a yes puts them in his profile 410ms
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 6 passed | 539 skipped (546)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |unit|  packages/interview/src/interview.test.ts > an answer to a part that cannot be read is asked again with why (P314) > drops the reason once the part is read: the next part's question opens with its own words

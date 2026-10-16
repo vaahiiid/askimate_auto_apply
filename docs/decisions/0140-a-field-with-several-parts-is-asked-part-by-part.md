@@ -191,3 +191,33 @@ is not a conversation.
   `immigration.uk_study`.
 - The run driver gains one more reason to hand a case to a person, and the source-text guard over
   `#stopIfTheInterviewGaveUp` (P29) now names three kinds rather than two.
+
+## Amended 2026-10-16 (P314): a part key may carry an underscore
+
+His run of 2026-10-16, in his words (`docs/run-a/p314-his-message-as-sent.txt`):
+
+> *"Then the interview asks "Do you hold a British passport? Please answer yes or no." I typed "no".
+> No playback, no "could not read", no reply of any kind: the same question was simply asked
+> again."*
+
+A part lives between requests as a `value_part_read` row (above), and the column that holds its key
+took letters and digits only (migrations 0024 and 0025), because the composites were lowerCamelCase
+when it was written. P197 gave `immigration.uk_status` its seven claims under the names of the
+registry's own type (ADR-0115): `british_passport`, `indefinite_leave`, `refugee_status`,
+`migrant_worker`, `spouse_of_uk_citizen`, `eu_passport`, `spouse_of_eu_citizen`. The signed
+Sheffield entry reads them by those names. So every answer to any of the seven was read and then
+refused by the log. The message route had already answered the student. The student's line had
+closed the question, so the next advance put it again. Nothing failed where it could be seen: the
+interview's own tests run on state in memory, and no driver test had asked this field.
+
+Migration 0040 widens the key by the underscore and nothing else. The keys stay as the registry and
+the signed entry name them, since renaming them would change a signed entry. `schema.test.ts` writes
+every part key the specs can produce, and every field key they can ask, to the log. A key or field
+a spec adds later is checked there before it reaches a student.
+
+The review of that run found the same symptom by a second road. An answer to a part that the
+interview could not read came back as the question alone, word for word. A field answered whole has
+opened its re-ask with the reason since P223, and a part had no reason to carry. Now a part's
+re-ask carries it too: *"I could not read yes or no from "maybe"."* A decline keeps the model's own
+words, and the reason is dropped once the part is read. A part's count of failed answers still never
+reaches the stop for a person; that is row 199.

@@ -21866,3 +21866,182 @@ describeIfDatabase("what the student sees says they submitted it, on the date st
     }
   }, 300_000);
 });
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// P314 — a claim whose part key has an underscore is recorded, and the walk
+//        moves on to the next
+// ───────────────────────────────────────────────────────────────────────────
+
+/** `FIXTURE_MAPPING_SET` with a required field reading the whole UK status, so all seven claims are asked, as Sheffield's entry asks them. */
+const UK_STATUS_REQUIRED: CatalogueEntry = {
+  ...ENTRY,
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.fieldRef === "email"
+        ? { ...mapping, source: { kind: "profile_field" as const, fieldKey: "immigration.uk_status" as const, format: { kind: "text" as const } } }
+        : mapping,
+    ),
+  },
+};
+
+describeIfDatabase("a typed no to the British passport question is read, and the next claim is asked (P314)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // His run of 2026-10-16 (docs/run-a/p314-his-message-as-sent.txt): *"I typed
+  // "no". No playback, no "could not read", no reply of any kind: the same
+  // question was simply asked again. Typed "no" a second time: the same
+  // question again."*
+  //
+  // Measured first, through this driver on the database, on a conversation
+  // with no history: the "no" was read, and its part row was refused by the
+  // log's `part_key` check (0024, 0025: letters and digits only), because the
+  // UK status's seven claims are keyed `british_passport` and the like. The
+  // message route had already answered 201, so the student read nothing; the
+  // student's line had closed the question, so the worker's next advance put
+  // it again, attempt 2, then 3. His log is set up here as those writes left
+  // it: asked three times, with two "no"s and nothing read after either.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03141";
+  let owner = "";
+  let runId = "";
+
+  async function events(): Promise<{ ordinal: number; kind: string; field: string | null; part: string | null; attempt: number | null; proposal: unknown; content: string | null }[]> {
+    const rows = await pool.query<{ ordinal: string; kind: string; field: string | null; part: string | null; attempt: number | null; proposal: unknown; content: string | null }>(
+      `SELECT e.ordinal, e.kind, e.field_key AS field, e.part_key AS part, e.attempt, e.proposal, b.content
+         FROM conversation_events e LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }));
+  }
+
+  async function say(what: string): Promise<number> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(UK_STATUS_REQUIRED));
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      return written.event.ordinal;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(UK_STATUS_REQUIRED));
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      await instance.driver.advance({ runId, conversationId: conversation });
+      const question = (await events()).at(-1)?.content ?? "";
+      expect(question, "the first claim is asked, in his words").toContain("Do you hold a British passport? Please answer yes or no.");
+      // His two exchanges as the log holds them: a "no" with nothing read
+      // after it, and the same question put again, attempt 2 and then 3.
+      const log = new ConversationEventStore(instance.pool);
+      for (const attempt of [2, 3]) {
+        await log.append({ conversationId: conversation, event: { kind: "message", actor: "student", content: "no" } });
+        await log.append({ conversationId: conversation, event: { kind: "value_asked", fieldKey: "immigration.uk_status", attempt } });
+        await log.append({ conversationId: conversation, event: { kind: "message", actor: "assistant", content: question } });
+      }
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("reads his next no as the passport claim, records it, and asks the next claim in the same request", async () => {
+    const typed = await say("no");
+    const after = (await events()).filter((event) => event.ordinal > typed);
+    expect(after.map((event) => [event.kind, event.field, event.part]), "the claim recorded, then the next one asked").toEqual([
+      ["value_part_read", "immigration.uk_status", "british_passport"],
+      ["value_asked", "immigration.uk_status", null],
+      ["message", null, null],
+    ]);
+    expect(after[0]?.proposal).toMatchObject({ value: false, verbatim: "no" });
+    expect(after[2]?.content).toContain("Do you have indefinite leave to remain or enter? Please answer yes or no.");
+  }, 300_000);
+
+  it("walks the other six claims and plays all seven back, and a yes puts them in his profile", async () => {
+    for (let claim = 0; claim < 6; claim++) await say("no");
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(UK_STATUS_REQUIRED));
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      if (reading?.pending?.decision !== "confirm_value") expect.unreachable(`no playback: ${JSON.stringify(reading?.pending)}`);
+      expect(await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: reading.pending.contentHash } })).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+    const parts = (await events()).filter((event) => event.kind === "value_part_read").map((event) => event.part);
+    expect(parts, "six claims on the log; the seventh travels in the playback").toEqual([
+      "british_passport", "indefinite_leave", "refugee_status", "migrant_worker", "spouse_of_uk_citizen", "eu_passport",
+    ]);
+    const stored = await pool.query<{ value: unknown }>("SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = 'immigration.uk_status'", [owner]);
+    expect(stored.rows[0]?.value).toEqual({
+      british_passport: false, indefinite_leave: false, refugee_status: false, migrant_worker: false,
+      spouse_of_uk_citizen: false, eu_passport: false, spouse_of_eu_citizen: false,
+    });
+  }, 300_000);
+});
+
+
+describeIfDatabase("an answer to a claim that cannot be read is answered with why, and the claim is asked again (P314)", () => {
+  // The read-only review of P314 found the same symptom by a second road:
+  // an answer to a PART that the interview cannot read was answered with the
+  // question alone, word for word, with nothing saying it had not been read —
+  // measured through this driver, four times over. A field answered whole has
+  // said why since P223 (*"the reason opens the question"*); a part did not,
+  // because the interview set the reason only for a whole field.
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC03142";
+
+  async function since(ordinal: number): Promise<{ kind: string; content: string | null }[]> {
+    return (await pool.query<{ kind: string; content: string | null }>(
+      `SELECT e.kind, b.content FROM conversation_events e LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.ordinal > $2 ORDER BY e.ordinal`,
+      [conversation, ordinal],
+    )).rows;
+  }
+
+  async function say(what: string): Promise<number> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(UK_STATUS_REQUIRED));
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      return written.event.ordinal;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(UK_STATUS_REQUIRED));
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      await instance.driver.advance({ runId: started.position.runId, conversationId: conversation });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("says it could not read the answer, then asks the same claim", async () => {
+    const typed = await say("maybe");
+    const after = await since(typed);
+    expect(after.map((event) => event.kind)).toEqual(["answer_unread", "value_asked", "message"]);
+    const reply = after[2]?.content ?? "";
+    expect(reply.startsWith('I could not read yes or no from "maybe".'), reply).toBe(true);
+    expect(reply).toContain("Do you hold a British passport? Please answer yes or no.");
+  }, 300_000);
+
+  it("once the claim is read, the next claim is asked without the earlier reason", async () => {
+    const typed = await say("no");
+    const after = await since(typed);
+    expect(after.map((event) => event.kind)).toEqual(["value_part_read", "value_asked", "message"]);
+    const next = after[2]?.content ?? "";
+    expect(next).toContain("Do you have indefinite leave to remain or enter? Please answer yes or no.");
+    expect(next).not.toContain("could not read");
+  }, 300_000);
+});

@@ -19,6 +19,34 @@ not shipped artefacts.
 
 ---
 
+## [0.307.0] — 2026-10-16
+
+**P314 — an answer to the UK status's claims is recorded, and the walk moves on.** His live run, in
+his words (`docs/run-a/p314-his-message-as-sent.txt`): *"I typed "no". No playback, no "could not
+read", no reply of any kind: the same question was simply asked again."*
+
+- **Fixed (row 197).** The log's check on a part key took letters and digits only (migrations 0024,
+  0025), and the seven claims of `immigration.uk_status` are keyed with underscores
+  (`british_passport`, …), as the registry's type and the signed Sheffield entry name them. Every
+  answer to them was read and then refused by the log, after the message route had answered, so
+  the student read nothing and the next advance asked again. Migration 0040 widens the key by the
+  underscore and nothing else. Reproduced first on a conversation with no history; his earlier
+  application is not involved.
+- **Tested.** His log as it stands (asked three times, two "no"s with nothing read) now reads the
+  next "no", records it, and asks the next claim; the seven claims are walked, played back and
+  confirmed into the profile. `schema.test.ts` writes every part key and field key the specs can
+  produce to the log.
+- **The same symptom by a second road (row 197).** An answer to a part that could not be read came
+  back as the question word for word; now the re-ask opens with why, as a whole field's has since
+  P223, and the reason is dropped once the part is read.
+- **Row 199 (mine).** Three unreadable answers to one part never stop the run for a person; the
+  recommendation is recorded.
+- **Read-only steps for him.** `docs/run-a/p314-read-the-state.md`: the service log line, five
+  read-only queries of his database, and how to continue.
+- **Row 198 (mine, after rows 191 and 194).** When reading an answer fails after the message was
+  taken, the student is told nothing and the question is put again; the recommendation is recorded.
+- ADR-0140 amended. Version 0.307.0.
+
 ## [0.306.0] — 2026-10-15
 
 **P313 — a stopped application asks nothing, and a new one starts from the page.** His live run,

@@ -142,6 +142,7 @@ beforeAll(async () => {
   "0037_the_retention_sweep_job",
   "0038_a_deletion_request_reaches_a_person",
   "0039_a_student_chooses_from_the_forms_own_list",
+  "0040_a_part_key_may_carry_an_underscore",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(

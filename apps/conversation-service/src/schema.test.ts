@@ -33,6 +33,7 @@ import {
   REJECTION_REASONS,
 } from "@askimate/aas-contracts";
 import { decodeValue } from "@askimate/aas-profile";
+import { FIELD_SPECS, isComposite, isList } from "@askimate/aas-interview";
 
 import {
   MIGRATIONS_DIR,
@@ -160,6 +161,7 @@ beforeAll(async () => {
   "0037_the_retention_sweep_job",
   "0038_a_deletion_request_reaches_a_person",
   "0039_a_student_chooses_from_the_forms_own_list",
+  "0040_a_part_key_may_carry_an_underscore",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -465,6 +467,77 @@ describeIfDatabase("the database refuses a word it does not know", () => {
            (conversation_id, ordinal, kind, field_key, part_key, proposal)
          VALUES ($1, $2, 'value_part_read', 'employment.history', $3, '{"value":"x"}'::jsonb)`,
         [conversation, ordinal, refused],
+        { code: CHECK_VIOLATION, constraint: "conversation_events_part_key_check" },
+      );
+    }
+  });
+
+  it("accepts every part key the interview writes, the seven claims of the UK status among them (P314)", async () => {
+    // His run of 2026-10-16 (docs/run-a/p314-his-message-as-sent.txt): *"I
+    // typed "no". No playback, no "could not read", no reply of any kind: the
+    // same question was simply asked again."* 0024 and 0025 took a part key as
+    // letters and digits, because the registry's composites were lowerCamelCase
+    // then; P197's seven claims (`british_passport`, …) came after 0024 with
+    // underscores, and the log refused every one of their answers. Drawn from
+    // the specs themselves, so the next key a spec adds is checked here too.
+    const keys = new Map<string, string>();
+    for (const [fieldKey, spec] of Object.entries(FIELD_SPECS) as [string, Parameters<typeof isComposite>[0]][]) {
+      if (isComposite(spec)) for (const part of spec.parts) keys.set(part.partKey, fieldKey);
+      if (isList(spec)) {
+        keys.set("any", fieldKey);
+        for (const part of spec.item.parts) {
+          keys.set(`item0.${part.partKey}`, fieldKey);
+          keys.set(`item0.${part.partKey}OnCv`, fieldKey);
+        }
+        for (const mark of ["another", "removed", "unreadable"]) keys.set(`item0.${mark}`, fieldKey);
+      }
+    }
+    expect(keys.get("british_passport"), "the key his run could not write is among them").toBe("immigration.uk_status");
+    expect(keys.size, "every composite and list part, not a handful").toBeGreaterThan(50);
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T5P");
+    let ordinal = 0;
+    const refused: string[] = [];
+    for (const [partKey, fieldKey] of keys) {
+      ordinal += 1;
+      try {
+        await pool.query(
+          `INSERT INTO conversation_events
+             (conversation_id, ordinal, kind, field_key, part_key, proposal)
+           VALUES ($1, $2, 'value_part_read', $3, $4, '{"value":"x"}'::jsonb)`,
+          [conversation, ordinal, fieldKey, partKey],
+        );
+      } catch {
+        ordinal -= 1;
+        refused.push(partKey);
+      }
+    }
+    expect(refused, "part keys the log refuses").toEqual([]);
+    // The same question of the field keys beside them (0008's `field_key`
+    // check): every field the interview can ask is one the log can name.
+    const fieldsRefused: string[] = [];
+    for (const fieldKey of Object.keys(FIELD_SPECS)) {
+      ordinal += 1;
+      try {
+        await pool.query(
+          `INSERT INTO conversation_events (conversation_id, ordinal, kind, field_key, attempt)
+           VALUES ($1, $2, 'value_asked', $3, 1)`,
+          [conversation, ordinal, fieldKey],
+        );
+      } catch {
+        ordinal -= 1;
+        fieldsRefused.push(fieldKey);
+      }
+    }
+    expect(fieldsRefused, "field keys the log refuses").toEqual([]);
+    // Widened by the underscore and nothing else (0040): each of these is a
+    // shape no spec writes, and the check still refuses it.
+    for (const shape of ["_british_passport", "british-passport", "british passport", "0british", "item0._x", "item0.a.b", "a".repeat(65)]) {
+      ordinal += 1;
+      await refuses(
+        `INSERT INTO conversation_events
+           (conversation_id, ordinal, kind, field_key, part_key, proposal)
+         VALUES ($1, $2, 'value_part_read', 'immigration.uk_status', $3, '{"value":"x"}'::jsonb)`,
+        [conversation, ordinal, shape],
         { code: CHECK_VIOLATION, constraint: "conversation_events_part_key_check" },
       );
     }
@@ -1205,6 +1278,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       "0037_the_retention_sweep_job",
       "0038_a_deletion_request_reaches_a_person",
   "0039_a_student_chooses_from_the_forms_own_list",
+  "0040_a_part_key_may_carry_an_underscore",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1253,7 +1327,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       );
       expect(tagged.rowCount).toBe(1);
 
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part", "0030_a_document_is_read_by_the_reader", "0031_a_reading_keeps_its_structure", "0032_a_document_is_used_on_the_students_word", "0033_a_late_cv_is_asked_about_at_once", "0034_a_reading_before_the_question_is_legible_and_asked_after", "0035_a_later_cv_supersedes_and_nothing_is_said_over_an_open_question", "0036_a_resolution_carries_its_own_mark", "0037_the_retention_sweep_job", "0038_a_deletion_request_reaches_a_person", "0039_a_student_chooses_from_the_forms_own_list"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0028_a_date_confirmed_through_the_log_is_a_date", "0029_the_portal_demands_a_part", "0030_a_document_is_read_by_the_reader", "0031_a_reading_keeps_its_structure", "0032_a_document_is_used_on_the_students_word", "0033_a_late_cv_is_asked_about_at_once", "0034_a_reading_before_the_question_is_legible_and_asked_after", "0035_a_later_cv_supersedes_and_nothing_is_said_over_an_open_question", "0036_a_resolution_carries_its_own_mark", "0037_the_retention_sweep_job", "0038_a_deletion_request_reaches_a_person", "0039_a_student_chooses_from_the_forms_own_list", "0040_a_part_key_may_carry_an_underscore"]);
       const after = await fresh.query<{ field_key: string; value: unknown }>(
         "SELECT field_key, value FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
         [id],
@@ -1299,7 +1373,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "INSERT INTO document_readings (document_id, conversation_id, student_id, content_hash, state, requested_at, decided_at) VALUES ('01JQREAD0033000000000000A2', 'c', 's', $1, 'pending', now(), now())",
         [hash],
       );
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0033_a_late_cv_is_asked_about_at_once", "0034_a_reading_before_the_question_is_legible_and_asked_after", "0035_a_later_cv_supersedes_and_nothing_is_said_over_an_open_question", "0036_a_resolution_carries_its_own_mark", "0037_the_retention_sweep_job", "0038_a_deletion_request_reaches_a_person", "0039_a_student_chooses_from_the_forms_own_list"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0033_a_late_cv_is_asked_about_at_once", "0034_a_reading_before_the_question_is_legible_and_asked_after", "0035_a_later_cv_supersedes_and_nothing_is_said_over_an_open_question", "0036_a_resolution_carries_its_own_mark", "0037_the_retention_sweep_job", "0038_a_deletion_request_reaches_a_person", "0039_a_student_chooses_from_the_forms_own_list", "0040_a_part_key_may_carry_an_underscore"]);
       const after = await fresh.query<{ document_id: string; state: string; reopened_after: number | null }>(
         "SELECT document_id, state, reopened_after FROM document_readings ORDER BY document_id",
       );
@@ -1378,6 +1452,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0037_the_retention_sweep_job",
     "0038_a_deletion_request_reaches_a_person",
   "0039_a_student_chooses_from_the_forms_own_list",
+  "0040_a_part_key_may_carry_an_underscore",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

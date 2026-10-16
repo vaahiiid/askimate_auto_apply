@@ -2440,3 +2440,42 @@ describe("a refused field is asked next; the playback and the correction preface
     if (confirm.kind === "confirm") expect(confirm.say).toContain("I've recorded your home address as:");
   });
 });
+
+describe("an answer to a part that cannot be read is asked again with why (P314)", () => {
+  // His run of 2026-10-16 found the silence through another fault (the log
+  // refused a part key); the review found this one beside it. A whole field
+  // has said why since P223. A part said nothing: the question came back word
+  // for word, and the student could not tell an unread answer from a lost one.
+  it("opens the same part's question with what could not be read", async () => {
+    const asked = await nextAction(start(["immigration.uk_status"]), model);
+    if (asked.kind !== "ask") return expect.unreachable(`not asked: ${asked.kind}`);
+    expect(asked.partKey).toBe("british_passport");
+    const outcome = await receiveAnswer(start(["immigration.uk_status"]), "immigration.uk_status", "maybe", model);
+    expect(outcome.kind).toBe("not_understood");
+    if (outcome.kind !== "not_understood") return;
+    expect(outcome.reason).toBe('I could not read yes or no from "maybe".');
+    const again = await nextAction(outcome.state, model);
+    if (again.kind !== "ask") return expect.unreachable(`not asked again: ${again.kind}`);
+    expect(again.partKey, "the same claim").toBe("british_passport");
+    expect(again.say.startsWith('I could not read yes or no from "maybe".'), again.say).toBe(true);
+    expect(again.say).toContain("Do you hold a British passport? Please answer yes or no.");
+  });
+
+  it("drops the reason once the part is read: the next part's question opens with its own words", async () => {
+    const unread = await receiveAnswer(start(["immigration.uk_status"]), "immigration.uk_status", "maybe", model);
+    const read = await receiveAnswer(unread.state, "immigration.uk_status", "no", model);
+    expect(read.kind).toBe("understood");
+    const next = await nextAction(read.state, model);
+    if (next.kind !== "ask") return expect.unreachable(`not asked: ${next.kind}`);
+    expect(next.partKey).toBe("indefinite_leave");
+    expect(next.say).not.toContain("could not read");
+  });
+
+  it("keeps a decline's own words, as a whole field does", async () => {
+    const outcome = await receiveAnswer(start(["immigration.uk_status"]), "immigration.uk_status", "I don't know", model);
+    if (outcome.kind !== "not_understood") return expect.unreachable(outcome.kind);
+    const again = await nextAction(outcome.state, model);
+    if (again.kind !== "ask") return expect.unreachable(again.kind);
+    expect(again.say.startsWith("That's fine — we can come back to it.")).toBe(true);
+  });
+});

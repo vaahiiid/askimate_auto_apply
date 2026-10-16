@@ -1,0 +1,7 @@
+My live run, new application after P313 (started via "Start a new application", "I withdrew it", "Apply again anyway"). The three list choices worked: Not in list for HHE, DBA and International Business, each recorded.
+
+Then the interview asks "Do you hold a British passport? Please answer yes or no." I typed "no". No playback, no "could not read", no reply of any kind: the same question was simply asked again. Typed "no" a second time: the same question again. I have stopped typing.
+
+Context: in the previous, stopped application (P313's item 2), the last thing asked after the stop was this same passport question, and I answered "no" there too, before P313. In that application I also answered, after the stop, "no" to "always lived in the EU" and "always lived in your country of permanent residence".
+
+Find the cause from the code and my database, read-only, without guessing: why a typed "no" to this question is neither read, refused, nor played back, and whether the earlier answer given after the stop is involved. Give me read-only commands to show the state, and tell me what to do so the run continues. Do not edit my database by hand. If it is a defect, fix it test-first as P314, before rows 191 and 194.

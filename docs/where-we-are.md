@@ -4906,6 +4906,40 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P314 — an answer to the UK status's claims is recorded, and the walk moves on
+
+*2026-10-16.* His new application, started from the page after P313, recorded its three list
+choices and asked "Do you hold a British passport?". He typed "no" twice, and each time nothing came
+back but the same question. In his words (`docs/run-a/p314-his-message-as-sent.txt`): *"Find the
+cause from the code and my database, read-only, without guessing."*
+
+I reproduced it before reading further, through the real driver and the database, on a conversation
+with no history. The interview read "no" as the first claim of the UK status and wrote it to the
+log as a part keyed `british_passport`, and the log refused the row: its check on a part key takes
+letters and digits, and the seven claims are named with underscores, as the registry's type and the
+signed Sheffield entry name them. The message route had already answered his message, so the
+refusal reached only the service log, and his line had closed the question, so the worker asked it
+again. A workflow of read-only tracers reached the same two links on its own.
+
+His earlier application plays no part. A part is read back only from the conversation it was
+written in, and his "no" there met the same refusal. The column now takes the underscore and nothing
+more (migration 0040). His log as it stands, three askings and two unread "no"s, reads his next
+"no" and moves to the next claim. Every key the specs can write is now written to the log in a test.
+How to see all this in his own database, read-only, and how to continue is in
+`docs/run-a/p314-read-the-state.md`.
+
+The tracers found the same symptom by a second road, and I measured it: an answer to a part that
+cannot be read came back as the question alone, word for word, because only a field answered whole
+was given its reason. A part's re-ask now opens with what could not be read. That the run never
+stops for a person on one part, however many answers fail, is row 199.
+
+What is left is the silence itself: a fault in reading an answer still reaches the student as
+nothing, followed by the same question. That is row 198, mine, after rows 191 and 194.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P313 — a stopped application asks nothing, and a new one starts from the page
 
 *2026-10-15.* His live run met a stop he had not meant. He pressed "Stop this application" by

@@ -1,0 +1,18 @@
+mutation 04-an-unread-part-asked-without-why on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts apps/conversation-service/src/run-driver.test.ts -t P314
+exit: 1
+restored byte for byte: True
+
+   × an answer to a part that cannot be read is asked again with why (P314) > opens the same part's question with what could not be read 26ms
+     → Sorry — I didn't quite catch that. The form asks whether you hold a British passport. This is your own answer to that question. Do you hold a British passport? Please answer yes or no.: expected false to be true // Object.is equality
+   × an answer to a part that cannot be read is asked again with why (P314) > keeps a decline's own words, as a whole field does 2ms
+     → expected false to be true // Object.is equality
+   ✓ a typed no to the British passport question is read, and the next claim is asked (P314) > walks the other six claims and plays all seven back, and a yes puts them in his profile 449ms
+   × an answer to a claim that cannot be read is answered with why, and the claim is asked again (P314) > says it could not read the answer, then asks the same claim 123ms
+     → The form asks whether you hold a British passport. This is your own answer to that question. Do you hold a British passport? Please answer yes or no.: expected false to be true // Object.is equality
+ Test Files  2 failed (2)
+      Tests  3 failed | 4 passed | 539 skipped (546)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL |unit|  packages/interview/src/interview.test.ts > an answer to a part that cannot be read is asked again with why (P314) > opens the same part's question with what could not be read
+ FAIL |unit|  packages/interview/src/interview.test.ts > an answer to a part that cannot be read is asked again with why (P314) > keeps a decline's own words, as a whole field does
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > an answer to a claim that cannot be read is answered with why, and the claim is asked again (P314) > says it could not read the answer, then asks the same claim
