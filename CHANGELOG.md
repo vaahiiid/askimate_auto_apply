@@ -19,6 +19,41 @@ not shipped artefacts.
 
 ---
 
+## [0.310.0] — 2026-10-16
+
+**P317 — his rule measured, and proposed as ADR-0161; nothing in the product changed.** His words
+(`docs/run-a/p317-his-message-as-sent.txt`): *"Row 209: B, plus a general rule. Not A, not C."*
+and *"Propose this as an ADR first if it changes accepted decisions; otherwise build it
+test-first."* It changes accepted decisions (ADR-0143 §1 and §3, ADR-0154 as amended in P311
+and its §2 (D11), ADR-0148 §4 and §11, and the reach of ADR-0123 Decision 2), so it is proposed
+first.
+
+- **The measurement.** `scripts/required-boxes-hold.ts` (new) plans every answer the interview
+  accepts for every field the signed entry's maps read, single parts and pairs, through the run's
+  own planner, validator, part policy and choice offer, from Run A's synthetic profile. Its output
+  is saved as `docs/run-a/p317-required-boxes.txt`: 5,558 answers over 20 fields; 60 lines, of
+  which one holds his rule (the form's own list offered), 31 break it on a box the entry marks
+  required, and 28 more stop the run on a box it does not, which ADR-0161 §1 (mine) counts too
+  (the output's own tally). By when they stop: 23 after the plan is complete (his run's funding
+  stage among them), 1 at an offer's escape, 23 at the answer for a person, 12 at the fill. `scripts/required-boxes-hold.test.ts` (new, four tests) pins the
+  output, finds his run's case, and sees a box planted on the entry and a rule taken off; the
+  pin was seen red once on purpose. Three refuters read the first output: seven gaps in what it
+  built are now built, and the checker's own seven faults are listed in ADR-0161.
+- **ADR-0161, proposed.** His three decisions in his words; the rule's test; one check after
+  every answer, before the next question, and when a case begins; the funding stage asked after
+  a no where the entry requires it; answering a field again on the student's word, with
+  playback and the press; financial answers corrected by the student, the review then covering
+  only what it reviewed (financial evidence and minors), so a change reopens it. Eleven points
+  come to him (D1 to D11), each touching one of his four or read as touching it.
+- **Rows.** 209 and 189 (1) record his decisions; 202 notes that his rule covers it; 211 to 213
+  opened.
+- `scripts/adr-status-agrees.test.ts` now allows a Proposed ADR in README.md's count and
+  requires the number proposed to be stated, and forbids "all" unless every ADR is Accepted (seen
+  red once on purpose).
+- Version 0.310.0.
+
+---
+
 ## [0.309.0] — 2026-10-16
 
 **P316 — the funding stage his run stopped on: the options, what fills them, and whether his "no"

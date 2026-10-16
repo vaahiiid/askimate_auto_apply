@@ -4906,6 +4906,46 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P317 — his rule measured, and proposed as ADR-0161
+
+*2026-10-16.* His message (`docs/run-a/p317-his-message-as-sent.txt`) settled row 209 in his
+words, *"B, plus a general rule. Not A, not C."*, and set the rule: *"for every required box in a
+signed entry, every answer the interview accepts must either produce a value that satisfies the
+box, or lead the interview to ask the follow-up there and then, never a stop after the plan is
+complete."* He decided row 189 (1) too: *"No person sets a financial answer for a student."* And
+he asked for an ADR first if this changes accepted decisions. It does: ADR-0143's *no* is
+*complete*, ADR-0154 refuses a financial choice, and ADR-0148 §4 never asks a part an earlier
+answer closed. So this phase measured and proposed, and built nothing in the product.
+
+The measurement plans every answer the interview's parsers accept, field by field and in pairs,
+through the run's own planner, validator, part policy and choice offer, from Run A's synthetic
+profile. Of 60 lines on the signed Sheffield entry, one holds his rule (the form's own list
+offered), 31 break it on a box the entry marks required, and 28 more stop the run on a box it does
+not, which ADR-0161 counts too (the output's own tally). By when they stop: twenty-three stop after
+the plan is complete, his run's funding stage among them, and
+one more at an offer whose escape box is too short. Twenty-three stop for a person at the answer,
+and twelve at the fill, because the validator has no rule that a select's value is one of its
+options. Building the checker found seven faults of its own before any number was quoted, listed
+in ADR-0161. Then three refuters found seven gaps in what it built, among them four levels of UK
+study it never tried and residence periods it measured only against hidden boxes. Each is now
+built, and the numbers above are those of the saved output, `docs/run-a/p317-required-boxes.txt`
+(5,558 answers).
+
+ADR-0161 proposes one check after every answer, before the next question, and when a case
+begins, so an answer reused from another application is checked against the entry that reuses
+it, which is his product logic. Each refusal becomes a part asked, the answer asked again with the
+box's own reason, the form's list offered, or a fact the student cannot change said there and
+then. For his run, a *no* is followed by the stage question where the entry requires it. A
+student can answer a field again on their own word, with the playback and the press, financial
+answers included. And a review would cover only the content it reviewed, financial evidence and
+minors alike, so a change after it is reviewed again. That last closes the hole row 189 (1)
+described rather than opening a new one. Eleven points come to him; his run's steps come after the
+build.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P316 — the funding stage his run stopped on, and why his "no" cannot be changed today
 
 *2026-10-16.* His stop named one box: the funding stage, required, which his "no" to *"Do you know

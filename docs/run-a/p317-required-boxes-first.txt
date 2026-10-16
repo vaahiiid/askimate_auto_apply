@@ -1,0 +1,54 @@
+bp-sheffield-pgt-september-direct (blueprint 0.2.36)
+  fields measured: 20; accepted answers planned: 1635
+  breaks_a_required_box: 20
+    contact.address → corrAddress1: maxlength 35, by 1 answer(s): line1="A1BBBBBBBBBB…" (120 characters)
+    contact.address → corrTown: maxlength 50, by 1 answer(s): city="A1BBBBBBBBBB…" (120 characters)
+    education.prior_qualifications → certificateStatus: required, by 1 answer(s): no entries
+    education.prior_qualifications → certificateTranslationStatus: required, by 1 answer(s): no entries
+    education.prior_qualifications → degree: required, by 1 answer(s): no entries
+    education.prior_qualifications → endDateMonth: required, by 1 answer(s): no entries
+    education.prior_qualifications → endDateYear: required, by 1 answer(s): no entries
+    education.prior_qualifications → officialCertTranslStatus: required, by 1 answer(s): no entries
+    education.prior_qualifications → officialTranTranslStatus: required, by 1 answer(s): no entries
+    education.prior_qualifications → startDateMonth: required, by 1 answer(s): no entries
+    education.prior_qualifications → startDateYear: required, by 1 answer(s): no entries
+    education.prior_qualifications → transcriptStatus: required, by 1 answer(s): no entries
+    education.prior_qualifications → transcriptTranslationStatus: required, by 1 answer(s): no entries
+    education.prior_qualifications → unlistedDegree: required, by 1 answer(s): no entries
+    employment.history → duties: required, by 1 answer(s): no entries
+    employment.history → employerDetails: required, by 1 answer(s): no entries
+    employment.history → position: maxlength 200, entry 1, by 1 answer(s): one entry: position="A1BBBBBBBBBB…" (4000 characters)
+    employment.history → position: required, by 1 answer(s): no entries
+    employment.history → startMonth: required, by 1 answer(s): no entries
+    finance.funding → fundingStage: required, by 1 answer(s): known=false
+  held_but_unreadable: 0
+  refused_by_the_map: 16
+    contact.address → corrCountry: render_refused (no_matching_option), by 18 answer(s): countryCode="AQ"; countryCode="AX"; countryCode="BL"; countryCode="BQ"; countryCode="BV"; countryCode="CI"; countryCode="CW"; countryCode="CY"; countryCode="HM"; countryCode="MF"; countryCode="MK"; countryCode="MP"; countryCode="RE"; countryCode="SH"; countryCode="SJ"; countryCode="SX"; countryCode="TF"; countryCode="UM"
+    contact.address → corrPostcode: render_refused (rule_does_not_fit), by 1 answer(s): countryCode="GB"
+    contact.address → corrPostcode2: render_refused (rule_does_not_fit), by 1 answer(s): countryCode="GB"
+    education.prior_qualifications → grade: render_refused (no_matching_case), by 11 answer(s): one entry: institution="1"; one entry: institution="A1BBBBBBBBBB…" (4000 characters); one entry: institution="Example"; one entry: level="Master's degree"; one entry: level="Doctorate"; one entry: level="Diploma"; one entry: level="Certificate"; one entry: level="High school diploma"; one entry: gradeScale="twenty_point"; one entry: gradeScale="gpa_4"; one entry: gradeScale="percentage"
+    education.prior_qualifications → grade: render_refused (no_matching_option), by 3 answer(s): one entry: grade="1"; one entry: grade="A1BBBBBBBBBB…" (4000 characters); one entry: grade="Example"
+    education.prior_qualifications → gradingSystemId: render_refused (no_matching_case), by 3 answer(s): one entry: institution="1"; one entry: institution="A1BBBBBBBBBB…" (4000 characters); one entry: institution="Example"
+    education.prior_qualifications → gradingSystemId: render_refused (no_matching_option), by 4 answer(s): one entry: level="Doctorate"; one entry: level="Diploma"; one entry: level="Certificate"; one entry: level="High school diploma"
+    education.prior_qualifications → institution-ts-control: render_refused (no_matching_option), by 3 answer(s): one entry: institution="1"; one entry: institution="A1BBBBBBBBBB…" (4000 characters); one entry: institution="Example"
+    education.prior_qualifications → institutionCountry-ts-control: render_refused (no_matching_option), by 18 answer(s): one entry: countryCode="AQ"; one entry: countryCode="AX"; one entry: countryCode="BL"; one entry: countryCode="BQ"; one entry: countryCode="BV"; one entry: countryCode="CI"; one entry: countryCode="CW"; one entry: countryCode="CY"; one entry: countryCode="HM"; one entry: countryCode="MF"; one entry: countryCode="MK"; one entry: countryCode="MP"; one entry: countryCode="RE"; one entry: countryCode="SH"; one entry: countryCode="SJ"; one entry: countryCode="SX"; one entry: countryCode="TF"; one entry: countryCode="UM"
+    education.prior_qualifications → subject: render_refused (no_matching_option), by 3 answer(s): one entry: subject="1"; one entry: subject="A1BBBBBBBBBB…" (4000 characters); one entry: subject="Example"
+    education.prior_qualifications → subjectSearch: render_refused (no_matching_option), by 3 answer(s): one entry: subject="1"; one entry: subject="A1BBBBBBBBBB…" (4000 characters); one entry: subject="Example"
+    finance.funding → fundingSource: render_refused (no_such_part), by 2 answer(s): source="scholarship"; source="loan"
+    identity.country_of_birth → countryOfBirth: render_refused (no_matching_option), by 15 answer(s): "AQ"; "BQ"; "BV"; "CW"; "CY"; "GF"; "GP"; "HM"; "IO"; "MF"; "MQ"; "RE"; "SX"; "TF"; "UM"
+    identity.nationality → fundingNationality: render_refused (no_matching_option), by 15 answer(s): "AQ"; "BQ"; "BV"; "CW"; "CY"; "GF"; "GP"; "HM"; "IO"; "MF"; "MQ"; "RE"; "SX"; "TF"; "UM"
+    immigration.uk_study → highestQualification(UNIVERSITY_LEVEL): render_refused (no_matching_option), by 3 answer(s): qualification="1"; qualification="A1BBBBBBBBBB…" (4000 characters); qualification="Example"
+    residence.country → permanentResidence: render_refused (no_matching_option), by 15 answer(s): "AQ"; "AX"; "BL"; "BQ"; "BV"; "CW"; "CY"; "GG"; "HM"; "IM"; "JE"; "LA"; "RE"; "TF"; "UM"
+  not_one_of_the_box_options: 6
+    education.prior_qualifications → awardDateYear: no option carries the text, by 1 answer(s): one entry: award={"year":2031,"month":6}
+    education.prior_qualifications → endDateYear: no option carries the text, by 1 answer(s): one entry: endDate={"year":2031,"month":6}
+    education.prior_qualifications → startDateYear: no option carries the text, by 1 answer(s): one entry: start={"year":2031,"month":6}
+    employment.history → startYear: no option carries the text, by 1 answer(s): one entry: startDate={"year":2031,"month":6}
+    identity.date_of_birth → dobYear: no option carries the text, by 4 answer(s): "2023-05-14T00:00:00.000Z"; "2027-09-30T00:00:00.000Z"; "2031-01-15T00:00:00.000Z"; "1939-12-31T00:00:00.000Z"
+    immigration.uk_study → visaExpiryYear: no option carries the text, by 4 answer(s): currentVisaExpiry="2023-05-14T00:00:00.000Z"; currentVisaExpiry="1990-01-31T00:00:00.000Z"; currentVisaExpiry="2031-01-15T00:00:00.000Z"; currentVisaExpiry="1939-12-31T00:00:00.000Z"
+  offered_from_the_form_list: 1
+    education.prior_qualifications → degree: render_refused (no_matching_option), by 3 answer(s): one entry: awardTitle="1"; one entry: awardTitle="A1BBBBBBBBBB…" (4000 characters); one entry: awardTitle="Example"
+  fields the interview has no spec for (not measured): none
+  composite bases rebuilt exactly from the synthetic profile's own answer: contact.address, education.prior_qualifications, employment.history, finance.funding, identity.passport, immigration.uk_status, residence.history
+  composite bases only near it (the varied answers start from a nearby answer): immigration.uk_study
+

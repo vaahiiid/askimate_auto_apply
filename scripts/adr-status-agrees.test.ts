@@ -266,10 +266,16 @@ describe("an ADR and the index that lists it", () => {
     const total = files.size;
     const accepted = [...files.values()].filter((status) => status === "Accepted").length;
     const readme = readFileSync(join(ROOT, "README.md"), "utf8");
-    const headline = /\| \*\*Decisions\*\* \| (\d+) ADRs · all (\d+) Accepted/u.exec(readme);
+    // P317: the first ADR proposed since this check was written (ADR-0161). "all" is
+    // said only when every ADR is accepted; otherwise the row names how many are
+    // proposed, so a proposal cannot sit in the count looking settled.
+    const proposed = [...files.values()].filter((status) => status === "Proposed").length;
+    const headline = /\| \*\*Decisions\*\* \| (\d+) ADRs · (all )?(\d+) Accepted(?: · (\d+) Proposed)?/u.exec(readme);
     expect(headline, "README.md has its 'N ADRs · all N Accepted' row").not.toBeNull();
     expect(Number(headline?.[1]), "README.md's ADR count").toBe(total);
-    expect(Number(headline?.[2]), "README.md's Accepted count").toBe(accepted);
+    expect(Number(headline?.[3]), "README.md's Accepted count").toBe(accepted);
+    expect(headline?.[2] !== undefined, "README.md says 'all' only when every ADR is accepted").toBe(accepted === total);
+    expect(Number(headline?.[4] ?? 0), "README.md's Proposed count").toBe(proposed);
     const opening = readFileSync(join(ROOT, "docs", "state-of-the-system.md"), "utf8");
     const words = inWords(total);
     expect(words, `no spelling for ${String(total)}`).toBeDefined();

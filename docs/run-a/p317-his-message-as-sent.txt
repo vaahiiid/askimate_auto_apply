@@ -1,0 +1,10 @@
+Row 209: B, plus a general rule. Not A, not C.
+
+The product logic I am testing: any student, interviewed once, applies to many universities; later applications ask less because the student's own answers are reused. My profile on Sheffield is the first test, not the goal. So fix the class, not my run.
+
+1. General rule: for every required box in a signed entry, every answer the interview accepts must either produce a value that satisfies the box, or lead the interview to ask the follow-up there and then, never a stop after the plan is complete. A test checks this for every signed entry and every accepted answer. Today's case: "no" to "Do you know how your studies will be funded?" can never fill the required stage box.
+2. Build the way to answer the funding questions again on the student's own word, with playback and the "Yes, that's right" press.
+3. Row 189 (1): my decision is that a student may correct their own financial answers in the chat, with playback and a press. No person sets a financial answer for a student.
+4. Then tell me the exact steps for my run, ending with the resolve command. I will give my funding answer myself in the chat.
+
+Propose this as an ADR first if it changes accepted decisions; otherwise build it test-first.
