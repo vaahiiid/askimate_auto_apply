@@ -9,7 +9,7 @@
  *
  * Deterministic: no model, no network, nothing written. Each case is Run A's
  * synthetic profile (docs/run-a/synthetic-profile.json) with the keys it names
- * replaced or removed, planned and validated exactly as the orchestrator's
+ * replaced or removed (the --funding cases replace only finance.funding), planned and validated exactly as the orchestrator's
  * `assess` does (`planFill`, then `validatePlan` only when nothing blocks).
  * It prints, per case, the blockers (what the interview would still ask), the
  * violations (what would stop the run at `fix_content`) and the boxes the
@@ -24,7 +24,8 @@
  * choices are not on this profile). Which violation his run met is in his
  * database (`docs/run-a/p315-read-the-halt.md` §2), not here.
  *
- * Usage: tsx scripts/content-stops-on-sheffield.ts [entry.json]
+ * Usage: tsx scripts/content-stops-on-sheffield.ts [--funding] [entry.json]
+ *   (--funding, P316: what each funding answer fills on page 12, box by box)
  */
 
 import { readFileSync } from "node:fs";
@@ -103,7 +104,8 @@ export function outcomeFor(entryPath: string, one: Case): Outcome {
 
 function blockerLine(blocker: FillBlocker): string {
   const key = "fieldKey" in blocker ? ` ${String(blocker.fieldKey)}` : "";
-  return `    ${blocker.kind}${key} → ${blocker.fieldRef}`;
+  const refusal = blocker.kind === "render_refused" ? ` (${blocker.refusal.kind})` : "";
+  return `    ${blocker.kind}${key} → ${blocker.fieldRef}${refusal}`;
 }
 
 export function describe(one: Case, outcome: Outcome): string {
@@ -111,7 +113,16 @@ export function describe(one: Case, outcome: Outcome): string {
   lines.push(`  blockers: ${String(outcome.plan.blockers.length)}`);
   lines.push(...outcome.plan.blockers.map(blockerLine));
   if (outcome.validation === null) {
-    lines.push("  not validated: the plan blocks, so the step is the interview");
+    // `nextStep` (packages/orchestrator/src/run.ts): a blocker that is not a
+    // missing value is structural, and the run stops for a person. Whether the
+    // form's own list is offered first depends on the box's recorded escape
+    // (P290), which this measure does not compute.
+    const missingOnly = outcome.plan.blockers.every((blocker) => blocker.kind === "value_unavailable");
+    lines.push(
+      missingOnly
+        ? "  not validated: the plan blocks, so the step is the interview"
+        : "  not validated: the plan blocks on something not missing, so the step is a person's stop (specialist)",
+    );
     return lines.join("\n");
   }
   lines.push(`  violations: ${String(outcome.validation.violations.length)}`);
@@ -127,10 +138,58 @@ export function describe(one: Case, outcome: Outcome): string {
   return lines.join("\n");
 }
 
+/**
+ * P316: what each funding answer fills on page 12, box by box. Vahid,
+ * 2026-10-16 (docs/run-a/p316-his-message-as-sent.txt): *"Which profile
+ * field(s) the mapping reads to fill fundingStage, and which value of mine
+ * would map to each option."* His held "no", then a yes with each of the five
+ * stages, then a scholarship the form lists and one it does not.
+ */
+export const FUNDING_BOXES: readonly string[] = ["fundingSourceKnown", "fundingSource", "fundingDetails", "fundingStage"];
+
+const stageCase = (stage: string): Case => ({
+  name: `funding known: self or family, stage ${stage}`,
+  replace: { "finance.funding": { known: true, source: "self_or_family", stage } },
+  remove: [],
+});
+
+export const FUNDING_CASES: readonly Case[] = [
+  { name: "funding not known (his answer of 2026-10-16)", replace: { "finance.funding": { known: false } }, remove: [] },
+  ...["confirmed", "project_studentship", "applied", "applying", "considering"].map(stageCase),
+  {
+    name: "funding known: a scholarship the form lists, stage applying",
+    replace: { "finance.funding": { known: true, source: "scholarship", stage: "applying", details: "Chevening Scholarship" } },
+    remove: [],
+  },
+  {
+    name: "funding known: a scholarship the form does not list, stage applying",
+    replace: { "finance.funding": { known: true, source: "scholarship", stage: "applying", details: "A scholarship not on the list" } },
+    remove: [],
+  },
+];
+
+/** The value the plan puts in each funding box, or that it plans none. */
+export function plannedFunding(outcome: Outcome): string {
+  return FUNDING_BOXES.map((ref) => {
+    const instruction = outcome.plan.instructions.find((candidate) => candidate.fieldRef === ref);
+    if (instruction === undefined) return `    ${ref}: not planned`;
+    let value: unknown = instruction.value;
+    while (value !== null && typeof value === "object" && "value" in value) value = (value as { readonly value: unknown }).value;
+    return `    ${ref}: ${JSON.stringify(value)}`;
+  }).join("\n");
+}
+
 if (process.argv[1] !== undefined && import.meta.filename === process.argv[1]) {
-  const entryPath = process.argv[2] ?? join(ROOT, "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json");
+  const funding = process.argv.includes("--funding");
+  const entryPath =
+    process.argv.slice(2).find((arg) => !arg.startsWith("--")) ?? join(ROOT, "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json");
   const entry = readEntry(entryPath);
   const lines = [`Sheffield's entry: blueprint ${entry.blueprint.version}, mapping set ${entry.mappingSet.version}.`, ""];
-  for (const one of CASES) lines.push(describe(one, outcomeFor(entryPath, one)), "");
+  for (const one of funding ? FUNDING_CASES : CASES) {
+    const outcome = outcomeFor(entryPath, one);
+    lines.push(describe(one, outcome));
+    if (funding) lines.push("  planned on page 12:", plannedFunding(outcome));
+    lines.push("");
+  }
   process.stdout.write(`${lines.join("\n")}\n`);
 }

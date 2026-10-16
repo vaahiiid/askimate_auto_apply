@@ -1,0 +1,90 @@
+Sheffield's entry: blueprint 0.2.36, mapping set 0.3.48.
+
+funding not known (his answer of 2026-10-16)
+  blockers: 0
+  violations: 1
+    "What stage are you at with your funding?" (fundingStage): required [observed_marker]
+  boxes the entry does not know: 0
+  so: fix_content, a person
+  planned on page 12:
+    fundingSourceKnown: "No"
+    fundingSource: ""
+    fundingDetails: ""
+    fundingStage: ""
+
+funding known: self or family, stage confirmed
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+  planned on page 12:
+    fundingSourceKnown: "Yes"
+    fundingSource: "Self or Family"
+    fundingDetails: ""
+    fundingStage: "The funding has been confirmed"
+
+funding known: self or family, stage project_studentship
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+  planned on page 12:
+    fundingSourceKnown: "Yes"
+    fundingSource: "Self or Family"
+    fundingDetails: ""
+    fundingStage: "I am applying for a project studentship"
+
+funding known: self or family, stage applied
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+  planned on page 12:
+    fundingSourceKnown: "Yes"
+    fundingSource: "Self or Family"
+    fundingDetails: ""
+    fundingStage: "I have applied for funding"
+
+funding known: self or family, stage applying
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+  planned on page 12:
+    fundingSourceKnown: "Yes"
+    fundingSource: "Self or Family"
+    fundingDetails: ""
+    fundingStage: "I am applying for funding"
+
+funding known: self or family, stage considering
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+  planned on page 12:
+    fundingSourceKnown: "Yes"
+    fundingSource: "Self or Family"
+    fundingDetails: ""
+    fundingStage: "I am thinking about funding my studies this way"
+
+funding known: a scholarship the form lists, stage applying
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+  planned on page 12:
+    fundingSourceKnown: "Yes"
+    fundingSource: "Chevening Scholarship"
+    fundingDetails: "Chevening Scholarship"
+    fundingStage: "I am applying for funding"
+
+funding known: a scholarship the form does not list, stage applying
+  blockers: 1
+    render_refused finance.funding → fundingSource (no_matching_option)
+  not validated: the plan blocks on something not missing, so the step is a person's stop (specialist)
+  planned on page 12:
+    fundingSourceKnown: "Yes"
+    fundingSource: not planned
+    fundingDetails: "A scholarship not on the list"
+    fundingStage: "I am applying for funding"
+

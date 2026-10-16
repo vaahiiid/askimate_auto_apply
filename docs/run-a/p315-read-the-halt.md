@@ -170,7 +170,7 @@ repository rule one out, the row says so; which one it is, only `encountered` sa
 |---|---|---|
 | `"If your qualification is not in the list please enter it here:" (unlistedDegree, entry k): maxlength 28` | Qualification `k`'s award title went to the "not in the list" box, which takes 28 characters. **Not expected for him:** his doctorate's title is held as *DBA* (his message of P312: *"In the chat I corrected: e-mail, doctorate award title (DBA), … Each was played back and confirmed."*), and the choice he recorded was for it (P314: *"Not in list for HHE, DBA and International Business"*), 3 characters. | A shorter title, in the chat: `my doctorate award title is <shorter>, not <as held>`, then "Yes, that's right" on the playback. |
 | `"If you cannot find your institution listed, please enter its name below." (unlistedInstitution, entry k): maxlength 95`, or `(unlistedSubject, …): maxlength 58` | The name taken for "not in the list" is longer than the box. **Not expected for him**, on the same words: *HHE* is 3 characters and *International Business* 22. | A shorter name, in the chat, the same way: `my … institution is <shorter>, not <as held>`. |
-| `"What stage are you at with your funding?" (fundingStage): required` | His funding is held as not known, and the box is required (measured: the script's "funding not known"). **Not expected for him:** row 86 records that he knows his funding; (5) shows `finance.funding`. | Not in the chat: "not known" holds no words a correction can find, and the stage is asked only after a yes to *"Do you know yet how your studies will be funded?"*. It touches money, so it is his: a true stage, set by a person, or the entry's rule under his signature. |
+| `"What stage are you at with your funding?" (fundingStage): required` | His funding is held as not known, and the box is required (measured: the script's "funding not known"). **His, since 2026-10-16** (P316): his *no*, and the stop it made. | Not in the chat, and by no other path today (P316, `docs/run-a/p316-funding-stage.md` §3). What could settle it, each his to choose because it touches money, is §4 there. |
 | `"Start Date:*" (startMonth): required` with `position`, `employerDetails` and `duties`, no entry number | His job list was confirmed empty, and the employment page's boxes are checked as if one job were there (row 202; measured: the script's "a job list confirmed empty"). | Not in the chat; his to decide (row 202). |
 | any other `maxlength`: address line 1 (35), town (50), international postcode (20, shown when the address's country is not the United Kingdom), job title (200), funding details (118), the highest qualification studied in the UK at level "other" (100), passport number (30) | That answer is longer than the box. These are the only other boxes with a limit that the entry fills. The rest with a limit (the second and third address lines, telephone, grade, the permanent address, and page 10's "more details" and four other-institution and course boxes) are not filled, so no value reaches them. A UK postcode is split at its own seam into two boxes of 4. A passport number answered in the interview is read as 5 to 20 characters; one changed in the chat is not read again. | A shorter answer, in the chat: `my <what> is <shorter>, not <as held>`. |
 | `0 violations:` | A planned box the entry does not know. `encountered` never names such a box; when boxes like it come with violations, they are not mentioned at all, so a run whose named violations are cleared can stop again with `0 violations:`. | A person: the entry. |
@@ -197,10 +197,14 @@ stops again at once, as a new intervention:
 AAS_CONVERSATION_URL=http://127.0.0.1:4870 AAS_SERVICE_CERT=browser-runner pnpm run interventions resolve <the id from §1> --specialist "Vahid Mohammadi" --did-not-happen --actions "<what was corrected, in the chat>" --resolution "Resumed after the correction"
 ```
 
-If the cause has changed, he is told the application is moving again, and the next step is the
-preview of the whole application for his approval (`authorise`, `packages/orchestrator/src/run.ts`
-after `fix_content`), not a question, unless the change left a question open. No account is
-created and nothing is filled before he approves that preview.
+If the cause has changed, he is told the application is moving again. The next step is not a
+question, unless the change left one open. Unless an approving financial-evidence review is already
+recorded on this case, the run first stops for that mandatory review (any held funding answer
+raises it): *"Before I show you your University of Sheffield application to approve, a member of
+the team needs to check it over …"*; his P308 steps (step 7) say how it is recorded and its stop
+resolved (corrected in P316; this sheet first said the preview came next). Then comes the preview
+of the whole application for his approval (`authorise`, `packages/orchestrator/src/run.ts` after
+`fix_content`). No account is created and nothing is filled before he approves that preview.
 
 `--did-not-happen` is the one taken: this stop recorded no action on the portal, and
 `--did-happen` is refused (`validation_failed`). The resolution re-plans from his answers as they

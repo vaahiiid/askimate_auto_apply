@@ -4906,6 +4906,38 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P316 — the funding stage his run stopped on, and why his "no" cannot be changed today
+
+*2026-10-16.* His stop named one box: the funding stage, required, which his "no" to *"Do you know
+yet how your studies will be funded?"* leaves empty. In his words
+(`docs/run-a/p316-his-message-as-sent.txt`): *"Funding touches money: give me the facts, I choose the
+answer."* So this phase chooses nothing.
+
+The box has five sentences after *Select...*, in the order his own capture of 2026-09-25 holds them,
+and the entry shows it whatever the answer to *"Do you know…"* is. Whether Sheffield's own page hides
+it for *No* lives in a script nobody has captured, which is rows 82 and 86. The stage is held only
+after a yes, with a source; each of the five fills its sentence, and his *no* fills nothing, which
+the required rule refuses. I measured his *no*, every stage with one source, and two scholarship
+names through the run's own planner, and kept the measure (`scripts/content-stops-on-sheffield.ts
+--funding`).
+
+No sentence he could type reaches a held *no*: a correction finds its answer by the words it holds,
+and a yes-or-no holds none. Even if one were found, the stage is a financial choice, which a refusal
+of mine, kept since before P311 and his to decide, keeps from being changed by words. A person's
+resolution takes no value, and nothing else reopens a held answer. So there is no path today short
+of a hand edit, which his message told this phase not to make. Three ways could be built or read,
+each his because it touches money: the script read written as ADR-0160 §4 step 1, then an entry
+patch if the form hides the stage for *No*; a way to ask the funding questions again; or a person
+setting a whole yes. The P315 sheet had named the third as if it existed, and had put the preview
+straight after a resolve, where a mandatory financial-evidence review stands first; it now says
+both. Seven refuters read the first draft of his sheet, and one found what the read tool had
+missed: his saved page marks the funding source with the same asterisk as the stage, and the entry
+records no rule on it, because the tool skips a row longer than 400 characters (row 210).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P315 — the halt after the residence list, read and explained
 
 *2026-10-16.* His run halted after the residence list with *"Something in your application needs

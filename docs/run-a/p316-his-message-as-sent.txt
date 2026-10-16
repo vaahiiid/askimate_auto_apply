@@ -1,0 +1,8 @@
+§1 shows the halt: iv_5c3c16a2…, specialist:content_rejected, 1 violation: fundingStage required ("What stage are you at with your funding?"). This is my "no" to "Do you know yet how your studies will be funded?", given and confirmed today; row 86 is out of date for this run.
+
+Read-only, from the signed Sheffield entry and the code, without guessing:
+1. The exact options of the fundingStage box, in the form's own order and words.
+2. Which profile field(s) the mapping reads to fill fundingStage, and which value of mine would map to each option.
+3. Whether I can change my funding answer in the chat today (exact sentence the correction reader accepts, given my stored "no"), or whether no path exists and this needs building first.
+4. If a path exists: the exact steps, ending with the resolve command with --did-not-happen.
+Do not resolve the intervention and do not edit my database. Funding touches money: give me the facts, I choose the answer.

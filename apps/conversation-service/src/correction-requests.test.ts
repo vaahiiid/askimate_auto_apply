@@ -255,3 +255,41 @@ describe("his country of permanent residence, corrected in his words (P315)", ()
     ]);
   });
 });
+
+describe("a held funding no, and the sentences he might type (P316)", () => {
+  // His message of 2026-10-16 (docs/run-a/p316-his-message-as-sent.txt): *"Whether I can change my
+  // funding answer in the chat today (exact sentence the correction reader accepts, given my stored
+  // "no") …"* Today none: a no is held as a boolean, and a place is found only by words. When a way to
+  // change a funding answer is built, this is the test that says so.
+  const wordsFor = (target: { readonly fieldKey: string; readonly part?: string }): readonly string[] => [
+    FIELD_LABELS[target.fieldKey as ProfileFieldKey],
+    ...(target.part === undefined ? [] : [partLabel(target.fieldKey as ProfileFieldKey, target.part) ?? target.part]),
+  ];
+  const held = new Map<string, unknown>([
+    ["finance.funding", { known: false }],
+    ["residence.in_uk_now", true],
+    ["identity.nationality", "IR"],
+  ]);
+
+  it("no correction sentence finds his funding answer, with a question open or not", () => {
+    for (const said of [
+      "it's yes, not no",
+      "change my funding answer from no to yes",
+      "my answer to do you know how your studies will be funded is yes, not no",
+      "change my funding from No to Yes",
+      "my funding stage is confirmed, not nothing",
+    ]) {
+      const reading = readCorrectionRequest(said);
+      if (reading.kind !== "request") expect.unreachable(`${said}: not read as a correction`);
+      for (const answering of [false, true]) {
+        expect(placesToCorrect({ confirmed: held, from: reading.from, context: reading.context, answering, wordsFor }), said).toEqual([]);
+      }
+    }
+  });
+
+  it("the stage and the source would be refused as financial even if found", () => {
+    expect(refusedPart({ fieldKey: "finance.funding", part: "stage" })).toBe("financial");
+    expect(refusedPart({ fieldKey: "finance.funding", part: "source" })).toBe("financial");
+  });
+});
+

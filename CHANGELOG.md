@@ -19,6 +19,30 @@ not shipped artefacts.
 
 ---
 
+## [0.309.0] — 2026-10-16
+
+**P316 — the funding stage his run stopped on: the options, what fills them, and whether his "no"
+can be changed; nothing in the product changed.** His words (`docs/run-a/p316-his-message-as-sent.txt`):
+*"Funding touches money: give me the facts, I choose the answer."*
+
+- **The box.** *"What stage are you at with your funding?"*, required, with no condition: Select...,
+  then five sentences in the form's order, read from his own capture of 2026-09-25. Whether the
+  form hides it for *No* is unread (rows 82 and 86).
+- **What fills it.** `finance.funding`'s `stage` part, asked only after a yes; each of the five
+  stages fills its sentence, and his held *no* fills nothing, which the required rule refuses
+  (measured: `scripts/content-stops-on-sheffield.ts --funding`, its output saved as
+  `docs/run-a/p316-funding-on-page-12.txt`, with four new tests).
+- **No path to change it today.** No sentence the correction reader accepts reaches a held *no*
+  (two new tests in `correction-requests.test.ts`); a person's resolution takes no value; nothing
+  else reopens it. What could settle it, each his: the script read written as ADR-0160 §4 step 1,
+  and an entry patch; a way to ask the funding questions again; a person setting a whole yes.
+- **For him.** `docs/run-a/p316-funding-stage.md`. Row 86 updated with his words; row 209, his to
+  decide; row 210, the read tool skips a marked row longer than 400 characters, so the entry records
+  no rule on the funding source his saved page marks. The P315 sheet corrected twice: its funding
+  row named a person setting a stage as a way out, which does not exist, and its §4 put the preview
+  straight after a resolve, where the mandatory financial-evidence review stands first.
+- Version 0.309.0.
+
 ## [0.308.0] — 2026-10-16
 
 **P315 — the halt after his residence list, read and explained; nothing in the product changed.**
