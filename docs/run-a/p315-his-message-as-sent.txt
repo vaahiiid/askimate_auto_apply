@@ -1,0 +1,9 @@
+My live run has halted: the page says "Something in your application needs putting right before it goes further. It is with a member of the team." Nothing pressed since.
+
+Last steps before it: country of permanent residence = Iran (confirmed). Then "places you have lived, other than where you live now": I listed United Kingdom, from May 2023, still living there. The list was played back; I typed "yes" instead of pressing "Yes, that's right"; then the halt appeared.
+
+Read-only, without guessing: which intervention was raised, its kind and its reason text, from the code and my database. Give me the command to show it and tell me how to resolve it so the run continues. If the cause is the contradiction between permanent residence Iran and a current period in the UK, say what the code expects me to correct, and whether I can correct permanent residence in chat. Do not edit my database by hand and do not resolve the intervention yourself.
+
+File after row 202, do not build now:
+Row 203. Country questions (nationality, birth, residence, residence periods) get a searchable list of countries rather than free typing; typing stays accepted. Today "iranian" was refused.
+Row 204. A halt must tell the student in one line what needs correcting, not only that something does.

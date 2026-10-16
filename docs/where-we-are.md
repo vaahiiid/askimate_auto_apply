@@ -4906,6 +4906,46 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P315 — the halt after the residence list, read and explained
+
+*2026-10-16.* His run halted after the residence list with *"Something in your application needs
+putting right before it goes further."* In his words (`docs/run-a/p315-his-message-as-sent.txt`):
+*"Read-only, without guessing: which intervention was raised, its kind and its reason text, from
+the code and my database."*
+
+The line is the `fix_content` step's. It comes only when every value the form needs is held and the
+planned content breaks a rule the signed entry records for a box, or fills a box the entry does not
+know. An advance of the run raises a person's stop for it, target `specialist:content_rejected`,
+with the boxes and rules in its text. His suspicion was the contradiction between permanent
+residence in Iran and a current period in the United Kingdom. I measured it instead of reasoning
+about it: with his residence answers in Run A's synthetic profile, the plan is complete and breaks
+no rule (`scripts/content-stops-on-sheffield.ts`, kept, with its output and a test). No validation
+rule compares one answer with another. The cause is in another of his answers, or a box the entry
+does not know, and only the stop's own text names it.
+
+A typed "yes" on a list's playback confirms nothing, so his profile holds the list; his database
+says how it got there. A job list confirmed empty fails the employment page's rules and stops for
+good, which is row 202, his to decide. His sheet, `docs/run-a/p315-read-the-halt.md`, reads his
+stop in two commands, says what each text a path like his can meet means and what clears it, and
+leaves the resolution for him to run. Permanent residence can be corrected in chat, but it is not
+the cause, and changing it would leave his other residence answers, given about Iran, as they are.
+
+The first draft of his sheet was put to eighteen refuters (five in the read-only workflow, thirteen after it), and it changed. The page re-reads the run
+whenever a line reaches the conversation, and the stop's own message is such a line, so a raised
+stop normally shows *"Your application is with a member of the team. I will come back to you."*
+within a second. A page that keeps the `fix_content` line with no pause message in the chat
+therefore points to a run still `running` with no stop raised, or to a page whose stream stopped
+(row 194). If no stop was raised and the worker is up, it is not reaching this run, or its advance
+of it fails or refuses. The worker counts a failure and writes nothing, so the log the first draft
+pointed him to could not have said why (row 207). The refuters also showed that his doctorate's
+title is already held as *DBA*, so the box the first draft named first is not expected to be his,
+and that a correction confirmed while a person holds the run can put the next question at once
+(row 208).
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P314 — an answer to the UK status's claims is recorded, and the walk moves on
 
 *2026-10-16.* His new application, started from the page after P313, recorded its three list

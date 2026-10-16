@@ -19,6 +19,41 @@ not shipped artefacts.
 
 ---
 
+## [0.308.0] — 2026-10-16
+
+**P315 — the halt after his residence list, read and explained; nothing in the product changed.**
+His live run, in his words (`docs/run-a/p315-his-message-as-sent.txt`): *"Read-only, without
+guessing: which intervention was raised, its kind and its reason text, from the code and my
+database."*
+
+- **What the halt is.** The page's line is the `fix_content` step's: every value the form needs is
+  held, and the planned content breaks a rule the signed entry records for a box, or fills a box
+  the entry does not know. An advance of the run (in his journey the worker's next pass) raises an
+  intervention with target `specialist:content_rejected`, reason column `information_unobtainable`,
+  priority `high`, and the boxes and rules in its `encountered` text. A page that keeps the line
+  with no pause message in the chat means no stop was raised, or the page's stream stopped.
+- **Not the residence answers.** No validation rule compares one answer with another; each box's
+  rules are its own. Measured on Run A's synthetic profile with his residence answers (permanent
+  residence Iran; the United Kingdom from May 2023, current): no missing value and no violation
+  (`scripts/content-stops-on-sheffield.ts`, new, its output saved as
+  `docs/run-a/p315-content-stops-on-sheffield.txt` and pinned by its test). A typed "yes" on a
+  list's playback confirms nothing (read in the code; pinned for a typed "no" by an existing
+  driver test), so his profile holds the list.
+- **For him.** `docs/run-a/p315-read-the-halt.md`: the queue command, a read-only query session
+  (run against the content stop the driver test makes on its test blueprint; that output not
+  kept), what each text a path like his can meet means and what clears it, the resolution command
+  for him to run, and the correction of permanent residence in chat. That correction names his
+  country of permanent residence and reads "United Kingdom" or "GB", not "UK" or "the United
+  Kingdom" (`correction-requests.test.ts`, three new tests).
+- **Rows 200 to 208.** 200 and 201 mine (what a content stop's record says; the page's line read
+  before the run is held); 202 his to decide, undecided (a list confirmed empty fails validation,
+  measured by the new script); 203 and 204 in his own words, filed at his instruction and not
+  built; 205 and 206 mine (a content stop's words after a resume; a line typed while a person holds
+  the run gets no reply); 207 mine (a run whose advance fails is counted by the worker and named
+  nowhere); 208 mine (a correction confirmed while a person holds the run can put the next question
+  at once).
+- Version 0.308.0.
+
 ## [0.307.0] — 2026-10-16
 
 **P314 — an answer to the UK status's claims is recorded, and the walk moves on.** His live run, in

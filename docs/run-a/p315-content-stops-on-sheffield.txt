@@ -1,0 +1,55 @@
+Sheffield's entry: blueprint 0.2.36, mapping set 0.3.48.
+
+Run A's synthetic profile as it is
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+
+his residence answers
+  blockers: 0
+  violations: 0
+  boxes the entry does not know: 0
+  so: no stop for content
+
+his residence answers, the list not yet confirmed
+  blockers: 20
+    value_unavailable residence.history → previousCountry1
+    value_unavailable residence.history → dateFromMonth1
+    value_unavailable residence.history → dateFromYear1
+    value_unavailable residence.history → dateToMonth1
+    value_unavailable residence.history → dateToYear1
+    value_unavailable residence.history → previousCountry2
+    value_unavailable residence.history → dateFromMonth2
+    value_unavailable residence.history → dateFromYear2
+    value_unavailable residence.history → dateToMonth2
+    value_unavailable residence.history → dateToYear2
+    value_unavailable residence.history → previousCountry3
+    value_unavailable residence.history → dateFromMonth3
+    value_unavailable residence.history → dateFromYear3
+    value_unavailable residence.history → dateToMonth3
+    value_unavailable residence.history → dateToYear3
+    value_unavailable residence.history → previousCountry4
+    value_unavailable residence.history → dateFromMonth4
+    value_unavailable residence.history → dateFromYear4
+    value_unavailable residence.history → dateToMonth4
+    value_unavailable residence.history → dateToYear4
+  not validated: the plan blocks, so the step is the interview
+
+a job list confirmed empty
+  blockers: 0
+  violations: 4
+    "Start Date:*" (startMonth): required [specialist_noted]
+    "Job Title / Position held:*" (position): required [specialist_noted]
+    "Name and address of employer:*" (employerDetails): required [specialist_noted]
+    "Brief Overview of Duties(Max 4000 characters):*" (duties): required [specialist_noted]
+  boxes the entry does not know: 0
+  so: fix_content, a person
+
+funding not known
+  blockers: 0
+  violations: 1
+    "What stage are you at with your funding?" (fundingStage): required [observed_marker]
+  boxes the entry does not know: 0
+  so: fix_content, a person
+

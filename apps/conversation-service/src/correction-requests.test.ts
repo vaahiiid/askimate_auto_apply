@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { FIELD_LABELS, partLabel } from "@askimate/aas-profile";
+import type { ProfileFieldKey } from "@askimate/aas-profile";
+
 import { closedPart, namedPlace, placesHolding, placesSaying, placesToCorrect, readCorrectionRequest, refusedPart } from "./correction-requests.js";
 
 // P288, ADR-0154. Vahid: *"a confirmed value should be correctable by asking,
@@ -204,5 +207,51 @@ describe("the places a correction may be about, before one is named (P311)", () 
     expect(placesToCorrect({ confirmed: held, from: "Iran", context: "my nationality", answering: true, wordsFor })).toEqual([{ fieldKey: "identity.nationality" }]);
     // The stored words are a correction while a question is open, as since P288.
     expect(placesToCorrect({ confirmed: held, from: "IR", context: "", answering: true, wordsFor })).toEqual([{ fieldKey: "identity.nationality" }]);
+  });
+});
+
+describe("his country of permanent residence, corrected in his words (P315)", () => {
+  // His message of 2026-10-16 (docs/run-a/p315-his-message-as-sent.txt):
+  // *"say … whether I can correct permanent residence in chat."* The words a
+  // place is found by are the driver's own (`#correctedAtRequest`): the field's
+  // label and its part's.
+  const wordsFor = (target: { readonly fieldKey: string; readonly part?: string }): readonly string[] => [
+    FIELD_LABELS[target.fieldKey as ProfileFieldKey],
+    ...(target.part === undefined ? [] : [partLabel(target.fieldKey as ProfileFieldKey, target.part) ?? target.part]),
+  ];
+  // Iran held three times, as his answers are: nationality, birth, residence.
+  const held = new Map<string, unknown>([
+    ["identity.nationality", "IR"],
+    ["identity.country_of_birth", "IR"],
+    ["residence.country", "IR"],
+    ["residence.history", [{ countryCode: "GB", from: { year: 2023, month: 5 }, to: { kind: "current" } }]],
+  ]);
+  const said = "my country of permanent residence is United Kingdom, not Iran";
+
+  it("names his country of permanent residence, and no other answer that holds Iran", () => {
+    const reading = readCorrectionRequest(said);
+    if (reading.kind !== "request") expect.unreachable(`not read as a correction: ${reading.kind}`);
+    expect([reading.from, reading.to]).toEqual(["Iran", "United Kingdom"]);
+    const places = placesToCorrect({ confirmed: held, from: reading.from, context: reading.context, answering: false, wordsFor });
+    expect(places.length, "Iran is held in three answers").toBeGreaterThan(1);
+    expect(namedPlace(places, held, reading.context, wordsFor)).toEqual({ fieldKey: "residence.country" });
+  });
+
+  it("takes the new country only as the table names it: United Kingdom or GB, not UK or the United Kingdom", () => {
+    const country = closedPart("residence.country", undefined);
+    if (country === null) expect.unreachable("residence.country is a closed list");
+    expect(country.read("United Kingdom")).toBe("GB");
+    expect(country.read("GB")).toBe("GB");
+    expect(country.read("UK")).toBeNull();
+    expect(country.read("the United Kingdom")).toBeNull();
+  });
+
+  it("an answer that holds the words Iran as typed is found first, so the playback is what says which answer changes", () => {
+    const typed = new Map<string, unknown>([...held, ["identity.passport", { kind: "held", issuingCountry: "Iran" }]]);
+    const reading = readCorrectionRequest(said);
+    if (reading.kind !== "request") expect.unreachable(`not read as a correction: ${reading.kind}`);
+    expect(placesToCorrect({ confirmed: typed, from: reading.from, context: reading.context, answering: false, wordsFor })).toEqual([
+      { fieldKey: "identity.passport", part: "issuingCountry" },
+    ]);
   });
 });
