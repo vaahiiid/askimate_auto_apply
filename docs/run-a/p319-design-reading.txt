@@ -1,0 +1,1061 @@
+P319's reading of the build against the accepted ADRs, before any code: three maps, a design and two critics,
+printed by script from the workflow's journal (run wf_a688e8b2-626). Nothing here is retyped. Paths under /tmp
+are the session's scratchpad, which is not kept. Line numbers are to HEAD 5311eeaf unless a finding says otherwise.
+
+
+################ map:records
+{
+ "summary": "This is a read-only map of the accepted decisions that bind P319: asking the funding stage, and the source, after a \"no\".\n\n**Citation basis.** Line numbers are to HEAD 5311eeaf. While I was mapping, the parent session added an uncommitted \"His answers on row 214\" section to ADR-0161 at working-tree lines 110-130, so every later ADR-0161 line is shifted in the working tree. CLAUDE.md and state-of-the-system.md were also modified. My only scratch file is /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-map/state-HEAD.md, a copy of state-of-the-system.md at HEAD.\n\n**What binds the build, in short.**\n- ADR-0161 is accepted and phased. D1 puts \"the funding stage after \"no\"\" in phase 1. Its §4, as amended by D2, requires the stage to be asked before the playback, wherever the entry requires it, \"with the form's own question and its five options as the entry records them\". The answer then holds { known: false, stage }. The source is asked too \"when its box is required\".\n- His row-214 answer 6 settles that the source box counts as required on his observed asterisk. The source is asked on his run in P319. The entry change is prepared and not signed.\n- ADR-0143 still forbids an invented \"don't know\" source and any derivation of `known`. Its §1 was amended by ADR-0161 for the stage and, through D2, the source; details are still asked only of a yes.\n- ADR-0148 §4 as built says which parts are asked and required comes from the signed entry and is \"never authored\". ADR-0161 §3 lets a part an earlier answer closed be asked only where a required box reads it.\n- ADR-0123 Decision 2 still requires a stop for a person, said plainly, when nothing can be asked. The task's label is slightly off: \"a star is not a requirement\" is Decision 1 (lines 23-45). Decision 2 is the stop.\n- ADR-0154's financial refusal is withdrawn by ADR-0161 §6, but the code still refuses until §8 item 4 is built. No person may ever set a financial answer.\n- ADR-0155 offers a form's list only for a value the plan refused, and only where an escape is recorded. Neither funding box has an escape recorded in the entry.\n- ADR-0158 is accepted in direction only, with nothing built. Its newest words from him (2026-10-15) say a near match to a form's list is \"only ever suggested, never chosen\".\n\n**Candidate departures.** I found nine places where a P319 build may have to depart from an accepted ADR. Under his new rule each must be asked and recorded, and nothing built on it until he answers:\n1. Asking the source on his run before he signs the entry change needs a requirement the signed entry does not hold (its source box has `validations: []`). The part policy is \"Never authored\".\n2. Offering all of the form's source options brings in the escape, the 22 scholarships and the 3 loans. That collides with ADR-0143 §3 (closed vocabulary), ADR-0155 §1 (no escape on record), ADR-0109 as amended (the escape only on a recorded choice), and D7's later phase. Offering only the general options would be narrower than D2's \"the form's own … options\".\n3. Scholarship or loan after a \"no\" needs a name, which ADR-0143 §1 asks only of a yes. Without it the map refuses and a person has to settle it, which breaks his rule. The shrinking-list gate would not show this: its key carries no answer, so the break folds into a line already listed.\n4. When the question shows the form's sentences, a typed \"confirmed\" could be a vocabulary reading (ADR-0148 §5) or a near match that may only be suggested (ADR-0158, his words of 2026-10-15).\n5. The playback and later corrections must use the words the student was shown (ADR-0148 P234; ADR-0154 P311, his words). The correction finder knows only the spec's portal-neutral words.\n6. \"A minor's review covers every answer\" may reach beyond profile entries, for example to choices recorded from a form's list. The fingerprint must stay value-free either way.\n7. His held \"no\" is not reached by asking \"after a student answers no\". The route is answering the field again (ADR-0161 §5, §8 item 4), or a check outside D10's two moments.\n8. ADR-0154 §2 sends any correction to a person once any page is saved. ADR-0161 §5 uses \"a page holding it\".\n9. Records points, not departures:\n   - The source requirement rests on a star he observed, which ADR-0123 Decision 1 says is not evidence. The entry already records stars this way (fundingStage).\n   - ADR-0123, 0143, 0148, 0154, 0155 and 0158 carry no back-reference to ADR-0161.\n\n**Known risk.** If Sheffield's script hides the source and stage rows for a \"no\", filling them meets hidden boxes. That script is still unread (rows 82 and 86). ADR-0160 holds page 12 on his run until that is settled.",
+ "facts": [
+  {
+   "claim": "ADR-0161 is Accepted and phased. At HEAD it says what it amends: ADR-0143 §1 and §3, ADR-0154 as amended in P311, ADR-0148 §4 and §11 as built, and the reach (not the rule) of ADR-0123 Decision 2.",
+   "where": "docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:3-18 (HEAD 5311eeaf)",
+   "quote": "amends ADR-0143 §1 and §3, ADR-0154 as amended in P311, ADR-0148 §4 and §11 (as built in P231 and P233), and the reach, not the rule, of ADR-0123 Decision 2"
+  },
+  {
+   "claim": "His general rule, in his words. A P319 build must make a 'no' either fill the stage box or lead to the follow-up there and then. It must never be a stop after the plan is complete.",
+   "where": "docs/decisions/0161-…md:30-34 (HEAD)",
+   "quote": "for every required box in a signed entry, every answer the interview accepts must either produce a value that satisfies the box, or lead the interview to ask the follow-up there and then, never a stop after the plan is complete. A test checks this for every signed entry and every accepted answer. Today's case: \"no\" to \"Do you know how your studies will be funded?\" can never fill the required stage box."
+  },
+  {
+   "claim": "§1 (the agent's definition, applied under the 2026-10-14 rule per ADR-0161:507) forbids every kind of person's stop as a way of holding the rule. That includes a stop said in the interview.",
+   "where": "docs/decisions/0161-…md:263-265 (HEAD)",
+   "quote": "Anything else breaks it. That includes a person's stop at any point and a `fix_content` after the plan. It also includes a fill that fails at the box, and a stop said in the interview but for a person to settle."
+  },
+  {
+   "claim": "§3 requires the check when the answer is put together, before the playback, with one press confirming the whole answer. So the stage and source must be asked inside the same walk and must not follow a stored { known: false }.",
+   "where": "docs/decisions/0161-…md:294-296 (HEAD)",
+   "quote": "Checked when the answer is put together, before it is played back. The answer is checked against the boxes it fills in the case's entry. The playback then shows the whole answer and one press confirms it."
+  },
+  {
+   "claim": "§3 item 1 allows asking a part an earlier answer closed only where a required box reads it. That departs from ADR-0148 §4, and he approved it through D1. Asking stage or source after a no where no required box reads them is not covered.",
+   "where": "docs/decisions/0161-…md:304-309 (HEAD)",
+   "quote": "An optional or gated part that the box reads is asked, even if an earlier answer closed it. … It departs from the same item's \"if they say they are still there, we do not ask for an end date at all\" wherever a required box reads a part an earlier answer closed, and that is his to approve (D1). A part a map needs to choose an option is asked rather than offered as \"none\" (a scholarship's name)."
+  },
+  {
+   "claim": "§3 names one of the new pieces: keeping a part the answer would otherwise drop. Today assemble returns { known: false } and discards anything else.",
+   "where": "docs/decisions/0161-…md:325-329 (HEAD); packages/interview/src/field-specs.ts:950-953",
+   "quote": "keeping a part the answer would otherwise drop (`assemble` returns `{ known: false }` whatever else it was given)."
+  },
+  {
+   "claim": "§4 is today's case. The stage is asked before the playback wherever the entry requires it, and the answer holds { known: false, stage }.",
+   "where": "docs/decisions/0161-…md:333-335 (HEAD)",
+   "quote": "Under §3, a student who answers \"no\" to \"Do you know yet how your studies will be funded?\" is asked the stage before the playback, wherever the entry requires it, as Sheffield's does. The answer then holds `{ known: false, stage }`."
+  },
+  {
+   "claim": "§4 as amended by D2. The stage is asked with the form's own question and its five options as the entry records them. The source is asked when its box is required. The agent's proposed words are withdrawn.",
+   "where": "docs/decisions/0161-…md:337-346 (HEAD)",
+   "quote": "So the stage is asked with the form's own question and its five options as the entry records them, and the source is asked too when its box is required."
+  },
+  {
+   "claim": "D2, in his words.",
+   "where": "docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt:4; ADR-0161:475-476 (HEAD)",
+   "quote": "D2: approved. Ask with the form's own words and options. If the funding source box is also required (row 210), ask it too."
+  },
+  {
+   "claim": "D1 phasing, in his words. Phase 1 covers the funding stage after 'no' and answering a field again. The parts a map needs (a scholarship's name) come later in §8's order.",
+   "where": "docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt:3; ADR-0161:453-456 (HEAD)",
+   "quote": "D1: approved, phased. First build only what unblocks my run and protects every student: the test with its shrinking list, the review rule (§8 first), the funding stage after \"no\", and answering a field again. The rest follows in the ADR's order."
+  },
+  {
+   "claim": "§4 records three facts. The form's script is unread, so a 'no' student's fill could stop at a hidden box. The source question was open and his. The review covers a stage held under No.",
+   "where": "docs/decisions/0161-…md:350-364 (HEAD)",
+   "quote": "The form's script is unread. Whether it hides the stage box for No is still not known (rows 82, 86). If it does, the signed entry is wrong about the form, and a \"no\" student's fill would stop at a hidden box. He chose \"not A\" as row 209's settlement, and nothing here re-proposes it. … The review sees it. A stage held under No is a financial answer, and the review of financial evidence covers it (§6)."
+  },
+  {
+   "claim": "The recommendation that his row-214 answer 6 says yes to asks the source on his run before the entry patch is signed. The patch 'follows'.",
+   "where": "docs/decisions/0161-…md:357-360 (HEAD); state row 214 (6) docs/state-of-the-system.md:1016 (HEAD)",
+   "quote": "does row 210's reading of his saved page make it required now, so P319 asks the source on his run, or does it wait for an entry patch he signs? My recommendation: row 210's reading is enough, because his words name row 210, and an entry patch carrying the rule follows for his signature."
+  },
+  {
+   "claim": "His row-214 answers 1 and 6, and his new rule on departures, in his words.",
+   "where": "docs/run-a/p319-his-answers-on-row-214-as-sent.txt:3,8,11",
+   "quote": "1. Yes: a minor's review covers every answer. … 6. Yes: treat the funding source box as required on my observed red asterisk, and ask the source on my run in P319. Prepare the entry change for my signature; do not sign anything. … From now on, when building would depart from an accepted ADR, stop and ask me first, even if you are sure; record the question, build nothing on it until I answer."
+  },
+  {
+   "claim": "D7 (the form's own list with its escape, for a scholarship) is approved but comes after phase 1. The shrinking list records both fundingSource map refusals as waiting 'after phase 1'.",
+   "where": "ADR-0161:486-487 and §7 row 442 (HEAD); scripts/required-boxes-known.ts:81-82",
+   "quote": "D7. The scholarship's and the countries' offers (§7) — money, and personal data. I recommend the form's own list, with its escape. His answer: \"approved.\""
+  },
+  {
+   "claim": "D9 is about the postcode, not funding. It does not bind P319 beyond being the precedent for the 'asked again' class.",
+   "where": "ADR-0161:490-491 (HEAD)",
+   "quote": "D9. A UK postcode asked again with the shape the map reads (§7). It changes what is held of the student's address, which is personal data. I recommend it. His answer: \"approved.\""
+  },
+  {
+   "claim": "The shrinking list holds the stage line as waiting on P319. Under the gate's rule, that line must leave the list in the same commit once it stops occurring. The gate's key carries no answer, so a new break caused by a 'no' plus scholarship would merge into listed line 82 and the gate would stay green (a check that reports nothing).",
+   "where": "scripts/required-boxes-known.ts:11-14, 53, 82; docs/run-a/p318-known-breaks.txt:20, 49",
+   "quote": "Each key is `blueprintId|class|field|box|detail`"
+  },
+  {
+   "claim": "§5 is answering a field again. Before a page holding the field is saved, its questions are asked from the first part, with each gate read afresh. The guard against a bare change of `known` must hold.",
+   "where": "ADR-0161:375-386 (HEAD)",
+   "quote": "The guard stays. A bare change of a part that decides what else the answer holds (`known`, `kind`) is still refused as a correction. It is reached only by answering the field again, which asks the parts it opens. Row 209 found that the guard does not cover `known`; it would."
+  },
+  {
+   "claim": "§6 forbids any person-set financial value, and any change (including a part §3 asks) reopens the review. P319 must not add a resolve option that carries a stage or source.",
+   "where": "ADR-0161:393-398, 409-412 (HEAD); his words ADR-0161:51-52",
+   "quote": "No person sets one. No resolution, command or endpoint writes a financial answer. A person may only reopen it for the student. … Any change reopens the trigger: a correction, a field answered again, or a part §3 asks."
+  },
+  {
+   "claim": "§6 as approved fingerprints only the date of birth for involves_minor, and the code matches. His row-214 answer 1 widens it to every answer. His answer 3 keeps the fingerprint free of student values.",
+   "where": "ADR-0161:405-408, 432-433 (HEAD); apps/conversation-service/src/run-driver.ts:12948-12966 (HEAD, line 12965); p319 answers file:3,5",
+   "quote": "involves_minor: hashOfText(JSON.stringify({ trigger: \"involves_minor\", entries: marks([\"identity.date_of_birth\"]) }))"
+  },
+  {
+   "claim": "ADR-0154's financial refusal is withdrawn in ADR-0161 §6, but the code still refuses closed financial parts. Once P319 runs, a 'no' answer holds a stage and a source that a P311 correction can find, and the code will refuse them. Building the correction belongs to §8 item 4. refusedPart guards only `kind`.",
+   "where": "apps/conversation-service/src/correction-requests.ts:225-236",
+   "quote": "`financial`: a choice in a financial answer. Refused as before P311, until the student's own correction of one is built (ADR-0161 §5 and §6, phase 1)."
+  },
+  {
+   "claim": "§8 item 5: the steps for his run end with the resolve command and name the financial-evidence review before the preview.",
+   "where": "ADR-0161:465-467 (HEAD)",
+   "quote": "The exact steps for his run (his item 4), ending with the resolve command (`--did-not-happen`). The steps will name the review of financial evidence that stands before the preview (his P308 steps, step 7)."
+  },
+  {
+   "claim": "ADR-0143, his words: the source is a closed vocabulary with per-portal maps, there is no invented 'don't know', and the stage is its own question. This forbids offering a 'don't know' or 'not sure' source to a 'no' student.",
+   "where": "docs/decisions/0143-funding-is-a-closed-vocabulary-and-the-students-own-statement.md:20-31",
+   "quote": "So the registry gains a CLOSED funding-source vocabulary, the shape nationality took, and per-portal maps like the countries. Not free text. … There is NO \"I don't know\" in the source list. The uncertainty lives in the radio above it … So: no invented \"don't know\" option."
+  },
+  {
+   "claim": "ADR-0143 §1 is amended by ADR-0161 for the stage, and for the source through D2 and row 214 (6). Details are not amended, so they are still asked only of a yes.",
+   "where": "ADR-0143:39-45; amendment at ADR-0161:114-116 (HEAD)",
+   "quote": "`source`, `stage` and `details` are asked only of a student who answered yes; a student who answered no holds `{ known: false }`, which is complete."
+  },
+  {
+   "claim": "ADR-0143 §2 requires that `known` stays false and the fundingSourceKnown box stays 'No' when a no-student gives a source and stage. Nothing may be derived from the source.",
+   "where": "ADR-0143:46-47",
+   "quote": "Nothing is derived. `known` is never read off a source being held. The stage is asked, not inferred from a date or a sponsor."
+  },
+  {
+   "claim": "ADR-0143 §3: scholarship and loan need a name. ADR-0161 replaces 'refuses loudly' with a follow-up there and then. The signed entry now has scholarship and loan cases that read `details`, which a no-student is not asked.",
+   "where": "ADR-0143:48-53; ADR-0161:117-119 (HEAD); entry docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json:35755-35757, 35786-35788",
+   "quote": "That needs a second key — the name — which the format language cannot express (blocker 85); such a student refuses loudly and is asked about."
+  },
+  {
+   "claim": "ADR-0143's Consequences state that the page hides the funding rows for a 'no'. Rows 82 and 86 say the script was never captured. Planning stage and source for a 'no' student risks filling boxes the page hides.",
+   "where": "ADR-0143:65-68; docs/state-of-the-system.md:905, 909 (HEAD)",
+   "quote": "The page hides the source, stage and details rows for No by a script the read did not capture. … if the page does not hide the mandatory stage box, that student meets a validator violation rather than a silent sit (blocker 86)."
+  },
+  {
+   "claim": "ADR-0143 §4: finance.funding is in FINANCIAL_FIELDS, so the financial-evidence review gate must still fire on the new parts.",
+   "where": "ADR-0143:54-56",
+   "quote": "Financial evidence stays a mandatory review. `finance.funding` is in `FINANCIAL_FIELDS`, so the gate that fires on financial evidence fires on it"
+  },
+  {
+   "claim": "ADR-0148 §4, his words: ask from what the form needs, never offer 'none' where the university requires a part, and do not ask a part an earlier answer closed. ADR-0161 amends only the last of these.",
+   "where": "docs/decisions/0148-the-interview-is-an-ai-asking-not-a-form-read-aloud.md:35-39",
+   "quote": "By hand means asking properly, from what the university's form actually needs. … (and \"if they say they are still there, we do not ask for an end date at all\"), the description \"or, if the university requires it, we ask for it rather than offering\""
+  },
+  {
+   "claim": "ADR-0148 §4 as built, and partPolicyFor: which parts are asked and required comes from the mapping set and the blueprint's validations and is never authored. The signed entry's fundingSource has `validations: []`. Asking the source before his signature would therefore need an authored rule (candidate departure 1).",
+   "where": "ADR-0148:100-106; packages/orchestrator/src/run.ts:2356-2367; entry :30542-30560",
+   "quote": "Never authored: a part is asked because a mapped slot reads what it feeds, and required because that slot's validation says so."
+  },
+  {
+   "claim": "ADR-0148 as built in P231: the order is the spec's, written as a person says it, and the portal decides only which optional parts are asked. D2's 'form's own words' is new reach. P232 built a mechanism, `exactly`, for fixed question words.",
+   "where": "ADR-0148:111-116, 137-139",
+   "quote": "So the order is the spec's, written as a person would say it … and the portal decides only which of the optional ones are asked."
+  },
+  {
+   "claim": "ADR-0148 P234 and ADR-0154 P311, his words: the playback and corrections use the words the student said or was shown, never a token. A stage asked with the form's sentence must be played back in that sentence.",
+   "where": "ADR-0148:201-206; ADR-0154:154-157",
+   "quote": "That is us showing them our word for their answer … They said Iran. Play back Iran. | Match the words the student is shown (\"UK honours\"), never only the internal token, and when the new value is a fixed choice, take it only if it is one of the set, then play it back for \"Yes, that's right\" as for any correction."
+  },
+  {
+   "claim": "ADR-0148 §5 and §11: a closed-vocabulary value is a reading of the student's span that confirmation checks. A part the portal demands refuses 'none'.",
+   "where": "ADR-0148:41-43, 177-178",
+   "quote": "for a date or a closed vocabulary the value is a reading of the span, which is what confirmation is for. | The demanded part is required by the portal's evidence, so \"none\" is refused for it."
+  },
+  {
+   "claim": "ADR-0123 Decision 1, his words: a star is not the evidence; the save is. The marks are kept and honoured outside sections the portal lets a student skip. The source's requirement under answer 6 rests on a star, as fundingStage's already does (observed_marker).",
+   "where": "docs/decisions/0123-a-star-is-not-a-requirement-and-a-step-that-cannot-ask-stops-for-a-person.md:32-34, 41-45; entry :30739-30743",
+   "quote": "The star is not the evidence. The save is. This is the same finding as 'an error-free save is not a save', pointing the other way: a star is not a requirement either."
+  },
+  {
+   "claim": "ADR-0123 Decision 2, his words, which ADR-0161 keeps. Where P319 cannot ask what a box needs (for example a scholarship's name after a 'no'), the run must stop for a person and say so, never sit silently.",
+   "where": "ADR-0123:55-58; ADR-0161:128-131 (HEAD)",
+   "quote": "Whatever the validator decides, a step that cannot ask for what it needs must stop for a person and say so. Build that too."
+  },
+  {
+   "claim": "ADR-0154 §2, his words: once any page is saved, a correction goes to a person. ADR-0161 §5 instead uses 'a page holding it'.",
+   "where": "docs/decisions/0154-a-confirmed-answer-can-be-corrected-by-asking.md:55-68; ADR-0161:375-381 (HEAD)",
+   "quote": "Build v1 for corrections before any page is saved. After that, the request goes to a person the way a deletion does … Do not reach further yet"
+  },
+  {
+   "claim": "ADR-0154 P311 records the financial refusal as the agent's choice, not his words. His row-189 (1) decision replaces it.",
+   "where": "ADR-0154:177-184; ADR-0161:51-52 (HEAD)",
+   "quote": "Two kinds are still refused, and these are my choices, not his words: A choice in a financial answer (`finance.funding`'s source and stage), as before P311."
+  },
+  {
+   "claim": "ADR-0155: an offer is made only for a value the plan refused, and only on a field whose escape is on record. Placeholders are never offered. The entry records no escape on fundingSource or fundingStage. 'Select...' and '-----------' are entry options, not answers.",
+   "where": "docs/decisions/0155-a-student-chooses-from-the-forms-own-list.md:47-50, 62-65; entry :30542-30588, 30748",
+   "quote": "Placeholders and the escape are not among them. … A field with no escape on record is not offered at all"
+  },
+  {
+   "claim": "ADR-0155/ADR-0109 as amended, his words: the form's escape (option 'Scholarship or studentship (not listed below)' at entry :30572) is pressed only on the student's recorded choice. A choice from the form's list is per application, and the profile stays untouched.",
+   "where": "ADR-0155:36-39, 112",
+   "quote": "the runner may choose the form's escape entry when, and only when, the student has chosen it. Never otherwise, and never as a fallback when nothing matches. | The student's words stay in the profile untouched. The choice is about this application's form."
+  },
+  {
+   "claim": "ADR-0158 is accepted in direction only, and nothing is built. His live run does not wait for it. The portal's own vocabularies count as signed structure. Funding is not among the five values resolved per application.",
+   "where": "docs/decisions/0158-a-portal-is-learned-once-a-students-values-are-resolved-per-application.md:3-6, 46, 107-112, 116",
+   "quote": "the portal's own vocabularies that are not a student's words … Signed once per portal, re-signed only when the portal changes."
+  },
+  {
+   "claim": "ADR-0158 records his words of 2026-10-15, not yet built. They bear on matching a typed stage or source to the form's sentences.",
+   "where": "ADR-0158:317-321, 331-332",
+   "quote": "Matching to a form's list stays exact, after normalising case, spaces and numbers (\"20\" = \"20.0\"); a near match is only ever suggested, never chosen."
+  },
+  {
+   "claim": "The signed entry gives the form's own words. Stage: 'What stage are you at with your funding?', required (observed_marker), with five sentences. Source: 'Please select your likely funding source' with no rule, 32 options including the escape, the separator, 22 schemes and 3 loans. The maps leave both empty when the part is absent.",
+   "where": "entry :30721-30743, 30748-30768, 30542-30560, 30568-30588, 35706-35713, 35804-35811",
+   "quote": "\"label\": \"I am thinking about funding my studies this way\""
+  },
+  {
+   "claim": "Today the spec gates source, stage and details behind a 'yes', and its stage question uses portal-neutral words.",
+   "where": "packages/interview/src/field-specs.ts:907, 917, 924, 928, 935, 939, 947",
+   "quote": "question: \"How far is the funding arranged — confirmed, applying for a project studentship, applied, applying, or thinking about it?\""
+  },
+  {
+   "claim": "P316 sheet: a held 'no' is never asked again. So P319 asking 'after a student answers no' does not reach his held answer by itself.",
+   "where": "docs/run-a/p316-funding-stage.md:139-140",
+   "quote": "The interview never asks a held answer again. A no is a complete answer, and the stage's empty box is not a missing value (`absent: leave_empty`), so nothing reopens it."
+  },
+  {
+   "claim": "Row 209 records his decision and the guard gap on `known`.",
+   "where": "docs/state-of-the-system.md:1011 (HEAD)",
+   "quote": "Row 209: B, plus a general rule. Not A, not C."
+  },
+  {
+   "claim": "Row 210: the read tool missed the source box's marker because the row is longer than 400 characters. The tool is the agent's; the entry is his signature.",
+   "where": "docs/state-of-the-system.md:1012 (HEAD)",
+   "quote": "his saved page of 2026-09-25 … shows the same red asterisk after \"Please select your likely funding source\" as after the stage's label, but the entry records `fundingSource` with no rule"
+  },
+  {
+   "claim": "Row 202 is not funding. His D4 says to build nothing on empty lists yet.",
+   "where": "docs/state-of-the-system.md:1004 (HEAD)",
+   "quote": "D4: build nothing yet. First observe on the live form whether Sheffield truly requires at least one job."
+  },
+  {
+   "claim": "Row 214 at HEAD holds the recommendations he answered. (1) was 'every confirmed answer'. (7) notes that a choice from a form's list on a financial box is not in the fingerprint.",
+   "where": "docs/state-of-the-system.md:1016 (HEAD)",
+   "quote": "My recommendation: for a case that involves a minor, the fingerprint covers every confirmed answer."
+  },
+  {
+   "claim": "The P316, P317 and P318 phase rows mention the funding stage: P316 read it, P317 measured it and proposed ADR-0161, and P318's next step is 'P319, the funding stage after a no'.",
+   "where": "docs/state-of-the-system.md:156-158 (HEAD)",
+   "quote": "his answers on row 214; then P319, the funding stage after a no"
+  },
+  {
+   "claim": "ADR-0160 holds page 12 on his run, so the funding boxes are not filled until the hold is lifted.",
+   "where": "docs/decisions/0160-the-run-stops-before-a-page-whose-save-may-be-the-submission.md:15-17, 62-65",
+   "quote": "Until this is known, my run must stop before saving page 12."
+  },
+  {
+   "claim": "ADR-0156 §5 is in the message's words (third person), approved by him. It is scoped to list-choice questions. I note it as low relevance for asking on a held, already-started run.",
+   "where": "docs/decisions/0156-ask-the-student-only-when-it-matters.md:204",
+   "quote": "Any remaining questions are asked together before the run starts, never mid-run."
+  },
+  {
+   "claim": "Records gap: none of ADR-0123, 0143, 0148, 0154, 0155 or 0158 mentions ADR-0161 at HEAD (grep count 0 for each), so their texts read as unamended.",
+   "where": "git show HEAD:docs/decisions/{0123,0143,0148,0154,0155,0158}-*.md | grep -c 0161",
+   "quote": ""
+  }
+ ],
+ "openQuestions": [
+  "(Candidate departure 1: ADR-0148 §4 as built, partPolicyFor's 'Never authored', ADR-0118's signature) On his run, is the source asked only after he has signed the entry change, so that 'required' is read from the signed entry? Or is it asked before, through a rule kept outside the signed entry?",
+  "(Candidate departure 2: ADR-0143 §1/§3, ADR-0155 §1, ADR-0109 as amended, D7 phasing) After a 'no', which of the form's source options are offered? If all of them (the escape 'Scholarship or studentship (not listed below)', 22 schemes, 3 loans), where is the choice stored: in the profile as a vocabulary token, or per application, with the escape recorded on the entry? If only the four general options the vocabulary maps, that is narrower than D2's 'the form's own … options'.",
+  "(Candidate departure 3: ADR-0143 §1 details only of a yes; ADR-0161 §1/§3 case 1) A 'no' student who chooses scholarship or loan needs its name for the map. Should the name be asked after a 'no' (beyond D2 and ADR-0143 §1)? Or should scholarship and loan be left out after a 'no'? Or is the person's stop accepted until D7 is built? The gate will not show this break: its key carries no answer.",
+  "(Candidate departure 4: ADR-0148 §5 vs his words of 2026-10-15 in ADR-0158) When the question shows the form's five sentences, is a typed 'confirmed' taken as the vocabulary reading and played back for the press? Or is it only suggested as a near match to 'The funding has been confirmed'?",
+  "(Candidate departure 5: D2's scope; ADR-0148 P234; ADR-0154 P311, his words) Does a 'yes' student keep the spec's portal-neutral stage question, or get the form's words too? Is the playback after a 'no' shown in the form's sentence? Later corrections (§8 item 4) would then have to find it by those words, which the correction finder does not know today.",
+  "(Candidate departure 6: his row-214 answer 1) Does 'a minor's review covers every answer' mean every confirmed profile entry, or also choices recorded from a form's list (ADR-0155, entry_choices) and the student's standing rule (ADR-0156)? It stays value-free under answer 3 either way.",
+  "(Candidate departure 7: ADR-0161 §3's two moments, D10) The P316 sheet says a held 'no' is never asked again. Does reaching his held 'no' in P319 require answering the field again (ADR-0161 §5, §8 item 4) within P319? Or is the stage to be asked of a held answer on resume, which is a check outside D10's two moments?",
+  "(Candidate departure 8: ADR-0154 §2 'any page is saved' vs ADR-0161 §5 'a page holding it') If answering a field again is built in P319, which boundary sends it to a person?",
+  "(Records, not a departure) His answer 6 makes the source required on an observed star. ADR-0123 Decision 1 says 'The star is not the evidence. The save is.' The entry already records the stage's star the same way, as observed_marker. Should the entry change and ADR-0161 say plainly that the requirement rests on his observed star, unconfirmed by a save?",
+  "(Known risk, recorded in ADR-0143 Consequences and rows 82 and 86) If Sheffield's unread script hides the source and stage rows for a 'no', a plan that fills them meets hidden boxes. ADR-0160's page-12 hold keeps this off his run until the script is read."
+ ]
+}
+
+################ map:code
+{
+ "summary": "I mapped the P319 code path. Nothing tracked was edited. The measurements are scratch scripts in /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-map/ (funding-answers.txt, gated.mts/.out, source-required.mts/.out, no-with-stage.mts/.out). They ran without a model, network or anything metered.\n\nHow it works today:\n- A \"no\" is assembled as exactly {known:false}. The funding spec's assemble drops anything else, and source, stage and details are gated by askWhen(known===true).\n- The interview checks askWhen before the part policy. The portal's `required` set can only stop an optional part from accepting \"none\". It cannot reopen a part askWhen has closed. So Sheffield's policy (required = known, stage) never gets the stage asked after a \"no\".\n- The map then plans fundingStage as \"\" (absent: leave_empty). The plan has no blockers, so validatePlan raises `required`, nextStep returns fix_content, and the run stops for a person. That one answer, known=false, is the line the checker writes as `breaks_a_required_box|finance.funding|fundingStage|required`.\n\nWhat I measured:\n- The signed entry, map and validator already take a \"no\" that holds a stage, with no violation, and a source too (\"Self or Family\"). The stage needs no entry change.\n- A scholarship with no name still fails as no_such_part.\n- If fundingSource is marked `required` before any code asks the source after a \"no\", the gate gets a new line it cannot list (`…|fundingSource|required`). The list can only shrink, so the gate goes red. The code that asks the source must land before, or together with, his signature.\n- A general rule \"ask any gated part that a required box reads\" would also fire on identity.passport.number and immigration.uk_study.highestLevel/qualification. That would ask a passport number of a student who has none (Sheffield types \"no passport\" for them) and ask UK-study levels of a student who has none (that section is hidden for them). So the gate has to be limited to funding, or decided from the plan, as ADR-0161 §3 describes.\n\nThe form's own list (ADR-0155, P290) cannot carry a closed financial part as things stand:\n- It offers only on render_refused, and only with an escape on record. fundingStage and fundingSource have no escape and no `prompt`.\n- A choice made there goes into entry_choices for one application, not into the profile, and the review fingerprint does not cover it.\n\nThe form's words and options do not reach the interview today. Question words come only from field-specs (`question`, or `exactly`). The interview receives only requiredFields and a PartRule of {asked, required}. With `exactly`, both model clients print the words verbatim, and the Bedrock client makes no model call to compose them.\n\nHis held \"no\" is not reached by an interview change alone:\n- The interview asks only fields missing from the profile, and the orchestrator enters it only on value_unavailable blockers.\n- The existing demand machinery (value_part_demanded) can reopen one part of a held field. But it is raised only from a portal refusal after a save, and even then the stage's askWhen would leave the field stranded.\n\nMinors fingerprint: one line changes, run-driver.ts:12965, from the date of birth to every key in profile.entries. The domain compares fingerprints as opaque strings, so the escalation and transition tests are untouched. The run-driver minors tests read as still passing; new tests are needed for:\n- a minor's non-date answer changed after the review;\n- an adult case that was never raised.\n\nTwo side effects:\n- A case ever raised for a minor keeps being re-raised by any answer change, even once the date of birth says adult.\n- Because the profile is shared, one changed answer re-raises every in-flight application of a minor.\n\nMinimal set of files a build would change:\n- (a) /home/user/askimate_auto_apply/packages/interview/src/field-specs.ts: the funding parts' gates and assemble, which must keep stage and source under a \"no\".\n- (b) /home/user/askimate_auto_apply/packages/interview/src/interview.ts: nextPart/isAsked; the PartRule type, to carry the entry's words and options; the `exactly` question and a parser built from the entry's options.\n- (c) /home/user/askimate_auto_apply/packages/orchestrator/src/run.ts: partPolicyFor, to derive the box label and options, mapped back to registry tokens through the map's option table.\n- (d) /home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.ts: withDemandedParts builds PartRule; the minors fingerprint at 12965 and its comments at 5856-5857, 12851 and 12936-12947; and, if his held \"no\" is to be reopened, a plan-time reopen.\n- (e) /home/user/askimate_auto_apply/packages/profile/src/fields.ts: the FundingIntent doc comment (no type change). VOCABULARY_WORDS too, if the playback is to use the form's words.\n- (f) /home/user/askimate_auto_apply/scripts/required-boxes-hold.ts: its walk and accepted answers must use the interview's own gate and parser, or the line never leaves.\n- (g) /home/user/askimate_auto_apply/scripts/required-boxes-known.ts: remove line 53.\n- (h) /home/user/askimate_auto_apply/docs/run-a/p317-required-boxes.txt: regenerate, since it is pinned.\n- (i) /home/user/askimate_auto_apply/scripts/required-boxes-hold.test.ts: lines 119-124 expect [\"known=false\"].\n- (j) /home/user/askimate_auto_apply/packages/interview/src/interview.test.ts: the funding tests at 2075-2113.\n- (k) /home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.test.ts: new minors tests.\n- (l) New and not applied: docs/run-a/p319-for-signature.patch and .md, following docs/run-a/p300-for-signature.md, adding a required rule to fundingSource (entry line 30560). Neither the entry under docs/run-a/catalogue/entries nor approvals.json is touched. Signing the patch would also move the pinned docs/run-a/p316-funding-on-page-12.txt and p315-content-stops-on-sheffield.txt.\n\nCost: asking the stage with `exactly` costs no model call to compose. In production, reading each answer is one model call (Bedrock interpretAnswer).",
+ "facts": [
+  {
+   "claim": "The registry's funding shape: known is required and source, stage and details are optional. The doc comment says a 'no' holds nothing else.",
+   "where": "/home/user/askimate_auto_apply/packages/profile/src/fields.ts:175-190",
+   "quote": "A student who does not know has `known: false` and nothing else, which is a complete and honest statement; no \"don't know\" source is invented for them. The rest is asked only of a student who knows."
+  },
+  {
+   "claim": "The closed vocabularies: six sources and five stages.",
+   "where": "/home/user/askimate_auto_apply/packages/profile/src/fields.ts:159-173",
+   "quote": "export type FundingStage = \"confirmed\" | \"project_studentship\" | \"applied\" | \"applying\" | \"considering\";"
+  },
+  {
+   "claim": "The part labels and the words the playback shows for each token are registry words, not Sheffield's sentences.",
+   "where": "/home/user/askimate_auto_apply/packages/profile/src/fields.ts:526-531, 618-637",
+   "quote": "considering: \"thinking about it\","
+  },
+  {
+   "claim": "finance.funding is financial evidence, so it always goes to the mandatory review.",
+   "where": "/home/user/askimate_auto_apply/packages/profile/src/fields.ts:452-462"
+  },
+  {
+   "claim": "The interview spec for finance.funding: source, stage and details are gated on known===true, details is optional, and assemble drops everything else on a no.",
+   "where": "/home/user/askimate_auto_apply/packages/interview/src/field-specs.ts:899-966 (askWhen at 924, 935, 947; optional at 946; assemble at 950-966)",
+   "quote": "if (!known) return { known: false };"
+  },
+  {
+   "claim": "The stage is asked in registry words, read by an exact lowercase word table (oneOf). Sheffield's sentences are not accepted.",
+   "where": "/home/user/askimate_auto_apply/packages/interview/src/field-specs.ts:749-752, 792-800, 928",
+   "quote": "How far is the funding arranged — confirmed, applying for a project studentship, applied, applying, or thinking about it?"
+  },
+  {
+   "claim": "askWhen is checked before the policy. isAsked only concerns optional parts, and portalRequires only stops an optional part from accepting 'none'. No policy can reopen a part askWhen closed.",
+   "where": "/home/user/askimate_auto_apply/packages/interview/src/interview.ts:308-335, 971; /home/user/askimate_auto_apply/packages/interview/src/field-specs.ts:262-269",
+   "quote": "(part) => !answered(readings, part.partKey) && (part.askWhen?.(answers) ?? true) && isAsked(part, rule),"
+  },
+  {
+   "claim": "The interview receives no words from the entry. The only portal-derived input is PartRule {asked, required}.",
+   "where": "/home/user/askimate_auto_apply/packages/interview/src/interview.ts:144-157"
+  },
+  {
+   "claim": "Question words come from the part's authored `question`, or from `exactly`, passed to composeQuestion. Bedrock prints `exactly` verbatim without calling the model; otherwise it paraphrases. The deterministic client honours `exactly` too.",
+   "where": "/home/user/askimate_auto_apply/packages/interview/src/interview.ts:783-800; /home/user/askimate_auto_apply/packages/llm/src/bedrock.ts:283-285, 312; /home/user/askimate_auto_apply/packages/llm/src/deterministic.ts:32-41; /home/user/askimate_auto_apply/packages/interview/src/field-specs.ts:110-113",
+   "quote": "`The question to ask, in these words or close to them: ${request.question}\\n`"
+  },
+  {
+   "claim": "partPolicyFor derives which parts are asked and which are required from the mapping set and the blueprint's required rules. A switch counts only its own path, so 'details' is never required through fundingSource's switch.",
+   "where": "/home/user/askimate_auto_apply/packages/orchestrator/src/run.ts:2368-2405"
+  },
+  {
+   "claim": "Measured on the signed Sheffield entry: finance.funding is asked=[known,source,stage,details] and required=[known,stage]. Gated parts read by a required box are funding.stage, identity.passport.number and immigration.uk_study.highestLevel/qualification.",
+   "where": "/tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-map/gated.out",
+   "quote": "finance.funding: asked=[known,source,stage,details] required=[known,stage] gated=[source,stage,details] gated∩required=[stage]"
+  },
+  {
+   "claim": "A general rule 'ask a gated part a required box reads' would wrongly fire on the passport and UK-study parts. passportNumber is filled with typed 'no passport' when the part is absent, and the UK-study boxes sit in a section shown only when previousStudentVisa=yes. The spec's own comment forbids asking the passport number of a student with none.",
+   "where": "/home/user/askimate_auto_apply/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json (passportNumber mapping); /home/user/askimate_auto_apply/packages/interview/src/field-specs.ts:118-124",
+   "quote": "a student who has just said they have no passport must not then be asked for its number."
+  },
+  {
+   "claim": "The interview asks only fields missing from the profile, and the orchestrator enters it only on value_unavailable blockers. A held {known:false} is never asked again: with no blockers the plan is validated and the step is fix_content.",
+   "where": "/home/user/askimate_auto_apply/packages/interview/src/interview.ts:703; /home/user/askimate_auto_apply/packages/profile/src/profile.ts:122-127; /home/user/askimate_auto_apply/packages/orchestrator/src/run.ts:488-494, 553-587, 616-617",
+   "quote": "return { kind: \"fix_content\", violations: validation.violations };"
+  },
+  {
+   "claim": "The interview's worklist is requiredFieldsFor plus every value_unavailable blocker. finance.funding is on it because fundingSourceKnown and fundingStage are required.",
+   "where": "/home/user/askimate_auto_apply/packages/orchestrator/src/run.ts:2340-2348, 2407-2422"
+  },
+  {
+   "claim": "Sheffield's funding maps: fundingSourceKnown maps known to Yes/No. fundingSource is a switch on source (absent: leave_empty): four general options keyed on source, and 22 scholarships plus 3 loans keyed on details. fundingStage maps the five stage tokens to the five sentences (absent: leave_empty). fundingDetails is the details text.",
+   "where": "/home/user/askimate_auto_apply/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json:35686-35841",
+   "quote": "Left EMPTY for a student who does not know; the page's script hides this row for No (his expectation, unread — blocker 86 says what happens if it does not)."
+  },
+  {
+   "claim": "The boxes on page12 (section page12-course):\n- fundingSourceKnown: its label is the unread name 'fundingSourceKnown'; required (observed_marker).\n- fundingSource: 'Please select your likely funding source', with no rules and 32 options, among them 'Select...', 'Scholarship or studentship (not listed below)' and '-----------'.\n- fundingStage: 'What stage are you at with your funding?'; required (observed_marker); 'Select...' plus five sentences.\nNo visibleWhen on any box or on the section, and no escapeValue or prompt on any funding box.",
+   "where": "/home/user/askimate_auto_apply/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json:30513-30770",
+   "quote": "\"label\": \"What stage are you at with your funding?\""
+  },
+  {
+   "claim": "How a refused or absent part renders:\n- A part or switch rule with absent: leave_empty renders \"\".\n- A part missing with no absent clause is no_such_part.\n- A switch case nobody wrote is no_matching_case.\nThe planner turns a render refusal into a render_refused blocker unless a recorded choice exists, and an absent field into value_unavailable.",
+   "where": "/home/user/askimate_auto_apply/packages/profile/src/format.ts:383-431; /home/user/askimate_auto_apply/packages/mapping/src/plan.ts:670-707"
+  },
+  {
+   "claim": "The validator flags an empty required box unless it is hidden, skippable, handed off, uploaded, a companion or the escape. It has no rule that a select's value must be one of its options (D8 is not built).",
+   "where": "/home/user/askimate_auto_apply/packages/preparation/src/validate.ts:189-211",
+   "quote": "return violation(`\"${field.label}\" is required and the plan has nothing for it.`);"
+  },
+  {
+   "claim": "Measured on the signed entry: a 'no' holding a stage plans with 0 blockers and 0 violations, and fundingStage gets the form's sentence. Adding source self_or_family fills 'Self or Family'. A named scholarship fills both fundingSource and fundingDetails. A scholarship with no name is render_refused (no_such_part).",
+   "where": "/tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-map/no-with-stage.out",
+   "quote": "fundingStage: \"I am thinking about funding my studies this way\""
+  },
+  {
+   "claim": "How the checker produces the line:\n- It walks a composite by part.askWhen alone, so known=false assembles once, as {known:false} (measured: 111 answers, one known=false).\n- That plan has no blockers, so validatePlan's required violation on fundingStage, a box the entry marks required, becomes breaks_a_required_box with detail 'required'.\n- The key is blueprintId|kind|field|box|detail.",
+   "where": "/home/user/askimate_auto_apply/scripts/required-boxes-hold.ts:270-278, 327-344, 535, 571-582, 715-721; /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-map/funding-answers.txt",
+   "quote": "known=false → {\"known\":false}"
+  },
+  {
+   "claim": "The checker enumerates a closed part's answers from the static parse.options of FIELD_SPECS. An entry-derived parser or gate is invisible to it unless the checker uses the interview's own.",
+   "where": "/home/user/askimate_auto_apply/scripts/required-boxes-hold.ts:180-192"
+  },
+  {
+   "claim": "The gate fails on an unlisted line or a listed line that is gone, and every listed line must be among P318's 59. The funding line is known-list line 53. The pinned output and the 'finds his run's case' test must change in the commit that mends it.",
+   "where": "/home/user/askimate_auto_apply/scripts/required-boxes-hold.test.ts:77-92, 114-124; /home/user/askimate_auto_apply/scripts/required-boxes-known.ts:53",
+   "quote": "expect(brokenBy(result, \"finance.funding\", \"fundingStage\")).toEqual([\"known=false\"]);"
+  },
+  {
+   "claim": "Measured: today the funding lines pass the gate. With a `required` rule planted on fundingSource, the gate reports an unexpected new line for known=false. Signing the entry change before the code asks the source after a 'no' would turn the gate red.",
+   "where": "/tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-map/source-required.out",
+   "quote": "WITH fundingSource required, funding gate: {\"unexpected\":[\"bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingSource|required\"],\"gone\":[],\"listedTwice\":[]}"
+  },
+  {
+   "claim": "The form's-own-list offer (P290) is made only for a render_refused with no_matching_option or no_matching_case, and only on a field with an escape on record. Its whole-list entries filter out the escape, \"\" and field.prompt only.",
+   "where": "/home/user/askimate_auto_apply/apps/conversation-service/src/entry-choice-offer.ts:112-117, 129, 135-136, 201"
+  },
+  {
+   "claim": "ADR-0155 requires an escape, and a choice applies to one application's form, not the profile.",
+   "where": "/home/user/askimate_auto_apply/docs/decisions/0155-a-student-chooses-from-the-forms-own-list.md:64-65, 112",
+   "quote": "A field with no escape on record is not offered at all, so a student is never shown a list with no honest answer if none of it is theirs."
+  },
+  {
+   "claim": "A choice from the form's list on a financial box is not in the review fingerprint. A test fails when a signed entry first gives such a box an escape.",
+   "where": "/home/user/askimate_auto_apply/docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:651-653; /home/user/askimate_auto_apply/scripts/a-financial-choice-waits-for-the-review.test.ts:66-71"
+  },
+  {
+   "claim": "ADR-0161 §4 as accepted: after a 'no', the stage is asked before the playback wherever the entry requires it, and the answer holds {known:false, stage}.",
+   "where": "/home/user/askimate_auto_apply/docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:355-361",
+   "quote": "The answer then holds `{ known: false, stage }`."
+  },
+  {
+   "claim": "ADR-0161 §3 names the new pieces this needs, including keeping a part that assemble would drop. It says the existing demand machinery would be raised from the plan, before any save.",
+   "where": "/home/user/askimate_auto_apply/docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:342-351",
+   "quote": "keeping a part the answer would otherwise drop (`assemble` returns `{ known: false }` whatever else it was given)."
+  },
+  {
+   "claim": "The demand machinery reopens one part of a held field: while a demand is open the field is hidden from the run's view, the walk is seeded from the held value minus the demanded part, and that part is added to required. It is raised only from a portal refusal after a save, and its sentence says the page was not saved.",
+   "where": "/home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.ts:2195-2236, 2370-2388, 2552-2577, 2712-2717, 11858-11894"
+  },
+  {
+   "claim": "Even under a demand for 'stage', the stage's askWhen(known===true) would leave a 'no' with no part to ask. The interview then escalates the field as 'stranded'.",
+   "where": "/home/user/askimate_auto_apply/packages/interview/src/interview.ts:308-317, 723-733"
+  },
+  {
+   "claim": "The playback reads a closed part through VOCABULARY_WORDS. A stage chosen from the form's sentences would be played back in registry words.",
+   "where": "/home/user/askimate_auto_apply/packages/profile/src/confirmation.ts:411-422"
+  },
+  {
+   "claim": "The minors fingerprint covers only the date of birth; the financial one covers every financial field. Both are built from each answer's revision and confirmation time, never its value.",
+   "where": "/home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.ts:12948-12967",
+   "quote": "involves_minor: hashOfText(JSON.stringify({ trigger: \"involves_minor\", entries: marks([\"identity.date_of_birth\"]) })),"
+  },
+  {
+   "claim": "Triggers are re-raised for every trigger that applies, is outstanding, or was ever raised, whenever its fingerprint has moved. This runs on every decide, before any hop.",
+   "where": "/home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.ts:4637-4652, 4741-4774, 12898-12934"
+  },
+  {
+   "claim": "The domain compares fingerprints as opaque strings, so widening what the minors fingerprint covers touches no domain code and no domain test.",
+   "where": "/home/user/askimate_auto_apply/packages/domain/src/escalation.ts:152-169"
+  },
+  {
+   "claim": "The existing minors tests: disclosure after review, a date of birth answered again as an adult's, the lock, and a legacy raising. None changes a non-date answer between the review and the assertion, so by reading they stay valid. Comments naming the date of birth would need updating.",
+   "where": "/home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.test.ts:6089-6136, 11329-11540; /home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.ts:5856-5857, 12851, 12936-12947"
+  },
+  {
+   "claim": "The only profile write in the driver is #persist, on a student's confirmation. No automatic write would move a widened minors fingerprint.",
+   "where": "/home/user/askimate_auto_apply/apps/conversation-service/src/run-driver.ts:8062-8066"
+  },
+  {
+   "claim": "ADR-0148 §4 as built: which parts are asked comes from the portal and is never authored.",
+   "where": "/home/user/askimate_auto_apply/docs/decisions/0148-the-interview-is-an-ai-asking-not-a-form-read-aloud.md:100-101",
+   "quote": "Which parts of a list or composite are asked, and which refuse \"none\", come from the portal and are never authored"
+  },
+  {
+   "claim": "ADR-0143 §3: a portal's list is mapped per portal.",
+   "where": "/home/user/askimate_auto_apply/docs/decisions/0143-funding-is-a-closed-vocabulary-and-the-students-own-statement.md:48",
+   "quote": "**A portal's list is mapped from the vocabulary, per portal**, like the countries."
+  },
+  {
+   "claim": "FieldValidation.source vocabulary: observed_marker means the observer read a visible mark; specialist_noted means a human recorded it. Row 210 says the read tool did not record fundingSource's mark.",
+   "where": "/home/user/askimate_auto_apply/packages/blueprint/src/blueprint.ts:118-131; /home/user/askimate_auto_apply/docs/state-of-the-system.md:1012",
+   "quote": "observed_marker  — a visible mandatory marker (`*`) in the control's row,\n   *                      read by the observer where no attribute expresses it"
+  },
+  {
+   "claim": "ADR-0123 Decision 1 (his words) holds that a star is not a requirement. page12-course carries no `optional` fact, and the entry already records fundingStage's star as required.",
+   "where": "/home/user/askimate_auto_apply/docs/decisions/0123-a-star-is-not-a-requirement-and-a-step-that-cannot-ask-stops-for-a-person.md:32-34; /home/user/askimate_auto_apply/packages/mapping/src/mapping.ts:1665-1674",
+   "quote": "The star is not the evidence. The save is. This is the same finding as 'an error-free save is not a save', pointing the other way: a star is not a requirement either."
+  },
+  {
+   "claim": "The planned order after P318 names P319 as the funding stage after a 'no'. Answering a field again (ADR-0161 §5) is the later phase-1 item.",
+   "where": "/home/user/askimate_auto_apply/docs/state-of-the-system.md:156; /home/user/askimate_auto_apply/docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:7-8, 475-486",
+   "quote": "his answers on row 214; then P319, the funding stage after a no"
+  }
+ ],
+ "openQuestions": [
+  "His run: the interview change alone never reaches his held {known:false}. The field is not missing, and the plan has no blocker, so it ends in a fix_content stop. Asking 'the source on my run in P319' therefore needs a reopen in P319: either a plan-time demand (ADR-0161 §3 and D10), or answering a field again (§5, phase-1 item 4, planned after P319). Which one does P319 build? If either goes beyond the funding stage as D1 phased it, it is a question for him first.",
+  "The source before his signature: the signed entry puts no rule on fundingSource (entry line 30560). Option 1 is a code constant marking it required, which departs from ADR-0148 §4 as built ('never authored') and must be asked first. Option 2 reads it from the entry only once he signs, so his run steps would include his signature before the resolve. Measured: signing before the code asks the source after a 'no' turns the P318 gate red.",
+  "Which `source` value goes on the prepared fundingSource rule? `observed_marker` is defined as read by the observer tool, which did not record this mark (row 210). `specialist_noted` means a human recorded it. This is a record-integrity choice and his to make.",
+  "His 'the form's own options' for the source include 'Scholarship or studentship (not listed below)' (no map row; the note at entry line 35801 says the map never chooses it; no escapeValue) and the '-----------' separator. Offering the escape departs from ADR-0143 §3 and ADR-0109 as amended (the escape only on a recorded choice, through ADR-0155). Ask before building.",
+  "Putting Sheffield's five sentences into the portal-neutral field-specs would depart from ADR-0143 §3 ('per portal') and ADR-0148 §4 as built. The alternative is a new channel that carries the box label and options from the signed entry into the interview (PartRule via partPolicyFor). That channel is new machinery, so whether it needs his word is worth checking.",
+  "Using the form's-own-list offer (P290, ADR-0155) for the stage or source would depart from ADR-0155 §1 (an escape is required, and neither box has one) and from ADR-0161 §4 (the answer is held in the profile as {known:false, stage}, not as a per-application choice the review fingerprint does not cover). Recommend not using it.",
+  "'Select...' as a non-answer: fundingStage and fundingSource carry no `prompt`, so leaving it out is a judgement. Should the prepared entry change also add `prompt` (ADR-0155 P291 amendment, lines 164-166) for his signature?",
+  "Scope of 'the form's own words' (money, so his):\n- Only the question after a 'no', or the yes path's stage question too?\n- Does the playback stay in registry words ('thinking about it') or use the form's sentence?\n- Is any preface allowed beyond the form's label and options? ADR-0161 withdrew the agent's proposed words at lines 364-368.",
+  "Details after a 'no': D2 names the stage and the source only. Keep details gated on yes, as ADR-0143 §1 has it?",
+  "Reach of the minors fingerprint (row 214 (1); the recommendation said 'for a case that involves a minor'): under the 'every answer was ever raised' logic, an adult case once raised for a minor is re-raised on any answer change. And because the profile is shared, one changed answer re-raises every in-flight application of a minor, which row 214 (2) settled for financial answers only. Keep, or limit to while the date of birth says minor?",
+  "My reading of ADR-0123 Decision 1 ('a star is not a requirement either') against his 'treat the funding source box as required on my observed red asterisk': not a departure. page12-course has no `optional` fact, and fundingStage's star is already recorded as required. The reading is mine and worth one line to him."
+ ]
+}
+
+################ map:entry
+{
+ "summary": "Read-only map of the signed Sheffield entry's funding boxes and of how an entry change goes to Vahid for signature without being signed. HEAD is 5311eeaf. No tracked file was changed: `git status` after the work shows only the parent's uncommitted P319 records (CLAUDE.md, ADR-0161, docs/state-of-the-system.md and the untracked p319 answers file). Scratch files are in /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-map/: gate-with-source-required.mts and .out, stops-with-source-required.mts, entry-source-required.json and canonical.txt.\n\nENTRY. The entry (blueprint 0.2.36, mapping set 0.3.48) hashes to sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0. I re-ran `pnpm run catalogue hash` and it printed that value, which equals approvals.json:3.\n- On page12, `fundingSourceKnown` and `fundingStage` each carry `{kind: required, source: observed_marker}`.\n- `fundingSource` carries `\"validations\": []` (entry line 30560). It has 32 options, including the prompt \"Select...\", the separator \"-----------\" and \"Scholarship or studentship (not listed below)\".\n- `fundingDetails` carries only maxlength 118.\n- No funding field has `visibleWhen`, `escapeValue` or `prompt`.\n- `fundingNationality` (page5) has no rule, and its label is its own name.\n- I compared the option lists of `fundingSource` and `fundingStage` with the saved page: they are equal value for value. The comparison was made to fail once on purpose and did.\n- The entry records nothing about the source box's asterisk.\n- The saved page `docs/captures/sheffield-part2-2026-09-25/taught-page.html:209` shows the same `<font color=\"red\">*</font>` after \"Please select your likely funding source\" as line 255 does after the stage's label. The two later captures of that day show it at the same line.\n\nSIGNING PRECEDENT (P296, signed in P299; P300, P301 and P302, signed in P303).\n- Each prepared change is two files: docs/run-a/pNNN-for-signature.patch, a `git diff` of the drafts, the entry, what-will-be-typed.md and two test files, and never approvals.json; and docs/run-a/pNNN-for-signature.md, a sheet with his words, what the patch records, the hash, the measured effect on his run, the checks, a \"How to sign: one commit\" block, the approval JSON shape with placeholders, the exact signing message and the cost.\n- On main the preparing commits changed the entry only in its top-level `$comment`, which the hash drops; I confirmed this with `catalogue show`, which prints no `$comment`. Notes, `unobservedClaims`, validations and versions are inside the hash.\n- His signing message names the patch, the hash and his note; the signing commit applies the patch and replaces the one approval.\n\nMEASURED IN MEMORY OR IN SCRATCH, NOTHING WRITTEN.\n- With a required rule added to `fundingSource`, the P318 gate gets one new line it refuses: `bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingSource|required`, from the answer known=false. That line cannot be added to the list, because the list can only shrink from its baseline of 59.\n- The \"funding not known\" violations go from `[fundingStage]` to `[fundingSource, fundingStage]`.\n- The hash moves.\n- So, on today's build, the patch cannot be green. It needs the P319 build in which a \"no\" leads to the source being asked there and then, and it needs the saved outputs regenerated.\n- His run loads the signed entry, which carries no rule on `fundingSource`. So asking the source on his run in P319 cannot come from the entry patch.",
+ "facts": [
+  {
+   "claim": "The signed entry's blueprint and mapping-set versions and review fields.",
+   "where": "docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json (jq .blueprint / .mappingSet)",
+   "quote": "blueprintId bp-sheffield-pgt-september-direct, version 0.2.36, status reviewed; mappingSetId map-sheffield-pgt-2027-09, version 0.3.48, blueprintVersion 0.2.36, reviewedBy Vahid Mohammadi, reviewedAt 2026-09-16T19:19:35.241Z"
+  },
+  {
+   "claim": "The current entry hashes to the approved hash. Re-run in this session: `pnpm run -s catalogue hash` exited 0 and printed this value, which equals the one approval's contentHash.",
+   "where": "docs/run-a/catalogue/approvals.json:3; scripts/run-a-profile.test.ts:525,545",
+   "quote": "sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0"
+  },
+  {
+   "claim": "approvals.json holds exactly one approval, own account only. The test asserts that there is exactly one.",
+   "where": "docs/run-a/catalogue/approvals.json:2-9; scripts/run-a-profile.test.ts:540-546",
+   "quote": "\"approvedAt\": \"2026-10-13T09:48:06Z\", \"ownAccountOnly\": { \"studentId\": \"5774ff16-ff9c-424a-882f-42d0f304968b\" }, \"note\": \"Approved by Vahid: AUTH 3, 5, 6, 7 and 8 recorded by their real source; AUTH 5 on Run A's observation alone; AUTH 7 in my words of 2026-10-12; AUTH 8 reasoned from the design, not observed.\""
+  },
+  {
+   "claim": "fundingSourceKnown in the blueprint: a radio whose label is its own name and whose only locator is by name. It is required by an observed marker and has options Yes/No (value equal to label). It has no visibleWhen, escapeValue or prompt.",
+   "where": "sheffield-pgt-2027-09.json:30513-30540",
+   "quote": "\"fieldRef\": \"fundingSourceKnown\", \"label\": \"fundingSourceKnown\", \"inputType\": \"radio\" ... \"validations\": [{\"kind\": \"required\", \"source\": \"observed_marker\"}] ... {\"value\": \"Yes\", \"label\": \"Yes\"}, {\"value\": \"No\", \"label\": \"No\"}"
+  },
+  {
+   "claim": "The form's own question for fundingSourceKnown, as captured, is a legend with the asterisk. Both radios carry value=\"\".",
+   "where": "docs/captures/sheffield-part2-2026-09-25/taught-page.html:201-204",
+   "quote": "<legend>Do you know how you want to fund your studies?<font color=\"red\">*</font></legend> ... <input type=\"radio\" name=\"fundingSourceKnown\" value=\"\" onclick=\"fundingSourceKnownChanged()\" id=\"fundingSourceKnownYes\"><label for=\"fundingSourceKnownYes\">Yes </label>"
+  },
+  {
+   "claim": "fundingSource in the blueprint is a select with NO validation rule and 32 options: Select..., Employer, Scholarship or studentship (not listed below), Self or Family, Sponsor, Other, -----------, then 25 named schemes and loans. It has no visibleWhen, escapeValue or prompt. A jq diff against the saved page's <option> list shows them equal; the diff was made to fail once on purpose (a cut range) and did.",
+   "where": "sheffield-pgt-2027-09.json:30541-30691 (validations at 30560; Select... 30563-30564; escape-like option 30571-30572; separator 30587-30588); taught-page.html:211-243",
+   "quote": "\"fieldRef\": \"fundingSource\", \"label\": \"Please select your likely funding source\", \"inputType\": \"select\", \"dataCategory\": \"ordinary\" ... \"validations\": [],"
+  },
+  {
+   "claim": "fundingDetails in the blueprint: a text box with maxlength 118 from the DOM attribute and no required rule.",
+   "where": "sheffield-pgt-2027-09.json:30692-30719",
+   "quote": "\"fieldRef\": \"fundingDetails\", \"label\": \"Please enter details of your funding source:\", \"inputType\": \"text\" ... {\"kind\": \"maxlength\", \"value\": \"118\", \"source\": \"dom_attribute\"}"
+  },
+  {
+   "claim": "The saved page's tooltip for fundingDetails.",
+   "where": "taught-page.html:250",
+   "quote": "Enter details of your funding method, e.g. the name of your sponsor/employer/scholarship. Ignore if funding is through yourself or your family."
+  },
+  {
+   "claim": "fundingStage in the blueprint: a select required by an observed marker, with 6 options. The first is the prompt 'Select...', which is not recorded as a `prompt`. The options equal the saved page's list (jq diff).",
+   "where": "sheffield-pgt-2027-09.json:30720-30772 (validations 30739-30744; Select... 30747-30748); taught-page.html:257-262",
+   "quote": "\"label\": \"What stage are you at with your funding?\" ... \"The funding has been confirmed\" / \"I am applying for a project studentship\" / \"I have applied for funding\" / \"I am applying for funding\" / \"I am thinking about funding my studies this way\""
+  },
+  {
+   "claim": "fundingNationality (page5) is a select whose label is its own name. It has no validation rule; its first option is blank and its values are ISO-code:class pairs.",
+   "where": "sheffield-pgt-2027-09.json:4711-4735",
+   "quote": "\"fieldRef\": \"fundingNationality\", \"label\": \"fundingNationality\", \"inputType\": \"select\" ... \"validations\": [], ... {\"value\": \"\", \"label\": \"(blank — the portal's \\\"please select\\\" entry)\"}, {\"value\": \"GB:H\", \"label\": \"United Kingdom\"}"
+  },
+  {
+   "claim": "The mapping for fundingNationality reads identity.nationality through an ISO option map. The test pins Iran's value.",
+   "where": "sheffield-pgt-2027-09.json:33812-; scripts/run-a-profile.test.ts:560",
+   "quote": "expect(iranIn(\"fundingNationality\")).toBe(\"IR:O\");"
+  },
+  {
+   "claim": "The mapping for fundingSourceKnown: the part `known` through an option map, with its note.",
+   "where": "sheffield-pgt-2027-09.json:35686-35704",
+   "quote": "\"fieldKey\": \"finance.funding\", \"format\": {\"kind\": \"part\", \"path\": \"known\", \"then\": {\"kind\": \"option\", \"options\": {\"true\": \"Yes\", \"false\": \"No\"}}} ... \"note\": \"Do you know how you want to fund your studies?* — the student's OWN answer, asked directly and never derived from a source being held (ADR-0143).\""
+  },
+  {
+   "claim": "The mapping for fundingSource: a switch on part `source`, absent leave_empty. Cases self_or_family/employer/sponsor/other map the part `source` to one option each. Case scholarship maps part `details` onto 22 named scholarships, and case loan maps part `details` onto 3 loans (counted with jq). The map does not read `known`.",
+   "where": "sheffield-pgt-2027-09.json:35705-35802",
+   "quote": "\"kind\": \"switch\", \"path\": \"source\", \"absent\": \"leave_empty\" ... \"note\": \"... A scholarship or loan the list does not name refuses and is asked about; 'Scholarship or studentship (not listed below)' is the student's own escape and is never chosen by this map. Left EMPTY for a student who does not know (absent part).\""
+  },
+  {
+   "claim": "The mapping for fundingStage: the part `stage`, absent leave_empty, five registry stages onto the form's five sentences. Its note is inside the hash.",
+   "where": "sheffield-pgt-2027-09.json:35803-35825 (option map 35815-35819; note 35824)",
+   "quote": "\"confirmed\": \"The funding has been confirmed\", \"project_studentship\": \"I am applying for a project studentship\", \"applied\": \"I have applied for funding\", \"applying\": \"I am applying for funding\", \"considering\": \"I am thinking about funding my studies this way\" ... \"Left EMPTY for a student who does not know; the page's script hides this row for No (his expectation, unread — blocker 86 says what happens if it does not).\""
+  },
+  {
+   "claim": "The mapping for fundingDetails: the part `details` as text, absent leave_empty.",
+   "where": "sheffield-pgt-2027-09.json:35826-35841",
+   "quote": "\"note\": \"Please enter details of your funding source: — the sponsor's, scholarship's or employer's name as the student gave it; empty when there is none.\""
+  },
+  {
+   "claim": "The entry's provenance (inside the hash) records that the funding rows toggle on a script that was not captured, and that what the radios submit is unread. It says nothing about the source box's asterisk; a grep of the entry for 'asterisk' finds only two unrelated name-field notes.",
+   "where": "sheffield-pgt-2027-09.json:30821, 30823, 30949, 30960",
+   "quote": "the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read"
+  },
+  {
+   "claim": "His saved page marks the source box with the same red asterisk as the stage. The same markup is at the same line in all three captures of 2026-09-25. The capture was made by the read-only attached run attached-sheffield-pgt-september-direct-2026-09-25T17-07-09-822Z and committed in 581070eb.",
+   "where": "docs/captures/sheffield-part2-2026-09-25/taught-page.html:209 and :255 (also taught-with-course-page.html:209/255, taught-with-qualification-page.html:209/255); taught-run.json",
+   "quote": "<label for=\"fundingSource\">Please select your likely funding source</label><font color=\"red\">*</font>"
+  },
+  {
+   "claim": "Every draft taken from that capture records fundingSource with no rule, as the entry does. The capture README's table leaves the source's 'Marked' column empty.",
+   "where": "docs/captures/sheffield-part2-2026-09-25/taught-blueprint.draft.json (and the two later drafts); README.md:25,27",
+   "quote": "| `fundingSource` | select, 32: five generic and twenty-seven named scholarships | | static |"
+  },
+  {
+   "claim": "Row 210 (its core text is at HEAD) says what the saved page shows and why the tool missed it.",
+   "where": "docs/state-of-the-system.md:1012",
+   "quote": "Found in P316 by a refuter and confirmed: his saved page of 2026-09-25 (`docs/captures/sheffield-part2-2026-09-25/taught-page.html`) shows the same red asterisk after *\"Please select your likely funding source\"* as after the stage's label, but the entry records `fundingSource` with no rule, because `rowOf` (`apps/browser-runner/src/observe-script.ts`) takes a field's row only when its text is at most 400 characters, and this row holds 32 options."
+  },
+  {
+   "claim": "The tool's 400-character row limit.",
+   "where": "apps/browser-runner/src/observe-script.ts:96-102",
+   "quote": "if (block !== null && (block.textContent ?? \"\").trim().length <= 400) return block;"
+  },
+  {
+   "claim": "Row 210 and row 214 (6) carry his answer. These two rows are changed in the working tree; the change is the parent's uncommitted P319 records, not HEAD.",
+   "where": "docs/state-of-the-system.md:1012,1016 (git diff -U0 shows @@ -1012 and @@ -1016)",
+   "quote": "\"Yes: treat the funding source box as required on my observed red asterisk, and ask the source on my run in P319. Prepare the entry change for my signature; do not sign anything.\""
+  },
+  {
+   "claim": "ADR-0161 §4 (at HEAD) leaves the source to the box being required, and names row 210.",
+   "where": "docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:358-362,376-383",
+   "quote": "So the stage is asked with the form's own question and its five options as the entry records them, and the source is asked too when its box is required."
+  },
+  {
+   "claim": "Accepted ADR-0123 holds his words that a star is not the evidence. Its decision keeps marks recorded and lets the validator ignore a required marker inside a skippable section.",
+   "where": "docs/decisions/0123-a-star-is-not-a-requirement-and-a-step-that-cannot-ask-stops-for-a-person.md:32-34, 41-44",
+   "quote": "\"The star is not the evidence. The save is. This is the same finding as 'an error-free save is not a save', pointing the other way: a star is not a requirement either. On this portal a star means at least four things now, and one of them is nothing.\""
+  },
+  {
+   "claim": "The validation `source` is a closed set of four. Discovery writes `observed_marker` for a seen star; `specialist_noted` is 'a human recorded it during review'. A validation object has no field for a note or citation.",
+   "where": "packages/blueprint/src/blueprint.ts:114-132; packages/catalogue/src/parse.ts:265-267; apps/browser-runner/src/discovery.ts:69",
+   "quote": "observed_marker  — a visible mandatory marker (`*`) in the control's row, read by the observer where no attribute expresses it (P123; Sheffield's `<font>*</font>`). A read of the page as shown, for the reviewer to confirm. ... specialist_noted — a human recorded it during review."
+  },
+  {
+   "claim": "The blueprint has a `prompt` property for a list's own 'select' option, so that an offer never shows it as an answer. Neither funding select carries one; it is used on degree and grade only.",
+   "where": "packages/blueprint/src/blueprint.ts:256-263; sheffield-pgt-2027-09.json:25017, 27857",
+   "quote": "The VALUE of the list's own prompt — the option that asks for a choice and is not one (P291) ... An offer of the whole list must not show it as an entry a student could choose."
+  },
+  {
+   "claim": "`$comment` arrays are outside the hash; notes, unobservedClaims, validations and versions are inside it. The canonical form printed by `pnpm run catalogue show` contains no \"$comment\" key (0 hits) but contains unobservedClaims and the fundingSource note.",
+   "where": "scripts/catalogue.ts (show); packages/catalogue/src/parse.ts:1031; scratch canonical.txt",
+   "quote": "`$comment` is admitted and dropped, as the entry's own is"
+  },
+  {
+   "claim": "How an entry change is signed. There is deliberately no approve subcommand; the approving person adds the approval.",
+   "where": "scripts/catalogue.ts:33-40",
+   "quote": "There is deliberately no `approve` subcommand. An approval is a record that a person read something, and a CLI that writes one on request is a CLI that manufactures the evidence it is supposed to record. Approvals are added to `approvals.json` by the person approving, naming under `ownAccountOnly.studentId` the one account the signature admits"
+  },
+  {
+   "claim": "Precedent sheet P300 (signed in P303): the status line, the batch-in-one-commit rule, and that the patch adds no test.",
+   "where": "docs/run-a/p300-for-signature.md:3-13, 243-244",
+   "quote": "The batch was the patch [`p300-for-signature.patch`](./p300-for-signature.patch), applied and signed in one commit, so `main` never held an entry no approval covers."
+  },
+  {
+   "claim": "Precedent 'How to sign' commands (P300), word for word.",
+   "where": "docs/run-a/p300-for-signature.md:333-342",
+   "quote": "grep -q passwordResetSends packages/catalogue/src/parse.ts || echo \"STOP: the P301 commit is not in\"\ngit apply docs/run-a/p300-for-signature.patch\n# then edit docs/run-a/catalogue/approvals.json — replace the one entry (below)\npnpm run catalogue hash docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json   # must print the hash above\ngit add docs/run-a docs/captures/sheffield-pgt-2026-09-10 scripts/run-a-profile.test.ts scripts/sheffield-draft.test.ts\ngit commit"
+  },
+  {
+   "claim": "Precedent approval shape, with placeholders he fills in, and the exact signing message he sent.",
+   "where": "docs/run-a/p300-for-signature.md:344-370; docs/run-a/p303-his-approval-as-sent.txt",
+   "quote": "\"approvedAt\": \"<when you sign, UTC>\", ... \"note\": \"<your words>\" ... I approve the patch in docs/run-a/p300-for-signature.patch, whose entry hashes to sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0. Apply it and sign it as docs/run-a/p300-for-signature.md says ... Check that the printed hash is the one in this message before committing, then push and report CI."
+  },
+  {
+   "claim": "Precedent P296: the same layout, with the guard first.",
+   "where": "docs/run-a/p296-for-signature.md:173-197",
+   "quote": "test -f docs/captures/sheffield-pgt-2026-09-10/reads/p296-reads-as-sent.txt   # the P296 commit is in\ngit apply docs/run-a/p296-for-signature.patch"
+  },
+  {
+   "claim": "Patch file layout. Both precedent patches touch the curated blueprint draft, the mapping-set draft, the entry, what-will-be-typed.md, run-a-profile.test.ts and sheffield-draft.test.ts. P300's also touches portal-authentication.draft.json. Neither touches approvals.json.",
+   "where": "docs/run-a/p300-for-signature.patch (diff headers at lines 1,31,48,112,212,228,347); docs/run-a/p296-for-signature.patch (1,270,531,1058,1074,1195)",
+   "quote": "diff --git a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json"
+  },
+  {
+   "claim": "Precedent commits. P300, P301 and P302 (50692648, c387f455, 7d9d0036) committed the sheet and patch without touching approvals.json; they changed the entry only in its top-level $comment. P296 (24751402) committed the sheet and patch without touching the entry. The signing commits (8f51a599, fc2ba6a7) carried the two drafts, approvals.json, the entry, what-will-be-typed.md and the tests.",
+   "where": "git show --stat 50692648, c387f455, 7d9d0036, 24751402, 8f51a599, fc2ba6a7",
+   "quote": "8f51a599 ... blueprint.draft.curated.json | mapping-set.draft.json | docs/run-a/catalogue/approvals.json | .../catalogue/entries/sheffield-pgt-2027-09.json | docs/run-a/what-will-be-typed.md | scripts/run-a-profile.test.ts | scripts/sheffield-draft.test.ts"
+  },
+  {
+   "claim": "The entry must equal the two curated drafts, plus the signature fields. A P319 change therefore goes into docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json too (its fundingSource has `validations: []` at line ~30463), and the mapping-set draft moves with any version or note change.",
+   "where": "scripts/run-a-profile.test.ts:259-267; docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json:30446",
+   "quote": "expect({ ...value.blueprint, status: \"draft\" }).toEqual(blueprint);"
+  },
+  {
+   "claim": "Every precedent patch bumped both versions and regenerated what-will-be-typed.md (its version line and Reference). P300 notes that a yes given under the old version is asked again.",
+   "where": "docs/run-a/p300-for-signature.md:215-229; p300-for-signature.patch:212-227",
+   "quote": "A run whose student said yes under 0.2.35 is asked for the yes again before anything is typed, for the same typed content."
+  },
+  {
+   "claim": "Version and hash pins a P319 patch would move.",
+   "where": "scripts/run-a-profile.test.ts:499-509 (history comment), 525, 545, 712; scripts/sheffield-draft.test.ts:147, 462-463; docs/run-a/what-will-be-typed.md:1 and Reference line",
+   "quote": "expect(output).toContain(\"REVIEWED — blueprint 0.2.36, mapping set 0.3.48, reviewed by Vahid Mohammadi.\");"
+  },
+  {
+   "claim": "Saved outputs that hold the version or funding results and are compared by tests. A P319 patch moves them: p315 and p316 open with 'Sheffield's entry: blueprint 0.2.36, mapping set 0.3.48.', and p317 opens with '(blueprint 0.2.36)' and prints fundingSource as '[not required]'.",
+   "where": "scripts/content-stops-on-sheffield.test.ts:54-56, 59-63, 81-84, 110-115; scripts/required-boxes-hold.test.ts:107-110; docs/run-a/p315-content-stops-on-sheffield.txt:1,52; docs/run-a/p316-funding-on-page-12.txt:1-13; docs/run-a/p317-required-boxes.txt:1,42-43",
+   "quote": "expect(outcome.validation?.violations.map((violation) => [violation.fieldRef, violation.rule.kind])).toEqual([[\"fundingStage\", \"required\"]]);"
+  },
+  {
+   "claim": "MEASURED, in memory, nothing written. The script loads the signed catalogue, clones the entry, adds {required, observed_marker} to fundingSource and runs the P318 checker and gate on finance.funding. On the entry as it stands: unexpected [], gone []. With the rule: one unexpected line, and the source's report lines turn '[required]'.",
+   "where": "scratch p319-map/gate-with-source-required.mts and .out (tsx exit 0)",
+   "quote": "unexpected: [\n \"bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingSource|required\"\n] ... finance.funding → fundingSource [required]: required, by 1 answer(s): known=false"
+  },
+  {
+   "claim": "The gate's known-breaks list can only shrink. A new line cannot be listed; it has to be mended.",
+   "where": "scripts/required-boxes-hold.test.ts:80-93; scripts/required-boxes-known.ts:53",
+   "quote": "expect(KNOWN_BREAKS.map((line) => line.key).filter((key) => !baseline.has(key)), \"a line joined the list after P318: mend the break instead\").toEqual([]);"
+  },
+  {
+   "claim": "MEASURED in scratch: a copy of the entry with the rule added (jq; the only diff is that validations entry) hashes differently. The value below only illustrates that the hash moves; it is not a signing hash, since no version or note is bumped. Under the copy, outcomeFor('funding not known') gives two violations where the signed entry gives one.",
+   "where": "scratch p319-map/entry-source-required.json; stops-with-source-required.mts (exit 0)",
+   "quote": "sha256:9d5ac2935638f4644cdd6e4921dd5c6b14ca0cea1f4691590a9f255bef7b08dd ... entry-source-required.json [[\"fundingSource\",\"required\",\"observed_marker\"],[\"fundingStage\",\"required\",\"observed_marker\"]]"
+  },
+  {
+   "claim": "Any change to hashed content voids the approval at load. So his run, which loads docs/run-a/catalogue, sees fundingSource without a rule until he signs.",
+   "where": "scripts/run-a-profile.test.ts:566-585; docs/run-a/p308-his-live-run-steps.md:56; docs/run-a/p313-restart-steps.md:33",
+   "quote": "Vahid, before signing: \"If anything in either changes afterwards — a label, a value, a condition — the hash moves and the approval is void, and I would rather that happened loudly than be worked around.\""
+  },
+  {
+   "claim": "Adding an escapeValue to a box filled from a financial answer trips a guard test. This is his D7, after phase 1, so a P319 patch must not add one to fundingSource.",
+   "where": "scripts/a-financial-choice-waits-for-the-review.test.ts:1-12,46-55",
+   "quote": "His D7 (\"approved.\": the form's own list, with its escape, for a scholarship or loan it does not name) makes it reachable. When an entry first does, this fails, and the review must cover the choice before that entry is signed."
+  },
+  {
+   "claim": "Precedent checks: tests are run on the patched tree under a stand-in approval that is never committed, and the patch is checked to round-trip.",
+   "where": "docs/run-a/p300-for-signature.md:302-316",
+   "quote": "**On the patched tree, under a stand-in approval** (never committed, its note saying it is not yours) ... **The patch round-trips:** applied, it prints the hash above; reversed, `main`'s `sha256:546b2948…`."
+  },
+  {
+   "claim": "His rule on departures from an accepted ADR, in CLAUDE.md (an uncommitted P319 record) and in his saved message.",
+   "where": "docs/run-a/p319-his-answers-on-row-214-as-sent.txt:11",
+   "quote": "From now on, when building would depart from an accepted ADR, stop and ask me first, even if you are sure; record the question, build nothing on it until I answer."
+  },
+  {
+   "claim": "The cost of everything above, and of preparing the patch: nothing metered. No model call, no network to any portal, no AWS.",
+   "where": "commands run in this session; docs/run-a/p300-for-signature.md:372-374",
+   "quote": "Nothing metered: no model call and no AWS."
+  }
+ ],
+ "openQuestions": [
+  "ADR-0123 (Accepted) holds his words \"The star is not the evidence. The save is. ... a star is not a requirement either.\" His row-214 (6) answer says \"treat the funding source box as required on my observed red asterisk\". Under his new rule, does building on the asterisk depart from ADR-0123 Decision 1? Two readings: his answer 6 is itself his word on this box; and the entry already records every other star as `required`/`observed_marker`, which ADR-0123:42-44 keeps (\"The marks stay\"). Even so, his rule says to ask \"even if you are sure\", so the parent should decide whether to put this question to him before building.",
+  "Which `source` does the new rule carry: `observed_marker` (his words are \"my observed red asterisk\", and the stage's star is recorded that way) or `specialist_noted`? The observer did not record this star (row 210); it is in the saved HTML of run attached-...-2026-09-25T17-07-09-822Z. In P296 the parallel case claimed no `labelSource` because \"the observer did not read them\". The rule goes into his signature either way; the sheet should name the choice and whose it is.",
+  "His run must ask the source in P319, but the entry it loads (2a4ae5a9) carries no rule on fundingSource, and an unsigned patch voids the approval at load. What basis does the P319 build use to ask the source on his run? ADR-0161 §4 says the source is asked \"when its box is required\". This is for the build mappers and the parent to settle against ADR-0161 §4 under his rule.",
+  "Ordering: on today's build, the patch makes the P318 gate red with a line that cannot be listed (measured). The patch can only be green on top of the P319 build in which a 'no' leads to the source being asked there and then, and only if the checker (scripts/required-boxes-hold.ts acceptedAnswers for finance.funding) recognises that. Should the sheet say the patch applies on top of the P319 build commit, with a guard line, as P300's sheet did for P301?",
+  "What else goes in the patch, all inside the hash? (a) `prompt: \"Select...\"` on fundingSource and fundingStage, so that an offer \"with the form's own options\" never shows the prompt; the separator \"-----------\" has no field for it. (b) Rewording the two mapping notes that say \"Left EMPTY for a student who does not know\" (35801, 35824), which become untrue once a no is asked stage and source. (c) An unobservedClaims or provenance line naming taught-page.html:209 and his words. (d) Version bumps to 0.2.37 / 0.3.49, which by precedent move the preview Reference, so a yes already given on his run would be asked again after signing.",
+  "Testing on the patched tree: the precedent used a stand-in approval written into docs/run-a/catalogue/approvals.json and never committed. Given his \"do not sign anything\", should P319 avoid even a temporary stand-in? run-a-profile.test.ts:526 loads docs/run-a/catalogue directly, so its green-on-patched-tree check needs an approval at that path. The checker and content-stops measurements can run with no approval at all (in memory or on a scratch path), as done here.",
+  "Precedent patched entries keep mappingSet status \"reviewed\", reviewedBy \"Vahid Mohammadi\" and reviewedAt 2026-09-16 unchanged. The approval is the act. Should the P319 sheet say so explicitly, so the patched file is not read as a record of a review he has not yet given?",
+  "Which saved outputs the patch regenerates, and where: docs/run-a/what-will-be-typed.md; docs/run-a/p315-content-stops-on-sheffield.txt; docs/run-a/p316-funding-on-page-12.txt; docs/run-a/p317-required-boxes.txt. Which test assertions it moves: run-a-profile.test.ts:525,545,712; sheffield-draft.test.ts:147,462-463; content-stops-on-sheffield.test.ts:54-56,81-84. That widens the `git add` line beyond the precedent's. Not done here; to be confirmed by building the patch on the P319 tree."
+ ]
+}
+
+################ design
+{
+ "plan": "P319 design. Read-only work; nothing tracked was edited. Line numbers are at HEAD 5311eeaf. ADR-0161 lines after 110 sit 22 lines lower in the working tree because of the uncommitted \"His answers on row 214\" section.\n\nWHAT P319 BUILDS\n- The funding STAGE asked after a \"no\", in the form's own words and options. This is ADR-0161 §4 with D2. His words: \"D2: approved. Ask with the form's own words and options.\" (p318-his-answers…:4)\n- His answer 1: \"Yes: a minor's review covers every answer.\" (p319-his-answers-on-row-214-as-sent.txt:3)\n- The entry change, prepared and not signed. His answer 6: \"Prepare the entry change for my signature; do not sign anything.\" (p319 answers:8)\n- The shrinking-list line for fundingStage leaves the list.\n\nWHAT P319 DOES NOT BUILD YET. His rule: \"From now on, when building would depart from an accepted ADR, stop and ask me first, even if you are sure; record the question, build nothing on it until I answer.\" (p319 answers:11)\n- How the source is known to be required before he signs: departure 1.\n- Which source options a no-student is offered: departure 2.\n- A scholarship or loan name after a no: departure 3.\n- A check of held answers on resume: departure 6.\nP319's code reads \"required\" only from the signed entry. A part that a required SWITCH box reads is never reopened (fundingSource's map is a switch, entry:35705-35802). So no source question after a no exists in code until he answers.\n\nEstimate: about 5 h for steps 0-6, so stop and say so at 10 h. This is my estimate; the marker is written when the work starts.\n\nSTEP 0 — Records before code.\n- Write the p319.marker.\n- Record departures 1-10 below as one undecided row, each with its one-line question.\n- Send him the questions before building anything they touch.\n\nSTEP 1 — Minors fingerprint over every answer (his answer 1). Test-first in apps/conversation-service/src/run-driver.test.ts, beside the minors tests at 6089-6136 and 11329-11540.\n- Red first:\n  - (a) A reviewed minor's non-date answer (e.g. contact.address) is confirmed again. involves_minor is raised again with a new fingerprint, the old approval no longer clears it, and authorisation is refused until a new review.\n  - (b) A financial answer changed for a minor raises both triggers.\n  - (c) A case that never involved a minor is never raised by any answer change.\n  - (d) The fingerprint holds no values: two profiles with the same keys, revisions and confirmation times but different values give the same fingerprint (his answer 3: \"Keep: fingerprint holds no student values.\").\n- Then change run-driver.ts:12965 from marks([\"identity.date_of_birth\"]) to marks([...profile.entries.keys()].sort()). Every confirmed answer, always: the widest reading of his words, and it fails closed.\n- Update the comments at run-driver.ts:5856-5857, 12851 and 12936-12947.\n- Mutation check: revert line 12965, see (a) go red, restore it.\n- The existing minors tests must stay green. Run them after the change.\n- Not built: choices from a form's list (departure 9).\n\nSTEP 2 — Derive, from the signed entry, which closed part a required box needs. This is the general mechanism, test-first.\n- Extend PartRule (packages/interview/src/interview.ts:144-151) with:\n  readonly reopens?: ReadonlyMap<string, { readonly question: string; readonly options?: readonly { readonly words: string; readonly value: string }[] }>\n- In partPolicyFor (packages/orchestrator/src/run.ts:2356-2395), path P goes into reopens when ALL of these hold:\n  - the box has a `required` validation;\n  - its mapping is a `part` rule on P with `absent: \"leave_empty\"`, and `then` is an `option` map or text (not a switch or join);\n  - the box and its section have no visibleWhen;\n  - the section is not skippable (`optionalSectionWords`, the same fact the plan and validator read: ADR-0123 D1);\n  - the label is read (not equal to the fieldRef);\n  - the option map is one-to-one.\n- question = the box's label. options = the blueprint's options in the form's order, kept only where the map renders a token to them. \"Select...\" is dropped because no token maps to it.\n- Fix withDemandedParts (run-driver.ts:2370-2388) so it spreads the rule. Today it rebuilds {asked, required} and would drop reopens.\n- Tests:\n  - On the signed Sheffield entry, reopens is exactly finance.funding → stage, with \"What stage are you at with your funding?\" and the five sentences mapped to confirmed, project_studentship, applied, applying, considering.\n  - Nothing else is reopened. identity.passport.number is typed \"no passport\" when absent. The UK-study boxes are shown-when (entry:19995). fundingSource is a switch.\n  - Synthetic-blueprint cases, one per exclusion above, each made to fail once.\n  - A demand keeps reopens.\n\nSTEP 3 — The interview asks the reopened part with the form's words. Test-first in packages/interview/src/interview.test.ts, beside 2075-2113.\n- nextPart (interview.ts:308-317): if askWhen is true, use isAsked as today. If askWhen is false, the part is asked only when rule.reopens has its path AND the spec's assemble keeps it. The keep check stops a question whose answer would be thrown away.\n- Question composition (783-800): pass `exactly` = the label, then each option's words on its own line. Nothing else is added: ADR-0161 withdrew my preface (§4, HEAD 342-346). With `exactly`, both clients print verbatim with no compose call (bedrock.ts:283-285, deterministic.ts:38-41).\n- Reading: an exact table of the option words, after normalising case and spaces, mapped to the token. It counts as required, so \"none\" is refused. It is read deterministically, without interpretAnswer. This is the departure-avoiding path for departure 5. An unread answer is asked again with the existing reason, and after the attempt cap the existing stop applies (ADR-0123 D2).\n- Playback at 688 and 1223: pass the words shown for a part asked from the form into renderForConfirmation. Add a new optional `shown` map in packages/profile/src/confirmation.ts:157-163, consulted before vocabularyWords at 411-422. So the playback says \"I am thinking about funding my studies this way\", not \"thinking about it\" (departure 4).\n- field-specs.ts:950-953: assemble keeps stage and source when known is false. `known` stays false, never derived (ADR-0143 §2). Details stay yes-only.\n- Update the FundingIntent comment (packages/profile/src/fields.ts:175-182) and the spec comment (field-specs.ts:895-898).\n- Export partIsOpen(part, answers, rule) and parserFor(part, answers, rule) for the checker.\n\nSTEP 4 — The checker and the gate use the interview's own gate.\n- scripts/required-boxes-hold.ts: the walk (327-344), assembleFrom inside baseParts (268-275) and candidatesOf (180-187) call partIsOpen and parserFor instead of part.askWhen and part.parse. Extend the local PartPolicy type (176) with reopens.\n- Tests in scripts/required-boxes-hold.test.ts, test-first:\n  - Rewrite the test at 114-120: no accepted answer breaks fundingStage, and the known=false answers carry a stage.\n  - Fail it once on purpose: with reopens stripped, brokenBy returns [\"known=false\"] again.\n  - New: no accepted answer whose walk began known=false breaks any funding box. This guards the fold into line 82, because the gate key carries no answer.\n  - New, pinned: on a clone of the entry with fundingSource required, the gate's only unexpected line is \"bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingSource|required\". That shows the patch is not signable until the source is built.\n- Remove scripts/required-boxes-known.ts:53.\n- Regenerate docs/run-a/p317-required-boxes.txt from the checker's own output.\n- Run the gate and read the output. Lines 81 and 82 should stay, because they occur for yes answers. Confirm that from the output; the gate fails if either is gone.\n\nSTEP 5 — Prepare the entry change, unsigned (see entryPatch).\n\nSTEP 6 — Records and close.\n- ADR-0161 §4 and §6 as built in P319, with his answers quoted.\n- Add \"amended by ADR-0161\" back-references in ADR-0123, 0143, 0148, 0154, 0155 and 0158 (none today).\n- Update rows 209, 210 and 214.\n- Re-read every edited file and re-run each check after the change, saying what came back.\n- Census, scripts/portal-onboarding-time.ts output, the clock from the marker, a cost line, and the list of what was applied under his 2026-10-14 rule.\n- Commit as Vahid Mohammadi with no agent trailers (CLAUDE.md).\n\nWHAT P319 CANNOT DO FOR HIS RUN. One line he must hear: P319 alone does not move his run. His held {known:false} is never walked again (interview.ts:703; run.ts:616-617), so the next advance after a resolve stops at the same fundingStage fix_content. The route is answering the field again (§5, item 4), as his words have it: \"I will give my funding answer myself in the chat.\" (ADR-0161:39-40). The exact steps for his run, ending with the resolve command, therefore belong after item 4, or after his answer to departure 6.\n\nCost: nothing in P319's build and tests is metered (no model, no network, no AWS). In production each answer the model reads is one Bedrock call (bedrock.ts:342-360). A question with `exactly` costs no call to compose, and the strict stage reading costs none.",
+ "tests": [
+  "run-driver.test.ts: a reviewed minor's non-date answer (contact.address) confirmed again after the review raises involves_minor again with a new fingerprint; the earlier approval no longer clears it; authorisation is refused until a new review. Red before run-driver.ts:12965 changes; red again when the line is reverted.",
+  "run-driver.test.ts: a minor's financial answer changed after review raises both financial_evidence and involves_minor.",
+  "run-driver.test.ts: a case that never involved a minor is never raised by any answer change.",
+  "run-driver.test.ts: the minors fingerprint is value-free. Two profiles with the same keys, revisions and confirmation times but different values fingerprint alike (his answer 3).",
+  "run-driver.test.ts: the existing minors tests (6089-6136, 11329-11540) still pass, re-run after the change.",
+  "orchestrator partPolicyFor: on the signed Sheffield entry, reopens is exactly {finance.funding: stage}. Its question is 'What stage are you at with your funding?' and its options are the five sentences in the form's order, mapped to confirmed, project_studentship, applied, applying, considering. 'Select...' is not among them.",
+  "orchestrator partPolicyFor: nothing else on the signed entry is reopened. identity.passport.number is excluded (typed 'no passport' when absent), immigration.uk_study highestLevel and qualification are excluded (a shown-when box), and fundingSource is excluded (a switch, held for his answer).",
+  "orchestrator partPolicyFor, synthetic blueprints, each made to fail once: a box is not reopened when it has a visibleWhen, sits in a section with a visibleWhen, sits in a skippable section, has `absent` typed, has a switch rule, has a label equal to its fieldRef, or has a many-to-one option map. A required, always-shown `part`/leave_empty box is reopened.",
+  "run-driver withDemandedParts: a demand on a field keeps the rule's reopens. Fails today because the rule is rebuilt as {asked, required}.",
+  "interview.test.ts: under the Sheffield-derived rule, 'no' to the known question is followed by exactly 'What stage are you at with your funding?' and the five sentences, with no rationale or preface, on the deterministic client.",
+  "interview.test.ts: answering 'I am thinking about funding my studies this way' (any case, extra spaces) gives a playback showing 'no' and that sentence, not 'thinking about it'. The press stores {known:false, stage:'considering'}, and known stays false.",
+  "interview.test.ts: the reopened stage refuses 'none' and 'I don't know' and is asked again with the unread reason; after the attempt cap, the existing escalation fires (ADR-0123 Decision 2). No model call is made to read it.",
+  "interview.test.ts: without a part policy (portal-neutral), 'no' assembles {known:false} and asks nothing more.",
+  "interview.test.ts: the yes path is unchanged. Stage is asked with the spec's own question and read by FUNDING_STAGE_WORDS.",
+  "interview.test.ts: a reopened part whose spec's assemble would drop it is not asked.",
+  "interview.test.ts: rebuilding the interview from the log after the stage answer (ADR-0051) gives the same pending playback.",
+  "required-boxes-hold.test.ts (rewrites 114-120): no accepted answer breaks fundingStage, and the walk for known=false includes a stage. Made to fail once by stripping reopens from the policy: brokenBy returns ['known=false'].",
+  "required-boxes-hold.test.ts (new): no accepted answer whose walk began known=false breaks any funding box. This guards the fold of a new break into listed line 82, since the gate key carries no answer.",
+  "required-boxes-hold.test.ts (new, pinned): on a clone of the signed entry with {required} on fundingSource, the gate's unexpected lines are exactly ['bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingSource|required']. This records why the patch cannot be signed until the source is built.",
+  "required-boxes-hold.test.ts: the gate is green with scripts/required-boxes-known.ts:53 removed. Lines 81 and 82 still occur (read from the output). docs/run-a/p317-required-boxes.txt equals the checker's regenerated output.",
+  "content-stops-on-sheffield.test.ts:81-84 still holds on the signed entry: his held {known:false} still breaks fundingStage. This shows P319 alone does not move his run."
+ ],
+ "departures": [
+  {
+   "adr": "ADR-0148 §4 as built (P231), with ADR-0057 property 3, versus his row-214 (6) answer, which said yes to: 'row 210's reading of his saved page is enough, so P319 asks the source on his run, and an entry patch carrying the rule follows for his signature' (state-of-the-system.md:1016, working tree)",
+   "says": "ADR-0148:100-103: \"Which parts of a list or composite are asked, and which refuse \"none\", come from the portal and are never authored: `partPolicyFor` reads the mapping set for the value paths each mapped slot reads (a `part` rule's first path, a `join`'s parts, a `switch`'s path, or the whole value) and the blueprint's own validations for which of those slots are required.\" ADR-0057:63-64: \"The hash binds the approval to that canonical form. Alter anything the system acts on and the hash moves, and the approval no longer applies.\"",
+   "buildWould": "The signed entry gives fundingSource `\"validations\": []` (entry:30560), and the run reads 'required' only from the signed blueprint (run.ts:2356-2367). There are two ways to ask the source on his run. (a) Before he signs: hold 'fundingSource is required' in a record outside the hash. It would be keyed to bp-sheffield-pgt-september-direct 0.2.36, cite p319 answers:8 and taught-page.html:209, be read by partPolicyFor, and be removed in the signing commit. (b) His signature of the P319 patch as a step of his run before the resolve. Then 'required' is read from the signed entry, but the source waits for the patch.",
+   "question": "Before you sign the P319 entry change, may the run treat the source box as required from a record kept outside the signed entry (named to your answer 6, removed when you sign)? Or do the steps for your run put your signature first?",
+   "canAvoid": "No. Route (a) departs from ADR-0148 §4 as built and from ADR-0057 property 3. Route (b) departs from the recommendation his 'Yes' accepted. P319 builds neither: its code reads 'required' only from the signed entry."
+  },
+  {
+   "adr": "ADR-0161 §4 as amended by D2 (his words), versus ADR-0143 §3, ADR-0155 §1, ADR-0109 as amended (his words in ADR-0155), and D1's phasing of D7",
+   "says": "D2: \"Ask with the form's own words and options. If the funding source box is also required (row 210), ask it too.\" ADR-0143:48-52: \"Sheffield's map names the four general options the vocabulary can honestly name — self or family, employer, sponsor, other. `scholarship` and `loan` have no row: the list names twenty-two scholarships and schemes and three loans, and choosing *\"not listed below\"* or one loan for a student whose scholarship or loan is not known would be a claim.\" ADR-0155:64-65: \"A field with no escape on record is not offered at all\". ADR-0155:36-38: \"the runner may choose the form's escape entry when, and only when, the student has chosen it. Never otherwise, and never as a fallback when nothing matches.\" ADR-0161:455-456: \"So phase 1 is items 1, 2, the funding stage of item 3, and item 4; the rest of item 3 follows after item 4.\"",
+   "buildWould": "Option (a): offer the form's whole list except 'Select...' and '-----------'. That includes the escape 'Scholarship or studentship (not listed below)' (entry:30571-30572), 22 schemes and 3 loans, and would store a scheme's name as details. It departs from ADR-0143 §3, ADR-0155 §1, ADR-0109 as amended, and D7's phasing. Option (b): offer only the four options the map renders from the vocabulary (Employer, Self or Family, Sponsor, Other), under the form's question. That is narrower than D2's 'the form's own … options'.",
+   "question": "After a no, which source options are shown: the four the map names (Employer, Self or Family, Sponsor, Other), or the form's whole list with its escape and named schemes, which brings D7 into phase 1?",
+   "canAvoid": "No: each reading departs from one accepted text. P319 holds it: a part read by a required switch box is not reopened, so nothing about the source after a no is built until he answers."
+  },
+  {
+   "adr": "ADR-0143 §1 (details only of a yes), ADR-0161 §1, and D1's phasing (ADR-0161 §3 case 1 after phase 1)",
+   "says": "ADR-0143:43-45: \"`source`, `stage` and `details` are asked only of a student who answered *yes*; a student who answered *no* holds `{ known: false }`, which is complete.\" ADR-0161:263-265: \"Anything else breaks it. That includes a person's stop at any point and a `fix_content` after the plan. It also includes a fill that fails at the box, and a stop said in the interview but for a person to settle.\"",
+   "buildWould": "If 'scholarship' or 'loan' is offered after a no, the map's scholarship and loan cases read `details`, which a no-student is not asked. The plan refuses with no_such_part and a person settles it, which breaks his rule. The alternative, asking the name after a no, departs from ADR-0143 §1 (D2 names only stage and source) and pulls §3 case 1 forward from after phase 1. The gate would not show the first outcome: its key (`blueprintId|class|field|box|detail`, required-boxes-known.ts:14) carries no answer, so the break folds into listed line 82.",
+   "question": "If a student who answered no picks scholarship or loan, should its name be asked right away (ahead of D1's phasing)? Or should those two be left out after a no, or the person's stop accepted until D7?",
+   "canAvoid": "Yes for P319, because the source after a no is not built. A test is added in any case: no accepted answer beginning known=false may break a funding box. That stops the fold into line 82 from hiding it."
+  },
+  {
+   "adr": "ADR-0148 'Their words, not ours (P234)' and ADR-0154 P311 amendment (both his words)",
+   "says": "ADR-0148:202-204: \"That is us showing them our word for their answer, and it is the same defect as the field keys — one level deeper. They said Iran. Play back Iran.\" ADR-0154:154-156: \"Match the words the student is shown (\"UK honours\"), never only the internal token\"",
+   "buildWould": "As the code stands, a stage chosen from the form's sentences is played back through VOCABULARY_WORDS (confirmation.ts:411-422; fields.ts:626-637), e.g. 'thinking about it' for 'I am thinking about funding my studies this way'. The review's display and a later P311-style correction also show registry words, and the correction finder knows only those (correction-requests.ts:225-236 still refuses financial parts).",
+   "question": "After a no, is the stage played back in the form's sentence you were shown? And do the review and later corrections keep the registry words until item 4 builds corrections of financial answers?",
+   "canAvoid": "Yes for the playback: P319 passes the shown words into renderForConfirmation for a part asked from the form. Not yet for the review display or corrections, which belong to item 4."
+  },
+  {
+   "adr": "ADR-0148 §5 (his words) versus ADR-0158, his words of 2026-10-15 (recorded as design, not built)",
+   "says": "ADR-0148:41-43: \"*\"The AI arranges and places what the student said. It does not rewrite it.\"* For a free-text part the value IS the quoted span; for a date or a closed vocabulary the value is a reading of the span, which is what confirmation is for.\" ADR-0158:319-321: \"Matching to a form's list stays exact, after normalising case, spaces and numbers (\"20\" = \"20.0\"); a near match is only ever suggested, never chosen.\"",
+   "buildWould": "With the real model, a student shown the five sentences who types 'confirmed' would have it read as 'The funding has been confirmed' (bedrock.ts:342-360), parsed, played back and pressed, as every closed part is today. Neither text settles whether that is ADR-0148 §5's reading or the near match ADR-0158 says may only be suggested. The build instead reads the reopened part deterministically, with no model call, and accepts only an exact sentence after normalising case and spaces. Anything else is asked again.",
+   "question": "Shown the five sentences, if a student types 'confirmed', may the interview read it as 'The funding has been confirmed' and play it back for the press? Or must it ask again until a sentence is typed?",
+   "canAvoid": "Yes, by the strict exact reading, which never chooses a near match. The cost is friction: a student must type one of the sentences, and repeated misses reach the existing stop for a person."
+  },
+  {
+   "adr": "ADR-0161 §3 and D10 (§3's two moments), with his words of 2026-10-16 items 2 and 4",
+   "says": "ADR-0161:294-300: \"Checked when the answer is put together, before it is played back. … Checked when a case begins. An answer the student gave for another application is checked against this entry when the case first plans.\" His words, ADR-0161:35-36: \"Build the way to answer the funding questions again on the student's own word, with playback and the \"Yes, that's right\" press.\" And 39-40: \"Then tell me the exact steps for my run, ending with the resolve command. I will give my funding answer myself in the chat.\"",
+   "buildWould": "P319 asks the stage inside a walk. His held {known:false} is never walked again (interview.ts:703; run.ts:616-617), so his run's next advance stops at the same fundingStage fix_content. Reaching it in P319 would need a check of held answers on resume, which is neither of D10's two moments, or answering a field again (§5), which §8 orders as item 4.",
+   "question": "Your held no is reached only by answering the funding field again (§5, next phase). Do the steps for your run wait for that, or do you want held answers checked on resume, beyond D10's two moments?",
+   "canAvoid": "Yes: P319 builds no check on resume, and the steps for his run are written after item 4. He must be told that steps written after P319 alone would end at the same stop."
+  },
+  {
+   "adr": "ADR-0057 (a reviewer reviews the canonical form), applied to the note he signed in entry 2a4ae5a9",
+   "says": "ADR-0057:119-120: \"A reviewer reviews the canonical form. `pnpm run catalogue` prints it and the hash it approves, so the thing signed for and the thing hashed cannot drift apart.\" The signed note (entry:35824, inside the hash): \"Left EMPTY for a student who does not know; the page's script hides this row for No (his expectation, unread — blocker 86 says what happens if it does not).\"",
+   "buildWould": "After P319, a new student's no is followed by the stage question, and fundingStage is filled under the entry he signed. Its map rules are unchanged, but the note he read when signing says the box is left empty for a no. The patch rewords the note; until he signs, the behaviour and the signed note differ. D2 approved asking 'as Sheffield's does' (ADR-0161:333-335), which may already answer this. The build does not decide that.",
+   "question": "May a no-student's stage be filled under the entry you signed, whose note says the stage is left empty for a no, before you sign the P319 patch that rewords the note?",
+   "canAvoid": "Yes, by holding the stage after a no until the patch is signed, so stage and source both wait for his signature. Otherwise no."
+  },
+  {
+   "adr": "ADR-0161 §3, the form of the check",
+   "says": "ADR-0161:320-324: \"Machinery for 1 exists for one case. A box the portal refused at the save raises `value_part_demanded` … Nothing today asks again for a value the student gave. The check would raise the same demand from the plan, before any save.\"",
+   "buildWould": "The build does not plan each assembled answer and raise a demand. It derives from the signed entry (partPolicyFor) which closed parts a required, always-shown, leave_empty box reads, and asks them before the playback. Boxes it cannot judge without the plan (shown-when sections, switch maps) are not reopened and stay visible as gate lines.",
+   "question": "Is a check derived from the signed entry, made before the playback, an acceptable form of §3's check? Or must it plan each assembled answer and raise a demand?",
+   "canAvoid": "Yes, by building the plan-based check, which is larger: the interview would need the case's plan after every answer. Possibly not a departure; listed because his rule says to ask even when sure."
+  },
+  {
+   "adr": "ADR-0161 §6 as amended by his row-214 answer 1",
+   "says": "ADR-0161:405-408: \"For each trigger it clears, a fingerprint of what raised it: the stored financial answers and their revisions for `financial_evidence`, and the confirmed date of birth for `involves_minor`.\" His answer 1 (p319 answers:3): \"Yes: a minor's review covers every answer.\"",
+   "buildWould": "Fingerprint every confirmed entry in the stored profile (run-driver.ts:12965). This does not include a choice from a form's list, which is stored per application in entry_choices (ADR-0155), nor the standing rule (ADR-0156). It also means a case once raised for a minor whose date of birth now says adult is re-raised by every later answer change (run-driver.ts:12930-12933, everRaised). That fails closed.",
+   "question": "Does 'every answer' include a choice from a form's list, which is stored per application and not in the profile? And should a case whose date of birth was answered again as an adult's keep being re-reviewed on every change?",
+   "canAvoid": "Not if 'every answer' includes choices: the build would be narrower than his words. Profile answers are built; choices wait for his answer, alongside row 214 (7)."
+  },
+  {
+   "adr": "ADR-0123 Decision 1 (his words); a records point, not a departure in my reading",
+   "says": "ADR-0123:32-34: \"The star is not the evidence. The save is. This is the same finding as 'an error-free save is not a save', pointing the other way: a star is not a requirement either.\"",
+   "buildWould": "The patch records {required} on fundingSource from his observed asterisk (taught-page.html:209), with no save observed. The entry already records the stage's star the same way (observed_marker, entry:30739-30743), and ADR-0123:42-43 keeps the marks (\"The marks stay\").",
+   "question": "The rule rests on your observed star, not on a save the portal refused. Should the patch and its sheet say so in those words?",
+   "canAvoid": "Yes. His answer 6 names the star, and outside a skippable section the entry treats every star this way. Listed because his rule says to ask even when sure."
+  }
+ ],
+ "entryPatch": "What is prepared, and what is not touched\n\nP319 prepares two files, following the precedent of P296 and P300, and signs nothing:\n- docs/run-a/p319-for-signature.patch\n- docs/run-a/p319-for-signature.md\n\nNothing is written to docs/run-a/catalogue/approvals.json. The preparing commit leaves the entry's hashed content alone; at most it changes the top-level `$comment`, which the hash drops. No stand-in approval goes into the repository path. The patched-tree checks run in a scratch git worktree under the scratchpad, with a stand-in whose note says it is not his. That worktree is removed on success only and its path is named in the report. Whether even that is acceptable under \"do not sign anything\" is his to say (see risks).\n\nThe patch is a `git diff` of these files:\n\n1. docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json and docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json, on fundingSource:\n   - `\"validations\": []` (entry:30560; draft about line 30463) becomes `[{\"kind\": \"required\", \"source\": \"specialist_noted\"}]`.\n   - `specialist_noted` is my recommendation. The observer did not record this star (row 210; observe-script.ts:96-102), so `observed_marker`, defined as \"read by the observer\" (blueprint.ts:122-125), would claim more than happened. The sheet names it as mine, his to correct at signing.\n   - Blueprint version 0.2.36 becomes 0.2.37.\n   - One `unobservedClaims` line (entry:30800), wording mine: the rule rests on his observed red asterisk at docs/captures/sheffield-part2-2026-09-25/taught-page.html:209, in his words of 2026-10-17 (docs/run-a/p319-his-answers-on-row-214-as-sent.txt:8), and not on a save the portal refused (ADR-0123 Decision 1).\n   - Not added: `prompt`, `escapeValue` (an escape trips scripts/a-financial-choice-waits-for-the-review.test.ts, which is D7's after phase 1), and `visibleWhen`.\n\n2. docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json and the entry's mappingSet:\n   - Version 0.3.48 becomes 0.3.49, with blueprintVersion 0.2.37.\n   - The two notes that become untrue are reworded, wording mine:\n     - fundingStage (entry:35824), \"Left EMPTY for a student who does not know …\": for a student who does not know, the stage is asked with this box's own question and options (ADR-0161 §4, D2), and the unread script may hide the row (blockers 82 and 86).\n     - fundingSource (entry:35801), \"Left EMPTY for a student who does not know (absent part).\": rewritten to whatever his answers to departures 1-3 decide. Until then the sheet says this note waits.\n   - reviewedBy and reviewedAt are unchanged, and the sheet says so, so the file is not read as a review he has not given.\n\n3. Regenerated outputs and moved pins, each regenerated by its tool, never retyped:\n   - docs/run-a/what-will-be-typed.md: version line and Reference.\n   - docs/run-a/p315-content-stops-on-sheffield.txt and docs/run-a/p316-funding-on-page-12.txt: version line. For his held {known:false} the violations become [fundingSource, fundingStage].\n   - docs/run-a/p317-required-boxes.txt: fundingSource prints [required].\n   - scripts/run-a-profile.test.ts:499-509, 525, 545, 712.\n   - scripts/sheffield-draft.test.ts:147, 462-463.\n   - scripts/content-stops-on-sheffield.test.ts:54-56, 81-84.\n\nThe sheet (docs/run-a/p319-for-signature.md) contains:\n- His answer 6, verbatim.\n- What the patch records.\n- The new hash, printed on the patched tree by `pnpm run catalogue hash`. It is not written from memory; the in-memory illustration sha256:9d5ac293… is NOT a signing hash.\n- The measured effect on his run:\n  - His held no breaks two boxes until he answers again (§5).\n  - The preview Reference moves, so a yes already given is asked again (as P300:215-229).\n- A status line saying the patch is NOT ready to sign. On the P319 tree the gate's only unexpected line is `bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingSource|required` (measured in scratch: gate-with-source-required.out). It becomes green only after his answers to departures 1-3 and the source build. Signing earlier turns CI red.\n- \"How to sign: one commit\", in this order:\n  1. A guard line, e.g. `grep -q <symbol of the source build> packages/orchestrator/src/run.ts || echo \"STOP: the source build is not in\"`.\n  2. `git apply docs/run-a/p319-for-signature.patch`.\n  3. He replaces the one approval himself.\n  4. `pnpm run catalogue hash docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json` must print the sheet's hash.\n  5. `git add` covering every file listed above.\n  6. `git commit`.\n- The approval JSON shape with placeholders for approvedAt and note, and ownAccountOnly.studentId 5774ff16-ff9c-424a-882f-42d0f304968b as now (approvals.json:2-9).\n- A signing message template on the P303 model, naming the patch, the hash and his note.\n- The checks: the round-trip (applied prints the new hash, reversed prints sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0) and the test results on the scratch worktree.\n- The cost: nothing metered (no model call, no AWS, no portal).",
+ "risks": [
+  "His run does not move in P319. His held {known:false} is never asked again (interview.ts:703; run.ts:616-617), so after a resolve his run stops at the same fundingStage fix_content. Steps written after P319 alone would end there. The route is §5 (item 4), or his answer to departure 6.",
+  "The source cannot be asked on his run before he signs without a departure (departure 1). The entry patch cannot be green until the source is built after his answers to departures 1-3. Measured in scratch: a required rule on fundingSource adds an unlistable gate line for known=false.",
+  "The gate's key (`blueprintId|class|field|box|detail`) carries no answer. A new break for a no-student who picks scholarship or loan would fold into listed line 82 and the gate would stay green. P319 adds an explicit known=false test so that silence is not read as a pass.",
+  "Sheffield's script is unread (rows 82 and 86; ADR-0143 Consequences). If it hides the stage and source rows for No, filling them meets hidden boxes and the signed entry is wrong about the form. ADR-0160 holds page 12 on his run. Any other student reaching page 12 is not held in the same way.",
+  "The strict reading of the reopened stage (exact sentence, no model) avoids departure 5 but adds friction. A student must type one of the five sentences. Repeated misses reach the existing stop for a person, which his rule counts as a break, and the gate cannot see it because a refused answer is not an accepted one.",
+  "The minors fingerprint over every answer, given a shared profile, means one changed answer re-raises every in-flight application of a minor. A case once raised for a minor but now adult is re-raised on every change (everRaised, run-driver.ts:12930-12933). Both fail closed. Whether to narrow either is his: it changes when authorisation can happen.",
+  "The static derivation leaves shown-when boxes and switch boxes unreopened. Their breaks stay visible as gate lines, but a future entry whose required box sits in a shown-when section will not be mended by this mechanism.",
+  "Log replay (ADR-0051): a reopened part is read with the entry's words. A version bump at signing changes the entry, so a walk pending across the signature must be re-asked. The precedent already asks a yes again after a version bump; confirm it holds for a pending walk too.",
+  "The review display and the correction finder show and find registry words ('thinking about it'), not the form's sentence. Corrections of financial parts are still refused in code (correction-requests.ts:225-236) until item 4, which must then find the stage by the words shown.",
+  "His 'do not sign anything' versus the precedent's stand-in approval for patched-tree checks (p300-for-signature.md:302-316). The plan keeps any stand-in in a scratch worktree, never in docs/run-a/catalogue, and says where it is. He may prefer no stand-in at all, in which case run-a-profile.test.ts:526 cannot be run on the patched tree.",
+  "The signed entry's notes (entry:35801, 35824) say the stage and source are left empty for a no. After P319 the stage is filled under that signature until he signs the patch that rewords them (departure 7).",
+  "Promise rule (CLAUDE.md, row 126): re-read every student-facing funding sentence for a promise that a no completes the answer. The `known` part's rationale ('No is an answer, and I record it rather than guessing a source for you.', field-specs.ts:909-911) stays true. The spec-level rationale '…say so and that is a complete answer.' (field-specs.ts:900-903) is not passed for a composite's parts (interview.ts:791), but must be checked before it is assumed unseen.",
+  "Record integrity: choosing `observed_marker` for the new rule would claim the observer read a star it missed (row 210). The patch uses `specialist_noted`, which is my choice, named as such on the sheet.",
+  "Cost: nothing metered in the build or tests. In production each answer the model reads is one Bedrock call (bedrock.ts:342-360). A question with `exactly` composes with no call (bedrock.ts:283-285), and the strict stage reading costs none."
+ ]
+}
+
+################ critic:departures
+{
+ "findings": [
+  {
+   "title": "The design does not do what his answer 6 says (ask the source on his run in P319), and presents that as avoiding a departure",
+   "severity": "high",
+   "where": "design: plan 'WHAT P319 DOES NOT BUILD YET', departure 1 canAvoid, risks 1-2; docs/run-a/p319-his-answers-on-row-214-as-sent.txt:8,13; docs/decisions/0161-…-then.md:121,377-384 (working tree); docs/state-of-the-system.md:1016",
+   "detail": "His words (p319 answers:8) are: \"Yes: treat the funding source box as required on my observed red asterisk, and ask the source on my run in P319. Prepare the entry change for my signature; do not sign anything.\" They are recorded inside the accepted ADR-0161 (WT:121), and row 214 already says \"(1) and (6) building in P319\" (state-of-the-system.md:1016). The design builds no source question at all in P319 (\"no source question after a no exists in code until he answers\"). That is not neutral. It departs from ADR-0161 §4 as amended by D2 and his answer 6, and it would make row 214 (6) and row 210 untrue. The question to him has to say this plainly: 'P319 will not do what your answer 6 says.' Departure 1 also gets the comparison backwards. It says route (b), his signature first, \"departs from the recommendation his 'Yes' accepted\". Yet route (b) is the only route that keeps ADR-0057:63-64 (\"Alter anything the system acts on and the hash moves\") and ADR-0148:100-103 (\"come from the portal and are never authored\") whole, and it fits \"Prepare the entry change for my signature\". It differs from his words only in timing (\"in P319\"). The design's chosen path, building neither, differs from his words in substance. Note also that the source build is blocked by departures 2 and 3 (which options; scholarship or loan names), not by departure 1. A source build tested on a clone of the entry with {required}, as the design's own pinned test does, needs no record outside the hash."
+  },
+  {
+   "title": "Step 2 builds a general reopen mechanism for every entry, and asks each reopened part in the form's label. D2 covers only the funding stage, and D1 puts the rest after phase 1",
+   "severity": "medium",
+   "where": "design STEP 2 ('This is the general mechanism'), STEP 3 (exactly = the label); docs/decisions/0147-…key.md:87,93-99; docs/decisions/0148-…aloud.md:36-38,111-116; docs/decisions/0161-…-then.md:475-478 (WT); docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt:3-4",
+   "detail": "D2 is an answer to §4, \"Today's case: the funding stage after a no\". D1 says \"First build only what unblocks my run and protects every student: … the funding stage after \"no\" … The rest follows in the ADR's order\". ADR-0161 WT:477-478 puts \"the rest of item 3\" after item 4. Step 2 instead reopens any gated part, in any signed entry, wherever a required, always-shown leave_empty box reads it, and asks it in the blueprint's label at run time. For any part other than the funding stage, that departs from three accepted texts. ADR-0147 P255, his words at :87: \"a question's words are authored, never assembled from a field key\", built so that a part without its own authored words does not build and is audited (:93-99). ADR-0148 §4 as built (:116): \"the portal decides only which of the optional ones are asked\". And ADR-0148 §4, his words at :37-38: \"if they say they are still there, we do not ask for an end date at all\". ADR-0161 §3.1 approves departing from that last one only in principle, under D1's phasing. Today only finance.funding→stage qualifies on the signed entry, so the departure is latent. The next signed entry makes it live with nobody deciding, which is the latent-constraint class CLAUDE.md names. The design does not list this departure. Separately, bedrock.ts:281-282 says of `exactly`: \"the words are Vahid's\". For a form label that comment would become untrue."
+  },
+  {
+   "title": "Departure 5 is mis-stated: the strict exact reading is not free of departures, yet it is built while the question is open",
+   "severity": "medium",
+   "where": "design STEP 3 'Reading', departure 5 canAvoid; docs/decisions/0146-…offered.md:17,30-31; docs/decisions/0158-…application.md:317-321; docs/decisions/0161-…-then.md:285-287 (WT)",
+   "detail": "The design calls the strict reading (exact sentence only, no model call, everything else asked again until the attempt cap and then a person's stop) \"the departure-avoiding path\". It is not free of departures. In ADR-0146 he said, of a refusal that left the student to find the shape that reads: \"Not guessing was right. Not offering is the defect\" (:17), and \"Any field where the reader can see more than one valid reading should offer them rather than refuse\" (:30-31). Refusing \"confirmed\" when only one reading is visible is the dead end that ADR is against. ADR-0158 records his words of 2026-10-15: \"with the real model, the interview understands free answers … and plays back its reading for confirmation. … a near match is only ever suggested, never chosen\" (:317-321). Suggesting is allowed there, and strict never suggests. The person's stop at the attempt cap is something ADR-0161 §1 counts as breaking his rule: \"That includes a person's stop at any point\" (WT:285-287). Both readings rest on accepted text, so under his rule (\"build nothing on it until I answer\") the reading is itself undecided. The design should not build the strict reading as the default and call it clean."
+  },
+  {
+   "title": "The stage question shows the form's own list, which has no escape, and reads typed words. ADR-0155 decides otherwise, and the design does not list it for the stage",
+   "severity": "medium",
+   "where": "design STEP 3; docs/decisions/0155-…list.md:62-65,109-112",
+   "detail": "D2 asks the stage \"with the form's own words and options\". That is ADR-0155's subject, \"A student chooses from the form's own list\". ADR-0155 decides: \"A field with no escape on record is not offered at all, so a student is never shown a list with no honest answer if none of it is theirs\" (:64-65). It also decides: \"Typed words choose nothing\" and \"The student's words stay in the profile untouched. The choice is about **this** application's form\" (:109-112). The stage's list has no escape on record. The design reads a typed sentence and stores the token in the shared profile, not per application. D2 may already settle all three, and his ADR-0143 words make \"thinking about it\" the honest landing. But the design lists ADR-0155 only for the source (departure 2), never for the stage, and his rule says to ask even when sure."
+  },
+  {
+   "title": "fundingStage leaves the shrinking list while held 'no' answers still break it; the checker cannot see a reused answer",
+   "severity": "medium",
+   "where": "design STEP 4 (remove scripts/required-boxes-known.ts:53), departure 6; docs/decisions/0161-…-then.md:319-322,514-516 (WT); scripts/content-stops-on-sheffield.test.ts:80-85",
+   "detail": "The checker builds answers through the walk. P319 removes the line `breaks_a_required_box|finance.funding|fundingStage|required` (required-boxes-known.ts:53), so the gate will say the class is mended. But a {known:false} already held still breaks the box, and the design's own kept test, content-stops-on-sheffield.test.ts:80-85, says so. That covers his answer and any answer reused from another application. D10 (approved, WT:514-516) names the moment that would catch a reused answer: \"Checked when a case begins. An answer the student gave for another application is checked against this entry when the case first plans\" (WT:319-320). P319 does not build it. Departure 6 asks only about a check \"on resume\" and calls it \"neither of D10's two moments\". It never asks whether D10's case-begin moment for the stage belongs to phase 1's \"the funding stage after a no\". The record should not let the gate's removal be quoted as the class mended (CLAUDE.md: a measurement whose method is wrong gets quoted)."
+  },
+  {
+   "title": "Departure 2 cites ADR-0143 §3 as binding, but ADR-0161 amends §3 and D7 approved the whole list with its escape",
+   "severity": "low",
+   "where": "design departure 2; docs/decisions/0161-…-then.md:9-10,508-509 (WT); docs/decisions/0155-…list.md:109-112; docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt:8",
+   "detail": "ADR-0161's header says it \"amends ADR-0143 §1 and §3\" (WT:9-10). D7, which recommends \"the form's own list, with its escape\", is approved (WT:508-509). So option (a) does not conflict with ADR-0143 §3 as it now stands. What option (a) really departs from is D1's phasing (D7 comes after phase 1), and ADR-0155 §4: a Sheffield scheme or its escape would go into the shared profile, where ADR-0155 keeps a list choice \"about **this** application's form\" (:112). His D6 words say the same: \"The profile is shared across universities.\" The question to him should name these."
+  },
+  {
+   "title": "Departure 1 quotes the agent's recommendation as what he decided, not his own words",
+   "severity": "low",
+   "where": "design departure 1 'adr' field; docs/state-of-the-system.md:1016; docs/run-a/p319-his-answers-on-row-214-as-sent.txt:8; design entryPatch unobservedClaims line",
+   "detail": "Departure 1 says his answer \"said yes to: 'row 210's reading of his saved page is enough, so P319 asks the source on his run…'\". That is the recommendation's text from row 214 (6). His own words are \"treat the funding source box as required on my observed red asterisk\". CLAUDE.md requires that anything recorded under his name be quotable from what he wrote. The patch's line \"his observed red asterisk at … taught-page.html:209\" should quote his words and say separately that the line was located by P316's refuter (row 210, state-of-the-system.md:1012)."
+  },
+  {
+   "title": "Step 6 would add 'amended by ADR-0161' to ADRs that ADR-0161 does not amend, and leaves out one it does",
+   "severity": "low",
+   "where": "design STEP 6; docs/decisions/0161-…-then.md:9-17",
+   "detail": "ADR-0161's header names what it amends: ADR-0143 §1 and §3, ADR-0154 as amended in P311, ADR-0148 §4 and §11, the reach of ADR-0123 Decision 2, and ADR-0049 §3 and §4. Step 6 adds back-references to ADR-0155 and ADR-0158, which are not on that list, and omits ADR-0049, which is. A back-reference to an amendment that no accepted text makes is a record that claims more than happened. If his answers to departures 2, 3 or 10 amend ADR-0155 or ADR-0123 D1, the back-reference follows his answer."
+  },
+  {
+   "title": "Regenerating docs/run-a/p317-required-boxes.txt overwrites the evidence ADR-0161 quotes for P317's numbers",
+   "severity": "low",
+   "where": "design STEP 4; docs/run-a/p317-required-boxes.txt:2,71; docs/decisions/0161-…-then.md:157-159,167-168,201-203 (WT); scripts/required-boxes-hold.test.ts:114-117",
+   "detail": "ADR-0161 quotes \"accepted answers planned: 5558\" and \"lines that break the rule on a box the entry marks required: 31; … 28; … 1\" from this file by name. Regenerating it under its P317 name changes those numbers under an accepted ADR that cites the file as their source. Keep P317's output as it was printed, as P317 did with p317-required-boxes-first.txt, and save P319's output under a P319 name with the test pointed at it."
+  },
+  {
+   "title": "Widening the minors fingerprint sends every case ever raised for a minor back to review, and the design does not say so",
+   "severity": "low",
+   "where": "apps/conversation-service/src/run-driver.ts:12929-12934,12965; docs/decisions/0161-…-then.md:658-661 (WT)",
+   "detail": "triggersToRaise raises again every trigger whose raised fingerprint differs from the current one. That includes `everRaised` whether or not the trigger still applies (:12929-12934). Changing line 12965's formula therefore changes the fingerprint of every case ever raised for a minor. On its next decide, every minors approval recorded under P318 stops clearing, and an authorised case is voided. This fails closed and fits his answer 1. But P318 stated its own effect on cases in flight (WT:658-661), and P319's records should state this one."
+  },
+  {
+   "title": "The signing guard prints STOP and carries on; and a stand-in approval sits beside his 'do not sign anything' only as a risk",
+   "severity": "low",
+   "where": "design entryPatch 'How to sign' step 1, and the scratch worktree stand-in; docs/run-a/p319-his-answers-on-row-214-as-sent.txt:8",
+   "detail": "`grep -q … || echo \"STOP: the source build is not in\"` does not stop anything. Pasted as a block, it still runs `git apply`. CLAUDE.md: \"Ask what it would print if the thing it watches were on fire\". The guard should exit non-zero. Separately, the stand-in approval in a scratch worktree is listed as a risk, but it sits next to his own words \"do not sign anything\". It should be put to him as a question before it is made, not done and reported."
+  },
+  {
+   "title": "Departure 7's scenario is reachable only by his own account, and its basis leaves out ADR-0143 Consequences",
+   "severity": "low",
+   "where": "design departure 7; docs/run-a/catalogue/approvals.json:6; docs/decisions/README.md:145 (ADR-0118); docs/decisions/0143-…statement.md:65-68",
+   "detail": "Departure 7 speaks of \"a new student's no\". Under ADR-0118 a single signature \"admits the signer's own account and nothing else\", and approvals.json:6 carries ownAccountOnly with his studentId. So the stage filled under a note saying 'left empty' reaches only him, once he answers again (item 4). It bites his run specifically. The accepted ADR-0143 also says \"The maps leave those boxes empty for a student who does not know\" (:66). Only §1 and §3 of ADR-0143 are amended by ADR-0161, so the question should cite this text too."
+  }
+ ],
+ "missedDepartures": [
+  {
+   "adr": "ADR-0161 §4 as amended by D2, and his answer 6 recorded in it (WT:121); row 214 (6)",
+   "says": "\"Yes: treat the funding source box as required on my observed red asterisk, and ask the source on my run in P319. Prepare the entry change for my signature; do not sign anything.\" (docs/run-a/p319-his-answers-on-row-214-as-sent.txt:8); state-of-the-system.md:1016: \"(1) and (6) building in P319\"",
+   "buildWould": "Build no source question after a no in P319, in any form, and prepare an entry patch that cannot be signed (gate red) until a later source build.",
+   "question": "P319 as designed will not ask the source on your run, which is not what your answer 6 says. The source build waits on which options and which names (departures 2 and 3), not on how 'required' is known. Do you want P319 to ship the stage alone, or to wait for your answers to 2 and 3 and build the source in P319, read from the patched entry, with your signature as a step of your run?"
+  },
+  {
+   "adr": "ADR-0147 (P255) and ADR-0148 §4 as built (P231), with D1's phasing (ADR-0161 WT:475-478)",
+   "says": "ADR-0147:87: \"a question's words are authored, never assembled from a field key\"; ADR-0148:116: \"the portal decides only which of the optional ones are asked\"; ADR-0148:37-38: \"if they say they are still there, we do not ask for an end date at all\"; D1: \"First build only what unblocks my run and protects every student: … the funding stage after \"no\"\"",
+   "buildWould": "A general `reopens` derived from any signed entry. It asks any gated part a required, always-shown leave_empty box reads, using the form's label as `exactly` and no authored words. It is live for every future entry, not only Sheffield's funding stage.",
+   "question": "Should P319's reopen apply only to the funding stage, as D2 words it? Or should it be general now, asking any closed part in its form's label for every future entry, ahead of D1's phasing and ADR-0147's authored-words rule?"
+  },
+  {
+   "adr": "ADR-0155 §1 and §4",
+   "says": "ADR-0155:64-65: \"A field with no escape on record is not offered at all, so a student is never shown a list with no honest answer if none of it is theirs.\" ADR-0155:110-112: \"Typed words choose nothing. … The student's words stay in the profile untouched. The choice is about **this** application's form.\"",
+   "buildWould": "Show a no-student the stage list (no escape on record), read a typed sentence, and store the token in the shared profile, not as a pressed choice recorded for this application.",
+   "question": "Is the stage after a no an interview answer (typed, read to the vocabulary token, stored in the shared profile and reused at other universities), or a choice from the form's own list in ADR-0155's sense (pressed, recorded for this application only)? Does D2 set aside ADR-0155's rule that a list with no escape is not offered?"
+  },
+  {
+   "adr": "ADR-0146 (his words) and ADR-0158's record of his words of 2026-10-15",
+   "says": "ADR-0146:17: \"Not guessing was right. Not offering is the defect.\" ADR-0146:30-31: \"Any field where the reader can see more than one valid reading should offer them rather than refuse\". ADR-0158:317-321: \"with the real model, the interview understands free answers … Matching to a form's list stays exact, after normalising case, spaces and numbers …; a near match is only ever suggested, never chosen.\"",
+   "buildWould": "Refuse every answer that is not one of the five sentences exactly, such as \"confirmed\". It is asked again with no suggestion until the attempt cap, then stops for a person. The design labels this the departure-avoiding path and builds it before he answers departure 5.",
+   "question": "Shown the five sentences, if a student types \"confirmed\", should the interview (a) refuse and ask again until a sentence is typed, ending at a person after the cap, (b) suggest \"The funding has been confirmed\" for the student to press, or (c) read it and play it back for the press? Nothing on the stage's reading is built until you choose."
+  },
+  {
+   "adr": "ADR-0161 §3 and D10 (approved): the case-begin moment",
+   "says": "ADR-0161 WT:319-320: \"Checked when a case begins. An answer the student gave for another application is checked against this entry when the case first plans.\" D10: \"approved.\"",
+   "buildWould": "Build only the in-walk moment for the stage, and take fundingStage off the shrinking list. A held or reused {known:false} still stops at fix_content after the plan, which the checker cannot see.",
+   "question": "Is D10's 'when a case begins' check for the funding stage part of phase 1's 'the funding stage after a no', so that P319 builds it? Or does it follow later, with the record saying the gate's removal of the fundingStage line covers walked answers only?"
+  }
+ ]
+}
+
+################ critic:correctness
+{
+ "findings": [
+  {
+   "title": "assemble keeps `source` after a no: this builds on departures 1-3 before he answers",
+   "severity": "high",
+   "where": "Design STEP 3 ('field-specs.ts:950-953: assemble keeps stage and source when known is false'); packages/interview/src/field-specs.ts:950-953; with STEP 2's general reopen derivation (packages/orchestrator/src/run.ts:2356-2395)",
+   "detail": "The design says that no source question after a no exists in code until he answers. Yet STEP 3 changes `assemble` to keep `source` when known is false. His rule is quoted in CLAUDE.md: \"record the question, build nothing on it until I answer.\" Keeping `source` under a no is the storage half of departures 1-3. Failing scenario: STEP 2's reopen mechanism is general. Any entry signed later whose required source box is a plain `part` rule (not a `switch` like Sheffield's at entry:35706) gets `source` reopened after a no, offered with that form's options, assembled into {known:false, source}, and filled. No one would have decided departure 2 (which options) or departure 3 (scholarship/loan without a name). This is the latent-constraint class CLAUDE.md names. Fix: the no-branch keeps `stage` only. Test (interview.test.ts): under a synthetic rule whose reopens include `source`, a no-walk never asks `source`, and `assemble(new Map([[\"known\",false],[\"source\",\"employer\"]]))` returns {known:false}. Mutate the no-branch to keep source and watch it go red."
+  },
+  {
+   "title": "After a miss, the re-ask names the registry words, which the strict reader then refuses: a loop that ends in a person's stop",
+   "severity": "high",
+   "where": "packages/interview/src/interview.ts:986 (reason = `I could not read ${question.expectedShape} from \"…\"`); field-specs.ts:933 (stage expectedShape); packages/llm/src/deterministic.ts:39-42 and bedrock.ts:283-285 (reason put before `exactly`); interview.ts:768-780 (cap)",
+   "detail": "The design keeps \"the existing reason\" but never replaces the reopened part's expectedShape. The spec's stage expectedShape is \"one of: confirmed, applying for a project studentship, applied, applying, thinking about it\". Scenario: a no-student types \"confirmed\" or \"thinking about it\", the registry words. The exact-sentence table refuses it. Both clients then print \"I could not read one of: confirmed, … thinking about it from \\\"confirmed\\\". What stage are you at with your funding?\" followed by the five sentences. The student retypes the word the reason just listed, and it is refused again. After MAX_ATTEMPTS_PER_FIELD=3 the interview escalates. ADR-0161 §1 (HEAD 263-265) counts a person's stop as breaking his rule, and the gate cannot see it because a refused answer is never an accepted one. The same loop hits \"I don't know\", the likeliest answer after a no, and a student who said no and now does know: nothing on the stage question leads back to `known`. Fix: give the reopened part an expectedShape (and refusal words) that name the form's sentences only. Tests (interview.test.ts): after a no, answer \"thinking about it\" and assert the re-ask contains none of FUNDING_STAGE_WORDS' registry phrases and does contain the five sentences. Answer \"I don't know\" and assert the same. Answer a sentence and assert pending."
+  },
+  {
+   "title": "A held {known:false} still stops at fix_content on every new Sheffield case; D10's second moment is neither built nor listed",
+   "severity": "high",
+   "where": "ADR-0161 HEAD 297-300 ('Checked when a case begins'), HEAD 492-494 (D10 'approved.'); interview.ts:703 (missingFields); run.ts:616-617; run-driver.ts:8562-8600 (#stopForSpecialist); scripts/required-boxes-known.ts:53",
+   "detail": "Verified: his held no is never walked again. `missingFields` sees finance.funding as present. A demand is raised only from a refused save of an OPTIONAL part (run-driver.ts:2686, 11862-11887), and fix_content goes to #stopForSpecialist, which reopens nothing. That much the design says. What it misses is the general case. Any student whose stored answer is {known:false} (confirmed before the deploy, given for another portal, or a pending {known:false} proposal on the log at deploy that is pressed after it) and who then starts a Sheffield case reaches the same fix_content after the plan. That is D10's approved second moment, \"An answer the student gave for another application is checked against this entry when the case first plans\", and it is not his-run-only. The gate cannot see it: it enumerates answers the interview accepts NOW, and after P319 a bare {known:false} is no longer one of them under Sheffield's policy. Line 53 would then leave the list and row 209 would read as mended for a class that still breaks. Either build it (seed a demanded walk from the confirmed value, as seededWithDemands at run-driver.ts:2195-2236 already does, and let nextPart open a demanded gated part), or keep line 53's class named in the records and ask him. Test (run-driver.test.ts): confirm {known:false} into a profile, start a case on an entry with a required stage box, and expect the stage question before any preview, not a specialist stop. A second test: a pending {known:false} proposal written before the policy existed is not pressed into the profile unchanged."
+  },
+  {
+   "title": "No run-driver test covers the reopened walk; the fixture portal has no funding box",
+   "severity": "medium",
+   "where": "apps/conversation-service/src/run-driver.test.ts:183 (BLUEPRINT = bp-fixture-pg); packages/mapping/src/fixtures/portal.ts (no funding); run-driver.ts:2406-2455 (interviewFrom), 7711-7744 (#recordThePart), 7788 (playbackHash from action.say), 6620-6642 (#confirmValue)",
+   "detail": "Every interview test in the design runs on InterviewState in memory. The proposed \"rebuilding the interview from the log after the stage answer (ADR-0051)\" cannot live in interview.test.ts, because the rebuild is run-driver's `interviewFrom`. Nothing would exercise the chain: `value_part_read` for a part asked by reopen, a rebuild with partPolicyFor(entry) through withDemandedParts, nextAction's playback with the `shown` words hashed at 7788, the press compared at 6630, receiveConfirmation re-rendering at interview.ts:1223, #persist, and a plan with no fundingStage violation. CLAUDE.md records that P267's latent bug was caught by exactly such an end-to-end test. Add one in run-driver.test.ts on a fixture entry with a required, always-shown `part`/leave_empty stage box. The walk is no, then a sentence, then the press. Assert the stored {known:false, stage} and that the next advance reaches authorise, not fix_content. Make it fail once with the reopen stripped."
+  },
+  {
+   "title": "Widening the minors fingerprint re-raises every case ever raised for a minor at deploy, and any NEW key re-raises too",
+   "severity": "medium",
+   "where": "run-driver.ts:12965 (the change); 12928-12933 (triggersToRaise compares the held raisedFingerprints to the basis); 4741-4772 (#raiseMandatoryTriggers on every #advanceCase, 4651); 4818-4836 (#takeBackFromTheStudent); state-of-the-system row 214 (7)",
+   "detail": "Every held `raisedFingerprints.involves_minor` was computed over [identity.date_of_birth] only. After the change, every case ever raised for a minor no longer matches on its next decide, with no answer changed. It is raised again. An AUTHORISED case is voided, a case at AWAITING_STUDENT_AUTHORISATION goes back to PREPARING, and a filled case is taken back. That makes row 214 (7)'s wrong pre-fill sentence reachable, which the row says is \"reachable today only for a case holding an approval from before P318\"; P318-era approvals now count too. After deploy, a minor ANSWERING a new field for a second application (a new key, not a change) also re-raises the first application's review, because the key set is in the fingerprint. During a minor's interview, every answer after the date of birth writes another HumanReviewRequested. All of this fails closed and fits his answer 1, but the design's tests and risks cover only a changed answer. Tests: an approval recorded under the P318 fingerprint no longer clears after the change. A new key confirmed after review re-raises. The row 214 (7) text is corrected. Contrast, verified: the financial fingerprint is per key by revision and confirmedAt (12948-12963). A stage newly held inside finance.funding does not re-raise in-flight financial reviews at deploy; only a new confirmation does."
+  },
+  {
+   "title": "The gate can turn green vacuously if the walk after a no yields no answers",
+   "severity": "medium",
+   "where": "scripts/required-boxes-hold.ts:180-187 (candidatesOf has no answers to give partIsOpen/parserFor), 189-191 (acceptedBy reads `parse.options`), 327-344 (walk returns null for a non-omittable part with no value), 362-373 (pairs)",
+   "detail": "The design calls parserFor(part, answers, rule) from candidatesOf, but candidatesOf runs once per part with no answers. If the reopened stage gets the exact-sentence parser and that parser does not expose `.options`, `acceptedBy` falls back to probes, which none of the sentences match. Values become [], the filler is undefined, the stage is not omittable, and `walk` returns null. Every known=false answer then disappears, fundingStage is broken by nothing, line 53 is \"gone\", and the gate is green for the wrong reason. The design's test \"the known=false answers carry a stage\" passes on an empty set. Make the test count: exactly five distinct known=false answers (from the known×stage pairs), each filling fundingStage with its own sentence. Make it fail once by stripping `.options` from the reopened parser."
+  },
+  {
+   "title": "A no followed by 'The funding has been confirmed' is stored and sent unasked; this touches money",
+   "severity": "medium",
+   "where": "Design STEP 3 (all five sentences after a no); entry:35815-35821 (option map); fields.ts:171-182 (FundingIntent); his rule of 2026-10-14 (CLAUDE.md, the four that come to him)",
+   "detail": "After \"No\" to \"Do you know yet how your studies will be funded?\", the design offers all five sentences, including \"The funding has been confirmed\" and \"I am applying for a project studentship\". Scenario: a student presses the playback {known:false, stage:\"confirmed\"}. The plan fills fundingSourceKnown=\"No\" and fundingStage=\"The funding has been confirmed\" (the scratch file no-with-stage.out shows the same fill shape), and the university receives a contradiction. ADR-0143 §2 forbids deriving `known`, so code cannot repair it. Whether to accept, re-ask, or offer only some sentences after a no touches money and so is his under the rule of 2026-10-14. It is neither listed nor tested. Add a question to him. Add a test that pins whatever he answers: that {known:false, stage:\"confirmed\"} is either refused at assembly or played back with both lines visible."
+  },
+  {
+   "title": "Departure 5 is posed as two options when ADR-0158 allows a third: suggest the near match for a press",
+   "severity": "low",
+   "where": "ADR-0158:319-321 (as the design quotes it); interview.ts:974-979 and 1023-1034 (P225 offers readings only when there are two or more)",
+   "detail": "ADR-0158 says \"a near match is only ever suggested, never chosen\". The design asks him to choose between reading 'confirmed' as the sentence and asking again until a sentence is typed. It leaves out the option the accepted text already sanctions: offer \"The funding has been confirmed\" as a reading the student presses. That would cut the friction (finding 2) without the model choosing. As built today, readingsOf offers nothing below two readings (interview.ts:1028), so a one-candidate suggestion needs that rule changed, and that change belongs in the question too."
+  },
+  {
+   "title": "A demanded gated part still strands; the withDemandedParts fix keeps reopens but never adds the demanded part",
+   "severity": "low",
+   "where": "run-driver.ts:2370-2388 (withDemandedParts), 2195-2236 (seededWithDemands), interview.ts:308-317 (nextPart), 723-733 (stranded escalation)",
+   "detail": "A demand on finance.funding#stage seeded with {known:false} gives no question under the new nextPart, because a demand adds to `required` and not to `reopens`. questionFor returns `stranded` and the interview escalates. Today it is unreachable, because demandFromRefusal demands only optional parts (run-driver.ts:2686). It becomes reachable when ADR-0161 HEAD 322-324's \"raise the same demand from the plan\" is built, or the D10 moment in finding 3. Name it as a latent constraint. Test: withDemandedParts on a demanded gated part, then nextAction asks that part and does not escalate as stranded."
+  },
+  {
+   "title": "The general reopen derivation leaves two cases undefined: two boxes on one path, and a `then: text` reopen with no reader",
+   "severity": "low",
+   "where": "Design STEP 2 (reopens keyed by path; 'then is an option map or text')",
+   "detail": "Two required boxes in one entry that read the same path with different labels or options (a repeat on another page) produce two {question, options}, and the design does not say which wins. A `then: text` reopen is allowed by the derivation, but the only reader the design defines is the exact option table. No Sheffield box reaches either case, so both are constraints that cannot fire yet (CLAUDE.md). Either exclude them, with a synthetic test each, or define and test them."
+  },
+  {
+   "title": "The sheet's guard line does not stop, and a grep for a symbol is not evidence the source build is in",
+   "severity": "low",
+   "where": "Design entryPatch, 'How to sign: one commit', step 1",
+   "detail": "`grep -q <symbol> packages/orchestrator/src/run.ts || echo \"STOP: …\"` only prints. Run as pasted lines, `git apply` and the commit run after it anyway. CLAUDE.md: a check whose failure is silent or ignorable is not a check. A symbol can also exist before the build is complete. Make step 1 the gate itself on the patched tree, exiting non-zero: run scripts/required-boxes-hold.test.ts after `git apply --check` in a scratch worktree, or `… || { echo STOP; exit 1; }`. Make it fail once on today's tree and quote the output on the sheet."
+  },
+  {
+   "title": "The planned back-references name ADRs that ADR-0161 does not amend and miss one it does",
+   "severity": "low",
+   "where": "Design STEP 6 ('ADR-0123, 0143, 0148, 0154, 0155 and 0158'); ADR-0161 header lines 7-16 (HEAD)",
+   "detail": "ADR-0161's header amends ADR-0143, ADR-0154, ADR-0148, ADR-0123 (reach) and ADR-0049 §3/§4 as built in P318. It does not amend ADR-0155 or ADR-0158. Writing \"amended by ADR-0161\" into 0155 and 0158 makes the record claim more than happened, and leaving 0049 out drops a real amendment. Verified: none of the seven carries a back-reference today."
+  },
+  {
+   "title": "Departure 1's question reopens what his answer 6 already decided; only ADR-0057's hash property is open",
+   "severity": "low",
+   "where": "docs/run-a/p319-his-answers-on-row-214-as-sent.txt:8; docs/state-of-the-system.md:1016 (the recommendation his 'Yes' answers)",
+   "detail": "His \"Yes\" answered this recommendation: \"row 210's reading of his saved page is enough, so P319 asks the source on his run, and an entry patch carrying the rule follows for his signature.\" That is route (a) in substance. What his words do not cover is ADR-0057's property that a rule acting outside the hash departs from it. Ask that, quoting his answer, so the question does not read as reopening a decision he typed. CLAUDE.md: a decision is his only if he typed it, and this one he typed."
+  }
+ ],
+ "missedDepartures": [
+  {
+   "adr": "ADR-0161 §8 as phased by D1 (his words)",
+   "says": "\"First build only what unblocks my run and protects every student: the test with its shrinking list, the review rule (§8 first), the funding stage after \"no\", and answering a field again. The rest follows in the ADR's order.\" (ADR-0161 HEAD 452-455); \"So phase 1 is items 1, 2, the funding stage of item 3, and item 4; the rest of item 3 follows after item 4.\" (HEAD 455-456)",
+   "buildWould": "STEP 2 builds §3 case 1 in general: any required, always-shown `part`/leave_empty box on any signed entry reopens a gated part of any composite. On today's entry that fires only for finance.funding#stage. The next entry patch he signs (row 211's UK-study levels, D5's countries) or a new portal would reopen other parts in phase 1, ahead of 'the rest of item 3'.",
+   "question": "Should P319's reopen be limited to the funding stage (finance.funding#stage) until item 4 is built, as D1 phases it? Or may the general mechanism stand now, firing on whatever entry you sign next?"
+  },
+  {
+   "adr": "ADR-0161 §3, with D10 (his 'approved.')",
+   "says": "\"Checked when a case begins. An answer the student gave for another application is checked against this entry when the case first plans. … The answer is reused where it fills the box, and asked about where it does not, before the plan is complete.\" (HEAD 297-300); D10: \"Checked before the playback, and when a case begins.\" His answer: \"approved.\" (HEAD 492-494)",
+   "buildWould": "P319 builds only the first moment, at assembly before the playback. A stored {known:false} reaching a new Sheffield case, given for another portal or before the deploy, still stops at fix_content after the plan. Yet line 53 leaves the known list and row 209 is updated as if the funding stage after a no were done.",
+   "question": "Is the funding stage after a no asked in P319 at both of D10's moments (when a new case first plans, as well as before the playback)? Or does the second moment wait, with line 53's class kept named as still open?"
+  },
+  {
+   "adr": "ADR-0147 §5 (his words, P228)",
+   "says": "\"Every field a person is asked for needs the name a person uses … and the playback reads as those names.\" The ADR adds that the playback reads a value's parts \"through the same table\" the interview asks with (ADR-0147:54-66).",
+   "buildWould": "The reopened stage is asked with the form's label \"What stage are you at with your funding?\" (entry:30722) but played back under PART_LABELS' name \"How far the funding is arranged\" (packages/profile/src/fields.ts:529; confirmation.ts:411-422). The student confirms the part under a different name from the one they were asked by. The design's `shown` map changes only the value's words, not the part's name.",
+   "question": "After a no, should the playback name the stage by the form's question it was asked with, or by the registry's part name used everywhere else?"
+  }
+ ]
+}

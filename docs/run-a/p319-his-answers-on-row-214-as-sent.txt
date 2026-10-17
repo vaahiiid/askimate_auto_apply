@@ -1,0 +1,13 @@
+Row 214, my answers:
+
+1. Yes: a minor's review covers every answer.
+2. Yes for now, recorded as temporary: one changed financial answer sends every application back to review. Revisit before a second reviewer exists or before more than a handful of students; then only applications whose form carries funding go back.
+3. Keep: fingerprint holds no student values.
+4. Keep: approval bound to what the reviewer read.
+5. Keep: raise first, void second.
+6. Yes: treat the funding source box as required on my observed red asterisk, and ask the source on my run in P319. Prepare the entry change for my signature; do not sign anything.
+7. Deferred item: agreed, keep it as row 214 (7).
+
+On the three departures: this is the second time you built against an accepted decision before asking. From now on, when building would depart from an accepted ADR, stop and ask me first, even if you are sure; record the question, build nothing on it until I answer.
+
+Next: P319 as planned, then the exact steps for my run ending with the resolve command.

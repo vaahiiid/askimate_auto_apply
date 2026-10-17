@@ -355,3 +355,23 @@ So:
   student's personal data or credentials, and any declaration, attestation or legal wording. That
   reading of "touches" is the agent's, written in P308, not his words, and his to correct.
 - Each report ends with the list of what was applied under this rule, one line each.
+
+## Building that would depart from an accepted ADR stops and asks first
+
+Decided by Vahid on 2026-10-17, in his words ([the message](docs/run-a/p319-his-answers-on-row-214-as-sent.txt)),
+after P318 built three choices that departed from ADR-0161 §6 as he had approved it, and recorded
+them as the agent's before asking him:
+
+> **"this is the second time you built against an accepted decision before asking. From now on,
+> when building would depart from an accepted ADR, stop and ask me first, even if you are sure;
+> record the question, build nothing on it until I answer."**
+
+So:
+
+- Before building, the build is read against the accepted ADRs it touches. Where it would do
+  something other than what an accepted ADR says, it stops there: the question goes to him, is
+  recorded (in the ADR and as a row) as undecided, and nothing is built on it until he answers.
+- "Even if you are sure" covers the cases the rule of 2026-10-14 above would otherwise apply as
+  the agent's: a departure from an accepted ADR is asked, whether or not it touches one of the
+  four. That reading of how the two rules meet is the agent's, written in P319, and his to correct.
+- The rest of the build goes on; only what stands on the departure waits.

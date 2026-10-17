@@ -107,6 +107,86 @@ The six lines I sent him before building, as they read in my message (mine):
 Where his answer and the sections below differ, his answer stands; the sections are amended
 in place below and say so.
 
+## His answers on row 214 (2026-10-17)
+
+Saved as sent: `docs/run-a/p319-his-answers-on-row-214-as-sent.txt`. In his words:
+
+> Row 214, my answers:
+>
+> 1. Yes: a minor's review covers every answer.
+> 2. Yes for now, recorded as temporary: one changed financial answer sends every application back to review. Revisit before a second reviewer exists or before more than a handful of students; then only applications whose form carries funding go back.
+> 3. Keep: fingerprint holds no student values.
+> 4. Keep: approval bound to what the reviewer read.
+> 5. Keep: raise first, void second.
+> 6. Yes: treat the funding source box as required on my observed red asterisk, and ask the source on my run in P319. Prepare the entry change for my signature; do not sign anything.
+> 7. Deferred item: agreed, keep it as row 214 (7).
+>
+> On the three departures: this is the second time you built against an accepted decision before asking. From now on, when building would depart from an accepted ADR, stop and ask me first, even if you are sure; record the question, build nothing on it until I answer.
+>
+> Next: P319 as planned, then the exact steps for my run ending with the resolve command.
+
+His rule on departures is recorded in CLAUDE.md, where the rules for how work enters the
+repository live. From P319 on, every build of this ADR is read against the accepted ADRs before
+it is written, and a departure is asked, not built.
+
+## Asked in P319, before building (undecided until he answers)
+
+Under his rule of 2026-10-17 (CLAUDE.md): before P319 built the funding stage after a no, its
+design was read against the accepted ADRs by three mappers, a designer and two critics
+(`docs/run-a/p319-design-reading.txt`, printed from their journal). Each point below would depart
+from an accepted text, or settles something his words do not. Nothing
+standing on any of them is built until he answers. Row 215 carries them; each has my
+recommendation, which is mine.
+
+1. **His held "no".** P319's stage question does not reach it: the interview never asks a held
+   answer again, so after the resolve his run stops at the same box. It can be reached by
+   answering the field again (§5, phase 1 item 4; his words: *"I will give my funding answer
+   myself in the chat"*), by D10's "when a case begins" check in a new application, or by a check
+   when a stopped case resumes, which D10 does not cover. My recommendation: §5 next, then the
+   steps for his run.
+2. **D10's second moment.** Is the check "when a case first plans" built in P319, so a held or
+   reused "no" is asked the stage in any new Sheffield application? My recommendation: yes,
+   both moments.
+3. **Scope.** The stage after a no only, as D2 words it, or a general rule asking any closed part
+   a required box reads, on every entry he signs later (ahead of D1's phasing and ADR-0147's
+   "a question's words are authored")? My recommendation: the funding stage only.
+4. **What the stage is.** An interview answer stored in his profile and reused elsewhere, or a
+   choice from the form's own list in ADR-0155's sense (recorded for this application only;
+   ADR-0155 also says a list with no escape is not offered)? My recommendation: an interview
+   answer, asked in the form's words, as D2 says.
+5. **A typed answer.** Shown the five sentences, a student types "confirmed": refuse and ask
+   again (a person after three misses), suggest "The funding has been confirmed" for a press, or
+   read it and play it back? My recommendation: suggest it for a press (his words of 2026-10-15:
+   "a near match is only ever suggested, never chosen").
+6. **"No" and "confirmed" together.** After a no, the five sentences include "The funding has
+   been confirmed"; the form would carry both. Offer all five, leave some out after a no, or ask
+   again? My recommendation: all five, as the form does, with the playback showing both lines
+   before the press.
+7. **The playback.** After a no, the stage is played back by the form's question and sentence;
+   the review and corrections keep the registry words until §5. My recommendation: yes.
+8. **The signed note.** The stage is filled for a no under the entry he signed, whose note (and
+   ADR-0143's Consequences) says those boxes are left empty for a no, before he signs the
+   rewording. My recommendation: yes, under D2.
+9. **The source before his signature.** His answer 6 cannot be met in P319 without a rule held
+   outside the signed entry, which ADR-0148 §4 ("never authored") and ADR-0057 (the hash binds
+   what the system acts on) do not allow. Hold it outside until he signs, or make his signature
+   of the prepared change a step of his run? My recommendation: his signature as a step of his
+   run.
+10. **The source's options after a no.** The four the map names (Employer, Self or Family,
+    Sponsor, Other), or the form's whole list with its "not listed below" escape, 22 schemes and
+    3 loans (his D7, after phase 1; a scheme's name would then be needed after a no, which
+    ADR-0143 §1 asks only of a yes)? My recommendation: the four now, the rest with D7.
+11. **"Every answer" for a minor.** Does it include a choice made from a form's own list, held
+    per application? At deploy every case ever reviewed for a minor goes back to review once, and
+    each new answer of a minor raises it again (both fail closed). My recommendation: include
+    choices; accept both. The profile's answers are built now, on his answer 1.
+12. **The source's rule in the entry change** rests on his observed red asterisk
+    (`docs/captures/sheffield-part2-2026-09-25/taught-page.html:209`), not on a refused save
+    (ADR-0123 Decision 1), recorded with the source `specialist_noted` (the tool did not read the
+    star; he did). My recommendation: yes, in those words.
+13. **A stand-in approval** to check the patched entry, in a scratch copy, never in the
+    repository and never committed, beside his "do not sign anything". My recommendation: yes.
+
 ## Why this is an ADR first
 
 It changes accepted decisions, so his last sentence sends it here before any code:
@@ -517,8 +597,8 @@ to D10 are his.
 Built test-first in P318, the first two items of §8 at his D1. Each choice below that goes
 beyond his words is mine, recorded as mine. Three of them depart from §6 as he approved it and
 touch what his rule of 2026-10-14 sends to him first; they were built before asking him, which
-that rule says must not happen. That is my error, and each is row 214, undecided until he
-answers.
+that rule says must not happen. That was my error. He answered each on 2026-10-17 (row 214; below,
+"His answers on row 214"), and kept all three.
 
 **The review covers only the content it reviewed (§6, his D3).**
 
@@ -532,7 +612,8 @@ answers.
   never its value** (`reviewFingerprintsOf`). §6 as approved names *"the stored financial answers
   and their revisions"*; I built it without the values, so that the case log, which is
   append-only, holds nothing of what the student said. A date of birth hashed alone could be
-  recovered by trying every date, as a mapper found. **Departs from §6; row 214 (3).** Content
+  recovered by trying every date, as a mapper found. **Departs from §6; row 214 (3); his answer:
+*"Keep: fingerprint holds no student values."*** Content
   that is gone fingerprints too, over an empty list, so every raising carries one an approval can
   match.
 - **Read from the stored profile, at the moment it is needed.** One reading (`#reviewBasis`)
@@ -547,7 +628,8 @@ answers.
   closed: a rewrite of a value's format alone sends a reviewed answer back to review. It does not
   cover a row deleted and written again, which fires no UPDATE; nothing in the application does
   that.
-- **A review names the case as the reviewer read it** (mine; **departs from §6, row 214 (4)**).
+- **A review names the case as the reviewer read it** (mine; **departs from §6, row 214 (4); his
+  answer: *"Keep: approval bound to what the reviewer read."***).
   `GET /internal/v1/cases/{caseId}/review` gives the case's sequence and the reviews it waits on,
   by name. The reviewer reads it before looking at the content, and an approval of a mandatory
   review names that sequence (`caseSequence`), which changes ADR-0049 §4. The approval covers the
@@ -568,7 +650,8 @@ answers.
   P318 carries no fingerprint and could never be cleared, and a reviewed minor whose date of birth
   is answered again as an adult's no longer "applies", though that date is exactly what no person
   has seen.
-- **The order after the student's yes** (**departs from §6, row 214 (5)**). §6 says "the
+- **The order after the student's yes** (**departs from §6, row 214 (5); his answer: *"Keep:
+  raise first, void second."***). §6 says "the
   authorisation is voided first and the trigger reopened after". The reviews of the plan showed
   that order leaves the case waiting on the student with the review outstanding, where the
   student's approval was not guarded. As built:
@@ -614,9 +697,13 @@ answers.
 - **Not built, and open:**
   - An approval followed by a rejection of the same trigger still stands, as before P318. A
     rejection followed by an approval made on an older reading is refused.
-  - The minors fingerprint covers the date of birth only, as §6 says: row 214 (1), his.
+  - The minors fingerprint covers the date of birth only, as §6 says: row 214 (1). His answer:
+    *"Yes: a minor's review covers every answer."* Building in P319.
   - One funding answer changed sends every one of the student's applications back to review,
-    including a portal that never fills a financial field: row 214 (2), his.
+    including a portal that never fills a financial field: row 214 (2). His answer: *"Yes for
+    now, recorded as temporary … Revisit before a second reviewer exists or before more than a
+    handful of students; then only applications whose form carries funding go back."* (row 214
+    quotes it whole).
   - A case in AWAITING_HANDOFF, AWAITING_SPECIALIST_RECOVERY or SUBMITTING is not taken back.
     Nothing in the application reaches those states today.
   - A choice from a form's own list (P290) on a box filled from a financial answer is not in the
