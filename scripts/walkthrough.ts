@@ -266,6 +266,9 @@ async function main(): Promise<void> {
   await apply("Bank statement detected → escalate", {
     kind: "request_human_review",
     triggers: ["financial_evidence"],
+    // The content the trigger stands on, as the service fingerprints it
+    // (ADR-0161 §6, P318): a review clears it only by naming this.
+    fingerprints: { financial_evidence: "sha256:walkthrough-bank-statement" },
   }, "accepted");
   note("This is layer two. No confidence score can bypass it (brief §2.5).");
 
@@ -284,9 +287,10 @@ async function main(): Promise<void> {
       reviewedAt: new Date("2026-08-26T11:00:00Z"),
       triggers: ["financial_evidence"],
       outcome: "approved",
+      covers: { financial_evidence: "sha256:walkthrough-bank-statement" },
     },
   }, "accepted");
-  note("The gate is satisfied by a REVIEW, not by the review being requested.");
+  note("The gate is satisfied by a REVIEW of that content, not by the review being requested.");
 
   // The retry the script used to be missing. Without it the case stayed in
   // PREPARING and every step after this one was refused — for weeks, silently.

@@ -1,0 +1,22 @@
+mutation 16-the-list-holding-a-line-that-does-not-occur on scripts/required-boxes-known.ts
+command: pnpm exec vitest run --project unit scripts/required-boxes-hold.test.ts
+exit: 1
+restored byte for byte: True
+
+replaced:
+const lines: readonly (readonly [string, string])[] = [
+with:
+const lines: readonly (readonly [string, string])[] = [
+  ["breaks_a_required_box|finance.funding|fundingPlanted|required", "planted"],
+
+   × P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > finds no line that breaks the rule and is not on the known list, and no listed line that has stopped occurring 12ms
+     → a listed line no longer occurs: it was mended, so take it off scripts/required-boxes-known.ts: expected [ Array(1) ] to deeply equal []
+   × P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > the list can only shrink: every listed line is one of the 59 P318 listed, so a new break cannot be listed, only mended 1ms
+     → a line joined the list after P318: mend the break instead: expected [ Array(1) ] to deeply equal []
+   × P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > names what every listed line waits on 2ms
+     → expected [ { …(2) } ] to deeply equal []
+ Test Files  1 failed (1)
+      Tests  3 failed | 7 passed (10)
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > finds no line that breaks the rule and is not on the known list, and no listed line that has stopped occurring
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > the list can only shrink: every listed line is one of the 59 P318 listed, so a new break cannot be listed, only mended
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > names what every listed line waits on

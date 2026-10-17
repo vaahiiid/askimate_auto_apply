@@ -63,6 +63,13 @@ export class PostgresConfirmedProfileStore implements ConfirmedProfileStore {
    * correcting an answer must not have a window in which they have no date of
    * birth, because the minor-detection safeguard reads it and "absent" and
    * "under 18" lead to very different behaviour.
+   *
+   * Every overwrite moves the revision past the one held, whatever revision
+   * the writer gave (ADR-0161 §6, P318). A mandatory review covers the content
+   * it saw by each answer's revision and the moment it was confirmed, never by
+   * its value; a writer that overwrote an answer at the same revision would
+   * slip a changed financial answer past its review. So the store, not each
+   * writer, makes every overwrite count.
    */
   public async save(studentId: string, entry: StoredProfileEntry): Promise<void> {
     await this.#pool.query(
@@ -71,7 +78,7 @@ export class PostgresConfirmedProfileStore implements ConfirmedProfileStore {
        ON CONFLICT (student_id, field_key) DO UPDATE
                SET value = EXCLUDED.value,
                    provenance = EXCLUDED.provenance,
-                   revision = EXCLUDED.revision,
+                   revision = GREATEST(EXCLUDED.revision, profile_entries.revision + 1),
                    updated_at = now()`,
       [
         studentId,

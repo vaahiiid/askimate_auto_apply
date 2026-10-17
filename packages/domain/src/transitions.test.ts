@@ -13,14 +13,19 @@ import { CASE_STATES, TERMINAL_STATES, type CaseState } from "./state.js";
 import type { GuardContext } from "./transitions.js";
 import { ALLOWED_TRANSITIONS, checkTransition, isTransitionAllowed, nextStates } from "./transitions.js";
 
-const EMPTY_CONTEXT: GuardContext = { activeTriggers: [], completedReviews: [] };
+/** Each mandatory trigger raised with the fingerprint of its content (ADR-0161 §6, P318). */
+const RAISED = { financial_evidence: "sha256:funds-1", involves_minor: "sha256:dob-1" } as const;
 
+const EMPTY_CONTEXT: GuardContext = { activeTriggers: [], completedReviews: [], raisedFingerprints: RAISED };
+
+/** An approval that saw the content each trigger was raised for. */
 function approvedReview(triggers: HumanReviewRecord["triggers"]): HumanReviewRecord {
   return {
     reviewerId: "specialist_amara",
     reviewedAt: new Date("2026-08-26T11:00:00Z"),
     triggers,
     outcome: "approved",
+    covers: RAISED,
   };
 }
 
@@ -142,7 +147,7 @@ describe("the transition table", () => {
 describe("mandatory human review — the hard gate (brief §2.5)", () => {
   it("blocks authorisation while financial evidence is unreviewed", () => {
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["financial_evidence"],
+      raisedFingerprints: RAISED, activeTriggers: ["financial_evidence"],
       completedReviews: [],
     });
 
@@ -155,7 +160,7 @@ describe("mandatory human review — the hard gate (brief §2.5)", () => {
 
   it("blocks authorisation while a minor is involved and unreviewed", () => {
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["involves_minor"],
+      raisedFingerprints: RAISED, activeTriggers: ["involves_minor"],
       completedReviews: [],
     });
 
@@ -165,7 +170,7 @@ describe("mandatory human review — the hard gate (brief §2.5)", () => {
 
   it("blocks on BOTH triggers and reports both", () => {
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["financial_evidence", "involves_minor"],
+      raisedFingerprints: RAISED, activeTriggers: ["financial_evidence", "involves_minor"],
       completedReviews: [],
     });
 
@@ -178,7 +183,7 @@ describe("mandatory human review — the hard gate (brief §2.5)", () => {
   it("still blocks when only one of two mandatory triggers was reviewed", () => {
     // A partial review must not open the gate.
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["financial_evidence", "involves_minor"],
+      raisedFingerprints: RAISED, activeTriggers: ["financial_evidence", "involves_minor"],
       completedReviews: [approvedReview(["financial_evidence"])],
     });
 
@@ -190,7 +195,7 @@ describe("mandatory human review — the hard gate (brief §2.5)", () => {
 
   it("allows authorisation once every mandatory trigger is approved", () => {
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["financial_evidence", "involves_minor"],
+      raisedFingerprints: RAISED, activeTriggers: ["financial_evidence", "involves_minor"],
       completedReviews: [approvedReview(["financial_evidence", "involves_minor"])],
     });
 
@@ -199,7 +204,7 @@ describe("mandatory human review — the hard gate (brief §2.5)", () => {
 
   it("does not treat a rejected review as clearing the trigger", () => {
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["financial_evidence"],
+      raisedFingerprints: RAISED, activeTriggers: ["financial_evidence"],
       completedReviews: [
         { reviewerId: "specialist_amara", reviewedAt: new Date(), triggers: ["financial_evidence"], outcome: "rejected" },
       ],
@@ -210,7 +215,7 @@ describe("mandatory human review — the hard gate (brief §2.5)", () => {
 
   it("does not treat 'changes requested' as clearing the trigger", () => {
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["financial_evidence"],
+      raisedFingerprints: RAISED, activeTriggers: ["financial_evidence"],
       completedReviews: [
         { reviewerId: "specialist_amara", reviewedAt: new Date(), triggers: ["financial_evidence"], outcome: "changes_requested" },
       ],
@@ -222,7 +227,7 @@ describe("mandatory human review — the hard gate (brief §2.5)", () => {
   it("does not block on a discretionary trigger alone", () => {
     // Layer one is confidence-based and can be resolved without a human.
     const check = checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
-      activeTriggers: ["low_confidence"],
+      raisedFingerprints: RAISED, activeTriggers: ["low_confidence"],
       completedReviews: [],
     });
 

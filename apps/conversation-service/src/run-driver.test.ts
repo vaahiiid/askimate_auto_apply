@@ -3804,6 +3804,104 @@ describeIfDatabase("which page a multi-page run does next", () => {
   }, 300_000);
 });
 
+describeIfDatabase("the account's hand-back and the walk into AUTHORISED, under a review (P318)", () => {
+  // Two findings of P318's refuters on the account's hand-over, the one step
+  // that targets AUTHORISED before the student is asked again:
+  //
+  //   - the take-back held the hand-back behind a re-raised review, and the
+  //     account is owed back whatever a review waits on (ADR-0050);
+  //   - a case the take-back had voided was walked into AUTHORISED by a plain
+  //     transition with no authorisation on it, and the student's later yes
+  //     was refused for ever.
+
+  /** A run of the gated portal, created and authorised, standing at `execute`. */
+  async function aRunAtTheFill(instance: ReturnType<typeof buildInstance>, conversation: string): Promise<{ runId: string; record: (action: "create_portal_account" | "advance_portal_page", target: string) => Promise<void> }> {
+    await ownConversation(conversation);
+    await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+    const started = await pastTheYes(instance, conversation);
+    if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    const runId = started.position.runId;
+    await new ConversationEventStore(instance.pool).append({
+      conversationId: conversation,
+      event: { kind: "secret_received", requestId: `sr_${"0".repeat(31)}1`, handle: `sh_${"e".repeat(32)}` },
+    });
+    const creating = await instance.driver.advance({ runId, conversationId: conversation });
+    if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+    expect(creating.position.step).toBe("create_account");
+    const runRef = makeRunId(runId);
+    const runs = new PostgresWorkflowRunStore(instance.pool);
+    const record = async (action: "create_portal_account" | "advance_portal_page", target: string): Promise<void> => {
+      const key = idempotencyKeyFor({ runId: runRef, action, target });
+      await runs.recordIntent(runRef, { idempotencyKey: key, action, target, startedAt: NOW });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+    };
+    await record("create_portal_account", runId);
+    await signedInAtCreation(instance.pool, runRef);
+    await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+    const filling = await instance.driver.advance({ runId, conversationId: conversation });
+    if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+    expect(filling.position.step).toBe("execute");
+    return { runId, record };
+  }
+
+  it("a review raised at the account's hand-over does not hold the hand-back", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00319";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const { runId, record } = await aRunAtTheFill(instance, conversation);
+      for (const page of ["page-application", "page-study"]) await record("advance_portal_page", await targetForPage(page, ownerOf(conversation)));
+      // The funding answer arrives with the account still to hand back.
+      await confirmInto(new PostgresConfirmedProfileStore(instance.pool), "finance.funding", { known: true, source: "self_or_family", stage: "confirmed" }, "my family are paying", ownerOf(conversation));
+      const owed = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!owed.ok) expect.unreachable(`advance refused: ${owed.refusal.kind}`);
+      expect(owed.position.step).toBe("hand_over_account");
+
+      const held = fold(await new PostgresCaseStore(pool).read(caseRef));
+      expect(held.activeTriggers, "the review is raised for the content as it is now").toContain("financial_evidence");
+      expect(held.openHandoffToken, "and the account's hand-back is still asked for").toBeDefined();
+      const run = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+      expect(run.rows[0]?.status, "the run is not stopped for the review while the account is owed").not.toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a case voided while filling, whose run then owes the account back, is not walked into AUTHORISED without the student's yes", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00318";
+    const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const { runId, record } = await aRunAtTheFill(instance, conversation);
+      // The funding answer arrives while the run is filling: the review is
+      // raised and the authorisation voided.
+      await confirmInto(new PostgresConfirmedProfileStore(instance.pool), "finance.funding", { known: true, source: "self_or_family", stage: "confirmed" }, "my family are paying", ownerOf(conversation));
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect(fold(await new PostgresCaseStore(pool).read(caseRef)).authorisedContentHash, "the authorisation is voided").toBeUndefined();
+
+      // The pages it had saved, and then the review.
+      for (const page of ["page-application", "page-study"]) await record("advance_portal_page", await targetForPage(page, ownerOf(conversation)));
+      const read = await instance.driver.reviewFor(caseRef);
+      const reviewed = await instance.driver.completeReview({
+        caseId: caseRef,
+        review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence"], outcome: "approved" },
+        caseSequence: read?.caseSequence ?? 0,
+      });
+      expect(reviewed.ok).toBe(true);
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      const owed = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!owed.ok) expect.unreachable(`advance refused: ${owed.refusal.kind}`);
+      expect(owed.position.step, "the account is owed back").toBe("hand_over_account");
+
+      const after = fold(await new PostgresCaseStore(pool).read(caseRef));
+      expect(after.state, "not walked to AUTHORISED with nothing authorised: it waits for the student's yes").toBe("AWAITING_STUDENT_AUTHORISATION");
+      expect(after.authorisedContentHash).toBeUndefined();
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
 // ───────────────────────────────────────────────────────────────────────────
 // I. P10 — a run that stops says so, and can be picked up (ADR-0048)
 // ───────────────────────────────────────────────────────────────────────────
@@ -5649,13 +5747,24 @@ describeIfDatabase(
       const listening = await new Promise<Server>((resolve) => {
         const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
       });
-      const body = JSON.stringify({
-        reviewerId: "specialist_vahid",
-        triggers: ["financial_evidence"],
-        outcome: "approved",
-        notes: "Funding source checked against the statement on file.",
-      });
+      const reviewUrl = `http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`;
       try {
+        // P318: what the reviewer reads before looking, on the same plane.
+        const unread = await fetch(reviewUrl);
+        expect(unread.status, "reading a case's review is not open to anyone").toBe(403);
+        const read = await fetch(reviewUrl, { headers: { "x-service-cert": "operator" } });
+        expect(read.status).toBe(200);
+        const seen = (await read.json()) as { caseSequence: number; outstanding: unknown };
+        expect(seen.outstanding, "names the review it waits on, and nothing the student said").toEqual([
+          { trigger: "financial_evidence", approvable: true },
+        ]);
+        const body = JSON.stringify({
+          reviewerId: "specialist_vahid",
+          triggers: ["financial_evidence"],
+          outcome: "approved",
+          notes: "Funding source checked against the statement on file.",
+          caseSequence: seen.caseSequence,
+        });
         const denied = await fetch(
           `http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`,
           {
@@ -5699,6 +5808,376 @@ describeIfDatabase(
         await reachedTheStudent(caseRef),
         "cleared, and now it may ask",
       ).toBe("1");
+    }, 300_000);
+
+    it("a financial answer changed AFTER its approving review is reviewed again before the student is asked (ADR-0161 §6, his D3; row 189 (1))", async () => {
+      // His words (docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt): "D3:
+      // approved." Until P318 an approval cleared financial_evidence for good:
+      // the trigger was raised again on the next advance, and the old approval
+      // still cleared it, so a funding answer changed after its review reached
+      // the student unreviewed. Now a review covers only the content it saw.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000A7";
+      const otherCase = `case_${other.toLowerCase()}`;
+      const otherRun = await aRunAtTheAuthorisation(other);
+      const instance = buildInstance(connectionString(), opener());
+      const resume = async (): Promise<void> => {
+        await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [otherRun]);
+        await instance.driver.advance({ runId: otherRun, conversationId: other });
+      };
+      try {
+        await instance.driver.advance({ runId: otherRun, conversationId: other });
+        expect(await reachedTheStudent(otherCase), "held for the review first").toBe("0");
+
+        const firstRead = await instance.driver.reviewFor(makeCaseId(otherCase));
+        const first = await instance.driver.completeReview({
+          caseId: makeCaseId(otherCase),
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence"], outcome: "approved" },
+          caseSequence: firstRead?.caseSequence ?? 0,
+        });
+        expect(first.ok).toBe(true);
+        await resume();
+        expect(await reachedTheStudent(otherCase), "the review saw this content, so the student may be asked").toBe("1");
+
+        // The student changes their funding answer after the review.
+        await confirmInto(
+          new PostgresConfirmedProfileStore(instance.pool),
+          "finance.funding",
+          { known: true, source: "self_or_family", stage: "confirmed", details: "my uncle in Tehran" },
+          "my uncle in Tehran is paying",
+          ownerOf(other),
+        );
+        await resume();
+        await resume();
+        expect(await reachedTheStudent(otherCase), "a changed financial answer is not put to the student unreviewed").toBe("1");
+        const raised = await pool.query<{ fingerprint: string | null }>(
+          `SELECT event->'fingerprints'->>'financial_evidence' AS fingerprint FROM case_events
+            WHERE case_id = $1 AND event->>'type' = 'HumanReviewRequested' ORDER BY sequence`,
+          [otherCase],
+        );
+        const fingerprints = raised.rows.map((row) => row.fingerprint);
+        expect(new Set(fingerprints).size, "raised again, for the changed content").toBe(2);
+        expect(fingerprints.every((fingerprint) => fingerprint?.startsWith("sha256:") === true)).toBe(true);
+        const state = await pool.query<{ to: string }>(
+          `SELECT event->>'to' AS to FROM case_events WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged' ORDER BY sequence DESC LIMIT 1`,
+          [otherCase],
+        );
+        expect(state.rows[0]?.to, "taken back from the student, not left waiting on them").not.toBe("AWAITING_STUDENT_AUTHORISATION");
+
+        // A second review sees the change, and only then is the student asked again.
+        const secondRead = await instance.driver.reviewFor(makeCaseId(otherCase));
+        const second = await instance.driver.completeReview({
+          caseId: makeCaseId(otherCase),
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence"], outcome: "approved" },
+          caseSequence: secondRead?.caseSequence ?? 0,
+        });
+        expect(second.ok).toBe(true);
+        await resume();
+        expect(await reachedTheStudent(otherCase), "reviewed again, and asked again").toBe("2");
+      } finally {
+        await instance.pool.end();
+      }
+    }, 300_000);
+
+    it("the Postgres profile store moves the revision on every overwrite, whatever revision the writer gave (ADR-0161 §6)", async () => {
+      const store = new PostgresConfirmedProfileStore(pool);
+      const owned = "01JBXQ8Z9WKTQ6M4H2NPC000A9";
+      await ownConversation(owned);
+      const student = ownerOf(owned);
+      const write = (value: string): Promise<void> =>
+        store.save(student, { key: "contact.email", value, provenance: { source: "student_stated", confirmedAt: NOW }, revision: 1 });
+      await write("first@example.test");
+      await write("second@example.test");
+      expect((await store.load(student, NOW)).entries.get("contact.email")?.revision).toBe(2);
+    });
+
+    it("an UPDATE that changes a value in place moves its revision too, whoever writes it (migration 0041)", async () => {
+      // P318's bypass refuter: the fingerprint is revisions and times, so a
+      // value rewritten in place (as 0028 did, or by hand) slipped past it.
+      const store = new PostgresConfirmedProfileStore(pool);
+      const owned = "01JBXQ8Z9WKTQ6M4H2NPC000AE";
+      await ownConversation(owned);
+      const student = ownerOf(owned);
+      await store.save(student, { key: "contact.email", value: "first@example.test", provenance: { source: "student_stated", confirmedAt: NOW }, revision: 1 });
+      const revision = async (): Promise<number | undefined> => (await store.load(student, NOW)).entries.get("contact.email")?.revision;
+      expect(await revision()).toBe(1);
+
+      await pool.query(
+        `UPDATE profile_entries SET value = to_jsonb('changed@example.test'::text) WHERE student_id = $1 AND field_key = 'contact.email'`,
+        [student],
+      );
+      expect(await revision(), "a value changed in place").toBe(2);
+      await pool.query(
+        `UPDATE profile_entries SET provenance = jsonb_set(provenance, '{confirmedAt}', to_jsonb('2026-08-31T11:00:00.000Z'::text)) WHERE student_id = $1 AND field_key = 'contact.email'`,
+        [student],
+      );
+      expect(await revision(), "a provenance changed in place").toBe(3);
+      await pool.query("UPDATE profile_entries SET updated_at = now() WHERE student_id = $1 AND field_key = 'contact.email'", [student]);
+      expect(await revision(), "a write that changes neither leaves it").toBe(3);
+      await store.save(student, { key: "contact.email", value: "third@example.test", provenance: { source: "student_stated", confirmedAt: NOW }, revision: 1 });
+      expect(await revision(), "and the store's own overwrite moves it once, not twice").toBe(4);
+      await pool.query("UPDATE profile_entries SET revision = 1 WHERE student_id = $1 AND field_key = 'contact.email'", [student]);
+      expect(await revision(), "no UPDATE lowers it: lowered first and changed after, it would come back to a fingerprint already approved").toBe(4);
+    });
+
+    it("the fingerprint a review covers is the service's, never one sent in the request", async () => {
+      // ADR-0161 §6: "The service computes it from the profile at the moment
+      // the review is recorded; the reviewer never types it."
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000A8";
+      const otherCase = `case_${other.toLowerCase()}`;
+      await aRunAtTheAuthorisation(other);
+      const instance = buildInstance(connectionString(), opener());
+      reviewPort += 1;
+      const port = reviewPort;
+      const app = createConversationApp({
+        store: new ConversationEventStore(instance.pool),
+        sessionSecret: SECRET,
+        authorise: () => Promise.resolve(true),
+        authoriseService: (req) => req.header("x-service-cert") === "operator",
+        now: () => NOW,
+        runs: instance.driver,
+      });
+      const listening = await new Promise<Server>((resolve) => {
+        const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+      });
+      try {
+        const read = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/cases/${otherCase}/review`, { headers: { "x-service-cert": "operator" } });
+        const { caseSequence } = (await read.json()) as { caseSequence: number };
+        const done = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/cases/${otherCase}/review`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-service-cert": "operator" },
+          body: JSON.stringify({
+            reviewerId: "specialist_vahid",
+            triggers: ["financial_evidence"],
+            outcome: "approved",
+            covers: { financial_evidence: "sha256:forged" },
+            caseSequence,
+          }),
+        });
+        expect(done.status).toBe(204);
+      } finally {
+        await new Promise<void>((resolve) => listening.close(() => resolve()));
+        await instance.pool.end();
+      }
+      const recorded = await pool.query<{ covers: string | null; raised: string | null }>(
+        `SELECT (SELECT event->'review'->'covers'->>'financial_evidence' FROM case_events WHERE case_id = $1 AND event->>'type' = 'HumanReviewCompleted') AS covers,
+                (SELECT event->'fingerprints'->>'financial_evidence' FROM case_events WHERE case_id = $1 AND event->>'type' = 'HumanReviewRequested' ORDER BY sequence DESC LIMIT 1) AS raised`,
+        [otherCase],
+      );
+      const row = recorded.rows[0];
+      expect(row?.covers, "never the one in the request").not.toBe("sha256:forged");
+      expect(row?.covers?.startsWith("sha256:"), "a fingerprint the service computed").toBe(true);
+      expect(row?.covers, "the content the trigger was raised for, unchanged since").toBe(row?.raised);
+    }, 300_000);
+
+    it("an approval names the case as the reviewer read it, and a change made while they looked is not approved unseen (P318)", async () => {
+      // P318's bypass refuter: the service computed what a review covers when
+      // the review was RECORDED, so a funding answer the student changed while
+      // the reviewer was looking was approved with the reviewer never having
+      // seen it. Now the reviewer reads the case first (GET …/review), and the
+      // approval names that reading.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000AB";
+      const otherCase = makeCaseId(`case_${other.toLowerCase()}`);
+      const otherRun = await aRunAtTheAuthorisation(other);
+      const instance = buildInstance(connectionString(), opener());
+      const review = { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence" as const], outcome: "approved" as const };
+      const resume = async (): Promise<void> => {
+        await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [otherRun]);
+        await instance.driver.advance({ runId: otherRun, conversationId: other });
+      };
+      try {
+        const unnamed = await instance.driver.completeReview({ caseId: otherCase, review });
+        expect(unnamed, "an approval that does not say which case it read is refused").toMatchObject({ ok: false, pointer: "/caseSequence" });
+
+        const read = await instance.driver.reviewFor(otherCase);
+        if (read === null) expect.unreachable("the case exists");
+        expect(read.outstanding).toEqual([{ trigger: "financial_evidence", approvable: true }]);
+
+        // While the reviewer looks, the student changes their funding answer,
+        // and the next advance raises it again.
+        await confirmInto(
+          new PostgresConfirmedProfileStore(instance.pool),
+          "finance.funding",
+          { known: true, source: "self_or_family", stage: "confirmed", details: "my aunt" },
+          "my aunt is paying",
+          ownerOf(other),
+        );
+        await resume();
+        const stale = await instance.driver.completeReview({ caseId: otherCase, review, caseSequence: read.caseSequence });
+        expect(stale, "raised again after the case the reviewer read").toMatchObject({ ok: false, pointer: "/caseSequence" });
+
+        // And a change no advance has raised yet: refused, and raised here.
+        await confirmInto(
+          new PostgresConfirmedProfileStore(instance.pool),
+          "finance.funding",
+          { known: true, source: "self_or_family", stage: "confirmed", details: "my aunt and uncle" },
+          "my aunt and uncle are paying",
+          ownerOf(other),
+        );
+        const beforeRaise = await instance.driver.reviewFor(otherCase);
+        expect(beforeRaise?.outstanding, "not approvable while the content has outrun its raising").toEqual([{ trigger: "financial_evidence", approvable: false }]);
+        const outrun = await instance.driver.completeReview({ caseId: otherCase, review, caseSequence: beforeRaise?.caseSequence ?? 0 });
+        expect(outrun, "the content changed since it was raised").toMatchObject({ ok: false, pointer: "/caseSequence" });
+        expect(await reachedTheStudent(otherCase), "nothing reached the student meanwhile").toBe("0");
+
+        const again = await instance.driver.reviewFor(otherCase);
+        expect(again?.outstanding, "raised for the content as it is now, so it can be approved").toEqual([{ trigger: "financial_evidence", approvable: true }]);
+        const done = await instance.driver.completeReview({ caseId: otherCase, review, caseSequence: again?.caseSequence ?? 0 });
+        expect(done.ok).toBe(true);
+        await resume();
+        expect(await reachedTheStudent(otherCase), "approved as seen, and the student is asked").toBe("1");
+      } finally {
+        await instance.pool.end();
+      }
+    }, 300_000);
+
+    it("an approval made on a reading older than a later rejection is refused (P318)", async () => {
+      // P318's second review: only a later RAISING was looked for after the
+      // reading, so a retried or second-tab approval overtook a rejection
+      // recorded after the reviewer read the case.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000AG";
+      const otherCase = makeCaseId(`case_${other.toLowerCase()}`);
+      await aRunAtTheAuthorisation(other);
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const read = await instance.driver.reviewFor(otherCase);
+        const rejected = await instance.driver.completeReview({
+          caseId: otherCase,
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence"], outcome: "rejected", notes: "The statement is out of date." },
+        });
+        expect(rejected.ok).toBe(true);
+        const stale = await instance.driver.completeReview({
+          caseId: otherCase,
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence"], outcome: "approved" },
+          caseSequence: read?.caseSequence ?? 0,
+        });
+        expect(stale, "the rejection came after this reading").toMatchObject({ ok: false, pointer: "/caseSequence" });
+        const again = await instance.driver.reviewFor(otherCase);
+        const done = await instance.driver.completeReview({
+          caseId: otherCase,
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence"], outcome: "approved" },
+          caseSequence: again?.caseSequence ?? 0,
+        });
+        expect(done.ok, "read again after the rejection, an approval is taken").toBe(true);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 300_000);
+
+    it("an approval naming a mandatory review the case does not wait on is refused, and writes nothing", async () => {
+      // P318's second review: the first fix raised any named trigger whose
+      // content had no raising, so an adult's case approved for "a minor" by a
+      // slip was raised for a minors review, voided and held.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000AF";
+      const otherCase = makeCaseId(`case_${other.toLowerCase()}`);
+      await aRunAtTheAuthorisation(other);
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const before = (await new PostgresCaseStore(pool).read(otherCase)).length;
+        const read = await instance.driver.reviewFor(otherCase);
+        const done = await instance.driver.completeReview({
+          caseId: otherCase,
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence", "involves_minor"], outcome: "approved" },
+          caseSequence: read?.caseSequence ?? 0,
+        });
+        expect(done, "an adult's case does not wait on a minors review").toMatchObject({ ok: false, pointer: "/triggers" });
+        expect((await new PostgresCaseStore(pool).read(otherCase)).length, "and nothing was written").toBe(before);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 300_000);
+
+    it("a raising from before P318, which carries no fingerprint, is raised again with one, and a person can clear it", async () => {
+      // P318's bypass refuter: such a raising could never be matched by an
+      // approval, and was raised again only while the trigger still applied, so
+      // a minor's trigger on a case whose student is now an adult held it for
+      // ever. Here: an adult's case carrying a minors trigger raised the old way.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000AC";
+      const otherCase = makeCaseId(`case_${other.toLowerCase()}`);
+      const otherRun = await aRunAtTheAuthorisation(other);
+      const instance = buildInstance(connectionString(), opener());
+      const resume = async (): Promise<void> => {
+        await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [otherRun]);
+        await instance.driver.advance({ runId: otherRun, conversationId: other });
+      };
+      try {
+        const cases = new PostgresCaseStore(instance.pool);
+        const before = fold(await cases.read(otherCase));
+        const legacy = decide(before, { kind: "request_human_review", triggers: ["involves_minor"] });
+        if (!legacy.accepted) expect.unreachable("a raising is accepted");
+        await cases.append(
+          otherCase,
+          before.sequence,
+          stamp({
+            caseId: otherCase,
+            fromSequence: before.sequence,
+            payloads: legacy.events,
+            actor: askimateActor(externalRef(other)),
+            now: NOW,
+            nextEventId: (index) => `evt_${otherCase}_${String(before.sequence + index + 1)}`,
+          }),
+        );
+        await resume();
+        const read = await instance.driver.reviewFor(otherCase);
+        expect(read?.outstanding, "raised again with the content's fingerprint, so it can be approved").toEqual([
+          { trigger: "financial_evidence", approvable: true },
+          { trigger: "involves_minor", approvable: true },
+        ]);
+        const done = await instance.driver.completeReview({
+          caseId: otherCase,
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence", "involves_minor"], outcome: "approved" },
+          caseSequence: read?.caseSequence ?? 0,
+        });
+        expect(done.ok).toBe(true);
+        await resume();
+        expect(await reachedTheStudent(otherCase), "cleared, and the student is asked").toBe("1");
+      } finally {
+        await instance.pool.end();
+      }
+    }, 300_000);
+
+    it("a yes pressed after a change no decide has raised is answered 'a person is checking', and a person really is asked (P318)", async () => {
+      // The student is told "A person is checking part of your application …
+      // I will carry on as soon as they are done." P318's first build said it
+      // before any review was requested. Now the change is raised, and the run
+      // stopped for it, before the domain weighs the yes.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000AD";
+      const otherCase = makeCaseId(`case_${other.toLowerCase()}`);
+      const otherRun = await aRunAtTheAuthorisation(other);
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const read = await instance.driver.reviewFor(otherCase);
+        const done = await instance.driver.completeReview({
+          caseId: otherCase,
+          review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["financial_evidence"], outcome: "approved" },
+          caseSequence: read?.caseSequence ?? 0,
+        });
+        expect(done.ok).toBe(true);
+        await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [otherRun]);
+        await instance.driver.advance({ runId: otherRun, conversationId: other });
+        expect(await reachedTheStudent(otherCase), "reviewed, and asked").toBe("1");
+        const preview = await instance.driver.previewFor(otherRun, other);
+        if (preview === null) expect.unreachable("the run is asking");
+
+        await confirmInto(
+          new PostgresConfirmedProfileStore(instance.pool),
+          "finance.funding",
+          { known: true, source: "self_or_family", stage: "confirmed", details: "my brother" },
+          "my brother is paying",
+          ownerOf(other),
+        );
+        const yes = await instance.driver.recordDecision({ conversationId: other, runId: otherRun, decision: { kind: "authorise", contentHash: preview.contentHash } });
+        expect(yes, "the student is told a person is checking").toEqual({ ok: false, reason: "held_for_specialist" });
+
+        const after = fold(await new PostgresCaseStore(pool).read(otherCase));
+        expect(after.authorisedContentHash, "and no yes was recorded").toBeUndefined();
+        expect((await instance.driver.reviewFor(otherCase))?.outstanding, "the review it waits on is requested, for the content as it is now").toEqual([
+          { trigger: "financial_evidence", approvable: true },
+        ]);
+        const run = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [otherRun]);
+        expect(run.rows[0]?.status, "and the run stopped for it, so a person is told").toBe("escalated");
+      } finally {
+        await instance.pool.end();
+      }
     }, 300_000);
 
     it("a REJECTING review does NOT clear it", async () => {
@@ -10845,6 +11324,219 @@ describeIfDatabase("the preview names what the student holds (ADR-0097, P64)", (
       contentHash: PASSPORT_HASH,
     });
   });
+});
+
+describeIfDatabase("a minor's documents after the review (P318)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // A review clears the minors trigger for the content it saw (ADR-0161 §6).
+  // It does not make the applicant an adult. Disclosure reads "a minor" as
+  // conditions nobody has determined yet, and refuses (ADR-0011). P318's first
+  // build read that from the case's ACTIVE triggers, which an approval now
+  // empties, so a reviewed minor's passport was handed to the runner as an
+  // adult's. Found by P318's regression refuter; this is its case, end to end.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPMNR318";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let student = "";
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p318-minor', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    await new PostgresDocumentRecordStore(pool).insert(
+      {
+        documentId: "01JQP318MNR000000000000000",
+        studentId: student,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "uploaded",
+        contentHash: "e".repeat(64),
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-02T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+      },
+      `documents/${student}/p318-minor`,
+    );
+  });
+
+  it("a minor's passport is refused at disclosure after an approving review, as before P318", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles, student);
+      await confirmInto(profiles, "identity.date_of_birth", new Date("2012-05-01T00:00:00Z"), "1 May 2012", student);
+
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const raised = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM case_events WHERE case_id = $1 AND event->>'type' = 'HumanReviewRequested'
+           AND event->'triggers' ? 'involves_minor'`,
+        [caseRef],
+      );
+      expect(raised.rows[0]?.n, "the minors trigger is raised from the confirmed date of birth").not.toBe("0");
+
+      const read = await instance.driver.reviewFor(makeCaseId(caseRef));
+      const reviewed = await instance.driver.completeReview({
+        caseId: makeCaseId(caseRef),
+        review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["involves_minor"], outcome: "approved" },
+        caseSequence: read?.caseSequence ?? 0,
+      });
+      expect(reviewed.ok, "the review is recorded").toBe(true);
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step, "reviewed, so the student is asked").toBe("authorise");
+
+      const preview = await instance.driver.previewFor(runId, conversation);
+      if (preview === null) expect.unreachable("a preview exists at authorise");
+      const yes = await instance.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "authorise", contentHash: preview.contentHash } });
+      expect(yes.ok, "the yes").toBe(true);
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+
+      const lease = await new WorkLeaseStore(instance.pool).claim({
+        runId,
+        leaseId: "wl_p318_minor",
+        kind: "execute",
+        holder: "runner-p318",
+        now: NOW,
+        leaseSeconds: 120,
+      });
+      if (lease === null) expect.unreachable("the lease on the run the student authorised");
+      const handed = await instance.driver.documentForWork({ runId, leaseId: lease.leaseId, holder: "runner-p318", documentRef: "passport" });
+      expect(handed, "a minor's conditions are undetermined, so nothing is disclosed").toEqual({ ok: false, refusal: "disclosure_refused" });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a document is not handed to a runner while a financial answer changed after the yes waits for its review, even on a lease taken before (P318)", async () => {
+    // P318's second review: the fill's lock was at the claim only, and a
+    // runner leased before the change could still be handed the documents.
+    // Funding is on no box of this form, so the preview, and the step, are
+    // unchanged by it: only the review lock stands in the way.
+    const other = "01JBXQ8Z9WKTQ6M4H2NPMNR320";
+    const created = await pool.query<{ id: string }>("INSERT INTO students (subject, email_verified) VALUES ('oidc-p318-lock', true) RETURNING id");
+    const owner = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [other, owner]);
+    await new PostgresDocumentRecordStore(pool).insert(
+      {
+        documentId: "01JQP318MNR000000000000002",
+        studentId: owner,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "uploaded",
+        contentHash: "d".repeat(64),
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-02T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+      },
+      `documents/${owner}/p318-lock`,
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles, owner);
+      const started = await instance.driver.start({ conversationId: other, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      expect(started.position.step, "an adult with no financial answer: no review stands before the yes").toBe("authorise");
+      const preview = await instance.driver.previewFor(runId, other);
+      if (preview === null) expect.unreachable("a preview exists at authorise");
+      expect((await instance.driver.recordDecision({ conversationId: other, runId, decision: { kind: "authorise", contentHash: preview.contentHash } })).ok).toBe(true);
+      const filling = await instance.driver.advance({ runId, conversationId: other });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+      const lease = await new WorkLeaseStore(instance.pool).claim({ runId, leaseId: "wl_p318_lock", kind: "execute", holder: "runner-p318-lock", now: NOW, leaseSeconds: 120 });
+      if (lease === null) expect.unreachable("the lease");
+
+      await confirmInto(profiles, "finance.funding", { known: true, source: "self_or_family", stage: "confirmed" }, "my family are paying", owner);
+      const handed = await instance.driver.documentForWork({ runId, leaseId: lease.leaseId, holder: "runner-p318-lock", documentRef: "passport" });
+      expect(handed, "the review lock holds the document until a person has seen the change").toEqual({ ok: false, refusal: "not_authorised" });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a reviewed minor's date of birth answered again as an adult's is reviewed again before anything is disclosed on it", async () => {
+    // P318's second review: the raising looked only at triggers that APPLY, so
+    // a date of birth moved from a minor's to an adult's after the review was
+    // never raised again, and the passport went to the runner as an adult's on
+    // a date no person had seen. Not reachable in the chat today (a date is not
+    // corrected from words, ADR-0154 §5); answering a field again (§5, phase 1)
+    // makes it so.
+    const other = "01JBXQ8Z9WKTQ6M4H2NPMNR319";
+    const otherCase = makeCaseId(`case_${other.toLowerCase()}`);
+    const created = await pool.query<{ id: string }>("INSERT INTO students (subject, email_verified) VALUES ('oidc-p318-minor-2', true) RETURNING id");
+    const owner = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [other, owner]);
+    await new PostgresDocumentRecordStore(pool).insert(
+      {
+        documentId: "01JQP318MNR000000000000001",
+        studentId: owner,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "uploaded",
+        contentHash: "f".repeat(64),
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-02T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+      },
+      `documents/${owner}/p318-minor-2`,
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles, owner);
+      await confirmInto(profiles, "identity.date_of_birth", new Date("2012-05-01T00:00:00Z"), "1 May 2012", owner);
+      const started = await instance.driver.start({ conversationId: other, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const read = await instance.driver.reviewFor(otherCase);
+      expect((await instance.driver.completeReview({
+        caseId: otherCase,
+        review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["involves_minor"], outcome: "approved" },
+        caseSequence: read?.caseSequence ?? 0,
+      })).ok).toBe(true);
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      await instance.driver.advance({ runId, conversationId: other });
+      const preview = await instance.driver.previewFor(runId, other);
+      if (preview === null) expect.unreachable("a preview exists at authorise");
+      expect((await instance.driver.recordDecision({ conversationId: other, runId, decision: { kind: "authorise", contentHash: preview.contentHash } })).ok).toBe(true);
+      const filling = await instance.driver.advance({ runId, conversationId: other });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+      const lease = await new WorkLeaseStore(instance.pool).claim({ runId, leaseId: "wl_p318_minor_2", kind: "execute", holder: "runner-p318-2", now: NOW, leaseSeconds: 120 });
+      if (lease === null) expect.unreachable("the lease");
+
+      // The date of birth now says an adult's, and no decide has run since.
+      await confirmInto(profiles, "identity.date_of_birth", new Date("2000-05-01T00:00:00Z"), "1 May 2000", owner);
+      const handed = await instance.driver.documentForWork({ runId, leaseId: lease.leaseId, holder: "runner-p318-2", documentRef: "passport" });
+      // Refused here because the date is on this form's preview, so the step is
+      // no longer the fill; the lock itself is the next test's.
+      expect(handed.ok, "nothing is disclosed on a date of birth no person has seen").toBe(false);
+
+      await instance.driver.advance({ runId, conversationId: other });
+      expect((await instance.driver.reviewFor(otherCase))?.outstanding, "the minors review is raised again, for the date as it is now").toEqual([
+        { trigger: "involves_minor", approvable: true },
+      ]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
 });
 
 describeIfDatabase("a run only a person can carry on", () => {

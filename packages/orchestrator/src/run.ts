@@ -2053,6 +2053,18 @@ export function requiresSecureRequest(
  * names the one thing the student is being asked for now, which walks the
  * handover checklist rather than being fixed.
  */
+/**
+ * Whether the step hands the student's portal account back to them (ADR-0050).
+ *
+ * A NARROWING, like `awaitsStudentAuthorisation`: the step vocabulary is this
+ * package's. The Run Driver asks it so that a mandatory review raised while the
+ * account is owed back does not hold the hand-back (P318): the account is the
+ * student's whatever a review waits on, and the review gates their next yes.
+ */
+export function handsTheAccountBack(step: RunStep): boolean {
+  return step.kind === "hand_over_account";
+}
+
 export function handoffFor(step: RunStep): HandoffKind | null {
   if (step.kind === "student_handoff") return step.reason;
   return step.kind === "hand_over_account" ? step.awaiting : null;

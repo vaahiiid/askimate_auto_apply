@@ -1,0 +1,590 @@
+P318's three-lens review of the fixes, printed by script from the workflow's journal (run wf_50ea37c2-fee).
+Each reviewer's findings as it returned them; then each refuter's verdict as it returned it, by label.
+Nothing here is retyped. Paths under /tmp are the session's scratchpad, which is not kept.
+
+################ review:regressions: 8 findings
+
+## [medium/CONFIRMED] completeReview raises a mandatory trigger the case does not carry, and can raise one with no fingerprint that nothing can ever clear
+WHERE apps/conversation-service/src/run-driver.ts:4908
+SCENARIO `outrun` (4908) includes every approved mandatory trigger whose `raisedFingerprints[t]` is undefined. That covers 'never raised' as well as 'raised before P318', and the check never asks whether the trigger applies or is active. Two concrete cases follow.
+(a) An adult student (stored DOB 1990-01-01) has a case at AUTHORISED. A reviewer POSTs {outcome:'approved', triggers:['involves_minor'], caseSequence:N}, by slip or by approving both triggers out of habit. `basis.fingerprints.involves_minor` is defined because `reviewFingerprintsOf` hashes the DOB whenever it exists, so 4915 appends HumanReviewRequested{involves_minor} and answers 400. On the next decide `#takeBackFromTheStudent` voids the student's authorisation, the walk pauses for a minor review of an adult, and `documentForWork` refuses every document, because `activeTriggers` now holds involves_minor and so `minorConditions` is set to [].
+(b) The reviewer approves ['financial_evidence','involves_minor'] on a case whose financial answer changed and which has NO DOB stored. 4915 raises `triggers: outrun` (both triggers) with `fingerprints: {financial_evidence}` only, so involves_minor is raised with no fingerprint. The domain probe shows that trigger is then uncleared forever. `triggersToRaise` never raises it again (undefined === undefined), `reviewFor` says approvable:false forever, every later approval hits `raise === null` and is refused, and the runbook's 'resolve the stop first so the run raises' never applies. The case is permanently deadlocked and documents are refused.
+Before fix #3, an approval of a trigger that had not been raised was a harmless record that cleared nothing. The same 'trigger named without its fingerprint' pattern exists in `#raiseMandatoryTriggers` (4757-4762). It is reachable when an outstanding trigger's answers are gone from the stored profile, for example after a person acts on a P275 deletion request.
+FIX In completeReview, only raise triggers that are outstanding or in `basis.applies`; refuse any other approved mandatory trigger without writing anything. Never put a mandatory trigger into a request_human_review's `triggers` without its fingerprint: filter `triggers` to the keys of `fingerprints` in both 4915 and 4762, and treat 'the content it stood on is gone' as its own state, not as a fingerprint-less raising.
+
+## [medium/CONFIRMED] The account hand-back is held behind the re-raised review: the take-back plus the walk toward AUTHORISED pauses hand_over_account before its handoff is raised
+WHERE apps/conversation-service/src/run-driver.ts:4650
+SCENARIO `hand_over_account` maps to phase handing_over, whose walk target is AUTHORISED (packages/orchestrator/src/durable.ts:133-135). The orchestrator returns it before the authorisation check because the handover is owed whatever the authorisation says (packages/orchestrator/src/run.ts:604-608).
+Take a run that has filled (account created, case AUTHORISED by capture) and holds a pre-P318 financial approval, or whose financial or DOB answer changes, and that reaches hand_over_account. `#advanceCase` re-raises the trigger. `#takeBackFromTheStudent` voids the authorisation and moves the case to PREPARING. The next hop toward AUTHORISED, PREPARING -> AWAITING_STUDENT_AUTHORISATION, is refused by the review guard, so `#pauseForReview` runs and the run is escalated. `#raiseHandoff` (4488) runs only after the walk, so the account-handover handoff is never raised until a person approves and resolves the stop.
+Before P318 a reviewed case's handover was never held by a review, because the guard counted any past approval. The AUTHORISED-hop skip (4661) does not help: the refusal happens one hop earlier. (If the handoff was already open before the change, the student can still complete it.)
+FIX Do not take back or walk the spine for a step whose phase is handing_over, since the hop skip already makes AUTHORISED unreachable for it. Either cap the walk target at the case's current state for hand_over_account, or skip `#takeBackFromTheStudent` and the guarded hops when the step is the account handover, so the handover is raised and the review gates only the student's next yes.
+
+## [low/CONFIRMED] After a take-back of a filled case, the student is told pre-fill sentences that are now false (READY_TO_APPROVE re-announced; review message says 'before I show you … to approve')
+WHERE apps/conversation-service/src/run-driver.ts:4704
+SCENARIO Before P318, an approval that went stale after the fill was voided by `#voidOutgrownAuthorisation` straight back to AWAITING. That transition is not a walk hop, so READY_TO_APPROVE was not announced again.
+Now the take-back sends a filled or ready_to_submit case to PREPARING. The pause says `reviewMessage` ("Before I show you your … application to approve") to a student who has already approved. After the review, the walk hops PREPARING -> AWAITING and announces READY_TO_APPROVE (12753): "Before anything is entered on the university's website … approving it lets me fill the form in for you". Every page is already saved.
+The hop skip also leaves a hand_over_account case at AWAITING right after that announcement, while the preview route answers 404 because the step is the handover, not authorise. In-flight cases holding pre-P318 approvals (the ADR names his live case) will hit this on deploy.
+FIX Announce READY_TO_APPROVE only when the step is `authorise` and the run has not filled. Give the post-fill re-ask its own sentence that says the pages are already saved and why approval is asked again, and add a test, per the 'a sentence that promises an action is a test case' rule.
+
+## [low/CONFIRMED] #advanceCase now exhausts silently on raise/take-back conflicts and returns ok:true
+WHERE apps/conversation-service/src/run-driver.ts:4715
+SCENARIO Fix #6 makes `#appendOrReread` turn every ConcurrencyConflictError on a raise or take-back into `true`, which the loop handles with `continue`. Before, a conflicting raise threw out of the decide. The loop is bounded at 8, and on exhaustion it falls through to `return { ok: true }`.
+For a persistently contended case, the decide therefore checkpoints the step as if the walk had succeeded, with no pause and no trigger raised. The comment at 4627-4631 says the bound exists so a repeated conflict 'fails loudly instead of spinning'. Safety still holds through the capture guard and the claimWork lock, but nothing reports the stall.
+FIX Return `{ ok:false, … }` (or throw) when the loop exhausts its attempts, so a repeated conflict is visible rather than reading as a completed walk.
+
+## [low/CONFIRMED] The student's yes now runs the full advance() inside the decision POST: its throws become a 500, and a non-'running' status gets a 404 instead of 'a person is checking'
+WHERE apps/conversation-service/src/run-driver.ts:5831
+SCENARIO recordDecision ignores advance()'s result and does not catch its exceptions. Three outcomes follow:
+- If advance throws (RunConcurrencyError after #decide's three attempts, an intervention-store or profile-store failure), the student's authorise press answers 500 'Something went wrong at our end'.
+- `#pauseForReview` sets status 'escalated' only when the record is 'running' (8973). For a 'suspended' run (also automatable), or a deployment without an interventions port, the re-run's domain refusal goes through `#refusal('refused', status)`, which answers not_found (404 'That is not available any more').
+- In that same case the conversation says a person is checking.
+The ADR's claim that the yes is answered held_for_specialist therefore holds only for running runs with an intervention store.
+FIX Catch and log advance() failures and fall through to the domain's refusal. Make the re-run map a refusal caused by an outstanding mandatory review to held_for_specialist whatever the status; the domain refusal kind (mandatory_review_outstanding) is available to check.
+
+## [low/CONFIRMED] Runbook and live-run steps say 'a 400 naming /caseSequence', but the command discards the body, and the approvable:false advice can loop
+WHERE docs/run-a/p308-his-live-run-steps.md:135
+SCENARIO Both docs show `curl -s -o /dev/null -w '%{http_code}'` for the approval POST (also docs/runbook-local-stack.md:563-567), so the operator sees a bare 400. They cannot tell /caseSequence from /outcome (no such case, or a domain refusal) or from a malformed body.
+The runbook also says that while approvable is false, resolving the stop makes the run raise the review. In fact the POST itself raises it (run-driver.ts:4915). In finding 1(b), resolving never raises it, so following the advice loops.
+FIX Show the problem body for this POST (drop -o /dev/null, or print `pointers`). State that a refused approval POST itself raises the review for the content as it now is, then read again.
+
+## [low/CONFIRMED] The fold comment gives a reason for the activeTriggers filter that the disclosure fix now contradicts
+WHERE packages/domain/src/machine.ts:429
+SCENARIO The comment says activeTriggers is filtered so that a raising of approved content 'does not show as active … (that disagreement would hold back a minor's reviewed case, `minorConditions` reading this list)'. `documentForWork` (run-driver.ts:5658-5661) now deliberately holds back a reviewed minor by reading the stored DOB (`basis.applies`) whatever the list says. The stated reason is therefore false and would mislead the next reader into 'fixing' disclosure back.
+FIX Rewrite the comment: the filter keeps the fold and the guard in agreement. Say that disclosure deliberately reads the stored date of birth as well, so a reviewed minor stays undetermined.
+
+## [low/SUSPECTED] documentForWork has no review lock, while claimWork does; a runner leased before a financial change can still be handed documents
+WHERE apps/conversation-service/src/run-driver.ts:5609
+SCENARIO claimWork withholds execute work while `reviewOutstanding` (10786). documentForWork checks only a captured, un-voided authorisation. A runner that claimed a page before a financial answer changed can call documentForWork for that page's attachments until a decide raises the change and voids. `dueRuns` excludes leased runs, so the worker does not make that decide while the lease is held; only a student poll or lease expiry does.
+The CHANGELOG says no page is handed to a runner while such a review is outstanding, 'a change no decide has raised included'. Documents are not covered.
+FIX Apply the same `reviewOutstanding(foldedCase, #reviewBasis(...))` refusal in documentForWork before step 4, or record that the lock covers only the claim.
+
+CHECKED AND HOLDING:
+- Hard rules hold. `mayTransmit` is still called with `forCase: record.caseId` and an unchanged input (run-driver.ts:5667-5677). Capture still compares the step's preview hash (`#authorisationIntent`). `documentForWork` still requires a captured, un-voided authorisation whose hash matches the preview built now. No change touches a portal password. The guard now also runs at AUTHORISED and SUBMITTING, which strengthens the review categories.
+- recordDecision -> advance -> recursion. It is bounded: the second pass runs with mayRaise=false. No lock is held across advance: the route calls without a lock, and advance takes withConversationLock only for secure steps. The second pass re-reads bound, entry and record. Only the 'authorise' kind triggers the advance; use_document, attached_myself, consent and handoff kinds are unaffected. If advance refuses, its result is ignored and the domain decides on the re-run.
+- AUTHORISED-hop skip. execute, sign_in and ready_to_submit all need a non-voided captured authorisation (`#withAuthorisationIfCaptured` honours voids), and capture already moves the case to AUTHORISED, so for them the skip is a no-op. Only hand_over_account (orchestrator run.ts:608, ahead of the authorisation check) reaches it. No production code reads `state === "AUTHORISED"` except the take-back. The run-driver tests that expect AUTHORISED reach it by capture.
+- Domain probe (/tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/domain-probe.ts, run with tsx):
+- the guard refuses AWAITING while F1 is outstanding;
+- an approval covering F1 clears it;
+- a raise with F2 on an AUTHORISED case, then void, gives voided + PREPARING;
+- a raising with no fingerprint is never cleared by any approval;
+- the domain still accepts a plain transition AWAITING -> AUTHORISED with no hash, so that protection lives only in the driver, and cases walked there before the fix stay stuck (capture and void both refused). That is not made worse.
+- Migration 0041:
+- the only app writer of profile_entries is `PostgresConfirmedProfileStore.save` (ON CONFLICT DO UPDATE);
+- the trigger and `GREATEST(EXCLUDED.revision, revision+1)` do not double-bump;
+- 0028 ran before 0041, so the trigger never fires on it;
+- the migration runner sends the whole file as one query inside a transaction, so the $$ plpgsql body is safe;
+- schema.test.ts and event-store.test.ts migration lists are updated, and no other file enumerates migrations;
+- profile:seed refuses a non-empty profile, so the store's bump does not affect it;
+- DELETE+INSERT would bypass the trigger, but no app path deletes rows.
+- `held.submissionIdentity.studentId` and `record.studentRef` are both `makeStudentId(bound.studentId)` at case open (run-driver.ts:3495/3572), so every `#reviewBasis` caller reads the same stored profile. `rehydrateProfile` always yields a Date for `confirmedAt`.
+- Case-store serialisation is generic tagged JSON (packages/case-store/src/serialisation.ts), so `fingerprints` and `covers` persist.
+- GET /internal/v1/cases/:caseId/review uses the same `authoriseService` gate as the POST. Production's predicate admits the same three certificates with no per-route split in the repo. contract-drift, openapi and contracts tests pass. validation_failed is 400, matching the docs.
+- No script, journey, local-stack test or runbook outside run-driver.test.ts posts reviews. Every mandatory approval in run-driver.test.ts passes caseSequence from reviewFor; the rejection test does not need it. walkthrough.ts uses the domain directly with fingerprints and covers, and runs green.
+- claimWork's null-case refusal: an execute step needs AuthorisationCaptured from the case log, so no real run reaches it with an empty log. Only the case-store's own test truncates case_events. The extra profile load runs only for execute candidates.
+- Comparison with the pre-P318 tree (HEAD): there, `#raiseMandatoryTriggers` raised a trigger again whenever it was not active, so a reviewed minor's involves_minor stayed in activeTriggers and disclosure refused. The first build's fold filter removed that, and fix #1 restores it, so 'exactly as before P318' holds.
+- Checks run after the changes, all on the working tree: `tsc --build` exit 0 (dist is untracked; git status unchanged); eslint on the changed files exit 0; `pnpm run boundaries` passed. vitest DB-free runs: packages/domain + packages/profile + scripts/a-financial-choice-waits-for-the-review + scripts/required-boxes-hold, 24 files / 528 tests pass; walkthrough + demonstrations + check-reachability, 38 pass; contracts + contract-drift + no-free-text + unreachable-is-documented + adr-status-agrees + named-tests + decided-blockers + refusal-wording, 170 pass. No database-backed suite was run.
+
+################ review:bypass: 8 findings
+
+## [high/CONFIRMED] A reviewed minor whose date of birth is answered again as an adult's is never reviewed again; the passport is then disclosed as an adult's
+WHERE apps/conversation-service/src/run-driver.ts:12871
+SCENARIO I confirmed this by running the probe /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/probe1-minor-to-adult.mts. It uses the driver's private functions, copied verbatim with sed from run-driver.ts:12731-12740 and 12817-12906, against the real domain and profile packages. The setup is a stored date of birth of 2010-05-01. involves_minor is raised with fingerprint F1, and an approval is recorded the way completeReview records it (covers F1). The date of birth is then saved as 2000-05-01. The probe printed: 'fingerprint moved: true | applies: []', 'triggersToRaise: [] | claimWork reviewOutstanding: false', 'capture guard (uncleared): []', 'disclosure minorConditions: absent -> handed over as an adult's'. In the control run, the same change made while the trigger was still unapproved printed 'triggersToRaise: [ 'involves_minor' ]'. The cause: triggersToRaise (12871) only considers basis.applies ∪ outstanding, and reviewOutstanding (12843) only considers applies. A minor-to-adult change after an approval falls outside both. So the student's yes is captured, a page is handed out, and documentForWork (5656-5661) omits minorConditions, all on a date of birth no reviewer saw. Three records say this is closed: ADR-0161:400 says 'Any change reopens the trigger'. ADR-0161:423 says the minors trigger was included for 'a date of birth answered again after its review'. CHANGELOG.md:36 says 'a date of birth changed after its review is reviewed again'. Reachability: the student cannot reach this in the chat today. Dates are not correctable from words (ADR-0154 §5), and a date of birth is never demanded as an optional part. It becomes reachable with §5, 'answering a field again', which his D1 puts in phase 1, or with any rewrite of a date of birth. This does not weaken anything compared with HEAD, which behaves the same way. It is a gap in the new protection that the records claim is in place.
+FIX Make every mandatory trigger the case has ever raised with a fingerprint count as 'applies' for re-raising, in both triggersToRaise and reviewOutstanding. One way: union in the keys of held.raisedFingerprints, raising whenever the basis fingerprint differs. Give absent content a defined fingerprint (for example, the hash over an empty entries list) rather than undefined, so the re-raise is clearable. Add a DB test: approved minor, date of birth changed to an adult's, then expect a re-raise, a take-back, and the passport refused until a person approves.
+
+## [medium/CONFIRMED] caseSequence is a bare integer the server accepts without proof of a look, and it is not bound to the case
+WHERE apps/conversation-service/src/run-driver.ts:4905
+SCENARIO completeReview (4905-4926) accepts any caseSequence that is no higher than the case's current sequence and has no HumanReviewRequested for the named trigger after it. (a) Retry after a 400: the reviewer GETs seq 10 and looks at C1. The student changes the answer to C2. The POST with 10 is refused at 'outrun', and F2 is raised at seq 11. The natural retry is GET (seq 11, approvable true) then POST 11, and it is accepted with covers F2, which is C2, content nobody looked at. Only the 400's words 'look again' stand in the way. (b) Two cases open at once: the reviewer GETs case A (seq 12) and looks at A's answers, then POSTs the approval to case B's URL with 12. B's last raise is at seq 8 and its sequence is 20, so the approval is accepted for B. ADR-0161:544 says the binding 'closes what P318's first build left open'. It only does so for a reviewer who follows read, look, approve on every attempt.
+FIX Have GET …/review return an opaque token per trigger, bound to the caseId and the raising it reads: for example, the raising event's id, or an HMAC over caseId, trigger and raised fingerprint. Require the POST to echo it and compare it against the case's latest raising. If the content view the reviewer uses can carry the same token, bind the look to it. Reword ADR-0161:544 and the runbook to say the order of work is procedural.
+
+## [low/CONFIRMED] An approval naming a reading older than a later rejection of the same trigger is still accepted
+WHERE apps/conversation-service/src/run-driver.ts:4920
+SCENARIO The raisedSince check (4920-4922) only looks for HumanReviewRequested events after caseSequence. Example: the reviewer reads seq 10. A changes_requested or rejected review of financial_evidence is recorded at seq 11. Then an approval POST carrying caseSequence 10 is accepted: a retried curl, a second tab, or two reviews racing with the same read. It covers the same F1 and clears the trigger, so the student is asked to approve content that the later review withheld. In the other order (approve, then reject) the approval also stands, which ADR-0161 already lists as open.
+FIX In completeReview, also refuse an approval with pointer /caseSequence when any HumanReviewCompleted naming one of its mandatory triggers has a sequence greater than caseSequence.
+
+## [low/CONFIRMED] A raising can name a mandatory trigger with no fingerprint, which leaves it uncleareable and strands the case
+WHERE apps/conversation-service/src/run-driver.ts:4914
+SCENARIO I confirmed this by running the probe /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/probe2-unclearable.mts. completeReview's outrun branch raises triggers: outrun, but only adds fingerprints for the triggers that have one (4910-4916). Example: a reviewer approves naming [financial_evidence, involves_minor] on a case with no stored date of birth, while the funding answer has changed. The raise then carries involves_minor with no fingerprint. The probe printed 'active: [financial_evidence, involves_minor] raisedFingerprints: { financial_evidence: F2 }'. After an approval covering F2 it printed 'uncleared: [ involves_minor ]' and 'step to student: false'. triggersToRaise never re-raises it, because undefined === undefined, and completeReview cannot clear it (raise is null). The case stays taken back, its disclosure is refused, and it can never reach the student. The refusal message also says 'it is raised for the content as it is now' when raise is null and nothing was raised. #raiseMandatoryTriggers can write the same kind of raising when an outstanding trigger's content has disappeared. No deletion path exists today.
+FIX In the outrun branch, raise only the triggers that have a fingerprint (triggers: Object.keys(fingerprints)), and say so accurately when none are raised. Fingerprint absent content as a defined value, as in the first finding.
+
+## [low/CONFIRMED] #advanceCase returns ok after 8 lost races, and recordDecision's second pass does not check that the raise landed
+WHERE apps/conversation-service/src/run-driver.ts:4715
+SCENARIO Since P318, a conflict on the raise or the take-back is swallowed by #appendOrReread, and the loop runs 'continue'. Eight consecutive conflicts fall through to return { ok: true } at 4715, even though the comment at 4628 says a repeated conflict 'fails loudly'. In recordDecision (5830-5833), the advance() result is ignored, and #recordDecision(input, false) captures the student's yes in the domain, which only sees the old raised fingerprint. So the authorisation stands on financial content no approval covers. This is narrow: other writers must win eight times without themselves raising. A fill is still blocked by claimWork's live lock (10786), and the next decide raises and voids.
+FIX When the loop is exhausted, return a refusal (or throw), not ok. In the mayRaise=false pass, re-check #reviewChangeUnraised and refuse held_for_specialist when the raise has not landed.
+
+## [low/CONFIRMED] Migration 0041 does not hold 'whoever writes': DELETE+INSERT, or lowering the revision then changing the value, keeps an approved fingerprint over a new value
+WHERE apps/conversation-service/migrations/0041_a_value_changed_in_place_moves_its_revision.sql:28
+SCENARIO I confirmed this by reading the SQL only. I tried to start a private Postgres to execute it and was refused, so it has not been run. The trigger is BEFORE UPDATE only, and compares against the immediate OLD row. Example: an approved fingerprint at revision 3, provenance confirmedAt T. Statement 1 is 'UPDATE profile_entries SET revision = 1 WHERE …'. The value is unchanged, so revision is not moved and becomes 1. Statement 2 is 'UPDATE … SET value = <new>'. GREATEST(1, 1+1) = 2, which is not yet 3, so a third UPDATE (or 'SET revision = 2' first) lands on revision 3 with provenance T: the fingerprint equals the approved one over a changed value. A DELETE then INSERT of the row with revision 3 and the same provenance fires no UPDATE trigger at all. Each needs a hand-written statement, which is exactly the case 0041 was written for. The claim 'whoever writes' at 0041:17, ADR-0161:532 and CHANGELOG.md:50 is broader than what holds.
+FIX Make revision strictly monotone: refuse NEW.revision < OLD.revision on any UPDATE. Bump it on any change. Add a BEFORE INSERT path, or fingerprint a store-generated monotonic column (a version from a sequence, written on every insert and update) instead of the writer-supplied revision. Narrow the records' wording until then.
+
+## [low/SUSPECTED] The capture and SUBMITTING guards read only raised fingerprints; only claimWork's execute lock reads the live profile
+WHERE packages/domain/src/transitions.ts:241
+SCENARIO This is latent. The guard into AUTHORISED and SUBMITTING passes for a change that no decide has raised yet. Today that is covered by recordDecision's pre-raise (5830) and claimWork's live lock (10786). Nothing presses the final submit yet. When ADR-0159's final-submit press is built, the step into SUBMITTING could follow an unraised financial change unless it carries the same live check (reviewOutstanding against #reviewBasis), and the ADR's line that 'the step into submitting … pass[es] the guard' would then overstate.
+FIX Put a reviewOutstanding(#reviewBasis) check in front of any future submit or press path. Add a latent-constraint test that fails when a SUBMITTING transition is first made from the driver without it.
+
+## [low/SUSPECTED] The runbook says 'look' but names nowhere to look; the fingerprint covers stored answers the preview does not show
+WHERE docs/runbook-local-stack.md:557
+SCENARIO The financial fingerprint covers every financial entry in the stored profile (run-driver.ts:12897), including fields this portal does not fill (Sheffield maps only finance.funding, not finance.available_funds) and fields hidden from the run's view. The runbook (557-568) and his live-run step 7 say 'look' without saying where. The only rendering of student content a reviewer is pointed to elsewhere is the preview, which shows the run's view and mapped values. A reviewer who looks at the preview approves a fingerprint over stored answers they never saw.
+FIX Name the read in the runbook and steps: the stored profile_entries rows for the trigger's keys, or a read-only command that prints exactly the entries the fingerprint covers. Better, add a review view that returns them together with the binding token from the second finding.
+
+CHECKED AND HOLDING:
+- Transmission gate and authorisation hash: nothing in the diff touches them. packages/disclosure, packages/preparation, packages/secure-filler, apps/secure-service and apps/browser-runner have version bumps only. In documentForWork, steps 3-5 (captured-hash match, then authoriseDisclosure, then mayTransmit with the case) are unchanged; the minorConditions condition (run-driver.ts:5656-5661) only got stricter.
+- No portal password is stored. The only password-like strings in the diff are test fixtures (secret_received with a handle, sessionSecret).
+- A reviewed minor whose stored date of birth still says minor is refused at disclosure. Probe 1, step 2, printed 'minorConditions: [] (refused)'.
+- Fills: in claimWork, #situation's profile load comes before the live lock (10786). A change before the lock is blocked (basis fingerprint differs from the raised one). A change after the lock leaves the plan holding the earlier, reviewed values. A run with no case log is handed no page.
+- Races in completeReview: events are read before the basis, so a change before the basis read is refused at 'outrun'. The final append is at held.sequence, so any raise after the read conflicts and throws; no approval lands.
+- #appendOrReread in #raiseMandatoryTriggers and #takeBackFromTheStudent: a conflict causes 'continue', and the loop re-reads and re-raises from a fresh basis. Two decides with stale and fresh bases always converge on the latest fingerprint; I traced every ordering. The only escape is the 8-attempt exhaustion, reported above.
+- The AUTHORISED invariant does not strand a captured case. capture_authorisation emits AuthorisationCaptured and CaseStateChanged to AUTHORISED in one act (machine.ts:889-895), so the walk never needs that hop for a real yes. In the hand-over case, the orchestrator returns hand_over_account before authorise (orchestrator/run.ts:608), and complete_handoff has no state precondition (machine.ts:741-774). After the hand-over the step is authorise, and capture from AWAITING_STUDENT_AUTHORISATION works. Note that the P318 test stops at the state assertion and never presses the yes.
+- covers sent in the request is dropped (run-driver.ts:4929); covers is always the raised fingerprint.
+- The case's submissionIdentity.studentId equals the run's studentRef: both come from bound.studentId (3494), and openReapplication copies the prior identity. So the raise and the locks read the same profile.
+- Account creation work carries no date of birth or financial value: Sheffield's authentication block has none, and accountDetail carries only host, e-mail and approach.
+- The entry-choice guard ran: scripts/a-financial-choice-waits-for-the-review.test.ts passed 3 of 3, and its planted fundingSource escape is detected. Caveat: it scans docs/run-a/catalogue/entries only, and #chooseEntry has no runtime refusal.
+- Before P318 (HEAD), an approval deleted involves_minor from activeTriggers, but the next decide re-raised it because it was no longer active. So 'a minor is still a minor after the review, as before P318' holds in practice.
+- Any of the three service certificates can GET and POST a review (main.ts:309-315). This predates P318 and the contract records it as approved for the single-operator model; P318's GET only adds a read on the same credential.
+- DB-free tests run after the change: packages/domain escalation, machine and transitions plus packages/profile persistence (136 of 136 passed), and the financial-choice guard (3 of 3 passed). I ran no database-backed suite. My attempt to start a private Postgres for migration 0041 was refused by the permission system, so that finding comes from reading the SQL only. The unused initdb directory is in /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/pg (no server running).
+
+################ review:records: 12 findings
+
+## [high/CONFIRMED] Domain fold comment states the minors regression as the filter's purpose
+WHERE packages/domain/src/machine.ts:426
+SCENARIO machine.ts:426-430 justifies filtering activeTriggers by saying the alternative 'would hold back a minor's reviewed case, `minorConditions` reading this list'. Holding back a reviewed minor's documents is what ADR-0011 requires, and it is what P318's own fix restores (run-driver.ts:5651-5661 now refuses on the stored date of birth). So the comment records the first build's regression, a reviewed minor's passport disclosed as an adult's, as the design goal. A reader who trusts it and "un-blocks" reviewed minors by dropping the date-of-birth read would bring the hard-rule regression back. The test that would catch that is DB-backed (run-driver.test.ts, 'a minor's documents after the review (P318)').
+FIX Rewrite the parenthetical: the filter exists so that the fold and the guard agree. Disclosure deliberately does not rely on it: a minor stays a minor after the review (documentForWork reads the stored date of birth, ADR-0011, P318 regression).
+
+## [medium/CONFIRMED] Records say no page is handed to a runner; only fill work is locked
+WHERE CHANGELOG.md:39
+SCENARIO CHANGELOG.md:39-40, where-we-are.md:4926-4927 and ADR-0161:569-570 all say 'no page is handed to a runner while such a review is outstanding'. The lock at run-driver.ts:10786 applies only when kind === "execute". browserWorkFor (packages/orchestrator/src/run.ts:1915) also hands out create_account and sign_in work, and neither checks the review. Take a financial answer the preview does not show, changed after the student's yes: the run's own authorisation still covers the preview (stillCovers), so create_account can be handed out while the case is back in PREPARING with the review outstanding. Whether that path is reached was not run. The code comment is accurate ('no page is filled'). The records are not.
+FIX Say 'no fill (execute) work is handed to a runner …' in all three records, or extend the lock to create_account and sign_in and test it.
+
+## [medium/CONFIRMED] 'The list can only shrink' is false: the gate passes when the list grows
+WHERE docs/where-we-are.md:4941
+SCENARIO Probe run with tsx (grow.mts in the scratchpad p318-review folder): a new break added to the current set and appended to KNOWN_BREAKS in the same change gives gate() = {unexpected:[],gone:[],listedTwice:[]} with the list at 60. The test's own failure message (scripts/required-boxes-hold.test.ts:79) says 'mend it, or list it with what it waits on'. Yet where-we-are.md:4941, scripts/required-boxes-known.ts:9, scripts/required-boxes-hold.ts:726, CHANGELOG.md:25 and the describe title (test.ts:71) all claim the list 'can only shrink'.
+FIX Either enforce it, for example by pinning KNOWN_BREAKS as a subset of a frozen P318 set of 59 keys so that adding a key fails, or reword: 'a new break fails until it is mended or listed with what it waits on; a mended line fails until it leaves'.
+
+## [medium/CONFIRMED] Row 189 says his decision (1) was built in P318; only the review half was
+WHERE docs/state-of-the-system.md:990
+SCENARIO Row 189's status column says '(1) built in P318'. His decision on (1) is 'a student may correct their own financial answers in the chat, with playback and a press'. That is not built. correction-requests.ts:232-235 refusedPart still returns "financial" for a financial closed part, and no correction or interview file is in the diff. P318 built only the review fingerprint (D3, §6), which is the precondition.
+FIX Write '(1): the review half (ADR-0161 §6, D3) built in P318; the student's correction of a financial answer (ADR-0154's refusal withdrawn, §5/§6) not yet built, phase 1 item 4'.
+
+## [medium/CONFIRMED] Agent's narrowing of his D2 on the funding source is recorded as following from his words
+WHERE docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:334
+SCENARIO His words are: 'If the funding source box is also required (row 210), ask it too.' Row 210 (state-of-the-system.md:1011) already records that his saved page marks the source as required. ADR:334-337 continues 'So … the source is asked too wherever the entry marks its box required', and ADR:350-353 'until the entry carries that rule … the build asks it only where the entry marks it'. Under that reading his run is not asked the source until an entry patch is signed. The reading is the agent's, is not labelled mine, and touches money, so under the 2026-10-14 rule it goes to him. Row 210 carries no note of his D2 even though he cited it, and the CHANGELOG list of rows carrying his answers (189, 202, 209, 211-213) leaves 210 out.
+FIX Label the reading as mine and put it to him in one line: does row 210's observation of his saved page count as 'required', or does the source wait for an entry patch? Add his D2 to row 210.
+
+## [medium/CONFIRMED] Mutation evidence is not re-readable; two of the 'eight' runs have no saved output
+WHERE docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:619
+SCENARIO ADR:619-620 says 'eight mutation runs, p318-mutations.txt in the phase's scratchpad and two run singly', and where-we-are.md:4935-4936 repeats the claim. The file lives in the session scratchpad, not in the repository. It holds six runs: minors-predicate, raised-since, sequence-required, deadlock, raise-before-yes, outrun. The two 'run singly' left no output. For the 0041 run only a backup (0041.keep) exists. The hand-over walk test sits under describe 'AUTHORISED is reached…', which p318-mutate.py's -t filter ('a minor's passport is refused|mandatory-review guard') does not select. The mutation file was written at 11:48. run-driver.test.ts (11:51:35) and run-driver.ts (11:52:07) were edited after it. All six mutation target strings still occur once in the current run-driver.ts (checked).
+FIX Commit the mutation script and its output, plus the two single runs re-run and saved, under docs/run-a/. Have the ADR say six runs are in the file and name where the other two are, or say they rest on no saved output.
+
+## [medium/CONFIRMED] His live-run step 7 and the runbook: the 400 cannot be seen, and its explanation misses his own case
+WHERE docs/run-a/p308-his-live-run-steps.md:133
+SCENARIO Both POST commands (p308 step 7 line 133; runbook-local-stack.md:563) use '-o /dev/null', which discards the problem body, so 'a 400 naming /caseSequence' (p308:135, runbook:564) cannot be observed. Any 400, /outcome included, looks the same. Step 7 explains a 400 only as 'the answer changed after the read'. The ADR itself says his live case may hold a raising from before P318. For that case, GET returns approvable:false (run-driver.ts:4856), and the first POST is refused at run-driver.ts:4908-4915 after raising a fingerprinted trigger, with no answer having changed. Step 7 never mentions approvable.
+FIX Drop '-o /dev/null' (for example `curl -s -w '\n%{http_code}\n'`), and in step 7 say what approvable:false means and that a raising from before P318 is refused once and raised; then read again and approve with the new N.
+
+## [medium/CONFIRMED] Departures from the D3-approved §6 that touch his four were built and labelled 'mine, his to overturn'
+WHERE docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:519
+SCENARIO §6 as he approved it (D3) says three things: the fingerprint is over 'the stored financial answers and their revisions' (ADR:396-399); it is computed 'at the moment the review is recorded'; and 'the authorisation is voided first and the trigger reopened after' (ADR:413). As built, the fingerprint holds no values (ADR:519-526), the approval is bound to the raising and a caseSequence (ADR:535-547), and the trigger is raised first and the authorisation voided after (ADR:553-562). These change what the append-only log holds of a student's financial answers and date of birth, and when the student's yes can be taken. That is personal data, money and the press under the P308 reading of 'touches'. The 2026-10-14 rule sends such points to him before building. CHANGELOG labels the fingerprint '(mine, his to overturn)', which is the apply-under-the-rule path. None of the three is listed under 'What comes to him' or in row 214.
+FIX Put each to him in one line, recorded as undecided until he answers, for example as row 214 (3)-(5). Keep 'mine' only for points that touch none of the four.
+
+## [low/CONFIRMED] His D4 (jobs) is extended to the education empty-list lines; D5's 'truly impossible' is applied by the agent
+WHERE scripts/required-boxes-known.ts:24
+SCENARIO EMPTY_LIST = 'row 202 and his D4: his observation of the live form first' is attached to 12 education.prior_qualifications lines (known.ts:33-44). His D4 covers only 'whether Sheffield truly requires at least one job'. Row 202's status (state-of-the-system.md:1003) also reads 'decided by him 2026-10-17 (D4)' for the whole row, qualifications included. known.ts:59 and :88 call a date of birth that no list holds, and more than four residence periods, 'his D5's truly impossible case'. Both are classifications the agent made.
+FIX For qualifications, write 'row 202; his D4 names jobs only, qualifications undecided'. Write 'my reading of D5' where the classification is mine.
+
+## [low/CONFIRMED] Stale or misattributed code comments after the fixes
+WHERE apps/conversation-service/src/run-driver.ts:12886
+SCENARIO (a) run-driver.ts:12884-12887 says 'the only writer (#persist, through confirmField) does both'. Migration 0041's own premise is that 0028 and hand-written UPDATEs are other writers. (b) escalation.ts:111-115 says `covers` is computed 'at the moment the review is recorded'. As built, covers is the raised fingerprint (run-driver.ts:4928), checked against the current profile. (c) run-driver.ts:4888 heads the caseSequence binding block with his 'D3: approved.', while ADR:535-547 records the binding as mine. (d) correction-requests.ts:225-228 still gives 'a correction after it would not be reviewed again' as the reason financial corrections are refused, which P318 made untrue.
+FIX Update (a) to name the store's GREATEST rule and 0041. Reword (b). In (c), cite D3 for the fingerprint and mark the binding as mine. Restate the refusal's reason in (d), for example: refused until §5/§6's correction path is built.
+
+## [low/CONFIRMED] 'Outside the diff' and 'exactly as before P318' are stated more strongly than the code supports
+WHERE docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:617
+SCENARIO ADR:617-618 says the transmission binding and the authorisation content hash are 'both outside the diff'. mayTransmit (packages/disclosure/src/disclosure.ts:291) and the hash comparison (transitions.ts:314-325) are indeed untouched. The diff does change the authorisation's lifecycle: void_authorisation now voids and moves the case to PREPARING (machine.ts:940-963), capture_authorisation runs the guard (machine.ts:885), and the walk reads authorisedContentHash (run-driver.ts:4661). ADR:582 says a minor is one 'exactly as before P318'. Before P318, disclosure read only activeTriggers, which were re-raised every decide from the run's view of the profile. Now it reads the stored date of birth: same outcome, different mechanism.
+FIX Name what is untouched (mayTransmit, the hash comparison) and what changed (void, capture guard, the walk). Replace 'exactly as' with 'with the same outcome as'.
+
+## [low/CONFIRMED] where-we-are and the ADR index lag the fixes: no migration 0041 or GET route, ADR-0049 unlisted, amends list dropped
+WHERE docs/where-we-are.md:4909
+SCENARIO The P318 section (4909-4947) does not mention migration 0041, a schema change a local stack must apply. It does not name the new GET …/review route, or say that his live-run step 7 now needs a read first. ADR-0049 §3 ('from the confirmed profile the run reads') and §4 (the review POST) are amended in effect: the stored profile is read, and caseSequence is required. Neither ADR-0161's status line (lines 3-13) nor the index row (docs/decisions/README.md:174) lists ADR-0049. The index row also dropped the 'amends 0143 §1 and §3, 0154, 0148 §4 and §11, 0123' list that the Proposed row carried. README.md:192 says 'five of its points … and the rest approved as recommended', while the ADR counts six differences (D1 'approved, phased').
+FIX Add one sentence on 0041, the GET route and step 7 to where-we-are. Add ADR-0049 §3/§4 to ADR-0161's amends and restore the amends list in the index row. Make the index count match the ADR's six.
+
+CHECKED AND HOLDING:
+- His answers are quoted verbatim: the ADR-0161 'His answers' block, normalised, equals docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt, and each 'His answer:' quote under 'What comes to him' is a substring of it (python check). The CHANGELOG, where-we-are, required-boxes-known.ts header and migration 0041 quotes of D1 and D3 are also exact.
+- '59 lines': KNOWN_BREAKS.length = 59, all unique (tsx). The gate test passes on the current tree (vitest, scripts/required-boxes-hold.test.ts, 9/9, run 12:18 UTC), so the 59 equal today's breaking lines. This is consistent with P317's 31 + 28.
+- 'A test drives a reviewed minor's run to the passport and sees it refused': run-driver.test.ts describe 'a minor's documents after the review (P318)' goes from start through review, the yes and execute to documentForWork('passport') and expects disclosure_refused. The minors-predicate mutation in p318-mutations.txt failed exactly that test, and its target string still occurs once in the current run-driver.ts.
+- Six mutation names in p318-mutations.txt match ADR items: the minor; three binding mutations (no sequence, raised since, outrun); deadlock (raising from before P318); and raise-before-yes. Each target occurs exactly once in the current run-driver.ts.
+- 'Three gates': transitions.ts guards to AWAITING_STUDENT_AUTHORISATION, AUTHORISED and SUBMITTING. capture_authorisation runs checkTransition(...,'AUTHORISED') at machine.ts:885. Domain tests pass (vitest: escalation, machine, transitions, persistence; 136 tests).
+- Case binding at the transmission gate: mayTransmit (packages/disclosure/src/disclosure.ts:291) and the authorisedContentHash/preparedContentHash comparison (transitions.ts:314-325) are not in the diff.
+- Curl shape against routes.ts: GET /internal/v1/cases/:caseId/review exists behind authoriseService, which accepts serviceCertRunner (main.ts:309-314), and returns {caseSequence, outstanding:[{trigger, approvable}]} as the runbook shows. POST accepts caseSequence as an integer >= 1 and answers 400 validation_failed with done.pointer ('/caseSequence') or '/outcome', and 204 on success. The OpenAPI GET reviewFor, CaseReview and HumanReview.caseSequence match.
+- All readings for the review go through #reviewBasis (grep: raise 4748, change-unraised 4791, reviewFor 4850, completeReview 4887, disclosure 5659, claimWork lock 10786). That bears out 'which a search of the driver shows'.
+- CHANGELOG [0.311.0] is not stale on the fixes: it covers the binding and GET route, the minors regression, migration 0041, the AUTHORISED walk and the yes-before-raise. Versions are 0.311.0 in all 33 package.json files.
+- scripts/a-financial-choice-waits-for-the-review.test.ts passes, its escapeValue key matches blueprint.ts:211/225, the real entries' 4 escapes are on non-financial boxes, and eslint is now clean (the error saved in p318-lint-2.txt is gone).
+- README 'all 161 Accepted' agrees with the index (scripts/adr-status-agrees.test.ts passes). The reachability tests pass, consistent with 'Three — unchanged'.
+- Phase clock: p318.marker shows a start at 10:59:21Z with a 4h estimate. At review time (about 12:27Z) the phase is well inside its estimate.
+
+
+################ verify:regressions:completeReview raises a mandatory trigge
+real: True  severity: medium
+I could not refute it, and both cases happen.
+
+**Where it comes from.** At apps/conversation-service/src/run-driver.ts:4908, `outrun` is every approved mandatory trigger where `held.raisedFingerprints[t] === undefined || !== basis.fingerprints[t]`. Nothing checks whether the trigger is outstanding or in `basis.applies`. Line 4915 then raises `triggers: outrun` while `fingerprints` keeps only the triggers that have a basis fingerprint. The POST route (routes.ts:1980-2017) never limits `triggers` to what GET …/review listed. In the domain, a raising without a fingerprint deletes `raisedFingerprints[t]` (machine.ts:259). `unclearedMandatoryTriggers` then treats that trigger as uncleared for good (escalation.ts:163).
+
+**Probe.** I ran a DB-free probe against the real domain `fold`/`decide`, copying the driver's `outrun`, `triggersToRaise` and `approvable` logic: /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/outrun-probe.ts
+- **(a)** Case at AUTHORISED with a stored adult DOB. Approving `['involves_minor']` returns refused and appends `HumanReviewRequested{involves_minor, fingerprints:{involves_minor:D1}}`. After that, `uncleared=[involves_minor]` and the step to the student is refused. The take-back decide is accepted and appends `AuthorisationVoided` + `CaseStateChanged` to PREPARING. While the trigger is active, `documentForWork` (5658) sets `minorConditions: []`. The case does recover: `approvable` is true and a second approval clears it. The cost is that the student's authorisation is voided and they are asked again, all from a request that was refused.
+- **(b)** No DOB stored, and the financial answer outran its raising. Approving both triggers raises both with `fingerprints:{financial_evidence:F2}` only. The financial trigger can then be cleared. `involves_minor` stays active with no fingerprint:
+  - `triggersToRaise` gives `[]` (undefined === undefined);
+  - every later approval of it gives `raise=null` and is refused;
+  - `approvable` is false.
+  It clears only if a DOB is stored later; the probe shows `toRaise` becomes `["involves_minor"]` then. A held run stops its interview, so in practice that needs a person to step in. "Nothing can ever clear it" is slightly overstated, but no review can clear it.
+
+**The same pattern in `#raiseMandatoryTriggers` (4754-4762).** A second probe, /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/deleted-content-probe.ts, deletes the DOB under an outstanding `involves_minor` raised at D1. It appends `HumanReviewRequested{fingerprints:{}}`, and after that `raised={}`, `uncleared=[involves_minor]` and `wanted=[]` for good. This contradicts the method's own comment: "Raised with the content's fingerprint, a person can clear it."
+
+**It is a regression.** At HEAD, `completeReview` only recorded the review; an approval of a trigger that was never raised changed nothing. No test covers approving a trigger that was not raised. The driver test at run-driver.test.ts:6037 approves both triggers together, which is the habit the scenario describes.
+
+**Why medium and not hard-rule.** Every outcome fails closed: more review, documents refused, no route around `mayTransmit`, the authorisation hash or the mandatory categories. So no hard rule is weakened. It stays medium for three reasons:
+- a refused request changes case state, voiding a student's authorisation;
+- a plausible reviewer slip can stop a case in a way no review can undo;
+- the 400 says the trigger "is raised for the content as it is now" even when nothing was raised.
+
+Triggering it needs either an internal-credential slip or a manual deletion, and (b) needs no stored DOB, so it is not high.
+
+################ verify:regressions:The account hand-back is held behind the
+real: True  severity: medium
+I could not refute it. The code reads as the finding says, and a DB-free probe confirms it.
+
+Code path in the working tree, for a run that is not stopped:
+- `#decideOnce` reaches `#advanceCase` at apps/conversation-service/src/run-driver.ts:10455. On `!walked.ok` it returns through `#pauseForReview` (10463) before `#raiseHandoff` (10488).
+- `#windDown`, `#afterSubmissionByHand` and `#stopForStudent` return earlier only for stopped or hand-submitted cases. No secure step applies to `hand_over_account`.
+- `hand_over_account` maps to `handing_over`, which maps to AUTHORISED (packages/orchestrator/src/durable.ts:133-135, 203-204). The orchestrator returns it before the authorisation check (packages/orchestrator/src/run.ts:608).
+- In `#advanceCase`, `#raiseMandatoryTriggers` (via `triggersToRaise`, run-driver.ts:12871) raises again any trigger whose fingerprint differs. This covers a pre-P318 raising, a changed financial or DOB answer, and a funding answer newly confirmed after the fill.
+- `#takeBackFromTheStudent` (4650, body 4811-4828) then voids the authorisation. The domain moves the case AUTHORISED -> PREPARING (machine.ts `void_authorisation`).
+- The next hop, PREPARING -> AWAITING_STUDENT_AUTHORISATION, is refused with `mandatory_review_outstanding`. The AUTHORISED skip at 4661 is never reached.
+
+Probe: /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/handover-probe.ts. It replays the loop with the real `decide`, `fold`, `nextCaseHop` and `caseStateForStep`. Run with `pnpm exec tsx` it printed, exit 0:
+- A (pre-P318 approval, filled, at the handover): raise, then take-back (AuthorisationVoided, ->PREPARING), then `hop PREPARING -> AWAITING_STUDENT_AUTHORISATION REFUSED: mandatory_review_outstanding`.
+- B1 (P318 approval, financial answer changed after the fill): the same.
+- B2 (the next decide, for example the next item of the hand-over): refused again from PREPARING.
+- B0 (content unchanged): no hop, walk ok, the handoff is raised.
+
+Before P318 there was no take-back, and the guard counted any past approval, so an AUTHORISED case had no hop and the handoff was always raised. This contradicts ADR-0050 as the orchestrator records it at run.ts:604-608: "the handover is owed whatever the authorisation says".
+
+Wider than the finding says:
+- `hand_over_account` asks for one item at a time (`awaiting`, run.ts:427-440). An open handoff can still be completed through recordDecision, but every later item is held until a person approves the review and resolves the intervention.
+- The student's profile is shared across applications, so a funding change made for another application triggers this case too.
+- After the review, the walk posts READY_TO_APPROVE to the student for an application that is already filled.
+
+The new DB test "a case taken back at the account's hand-over waits for the student's yes after the review" (run-driver.test.ts) goes down this exact path. It asserts only the case state, and its first handoff was already raised by the earlier advance, so it cannot catch this.
+
+Citation fix: `#raiseHandoff` is called at run-driver.ts:10488 and defined at 9271, not 4488. Lines 4650 and 4661 are correct.
+
+Severity stays medium. It is not a hard-rule weakening: it fails closed, and the review and the void still hold. But it delays the account hand-back the system is required to make, and keeps AskiMate holding the student's account until a person acts.
+
+On the proposed fix: skipping `#takeBackFromTheStudent` would leave an authorisation standing that the review has not cleared, which touches the authorisation-hash and mandatory-review rules. The safer fix is to raise the hand-over handoff regardless of the walk's refusal, as `#windDown` already does, and to keep the void and the review.
+
+################ verify:bypass:A reviewed minor whose date of birth is
+real: True  severity: high
+I could not refute it. The code does what the finding says.
+
+Code check:
+- The probe's copies of confirmedDateOfBirth, mandatoryTriggersOf, reviewOutstanding, reviewBasisOf, triggersToRaise and reviewFingerprintsOf match the current apps/conversation-service/src/run-driver.ts. I diffed each function against the file and all were the same.
+- I re-ran probe1-minor-to-adult.mts with `pnpm exec tsx` against the real domain and profile packages. It exited 0 and printed:
+  - after the date of birth moves to an adult's: `fingerprint moved: true | applies: []`, `triggersToRaise: [] | claimWork reviewOutstanding: false`, `capture guard (uncleared): []`, `disclosure minorConditions: absent -> handed over as an adult's`;
+  - control, with no approval: `triggersToRaise: [ 'involves_minor' ]`.
+
+Why it happens:
+- An approval covering F1 removes involves_minor from the fold's activeTriggers (packages/domain/src/machine.ts:275-279 and :431-433), so `unclearedMandatoryTriggers` returns [].
+- An adult date of birth makes `basis.applies` [] (run-driver.ts:12820-12830).
+- triggersToRaise (12871-12876) looks only at `applies ∪ outstanding`, and reviewOutstanding (12843-12846) only at `applies`. Neither sees an approved trigger whose content moved out of applying. Both sit on the raise path (4754), the take-back and stop paths (4791, 4851) and the claimWork lock (10786).
+- Disclosure (5656-5661) reads only `activeTriggers` (now emptied) and `applies` (now []). So no minorConditions are set, `authoriseDisclosure` treats the passport as an adult's, and mayTransmit permits it on the student's new yes, with no person having seen the change.
+- If a date of birth is removed altogether, the trigger is not raised again either. And if it were, there would be no fingerprint for an approval to cover.
+
+The records claim this is closed:
+- ADR-0161:400-401 says "Any change reopens the trigger".
+- ADR-0161:423-424 says the minors trigger is included for "a date of birth answered again after its review".
+- The as-built section says migration 0041 "fails closed: a rewrite of a value's format alone sends a reviewed answer back to review", for any write "whoever writes it". That is false for a minor-to-adult rewrite.
+- CHANGELOG.md:36 says "a date of birth changed after its review is reviewed again".
+- The "Not built, and open" list in ADR-0161 does not mention this case.
+
+Reachability is narrower than "high" might suggest:
+- A student cannot reach it in the chat today: dates are not correctable from words (ADR-0154:108), and docs/where-we-are.md:4917 says P318 built only the first two items, so answering a field again (§5) is not built yet.
+- It is reachable today through a hand edit of profile_entries. Migration 0041 was built for exactly that write, and it moves the revision, but nothing raises the trigger again.
+- It is not a regression against HEAD, where an approval cleared the trigger for good.
+
+Why I keep it at high and not hard-rule:
+- It sits in a hard-rule category (minors). It leads to disclosing a passport that someone once reviewed as a minor's, as an adult's, without a person seeing the change.
+- It is the exact hole ADR-0161 says the minors fingerprint was added to close. It becomes reachable for a student with the next item in the same phase (his D1, answering a field again).
+- The records claim it is closed.
+- It is not "hard-rule" because it does not weaken anything compared with HEAD.
+
+The proposed fix is sound: treat every mandatory trigger the case has raised with a fingerprint as applicable for re-raising, and give absent content a defined fingerprint.
+
+################ verify:bypass:caseSequence is a bare integer the serve
+real: True  severity: low
+The mechanism is real, and a DB-free probe shows it. The probe drives the real RunDriver.completeReview and reviewFor with an in-memory case store. Probe: /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/case-sequence-unbound.mts.
+- Case B raised financial_evidence at seq 4 and then reached seq 20. Case A's GET returned caseSequence 12. A POST to B carrying A's 12 returned {"ok":true}. B's completedReviews then held an approval covering B's raised fingerprint, and B's activeTriggers became [].
+- On a separate case C (raised at 4, sequence 20), a POST with caseSequence 4 was accepted with no GET at all. A POST with 3 was refused ('Raised again after…') and one with 999 was refused.
+- So the only checks on the integer are those in run-driver.ts:4905-4925: it must be no higher than held.sequence (4905), the content must not have outrun the raising (4909-4917), and no HumanReviewRequested for a named trigger may come after it (4920-4925). Nothing ties it to a case or to a GET.
+- Scenario (a) also happens as described: after the 400 raises the new content, a fresh GET returns the new sequence and approvable:true, and a POST with it is accepted.
+
+The finding overstates severity, so it is downgraded to low:
+1. It is not a weakening or bypass of the mandatory-review hard rule. An approval still needs a POST that names the trigger with outcome 'approved'. Before P318, any approval cleared regardless of content, including one posted to the wrong caseId. P318 is strictly stronger than that.
+2. On the internal plane the endpoint admits any caller holding the service cert, and reviewerId is asserted, not authenticated (routes.ts:572-604, ADR-0048 §3). Against a malicious caller, no value the GET hands out can prove a look, including the proposed opaque token. That caller just does the GET.
+3. Scenario (a) is not closed by the proposed fix either. A token from the retry GET would be echoed just as the integer is. The look happens out of band, at the student's answers, and nothing binds it to either value. The ADR already says this binding rests on the reviewer's order of work. ADR-0161 'As built': 'the reviewer's order of work (read, look, approve) is a step his runbook and his live-run steps now carry.' Both runbooks say a 400 means 'read the case again and look again' (docs/runbook-local-stack.md:558-567; docs/run-a/p308-his-live-run-steps.md:128-135). So the 'reword to say it is procedural' part is largely already done. Only the word 'closes' slightly overclaims.
+4. Scenario (b) is the one real residual: an operator slip where case A is read and case B is posted. A case-bound value would catch it, because GET and POST would then have to name the same case. Even so, the token would not catch a look at the wrong student's content when the GET and POST both name B. Today there is a single sole reviewer, and both runbook commands use the same <caseId> placeholder.
+
+What remains is a defence-in-depth gap against operator error, plus a small overclaim in the ADR. It is not a medium-severity bypass. A cheap mitigation would be for reviewFor to return, and completeReview to require, the raising event's id (or sequence) for each trigger, compared against the latest HumanReviewRequested for that trigger on the POSTed case. Rewording ADR-0161:544 to say the sequence is the reviewer's assertion, not bound to the case, would also help.
+
+################ verify:records:Domain fold comment states the minors re
+real: True  severity: medium
+The finding is real. I checked it against the current working tree and could not refute it.
+
+**What the comment says.** packages/domain/src/machine.ts:426-430 gives the reason for filtering `activeTriggers`. Without the filter, a raised-but-approved trigger would stay listed, and "that disagreement would hold back a minor's reviewed case, `minorConditions` reading this list". So it treats a reviewed minor's case being held back at disclosure as the harm the filter prevents.
+
+**What the code does.** `minorConditions: []` is the refusal path. packages/disclosure/src/disclosure.ts:219-230 refuses an empty set as `minor_conditions_undetermined` (ADR-0011). Holding a minor's documents back there is the protection, not a fault.
+
+**Every other record says the opposite.** The fixed code at apps/conversation-service/src/run-driver.ts:5651-5661 says a review "does not make anyone an adult". It now sets `minorConditions: []` when `involves_minor` is still active OR the stored date of birth (`#reviewBasis`) says the student is a minor. ADR-0161 lines 578-583 and 622, CHANGELOG.md:52, docs/where-we-are.md:4936 and the test header at run-driver.test.ts:11239-11246 all agree: a minor is still a minor after the review. The machine.ts comment is the only record that contradicts them.
+
+**Where the comment came from.** `git diff` shows it was added together with the filter in P318. It was not rewritten when disclosure was fixed, so it still carries the first build's reasoning, the one that handed a reviewed minor's passport over as an adult's.
+
+**It is also stale.** For an actual minor, the date-of-birth read now holds the documents back whatever the filter does. The filter only changes disclosure for someone the stored date of birth does not show as a minor (for example, a student who has since turned 18) whose cleared minors trigger is still in the raw set. The comment does not describe that case.
+
+**The test that would catch a regression needs a database.** The only end-to-end check is `describeIfDatabase("a minor's documents after the review (P318)")` at run-driver.test.ts:11239. No database-free test covers it. A reader who trusts the comment and drops the date-of-birth read would not be caught by the domain or disclosure unit tests.
+
+**Severity: medium, not high.** It is a comment. Behaviour is correct today: the date-of-birth read refuses a reviewed minor's passport, and that test drives the case end to end. Nothing about the transmission gate, the authorisation hash or the review categories is weakened in code. The risk is a misleading record that invites a future change undoing a hard-rule protection, which this repository treats seriously. That is above low, but it is not an active weakening.
+
+**The proposed fix is right.** Rewrite the parenthetical to say the filter keeps the fold and the guard in agreement, and that disclosure deliberately does not rely on it, because documentForWork also reads the stored date of birth (ADR-0011, P318 regression).
+
+################ verify:records:'The list can only shrink' is false: the
+real: True  severity: medium
+The finding is real. Nothing in the build makes the list shrink-only. gate() at scripts/required-boxes-hold.ts:728-736 only compares the current set of breaking lines with whatever KNOWN_BREAKS holds, and reports three things: lines missing from the list (unexpected), listed lines that no longer occur (gone), and duplicates. If a new break appears and is added to scripts/required-boxes-known.ts in the same change, the gate sees nothing wrong.
+
+I re-ran the reviewer's probe with `pnpm exec tsx .../scratchpad/p318-review/grow.mts` and got `list grows 59 -> 60 gate verdict: {"unexpected":[],"gone":[],"listedTwice":[]}`, exit 0.
+
+I also looked for anything else that could stop the list growing and found nothing:
+- The only size check is `KNOWN_BREAKS.length > 0` (required-boxes-hold.test.ts:74).
+- No frozen key set, ceiling or count pin exists.
+- Nothing in .github or scripts outside the gate refers to the list.
+
+The test's own failure message (test.ts:79) says to grow the list: "mend it, or list it with what it waits on". That goes against ADR-0161 §2's approved shape, "The list can only shrink: A new line fails the test" (ADR line 271, already in the committed text). Vahid approved that shape in D1 as "the test with its shrinking list".
+
+Five records claim the property as built, so they say more than the mechanism holds:
+- where-we-are.md:4941, whose "so" draws the conclusion from the two failure modes, though they do not imply it
+- required-boxes-known.ts:9
+- required-boxes-hold.ts:726
+- CHANGELOG.md:25
+- the describe title at test.ts:71
+
+This is the record-asserts-more-than-happened class that CLAUDE.md names. It matters most for ADR §2's third bullet: a new signed entry's breaks would be listed, as the message invites, rather than fail.
+
+I keep the severity at medium, not hard-rule. It does not touch mayTransmit, the authorisation content hash, the mandatory-review categories or password storage. Any growth would also have to be a deliberate edit to the list file, visible in the diff.
+
+################ verify:records:Records say no page is handed to a runne
+real: True  severity: medium
+The finding holds. I could not refute it by reading the code; I wrote no probe, because the driver's harness needs the database.
+
+1. **The lock covers only execute work.** At apps/conversation-service/src/run-driver.ts:10786 the review lock applies only when `kind === "execute"`. `browserWorkFor` (packages/orchestrator/src/run.ts:1915-1919) also returns `create_account` and `sign_in`. Both reach `workPayloadFor` (run-driver.ts:13071-13096), which hands the runner the portal's registration or login page: its URL, the email and password locators, and the submit button. Nothing checks `reviewOutstanding` on that path.
+
+2. **The records claim more than that.** All three new records say every page is held:
+   - CHANGELOG.md:39-40: "no page is handed to a runner while such a review is outstanding".
+   - docs/where-we-are.md:4926-4927 says the same.
+   - ADR-0161:569-571 adds "a change no decide has raised included".
+
+   The code comment says "no page is filled", which matches execute work only.
+
+3. **The reviewer's scenario is slightly wrong, but the gap exists.** Once the take-back lands, the run cannot reach `create_account`. The take-back voids the authorisation: `void_authorisation` in machine.ts:898ff emits `AuthorisationVoided` with the captured hash. After that, `#withAuthorisationIfCaptured` (run-driver.ts:9800-9810) drops the authorisation, so the orchestrator returns `authorise`. So "while the case is back in PREPARING" is not the reachable case. The reachable case is the window the ADR names. The case is still AUTHORISED, and the student's captured authorisation still covers the preview, because the preview does not show the funding answer (`stillCovers`, run.ts:636). A financial answer has changed, for example through the same student's other application, as the ADR's own open point describes. No decide has raised it yet; the worker's advance pass (apps/worker/src/worker.ts:177) closes the window on its next tick. In that window `claimWork` hands out `create_account`, or `sign_in` on the resume path. An `execute` claim in the same state would be refused. No test covers `create_account` or `sign_in` under an outstanding review.
+
+**Severity: medium.** This is a record claiming more than the code holds, the class this repository treats seriously. It is not a weakening of a hard rule:
+- The registration and login work carries only the email and locators: no financial or minor's data, no documents.
+- Account creation was never gated on review apart from the student's authorisation, and P318 did not loosen that.
+- The transmission gate, the authorisation content hash and the domain guards into AUTHORISED and SUBMITTING are untouched.
+
+**Proposed fix stands.** Either narrow the wording in all three records to "no fill (execute) work is handed to a runner …", or extend the lock to `create_account` and `sign_in` and test it.
+
+################ verify:records:Row 189 says his decision (1) was built
+real: True  severity: low
+The finding is real, but its severity should be low, not medium.
+
+**What I confirmed in the working tree:**
+- `docs/state-of-the-system.md:990` adds, in the status column, "(1) decided by him, 2026-10-16; D3 approved 2026-10-17; (1) built in P318".
+- The same line adds to the body "**(1) built in P318:** a raising carries a fingerprint ... What it leaves is row 214."
+- His decision on (1), quoted in the same row, is "a student may correct their own financial answers in the chat, with playback and a press".
+- That half is not built. `apps/conversation-service/src/correction-requests.ts:232-235` (`refusedPart`) still returns "financial" for a closed part of a financial field, such as funding's source and stage.
+- The doc comment at lines 222-228 still gives the old reason: "a correction after it would not be reviewed again ... Refused as before P311".
+- No correction or interview source file is in the diff. Only `packages/interview/package.json` changed (the version bump).
+- Row 214, which row 189 points to as "What it leaves", lists only the minors fingerprint scope, funding voiding every application, and the P290 choice. It does not say that the student's correction of a financial closed part is still refused.
+
+**Why it is low rather than medium:**
+- Item (1) of row 189 is the defect "A financial answer corrected after its review is never reviewed again". P318 does close that defect.
+- The body text after "(1) built in P318:" describes accurately what was built: the fingerprint and `caseSequence`. It does not claim that students can now correct source or stage.
+- The unbuilt half is recorded elsewhere in the same change:
+  - Row 209 (line 1010) still says the stage and source "would be refused as financial" and that "answering a field again follow[s]".
+  - The ADR-0161 header and §8 put item 4, "Answering a field again (§5), with funding first and financial corrections (§6)", in phase 1 after P318.
+  - ADR-0161's "As built" section says P318 built "the first two items of §8".
+
+**What remains wrong:** the status column of a row that also records his decision reads as if that decision were built, and the row's "what it leaves" pointer leaves out the half that is not.
+
+The proposed fix is right: say that the review half (ADR-0161 §6, D3) was built in P318, and that the student's correction of a financial answer (withdrawing ADR-0154's refusal, §5/§6, phase 1 item 4) is not yet built. The stale comment on `refusedPart` (correction-requests.ts:225-228) should be updated at the same time.
+
+################ verify:records:Agent's narrowing of his D2 on the fundi
+real: True  severity: medium
+I could not refute it. Everything below was read from the working tree.
+
+1. His words: docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt says "D2: approved. Ask with the form's own words and options. If the funding source box is also required (row 210), ask it too."
+
+2. What row 210 says: docs/state-of-the-system.md:1011, unchanged in the diff. Its title is "Sheffield's funding source box is one", and it records that his saved page shows the same red asterisk after "Please select your likely funding source" as after the stage. So the row he cites already says the box is marked required on the form.
+
+3. What the ADR says: line 334 is headed "**Amended by his answer (D2):**". It quotes his words, then lines 335-337 continue "So the stage is asked … and the source is asked too wherever the entry marks its box required". Lines 350-353 add "until the entry carries that rule, which is row 210's read and an entry patch for his signature, the build asks it only where the entry marks it."
+   - The signed entry records fundingSource with no rule, so under this reading Sheffield's source is not asked until he signs a patch.
+   - The "So" presents this as following from his words. Nothing beside it labels it as mine.
+
+4. It was never put to him.
+   - The six lines sent before building (ADR ~line 87) say only "the source asked too if that box is required (row 210 is still unread)". That restates his condition. It does not ask whether row 210's observation counts or whether the source waits for an entry patch.
+   - No reply of his is saved: docs/run-a holds only his answers file for P318.
+   - It is also not listed under "Applied under his rule of 2026-10-14".
+   - When a student is asked for the funding source changes what is collected and touches money. Under the 2026-10-14 rule, as P308 reads "touches", such a point goes to him.
+
+5. The other two claims hold.
+   - Row 210 is not in the diff. Row 209 now carries D2, but row 210, the row he cited, does not.
+   - The CHANGELOG line "rows 189, 202, 209, 211 to 213 carry his answers" leaves 210 out.
+
+Mitigations, which lower the impact but do not refute it:
+- The Status line (ADR line 7) says in general "everything else here is mine".
+- The reading is defensible on substance, since entry rules are his to sign. Also, whether the box is shown at all for a "No" student is still unread (rows 82, 86, 209).
+- Nothing in P318 is built on it; the funding stage is the next phase.
+
+The finding does not touch a hard rule: no gate, hash or review category is weakened. But the ADR is binding, and it records an unasked money-touching reading as following from his D2. That is the "record asserting more than he said" class CLAUDE.md treats seriously. Medium stands.
+
+################ verify:records:Mutation evidence is not re-readable; tw
+real: True  severity: medium
+The core of the finding holds, with three corrections.
+
+What holds:
+- ADR-0161:619-620 says "eight mutation runs, `p318-mutations.txt` in the phase's scratchpad and two run singly".
+- That file exists only at /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-mutations.txt. It is a session scratchpad, not the repository, and it holds exactly six runs: minors-predicate, raised-since, sequence-required, deadlock, raise-before-yes and outrun. All six are red, and the script restored the file ("restored True").
+- The two single runs left no output. A filesystem search for files written between 11:49:30 and 11:53:00 finds only these:
+  - the backups 0041.keep (11:50:05) and rd-inv.keep (11:52:01);
+  - the restores of the migration (11:50:11) and of run-driver.ts (11:52:07);
+  - the test file at 11:51:35;
+  - dist/ build output and Postgres files.
+  There is no log for either single run.
+- The hand-over test (run-driver.test.ts:3816) sits under the describe at 3807, "AUTHORISED is reached by the student's yes, never by a walk (P318)". The -t filter in p318-mutate.py ("a minor's passport is refused|mandatory-review guard") does not select it.
+- All six target strings still occur exactly once in the current run-driver.ts (re-checked).
+- This departs from the repository's own practice. P305 to P314 each committed per-mutation outputs under docs/run-a/pNNN-mutations/. ADR-0161:620 is the only ADR in docs/decisions that cites a scratchpad.
+- CLAUDE.md requires any number in a record to come "from something that can be re-read, and the record says what that was". Here, two of the eight "seen red" claims rest on nothing saved. The ADR does not say so, and the six that were saved will go when the session's scratchpad does. One of the two unsaved runs is the 0041 bypass of the fingerprint, which protects the mandatory-review categories.
+
+Corrections:
+(a) run-driver.ts was not edited after the six runs. The 11:52:07 timestamp is the restore after the hand-over single run. The file is byte-identical to run-driver.keep.ts (the 11:47:40 backup the six runs mutated) and to rd-inv.keep, checked with cmp. So the six recorded results were run against today's run-driver.ts.
+(b) run-driver.test.ts really was rewritten at 11:51:35. That is after the six runs and after the 0041 single run (11:50:05 to 11:50:11), and before the hand-over single run (11:52:01 to 11:52:07). What changed cannot be read back: the only older copy, rdt.keep, is from 11:23. So seven of the eight runs ran against an earlier test file.
+(c) where-we-are.md:4935-4936 does not repeat the "eight runs" or p318-mutations.txt claim. Its claim is at 4937-4938, "five of them with a test seen red with the fix taken out". That is consistent with the ADR's six: the minor fix plus five.
+
+Mitigating points:
+- The 0041 test (run-driver.test.ts:5861) is inside the "mandatory-review guard" describe. It was among the 11 tests the six runs selected, and it passed there as expected.
+- The test database is dropped and created fresh on every run (run-driver.test.ts:928-939). So a neutralised 0041 would have been applied, not refused by the migration checksum.
+- Each single run took about 5.5 seconds, about as long as each of the six. So the single runs were plausibly real. Their red is still not re-readable.
+
+This is a records-provenance defect. No hard rule is weakened.
+
+################ verify:records:Departures from the D3-approved §6 that
+real: True  severity: medium
+I could not refute it. The departures are real, they were built, and the records file them as the agent's.
+
+(1) Fingerprint content. §6 as approved (ADR:396-399) fingerprints "the stored financial answers and their revisions". The build hashes only [key, revision, confirmedAt] (run-driver.ts:12889-12906, reviewFingerprintsOf). The ADR (ADR:519-524) and the P318 journal (where-we-are.md:4924-4926) say "This is mine and his to overturn", and the CHANGELOG labels it "(mine, his to overturn)". That is the apply-under-the-rule path. The repo's own precedents treat this kind of change as touching personal data, so as his:
+- Row 190 (2) says taking a student's value out of `encountered` "touches personal data, so it is his", and that change also reduced what is held.
+- ADR:589 and row 214 (1) say that changing what the minors fingerprint covers "touches a student's personal data and the review, so it is his".
+Changing what both fingerprints are made of, and making the review depend on a revision invariant (migration 0041), is the same class, yet it was applied as the agent's.
+
+(2) Order after authorisation. §6 (ADR:410-414) states the order explicitly: void first, reopen after. The build does the reverse:
+- the driver raises first, then takes the case back (run-driver.ts:4646-4651, #takeBackFromTheStudent at 4811-4828);
+- the domain now accepts void_authorisation while a mandatory trigger is outstanding and sends the case to PREPARING (machine.ts diff, the void hunk);
+- the student's approval is now guarded too (machine.ts diff, the approval hunk).
+This changes when the student's yes can be taken or voided, so it touches "a press" under the P308 reading. It is filed only under "As built" (ADR:553-562), with the blanket "each choice below that goes beyond his words is mine" (ADR:508-509). The P318 journal does not say it differs from §6 at all. The parent's task list still planned "void first" (#70), so the change came during the build, after the six one-line notices. Those notices (ADR:81-102) cover D1/D2/D4/D5/D6/D11 only.
+
+(3) caseSequence. This part is partly overstated. completeReview still checks at the moment of recording that the current fingerprint equals the raised one (run-driver.ts:4908-4918), so covers = raised = current, and §6's "computed at the moment the review is recorded; the reviewer never types it" is kept in effect. caseSequence is an addition, recorded as "mine" (ADR:546). It touches the four only under the broad when-in-doubt reading: it gates the review approval that stands before the student's press, and it changes his reviewer steps.
+
+None of the three is in "What comes to him" or in row 214 (whose items are the minors scope, funding across applications, and the financial list choice). The P318 journal also has no applied-under-the-rule list at its end.
+
+All three changes are protective, and none weakens a hard rule. The defect is in the records and the governance: the CLAUDE.md 2026-10-14 rule ("those four always come to me … nothing is built on it until he answers"; "when in doubt, it touches"). The phase is not yet closed, and the fix is the records fix the finding proposes. Medium stands.
+
+################ verify:records:His live-run step 7 and the runbook: the
+real: True  severity: low
+The finding is half right. The first half is real and I reproduced it. The second half, about his own case, does not hold up.
+
+**Confirmed: the 400 cannot be seen.**
+- Both POST commands use `curl -s -o /dev/null -w '%{http_code}\n'`: docs/run-a/p308-his-live-run-steps.md:133 and docs/runbook-local-stack.md:563.
+- On a refusal, routes.ts:2016 replies through problem() (routes.ts:391), which puts the pointer only in the JSON body, for example `pointers:["/caseSequence"]`.
+- So the reading both docs tell him to look for cannot appear: "A 400 naming /caseSequence" at p308:135 and runbook:564.
+- Probe: /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p318-review/curl-step7-probe.ts. It runs the real createConversationApp with a stub run coordinator, then runs the documented command.
+- Three different failures each printed only "400\n":
+  - (a) a /caseSequence refusal;
+  - (b) a "No case" refusal, which has no pointer and so comes back as /outcome;
+  - (c) the literal `N` left unreplaced, which is invalid JSON.
+- With the body kept, the same three show `pointers:["/caseSequence"]`, `pointers:["/outcome"]` and no pointer.
+- Step 7 explains every 400 only as "the answer changed after the read". A typo such as an unreplaced N or a wrong caseId therefore sends him to "read again and look again", which can never succeed.
+- Step 7 also never says what `approvable` means. The runbook does (runbook:565-567).
+
+**Not borne out: "it misses his own case".**
+- The run stops for review in only one place: #pauseForReview, called at run-driver.ts:10462-10470 after #advanceCase is refused.
+- #advanceCase first calls #raiseMandatoryTriggers (run-driver.ts:4646) and only then hops. triggersToRaise (run-driver.ts:12871-12876) re-raises any outstanding trigger whose raised fingerprint differs from the current one. A raising from before P318 carries no fingerprint, so it always qualifies.
+- So under P318 code, any stop that step 7 responds to follows a fingerprinted raising of the current stored profile. GET then gives approvable:true (run-driver.ts:4856), and the POST passes the check at 4908-4918.
+- His case has not reached that stop: the records (p315-read-the-halt.md:201-205, p316-funding-stage.md:187-191) have it halted on a content_rejected stop, and the review stop comes only after that is resolved.
+- The case the finding describes needs a review stop raised before P318 with no advance since. His case is not in that state, so step 7 does not need the approvable:false explanation for him.
+
+**Severity: low.** It fails closed. A refused approval stays refused, the ordinary path returns 204, and no hard rule is touched (mayTransmit, the authorisation hash, both mandatory categories and the password are all unaffected). The cost is a reviewer who cannot tell a typo from a changed answer, for example an unreplaced N or a wrong caseId. The fix should drop `-o /dev/null` from both commands (for example `curl -s -w '\n%{http_code}\n'`) and name the other 400s. The approvable/pre-P318 sentence it proposes for step 7 is not needed for his case.
+
+################ verify:records:His D4 (jobs) is extended to the educati
+real: True  severity: low
+The finding is real and low is the right severity. I checked it against his words and found no hard rule involved.
+
+**What he wrote.** His D4 in docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt:6 reads: "build nothing yet. First observe on the live form whether Sheffield truly requires at least one job. If it does and the student has none, tell the student then and there and hand it to a person." The D4 question in ADR-0161:470 was "An empty list (row 202, §7)". ADR-0161:184-185 says that row covers both cases: no qualifications breaks twelve required boxes, and no jobs breaks four.
+
+**D4, qualifications.** "Build nothing yet" answers the whole question, so "nothing built" on the qualification lines does rest on his words. The observation step and what happens after it are written in his answer for jobs only. Even so, scripts/required-boxes-known.ts:24 attaches "row 202 and his D4: his observation of the live form first" to the 12 education.prior_qualifications lines (actually at lines 34-45; the finding cites 33-44). In this uncommitted diff, docs/state-of-the-system.md:1003 changed row 202's status from "his to decide ..., undecided" to "decided by him 2026-10-17 (D4): his observation first, nothing built" for the whole row. For the qualification half, no sentence of his supports "his observation first", which breaks the rule in CLAUDE.md that a decision is his only if he typed it.
+
+**D5, the "truly impossible" lines.** The lines are actually at :60 and :89 (the finding cites :59 and :88). The D5 question (ADR-0161:472) was §3 case 4, and that case explicitly lists a date of birth outside the form's years (ADR:313). The table at ADR:440 puts more residence periods than the form holds under case 4. His answer exempts only missing countries and keeps the stop for "a truly impossible case". So these two classifications are close readings of his answer, but the reading is still the agent's. Calling each line "his D5's truly impossible case" attributes that reading to him.
+
+**What lowers it.** The file's header (known.ts:13-14) says "The `waits` text is mine", and the ADR's As-built section (ADR:611) says the same: "each named with the row or answer of his it waits on (mine)". The `waits` text has no effect in code: required-boxes-hold.test.ts:85 only checks that it is at least 10 characters. So the gate, the mandatory review, mayTransmit and the authorisation hash are unaffected. What remains is wording in records, which matters in this repository but has low severity.
+
+**The fix proposed is right.**
+- Qualification lines: "row 202; his D4 says build nothing yet and names the live-form observation for jobs only; what follows for qualifications is undecided".
+- Row 202's status should say the same.
+- The two D5 lines: "my reading of his D5's 'truly impossible'".
+
+################ verify:records:Stale or misattributed code comments aft
+real: True  severity: low
+Three of the four parts hold. Part (b) does not. All four are comments only, and no hard rule is weakened.
+
+(a) Holds. run-driver.ts:12884-12887 is new in this diff. Its argument is that a value change that moves neither revision nor confirmedAt is "the only way past it", and that "the only writer (`#persist`, through `confirmField`) does both". In application code #persist is indeed the only caller of profiles.save (run-driver.ts:8015). But the fixes no longer depend on writers behaving. profile-store.ts:81 now sets `revision = GREATEST(EXCLUDED.revision, profile_entries.revision + 1)`, the in-memory store does the same (persistence.ts), and migration 0041 adds a BEFORE UPDATE trigger. The migration's header and ADR-0161 "As built" both say 0028 was another writer and a hand-written UPDATE would be one. So the comment states the guarantee on the wrong basis. Its "only writer" also contradicts the record this phase wrote.
+
+(b) Refuted. In completeReview, `covers[trigger] = held.raisedFingerprints[trigger]` (run-driver.ts:4928) runs only after the outrun check at :4908. That check refuses unless the raised fingerprint is defined and equals `basis.fingerprints[trigger]`, which is computed from the freshly loaded stored profile when the review is recorded. So the covers value is exactly the fingerprint "computed by the service from the student's profile at the moment the review is recorded" (escalation.ts:112-114). That is also §6's approved wording. The comment is accurate.
+
+(c) Holds, as a records-integrity point. run-driver.ts:4888 heads the whole block with "(ADR-0161 §6, his "D3: approved.")". Directly under that heading it lists the caseSequence binding: an approval names the case as the reviewer read it, from reviewFor. §6 (ADR lines 379-425), which D3 approved, says nothing about caseSequence. The ADR's As-built section records the binding as "it is mine". Under CLAUDE.md's rule that anything under his name must be traceable to his words, the comment should cite D3 for covers/fingerprint only and mark the binding as the agent's.
+
+(d) Holds. correction-requests.ts:225-228 is unchanged in this diff. It still gives "a correction after it would not be reviewed again" as part of why the financial closed-part correction is refused. With P318, a changed financial answer would be re-reviewed: any save moves the revision through the store's GREATEST rule, reviewFingerprintsOf covers every isFinancialField entry, and triggersToRaise re-raises on a fingerprint mismatch. So the stated reason is now untrue. The refusal itself is still right, because §5/§6's correction path is not built (D1 phased).
+
+Severity stays low: stale or misattributed comments, with no runtime effect on mayTransmit, the authorisation hash or the mandatory-review categories.
+
+################ verify:records:'Outside the diff' and 'exactly as befor
+real: True  severity: low
+Both wording problems are real, and I could not refute either. Neither one weakens a hard rule.
+
+(1) ADR-0161:617-618 says the transmission case binding and the authorisation content hash are "both outside the diff". The first part holds. packages/disclosure has only a package.json version bump. The mayTransmit call in run-driver.ts documentForWork, including forCase: record.caseId, is unchanged. The hash comparison at transitions.ts:314-334 (authorisation_missing / authorisation_stale) is also unchanged. But the diff does change the authorisation's lifecycle:
+- machine.ts:940-963: void_authorisation now emits the void plus a move to PREPARING when the guard refuses.
+- machine.ts:881-889: capture_authorisation now runs checkTransition to AUTHORISED.
+- run-driver.ts:4661: the walk reads held.authorisedContentHash to skip a hop into AUTHORISED.
+- run-driver.ts:4821-4822: the new take-back voids an authorised case.
+Each of these makes the gate stricter, not weaker. So "nothing weakened" holds, but "outside the diff" is literally false for the authorisation hash.
+
+(2) ADR:582-583 says "exactly as before P318". In HEAD, documentForWork read only caseState.activeTriggers. #raiseMandatoryTriggers re-added involves_minor on every advance from mandatoryTriggersOf(input.state), which is the run's view of the confirmed date of birth. An approval had deleted it from activeTriggers, and in HEAD the guard's unclearedMandatoryTriggers ignored the re-raise. The current code reads the STORED profile through #reviewBasis (run-driver.ts:5658-5661). In normal use the outcome is the same, but the mechanism is different. The outcome can also differ in edge cases: where the run's view and the stored profile disagree, or in the window between an approval and the next advance.
+
+Why the severity stays low: the ADR does describe the void, capture and walk changes elsewhere (lines 553-571). These are inexact summary sentences, not a hidden change. The proposed fix is right: name what is untouched (mayTransmit, the hash comparison) and what changed (void, capture guard, the walk), and replace "exactly as" with "with the same outcome as".
+
+################ verify:records:where-we-are and the ADR index lag the f
+real: True  severity: low
+I could not refute it. Each part was checked against the working tree:
+
+(1) The where-we-are entry for P318 (docs/where-we-are.md:4909-4947) never names migration 0041. A grep for "0041" in that file finds only ADR-0041 at lines 1047 and 10389. The section also never names GET /internal/v1/cases/{caseId}/review, and never says that step 7 of his live run changed. The closest it comes is "A reviewer now reads the case before looking, and the approval names that reading". Other entries in the same file do name their migrations (for example, "migration 0040" at line 5078 and "Migration 0036" at line 6035). The rest of the records are current: CHANGELOG 0.311.0 names migration 0041 and the GET route, docs/runbook-local-stack.md:557-568 gives the GET then POST order, and docs/run-a/p308-his-live-run-steps.md step 7 was updated with the read-first command. So the lag is limited to where-we-are.
+
+(2) The index row was weakened. The Proposed row in git HEAD said "would amend 0143 §1 and §3, 0154 as amended in P311, 0148 §4 and §11, and the reach of 0123 Decision 2". The Accepted row now at docs/decisions/README.md:174 has no amends list. ADR-0161's own status line (lines 8-13) still carries that list, and the neighbouring rows for ADR-0157, 0158 and 0159 keep theirs.
+
+(3) ADR-0049 is not listed anywhere. ADR-0161 never mentions it. ADR-0049's "Amended by" (lines 6-8) names only ADR-0101. Yet the route's own comment says the POST review is "ADR-0049 §4; bound to `caseSequence` since P318" (apps/conversation-service/src/routes.ts:240). It also now requires caseSequence (routes.ts:2002-2010), and a new GET route sits beside it (routes.ts:2044). So the claim that §4 is amended holds. The claim about §3 is the weakest part. Triggers are still raised through suggestsMinority over the confirmed date of birth and through isFinancialField (run-driver.ts:12817-12835). Only the copy read has changed: the stored profile, loaded fresh in #reviewBasis at run-driver.ts:4795, instead of the run's own state.profile.
+
+(4) The count disagrees. README.md:192 says "his own answers to five of its points (D2, D4, D5, D6 and D11) and the rest approved as recommended". ADR-0161:81-102 records "Six of your answers differ" and includes D1 (the phasing reorders §8). So "the rest approved as recommended" wrongly includes D1.
+
+These are records-only discrepancies. No code, gate, review category or password handling is affected, and the operator-facing docs that matter for running the stack are correct. So the severity stays low.
+
+A related discrepancy is outside this finding. where-we-are says the refuters' fixes were "five of them with a test seen red … and three without a test of their own". ADR-0161:619 says "The first six have a test that was seen red". CHANGELOG says "fixed with a test each".

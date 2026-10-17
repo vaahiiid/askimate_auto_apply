@@ -19,6 +19,56 @@ not shipped artefacts.
 
 ---
 
+## [0.311.0] — 2026-10-17
+
+**P318 — ADR-0161 accepted as he answered it; phase 1's first two items built: a review covers
+only what it reviewed, and his rule's test is a gate whose list can only shrink.** His answers
+(`docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt`): *"D1: approved, phased. First build
+only what unblocks my run and protects every student: the test with its shrinking list, the
+review rule (§8 first), the funding stage after "no", and answering a field again."* The six
+answers that differ from my recommendations were told to him in one line each before the build,
+and are recorded in ADR-0161 as sent.
+
+- **The review covers only what it reviewed (§6, his D3).** A raising of a mandatory trigger
+  (financial evidence, minors) carries a fingerprint of the content it stands on; a review covers
+  the fingerprint the trigger was raised for; an approval clears only while the content is
+  unchanged, in the guard, the fold and the escalation rule alike. A financial answer or a date
+  of birth changed after its review is raised again, including a minor's date answered again as
+  an adult's, and reviewed before the student is asked to authorise: an authorised case is voided
+  and goes back to PREPARING. No fill is handed to a runner, and no document handed over, while
+  such a review is outstanding; the account's hand-back is not held by it. A yes pressed after a
+  change no decide has raised raises it first; the domain then refuses the yes.
+- **A review names the case as the reviewer read it.** `GET /internal/v1/cases/{caseId}/review`
+  (new, published) gives the case's sequence and the reviews it waits on, by name; an approval of
+  a mandatory review carries that `caseSequence`, and is refused when the trigger was raised or
+  reviewed again after it, or the content changed since it was raised, or the case does not wait
+  on that review. The runbook and his live-run steps carry the order: read, look, approve.
+- **The fingerprint holds no value**: each answer's revision and confirmation time, read from the
+  stored profile. Both profile stores move a revision on every overwrite, and migration 0041
+  (new) makes the table move it for any in-place change and lower it on no UPDATE.
+- **Three of these depart from §6 as he approved it** (the value-free fingerprint, the binding to
+  the reviewer's reading, raising before voiding) **and were built before asking him, against his
+  rule of 2026-10-14.** My error; each is row 214, undecided until he answers. So is the funding
+  source under his D2, which my first draft narrowed in my own words.
+- **Reviewed twice before the commit.** Two refuters read the first build, then three reviewers
+  read the fixes and a refuter tried each finding they did not rate low
+  (`docs/run-a/p318-review-findings.txt`). The worst finding was mine: the first build handed a
+  reviewed minor's passport to the runner as an adult's, which would have weakened the minors
+  category; it is fixed with a test. Eighteen mutations of the finished change are in
+  `docs/run-a/p318-mutations/`: seventeen killed, one survived, and why.
+- **His rule's test is a gate.** `scripts/required-boxes-hold.test.ts` fails on any line that
+  breaks the rule and is not on `scripts/required-boxes-known.ts` (new: today's 59 lines, each
+  named with what it waits on), on any listed line that no longer occurs, and on any listed line
+  that is not one of P318's 59 (`docs/run-a/p318-known-breaks.txt`), so a new break can only be
+  mended. Made to fail each way on purpose.
+- `scripts/a-financial-choice-waits-for-the-review.test.ts` (new) fails when a signed entry first
+  offers an escape on a box filled from a financial answer (his D7 will), because the review does
+  not yet cover a choice made there.
+- ADR-0161 accepted, phased; rows 189, 202, 209, 210, 211 to 213 carry his answers; row 214 (new)
+  holds what is his. Version 0.311.0.
+
+---
+
 ## [0.310.0] — 2026-10-16
 
 **P317 — his rule measured, and proposed as ADR-0161; nothing in the product changed.** His words

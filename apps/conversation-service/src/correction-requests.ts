@@ -222,10 +222,11 @@ export function closedPart(fieldKey: string, part: string | undefined): ClosedPa
 /**
  * A place a correction does not change from words (P311), and why.
  *
- * - `financial`: a choice in a financial answer. The mandatory review of
- *   financial evidence is done once, before the preview, and a correction
- *   after it would not be reviewed again (it touches money, so it is his to
- *   decide). Refused as before P311.
+ * - `financial`: a choice in a financial answer. Refused as before P311,
+ *   until the student's own correction of one is built (ADR-0161 §5 and §6,
+ *   phase 1). Since P318 a correction after the review WOULD be reviewed
+ *   again, which was the reason given here before; what remains is the build
+ *   of the correction itself, with its playback and press.
  * - `decides_the_shape`: a `kind` that decides what else the answer holds —
  *   a passport held or not — which no part can be changed without.
  */

@@ -271,7 +271,9 @@ export class InMemoryConfirmedProfileStore implements ConfirmedProfileStore {
 
   public save(studentId: string, entry: StoredProfileEntry): Promise<void> {
     const held = this.#entries.get(studentId) ?? new Map<ProfileFieldKey, StoredProfileEntry>();
-    held.set(entry.key, entry);
+    // Every overwrite moves the revision, as the Postgres store does (ADR-0161 §6, P318).
+    const before = held.get(entry.key);
+    held.set(entry.key, before === undefined ? entry : { ...entry, revision: Math.max(entry.revision, before.revision + 1) });
     this.#entries.set(studentId, held);
     return Promise.resolve();
   }

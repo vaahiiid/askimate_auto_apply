@@ -554,9 +554,25 @@ no row is the list never entering the profile.
   line also names its `case`, which the next two take.
 - **The mandatory review** (financial evidence, a minor: ADR-0008's mandatory triggers) is recorded on the
   case first, then its stop is resolved with `--did-not-happen`. The outcome is the reviewer's to
-  say; there is no command, so it is a POST with the same certificate:
-  `curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:4870/internal/v1/cases/<caseId>/review -H "x-service-cert: browser-runner" -H 'content-type: application/json' -d '{"reviewerId":"<your name>","outcome":"approved","triggers":["financial_evidence"],"notes":"<what you checked>"}'`
-  (`204` when taken). Resolving the stop before the review is recorded re-plans and stops again.
+  say; there is no command, so it is a GET and a POST with the same certificate. Since 0.311.0
+  (P318, ADR-0161 §6) a review covers only the content it reviewed, so **read the case first,
+  before looking at the content**:
+  `curl -s http://127.0.0.1:4870/internal/v1/cases/<caseId>/review -H "x-service-cert: browser-runner"`
+  answers `{"caseSequence":N,"outstanding":[{"trigger":"financial_evidence","approvable":true}]}`.
+  Then look at what the review covers: for financial evidence, every financial answer the
+  student's profile holds, whether or not this form shows it; for a minor, the date of birth.
+  The preview shows only what the form fills. Then approve with that `N`:
+  `curl -s -w '\n%{http_code}\n' -X POST http://127.0.0.1:4870/internal/v1/cases/<caseId>/review -H "x-service-cert: browser-runner" -H 'content-type: application/json' -d '{"reviewerId":"<your name>","outcome":"approved","triggers":["financial_evidence"],"notes":"<what you checked>","caseSequence":N}'`
+  prints `204` when taken. A `400` prints its body, and `pointers` says why:
+  - `/caseSequence`: the answer changed after you read the case, or the trigger was raised
+    again after it. If `approvable` was `false` (the content has outrun its raising, or the
+    raising is from before 0.311.0 and covers nothing), this POST is refused once and raises the
+    review for the content as it is now. Either way: read again, look again, approve with the
+    new `N`.
+  - `/triggers`: the case does not wait on that review (an adult's case named for a minor, say).
+    Nothing was written.
+  - `/outcome`: no such case, or the case refused the review.
+  Resolving the stop before the review is recorded re-plans and stops again.
 - `pnpm run submission-by-hand` (since 0.300.0, P307) — records that the student submitted the
   application by hand on the portal (ADR-0159 O10), with the same certificate and port:
   `… pnpm run submission-by-hand <caseId> --by <your name> --at 2026-10-15T14:05:00+01:00 --observed`.

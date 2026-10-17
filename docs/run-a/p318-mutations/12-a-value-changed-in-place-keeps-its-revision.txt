@@ -1,0 +1,15 @@
+mutation 12-a-value-changed-in-place-keeps-its-revision on apps/conversation-service/migrations/0041_a_value_changed_in_place_moves_its_revision.sql
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t minor|mandatory-review guard|hand-back and the walk|not handed to a runner
+exit: 1
+restored byte for byte: True
+
+replaced:
+        NEW.revision := GREATEST(NEW.revision, OLD.revision + 1);
+with:
+        NULL;
+
+   × the mandatory-review guard, now that something drives it > an UPDATE that changes a value in place moves its revision too, whoever writes it (migration 0041) 53ms
+     → a value changed in place: expected 1 to be 2 // Object.is equality
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed | 424 skipped (442)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the mandatory-review guard, now that something drives it > an UPDATE that changes a value in place moves its revision too, whoever writes it (migration 0041)

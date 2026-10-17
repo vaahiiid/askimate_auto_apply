@@ -1,0 +1,15 @@
+mutation 05-a-review-the-case-does-not-wait-on-approved on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t minor|mandatory-review guard|hand-back and the walk|not handed to a runner
+exit: 1
+restored byte for byte: True
+
+replaced:
+      if (mandatory.some((trigger) => !carried.has(trigger))) {
+with:
+      if (false) {
+
+   × the mandatory-review guard, now that something drives it > an approval naming a mandatory review the case does not wait on is refused, and writes nothing 172ms
+     → an adult's case does not wait on a minors review: expected { ok: false, …(2) } to match object { ok: false, pointer: '/triggers' }
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed | 424 skipped (442)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the mandatory-review guard, now that something drives it > an approval naming a mandatory review the case does not wait on is refused, and writes nothing

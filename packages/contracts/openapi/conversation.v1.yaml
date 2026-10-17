@@ -1057,6 +1057,35 @@ paths:
         in: path
         required: true
         schema: { type: string }
+    get:
+      operationId: reviewFor
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: What a reviewer reads before looking — the case's sequence and the reviews it waits on.
+      description: >-
+        P318, ADR-0161 §6. Read BEFORE looking at the content. An approval of a
+        mandatory review names `caseSequence`, and is refused if the trigger was
+        raised again after it — which is what a change the student made while
+        the reviewer looked does. Trigger names and a flag; nothing the student
+        said. Writes nothing.
+      responses:
+        "200":
+          description: The case as it stands, for review.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaseReview" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404":
+          description: No such case.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment drives no runs.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
     post:
       operationId: completeReview
       tags: [internal]
@@ -1073,6 +1102,12 @@ paths:
         call on the internal service credential, so this records who CLAIMED to
         review it. Vahid approved that for the current single-operator model and
         named what ends it — a second specialist existing at all.
+
+        Since P318 an approval of a mandatory review (financial evidence, a
+        minor) covers the content it was raised for, and names `caseSequence`
+        from the GET above; refused with the pointer `/caseSequence` when it is
+        absent, when the trigger was raised again after it, or when the content
+        changed since it was raised (it is then raised again).
       requestBody:
         required: true
         content:
@@ -3875,6 +3910,36 @@ components:
               - unexpected_portal_behaviour
               - information_unobtainable
         notes: { type: string }
+        caseSequence:
+          type: integer
+          minimum: 1
+          description: >-
+            The case's sequence as GET …/review gave it, read before the
+            reviewer looked (P318). Required for an approval of a mandatory
+            review; ignored otherwise.
+
+    CaseReview:
+      type: object
+      additionalProperties: false
+      required: [caseSequence, outstanding]
+      description: >-
+        What a reviewer reads before looking (P318). Names only; nothing the
+        student said.
+      properties:
+        caseSequence: { type: integer, minimum: 1 }
+        outstanding:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [trigger, approvable]
+            properties:
+              trigger: { type: string, enum: [financial_evidence, involves_minor] }
+              approvable:
+                type: boolean
+                description: >-
+                  False while the content has outrun its raising: the next
+                  advance raises it again, and an approval now is refused.
 
     DeletionRequest:
       type: object

@@ -533,7 +533,13 @@ describe("decide — authorisation", () => {
   // content. A shortcut that let the case slide back to
   // AWAITING_STUDENT_AUTHORISATION without the gate would skip that review,
   // which is exactly the check ADR-0002 §2.5 makes unconditional.
-  it("REFUSES to put the case back while a mandatory review is outstanding", () => {
+  it("never puts the case back to the student while a mandatory review is outstanding: it voids, and the case returns to PREPARING (P318)", () => {
+    // Until P318 this void was REFUSED, and the driver dropped the refusal, so
+    // the case kept an authorisation its content had outgrown (ADR-0161 §6, a
+    // refuter's finding). The guard's intent is unchanged: the student is not
+    // asked again until a review has seen the change. The void now happens,
+    // and the case goes back to PREPARING, whose walk forward meets the same
+    // guard and stops for the review.
     const raised = fold(
       buildLog([
         OPENED,
@@ -548,19 +554,115 @@ describe("decide — authorisation", () => {
         },
         { type: "CaseStateChanged", from: "AWAITING_STUDENT_AUTHORISATION", to: "AUTHORISED", reason: "Student authorised." },
         // The correction brought financial evidence into the application.
-        { type: "HumanReviewRequested", triggers: ["financial_evidence"], mandatory: true },
+        { type: "HumanReviewRequested", triggers: ["financial_evidence"], mandatory: true, fingerprints: { financial_evidence: "sha256:funds-1" } },
       ]),
     );
 
     const decision = decide(raised, { kind: "void_authorisation", reason: "content_changed" });
 
+    expect(decision.accepted).toBe(true);
+    if (!decision.accepted) return;
+    expect(decision.events.map((event) => event.type)).toEqual(["AuthorisationVoided", "CaseStateChanged"]);
+    const moved = decision.events[1];
+    expect(moved?.type === "CaseStateChanged" ? [moved.from, moved.to] : []).toEqual(["AUTHORISED", "PREPARING"]);
+    // And the walk forward from there meets the guard: nobody reaches the student.
+    expect(checkTransition("PREPARING", "AWAITING_STUDENT_AUTHORISATION", {
+      activeTriggers: ["financial_evidence"],
+      completedReviews: [],
+      raisedFingerprints: { financial_evidence: "sha256:funds-1" },
+    }).permitted).toBe(false);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0161 §6 — a review covers only the content it reviewed (P318)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17)", () => {
+  const raise = (fingerprint: string | undefined): CaseEventPayload => ({
+    type: "HumanReviewRequested",
+    triggers: ["financial_evidence"],
+    mandatory: true,
+    ...(fingerprint === undefined ? {} : { fingerprints: { financial_evidence: fingerprint } }),
+  });
+  const approve = (covers: string | undefined): CaseEventPayload => ({
+    type: "HumanReviewCompleted",
+    review: {
+      reviewerId: "specialist_amara",
+      reviewedAt: new Date("2026-08-26T11:00:00Z"),
+      triggers: ["financial_evidence"],
+      outcome: "approved",
+      ...(covers === undefined ? {} : { covers: { financial_evidence: covers } }),
+    },
+  });
+  const preparing: readonly CaseEventPayload[] = [
+    OPENED,
+    { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "Gathering requirements." },
+    { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "Filling." },
+  ];
+  const toStudent = (payloads: readonly CaseEventPayload[]): boolean =>
+    decide(fold(buildLog(payloads)), { kind: "transition", to: "AWAITING_STUDENT_AUTHORISATION", reason: "Rendered." }).accepted;
+
+  it("carries the fingerprint on the raising and in the fold", () => {
+    const decision = decide(fold(buildLog(preparing)), { kind: "request_human_review", triggers: ["financial_evidence"], fingerprints: { financial_evidence: "sha256:funds-1" } });
+    expect(decision.accepted).toBe(true);
+    if (!decision.accepted) return;
+    expect(decision.events[0]).toMatchObject({ type: "HumanReviewRequested", fingerprints: { financial_evidence: "sha256:funds-1" } });
+    expect(fold(buildLog([...preparing, raise("sha256:funds-1")])).raisedFingerprints).toEqual({ financial_evidence: "sha256:funds-1" });
+  });
+
+  it("lets the student be asked once a review saw the content the trigger was raised for", () => {
+    expect(toStudent([...preparing, raise("sha256:funds-1"), approve("sha256:funds-1")])).toBe(true);
+  });
+
+  it("does not, once the content changed and the trigger was raised again, though the earlier review approved", () => {
+    const log = [...preparing, raise("sha256:funds-1"), approve("sha256:funds-1"), raise("sha256:funds-2")];
+    expect(fold(buildLog(log)).activeTriggers).toEqual(["financial_evidence"]);
+    expect(toStudent(log)).toBe(false);
+    expect(toStudent([...log, approve("sha256:funds-2")])).toBe(true);
+  });
+
+  it("does not, on an approval that names no fingerprint, or an earlier one", () => {
+    expect(toStudent([...preparing, raise("sha256:funds-1"), approve(undefined)])).toBe(false);
+    expect(toStudent([...preparing, raise("sha256:funds-1"), approve("sha256:funds-0")])).toBe(false);
+    // The fold agrees with the guard: the trigger is still active.
+    expect(fold(buildLog([...preparing, raise("sha256:funds-1"), approve("sha256:funds-0")])).activeTriggers).toEqual(["financial_evidence"]);
+  });
+
+  it("does not, on a trigger raised before this rule with no fingerprint, whatever is approved", () => {
+    expect(toStudent([...preparing, raise(undefined), approve("sha256:funds-1")])).toBe(false);
+  });
+
+  it("refuses the student's approval while a review of the current content is outstanding", () => {
+    // Before P318 capture checked the state only; a trigger raised while the
+    // case already waited on the student would not have stopped the press.
+    const waiting = [
+      ...preparing,
+      { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "Rendered for review." } as const,
+      raise("sha256:funds-2"),
+    ];
+    const decision = decide(fold(buildLog(waiting)), { kind: "capture_authorisation", contentHash: "sha256:v1" });
     expect(decision.accepted).toBe(false);
-    if (!decision.accepted) {
-      expect(decision.refusal.kind).toBe("transition_refused");
-      if (decision.refusal.kind === "transition_refused") {
-        expect(decision.refusal.refusal.kind).toBe("mandatory_review_outstanding");
-      }
+    if (!decision.accepted && decision.refusal.kind === "transition_refused") {
+      expect(decision.refusal.refusal.kind).toBe("mandatory_review_outstanding");
+    } else {
+      expect.fail(`expected a mandatory-review refusal, got ${JSON.stringify(decision)}`);
     }
+  });
+
+  it("refuses submitting while a review of the current content is outstanding", () => {
+    const check = checkTransition("AUTHORISED", "SUBMITTING", {
+      activeTriggers: ["financial_evidence"],
+      completedReviews: [],
+      raisedFingerprints: { financial_evidence: "sha256:funds-2" },
+    });
+    expect(check.permitted).toBe(false);
+    if (!check.permitted) expect(check.refusal.kind).toBe("mandatory_review_outstanding");
+  });
+
+  it("still lets a student stop while a review is outstanding: a stop button with a precondition is not a stop button", () => {
+    const log = fold(buildLog([...preparing, raise("sha256:funds-1")]));
+    expect(decide(log, { kind: "cancel_case", reason: "student_requested" }).accepted).toBe(true);
   });
 });
 
@@ -671,6 +773,7 @@ describe("decide — cancellation", () => {
     const refused = checkTransition("WINDING_DOWN", "CANCELLED", {
       activeTriggers: [],
       completedReviews: [],
+      raisedFingerprints: {},
       outstandingObligations: ["acct_1 on portal.example.ac.uk has not been handed back"],
     });
     expect(refused.permitted).toBe(false);
@@ -745,6 +848,7 @@ describe("decide — cancellation", () => {
     const permitted = checkTransition("WINDING_DOWN", "CANCELLED", {
       activeTriggers: [],
       completedReviews: [],
+      raisedFingerprints: {},
       outstandingObligations: [],
     });
     expect(permitted.permitted).toBe(true);
@@ -1376,6 +1480,7 @@ describe("a submission made by hand (ADR-0159 O10, P307)", () => {
     const check = checkTransition("AUTHORISED", "SUBMITTING", {
       activeTriggers: [],
       completedReviews: [],
+      raisedFingerprints: {},
       authorisedContentHash: "sha256:a",
       preparedContentHash: "sha256:a",
       submittedByHand: true,

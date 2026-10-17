@@ -14,7 +14,7 @@
  * code specifically so that it cannot be forgotten at a call site.
  */
 
-import type { HumanReviewRecord, ReviewTrigger } from "./escalation.js";
+import type { HumanReviewRecord, ReviewFingerprints, ReviewTrigger } from "./escalation.js";
 import { unclearedMandatoryTriggers } from "./escalation.js";
 import type { CaseState } from "./state.js";
 import { isTerminal } from "./state.js";
@@ -131,6 +131,15 @@ export interface GuardContext {
   readonly activeTriggers: readonly ReviewTrigger[];
   /** Every completed human review, in order. */
   readonly completedReviews: readonly HumanReviewRecord[];
+  /**
+   * The fingerprint each mandatory trigger was last raised with (ADR-0161 §6).
+   *
+   * Required, not optional, for the reason `outstandingObligations` gives
+   * (P158): an absent field that a guard reads as "nothing to check" makes the
+   * guard pass for anyone who forgot to supply it. An empty map is a real
+   * answer, and with an active mandatory trigger it refuses.
+   */
+  readonly raisedFingerprints: ReviewFingerprints;
   /** Hash of the content the student authorised, if any. */
   readonly authorisedContentHash?: string;
   /** Hash of the content as currently prepared. */
@@ -223,16 +232,22 @@ export function checkTransition(from: CaseState, to: CaseState, context: GuardCo
   // human EVERY TIME regardless of confidence. Enforced at the gate into
   // student authorisation, because that is the last point before the student is
   // asked to approve real content.
-  if (to === "AWAITING_STUDENT_AUTHORISATION") {
-    const outstanding = unclearedMandatoryTriggers(context.activeTriggers, context.completedReviews);
+  //
+  // And, since P318 (ADR-0161 §6), at the student's approval and at the step
+  // into submitting too. A review now covers only the content it saw, so a
+  // trigger can be raised again for changed content after the case has passed
+  // the first gate; checking only on the way in would let a student approve,
+  // or a run submit, content no review has seen.
+  if (to === "AWAITING_STUDENT_AUTHORISATION" || to === "AUTHORISED" || to === "SUBMITTING") {
+    const outstanding = unclearedMandatoryTriggers(context.activeTriggers, context.completedReviews, context.raisedFingerprints);
     if (outstanding.length > 0) {
       return {
         permitted: false,
         refusal: {
           kind: "mandatory_review_outstanding",
           detail:
-            `This case requires mandatory human review before the student may be asked to ` +
-            `authorise it. Outstanding: ${outstanding.join(", ")}. ` +
+            `This case requires mandatory human review ${to === "SUBMITTING" ? "before it may be submitted" : to === "AUTHORISED" ? "before the student's approval may be taken" : "before the student may be asked to authorise it"}. ` +
+            `Outstanding: ${outstanding.join(", ")}. ` +
             `Confidence does not override this.`,
           triggers: outstanding,
         },

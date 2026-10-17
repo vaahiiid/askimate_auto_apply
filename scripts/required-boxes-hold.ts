@@ -686,17 +686,53 @@ export function report(blueprintId: string, version: string, result: Measured): 
   return lines.join("\n");
 }
 
-/** Every entry the signed catalogue admits, measured: the text the script prints and docs/run-a/p317-required-boxes.txt holds. */
-export async function measureCatalogue(directory: string): Promise<string> {
+/** Every entry the signed catalogue admits, measured. */
+export async function measureCatalogueResults(directory: string): Promise<readonly { readonly blueprintId: string; readonly version: string; readonly measured: Measured }[]> {
   const load = await loadCatalogueDirectory({ directory });
   if (!load.ok) throw new Error(`the catalogue does not load: ${load.problems.map((problem) => problem.detail).join("; ")}`);
-  const lines: string[] = [];
+  const results: { blueprintId: string; version: string; measured: Measured }[] = [];
   for (const item of load.catalogue.inventory()) {
     const entry = await load.catalogue.find(item.blueprintId);
     if (entry === null) continue;
-    lines.push(report(String(item.blueprintId), String(entry.blueprint.version), findingsFor(entry)), "");
+    results.push({ blueprintId: String(item.blueprintId), version: String(entry.blueprint.version), measured: findingsFor(entry) });
   }
-  return `${lines.join("\n")}\n`;
+  return results;
+}
+
+/** The text the script prints, and docs/run-a/p317-required-boxes.txt holds. */
+export function render(results: Awaited<ReturnType<typeof measureCatalogueResults>>): string {
+  return `${results.flatMap((result) => [report(result.blueprintId, result.version, result.measured), ""]).join("\n")}\n`;
+}
+
+export async function measureCatalogue(directory: string): Promise<string> {
+  return render(await measureCatalogueResults(directory));
+}
+
+/**
+ * The lines that break his rule, as keys: `blueprintId|class|field|box|detail`.
+ * A line that holds the rule (the form's own list offered) is not one.
+ */
+export function breakingKeys(blueprintId: string, measured: Pick<Measured, "findings">): ReadonlySet<string> {
+  return new Set(
+    measured.findings
+      .filter((finding) => finding.kind !== "offered_from_the_form_list")
+      .map((finding) => `${blueprintId}|${finding.kind}|${finding.fieldKey}|${finding.box}|${finding.detail}`),
+  );
+}
+
+/**
+ * His test's gate (ADR-0161 §2): a breaking line not on the known list is new
+ * and fails; a known line that no longer occurs was mended and must leave the
+ * list, so it fails too until it does. The list can only shrink.
+ */
+export function gate(current: ReadonlySet<string>, known: readonly { readonly key: string }[]): { readonly unexpected: readonly string[]; readonly gone: readonly string[]; readonly listedTwice: readonly string[] } {
+  const keys = known.map((line) => line.key);
+  const listed = new Set(keys);
+  return {
+    unexpected: [...current].filter((key) => !listed.has(key)).sort(),
+    gone: [...listed].filter((key) => !current.has(key)).sort(),
+    listedTwice: keys.filter((key, index) => keys.indexOf(key) !== index).sort(),
+  };
 }
 
 if (process.argv[1] !== undefined && import.meta.filename === process.argv[1] && process.argv[2] === "--answers") {

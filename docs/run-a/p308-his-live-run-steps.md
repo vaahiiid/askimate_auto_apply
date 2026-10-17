@@ -125,10 +125,19 @@ ADR-0158."* The steps below are today's code.
 7. **If the run stops for the financial-evidence review** ("Before I show you your University of
    Sheffield application to approve, a member of the team needs to check it over…"): you are the
    only reviewer. Whether it is approved is yours to say. Record the review **first** (expect `204`),
-   then resolve the stop with the step-5 command, `--did-not-happen`:
+   then resolve the stop with the step-5 command, `--did-not-happen`. Since 0.311.0 (P318) the
+   review names the case as you read it **before** looking at your answers. Read it, look at every
+   financial answer your profile holds (the preview shows only what the form fills), then approve
+   with the `caseSequence` the read gave (`N` below):
    ```
-   curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:4870/internal/v1/cases/<caseId>/review -H "x-service-cert: browser-runner" -H 'content-type: application/json' -d '{"reviewerId":"Vahid Mohammadi","outcome":"approved","triggers":["financial_evidence"],"notes":"<what you checked>"}'
+   curl -s http://127.0.0.1:4870/internal/v1/cases/<caseId>/review -H "x-service-cert: browser-runner"
+   curl -s -w '\n%{http_code}\n' -X POST http://127.0.0.1:4870/internal/v1/cases/<caseId>/review -H "x-service-cert: browser-runner" -H 'content-type: application/json' -d '{"reviewerId":"Vahid Mohammadi","outcome":"approved","triggers":["financial_evidence"],"notes":"<what you checked>","caseSequence":N}'
    ```
+   A `400` prints its body. `"pointers":["/caseSequence"]` means read again and look again: the
+   answer changed after the read, or the read said `"approvable":false`, which a review from before
+   0.311.0 does (it covers nothing, so the case goes back to review once), and that refused POST has
+   raised the review for your answers as they are now; the next read says `true`. The runbook's
+   mandatory-review bullet lists the other pointers.
    The caseId is on the `case` line of `pnpm run interventions` (step 11).
 
 8. **The preview, the password, the account.** Under page 12 the preview says it is held. Press

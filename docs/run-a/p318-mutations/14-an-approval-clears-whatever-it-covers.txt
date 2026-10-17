@@ -1,0 +1,27 @@
+mutation 14-an-approval-clears-whatever-it-covers on packages/domain/src/escalation.ts
+command: pnpm exec vitest run --project unit packages/domain
+exit: 1
+restored byte for byte: True
+
+replaced:
+review.covers?.[trigger] === fingerprint
+with:
+true
+
+   × a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not, once the content changed and the trigger was raised again, though the earlier review approved 11ms
+     → expected [] to deeply equal [ 'financial_evidence' ]
+   × a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not, on an approval that names no fingerprint, or an earlier one 1ms
+     → expected true to be false // Object.is equality
+   × a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not clear a trigger raised again for changed content, though an earlier review approved it 7ms
+     → expected [] to deeply equal [ 'financial_evidence' ]
+   × a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not let an approval recorded before this rule (no fingerprint) clear anything 1ms
+     → expected [] to deeply equal [ 'financial_evidence' ]
+   × a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not let an approval of one trigger's content clear the other's 1ms
+     → expected [] to deeply equal [ 'involves_minor' ]
+ Test Files  2 failed | 13 passed (15)
+      Tests  5 failed | 403 passed (408)
+ FAIL |unit|  packages/domain/src/escalation.test.ts > a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not clear a trigger raised again for changed content, though an earlier review approved it
+ FAIL |unit|  packages/domain/src/escalation.test.ts > a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not let an approval recorded before this rule (no fingerprint) clear anything
+ FAIL |unit|  packages/domain/src/escalation.test.ts > a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not let an approval of one trigger's content clear the other's
+ FAIL |unit|  packages/domain/src/machine.test.ts > a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not, once the content changed and the trigger was raised again, though the earlier review approved
+ FAIL |unit|  packages/domain/src/machine.test.ts > a review covers only the content it reviewed (ADR-0161 §6, his D3 of 2026-10-17) > does not, on an approval that names no fingerprint, or an earlier one

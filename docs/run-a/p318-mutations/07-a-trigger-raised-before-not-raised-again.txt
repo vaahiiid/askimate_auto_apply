@@ -1,0 +1,15 @@
+mutation 07-a-trigger-raised-before-not-raised-again on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t minor|mandatory-review guard|hand-back and the walk|not handed to a runner
+exit: 1
+restored byte for byte: True
+
+replaced:
+  return [...new Set([...basis.applies, ...outstanding, ...everRaised(held)])].filter(
+with:
+  return [...new Set([...basis.applies, ...outstanding])].filter(
+
+   × a minor's documents after the review (P318) > a reviewed minor's date of birth answered again as an adult's is reviewed again before anything is disclosed on it 226ms
+     → the minors review is raised again, for the date as it is now: expected [] to deeply equal [ { trigger: 'involves_minor', …(1) } ]
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed | 424 skipped (442)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a minor's documents after the review (P318) > a reviewed minor's date of birth answered again as an adult's is reviewed again before anything is disclosed on it

@@ -192,6 +192,20 @@ describe("the in-memory store, as the contract every implementation must meet", 
     );
     expect(loaded.entries.size).toBe(1);
   });
+
+  it("moves the revision on every overwrite, whatever revision the writer gave (ADR-0161 §6, P318)", async () => {
+    // A review covers the content it saw by each answer's revision and the
+    // moment it was confirmed, never its value. A writer that overwrote an
+    // answer at the same revision and time would slip a changed financial
+    // answer past its review; the store makes every overwrite count.
+    const store = new InMemoryConfirmedProfileStore();
+    const write = (value: string): Promise<void> =>
+      store.save(STUDENT, { key: "contact.email", value, provenance: { source: "student_stated", confirmedAt: NOW }, revision: 1 });
+    await write("first@example.test");
+    await write("second@example.test");
+    const loaded = await store.load(STUDENT, NOW);
+    expect(loaded.entries.get("contact.email")?.revision).toBe(2);
+  });
 });
 
 describe("the two date encoders in this repository agree", () => {

@@ -1,0 +1,12 @@
+mutation 13-the-store-overwrites-at-the-revision-given on apps/conversation-service/src/profile-store.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t minor|mandatory-review guard|hand-back and the walk|not handed to a runner
+exit: 0
+restored byte for byte: True
+
+replaced:
+GREATEST(EXCLUDED.revision, profile_entries.revision + 1)
+with:
+EXCLUDED.revision
+
+ Test Files  1 passed (1)
+      Tests  18 passed | 424 skipped (442)

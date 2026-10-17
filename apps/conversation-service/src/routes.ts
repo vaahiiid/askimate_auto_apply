@@ -237,11 +237,17 @@ export interface RunCoordinator {
   claimReading(input: { readonly holder: string; readonly leaseSeconds: number }): Promise<ClaimedReading | null>;
   /** Records what the document gave and seeds the interview's walk from it. `false` when the caller is not the holder. */
   reportReading(input: { readonly documentId: string; readonly report: ReadingReport }): Promise<boolean>;
-  /** Records a specialist's review of a case. ADR-0049 §4. */
+  /** Records a specialist's review of a case. ADR-0049 §4; bound to `caseSequence` since P318. */
   completeReview(input: {
     readonly caseId: CaseId;
     readonly review: HumanReviewRecord;
-  }): Promise<{ readonly ok: true } | { readonly ok: false; readonly detail: string }>;
+    readonly caseSequence?: number;
+  }): Promise<{ readonly ok: true } | { readonly ok: false; readonly detail: string; readonly pointer?: "/caseSequence" | "/triggers" }>;
+  /** What a reviewer reads before looking: the case's sequence and the reviews it waits on (P318). */
+  reviewFor(caseId: CaseId): Promise<{
+    readonly caseSequence: number;
+    readonly outstanding: readonly { readonly trigger: string; readonly approvable: boolean }[];
+  } | null>;
   /** A person records that the application was submitted by hand (ADR-0159 O10, P307). */
   recordSubmissionByHand(input: {
     readonly caseId: CaseId;
@@ -1990,15 +1996,52 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           });
           return;
         }
+        // P318: the case as the reviewer read it, from the GET below, before
+        // they looked. Absent is allowed here and refused by the driver for an
+        // approval of a mandatory review, the one place it binds.
+        const sequenceRaw = (req.body as Record<string, unknown> | null)?.["caseSequence"];
+        if (sequenceRaw !== undefined && !(typeof sequenceRaw === "number" && Number.isInteger(sequenceRaw) && sequenceRaw >= 1)) {
+          problem(res, "validation_failed", { pointers: ["/caseSequence"] });
+          return;
+        }
         const done = await options.runs.completeReview({
           caseId: makeCaseId(String(req.params["caseId"])),
           review,
+          ...(sequenceRaw === undefined ? {} : { caseSequence: sequenceRaw }),
         });
         if (done.ok) {
           res.status(204).end();
           return;
         }
-        problem(res, "validation_failed", { pointers: ["/outcome"] });
+        problem(res, "validation_failed", { pointers: [done.pointer ?? "/outcome"] });
+      })().catch(next);
+    },
+  );
+
+  // ── GET /internal/v1/cases/{caseId}/review ─────────────────────────────
+  //
+  // P318, ADR-0161 §6. What a reviewer reads BEFORE looking at the content:
+  // the case's sequence, which their approval then names, and each mandatory
+  // review the case waits on. Trigger names and a flag; nothing the student
+  // said. A look: it writes nothing.
+  router.get(
+    "/internal/v1/cases/:caseId/review",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const found = await options.runs.reviewFor(makeCaseId(String(req.params["caseId"])));
+        if (found === null) {
+          problem(res, "not_found");
+          return;
+        }
+        res.status(200).json({ caseSequence: found.caseSequence, outstanding: found.outstanding });
       })().catch(next);
     },
   );

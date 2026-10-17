@@ -1,0 +1,15 @@
+ADR-0161, my answers:
+
+D1: approved, phased. First build only what unblocks my run and protects every student: the test with its shrinking list, the review rule (§8 first), the funding stage after "no", and answering a field again. The rest follows in the ADR's order.
+D2: approved. Ask with the form's own words and options. If the funding source box is also required (row 210), ask it too.
+D3: approved.
+D4: build nothing yet. First observe on the live form whether Sheffield truly requires at least one job. If it does and the student has none, tell the student then and there and hand it to a person; never invent an entry.
+D5: where the cause is an incomplete list in the entry (missing countries), fix the entry for my signature rather than burden the student. Only a truly impossible case is told to the student and a person.
+D6: rejected as written. The profile is shared across universities. A shortened value is stored for that application only; the student's full words stay in the profile.
+D7: approved.
+D8: approved.
+D9: approved.
+D10: approved.
+D11: approved with conditions: the saved page is marked for re-fill, the change shows in the final preview, and the page is re-filled before submission. Never after submission.
+
+Where any of my answers differs from your recommendation in the ADR, tell me in one line each before building.

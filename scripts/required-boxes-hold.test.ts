@@ -6,21 +6,23 @@
  * then, never a stop after the plan is complete. A test checks this for every
  * signed entry and every accepted answer."*
  *
- * This is not yet that test. Today the rule does not hold, and these tests say
- * by how much: the saved output is what the checker prints, his run's own case
- * is among it, and the checker is shown to see a box planted on the entry and to
- * lose a finding whose rule is taken off. The gate that fails on any break
- * waits for the build (ADR-0161, proposed).
+ * P318 makes it that test, at his word of 2026-10-17 (ADR-0161 approved, D1:
+ * "the test with its shrinking list"): the gate below fails on any line that
+ * breaks the rule and is not on `scripts/required-boxes-known.ts`, and on any
+ * listed line that no longer occurs. Beside it: the saved output is what the
+ * checker prints, his run's own case is among it, and the checker is shown to
+ * see a box planted on the entry and to lose a finding whose rule is taken off.
  */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { loadCatalogueDirectory } from "@askimate/aas-catalogue";
 
-import { findingsFor, measureCatalogue } from "./required-boxes-hold.js";
+import { breakingKeys, findingsFor, gate, measureCatalogueResults, render } from "./required-boxes-hold.js";
+import { KNOWN_BREAKS } from "./required-boxes-known.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CATALOGUE = join(ROOT, "docs", "run-a", "catalogue");
@@ -58,11 +60,61 @@ const FUNDING = new Set(["finance.funding"]);
 const brokenBy = (result: ReturnType<typeof findingsFor>, fieldKey: string, box: string): readonly string[] =>
   result.findings.filter((finding) => finding.kind === "breaks_a_required_box" && finding.fieldKey === fieldKey && finding.box === box).map((finding) => finding.answer);
 
-describe("P317: the answers the interview accepts, against every box of every signed entry (measured, not yet the rule's gate)", () => {
-  it("the saved output (docs/run-a/p317-required-boxes.txt) is what the checker prints today", async () => {
+let results: Awaited<ReturnType<typeof measureCatalogueResults>> = [];
+
+beforeAll(async () => {
+  results = await measureCatalogueResults(CATALOGUE);
+}, 240_000);
+
+const breakingNow = (): ReadonlySet<string> => new Set(results.flatMap((result) => [...breakingKeys(result.blueprintId, result.measured)]));
+
+describe("P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink", () => {
+  it("is measuring a real catalogue: at least one signed entry, and lines to hold", () => {
+    expect(results.length).toBeGreaterThan(0);
+    expect(KNOWN_BREAKS.length).toBeGreaterThan(0);
+  });
+
+  it("finds no line that breaks the rule and is not on the known list, and no listed line that has stopped occurring", () => {
+    const verdict = gate(breakingNow(), KNOWN_BREAKS);
+    expect(verdict.unexpected, "a line breaks his rule that is not on scripts/required-boxes-known.ts: mend it (a new line cannot be listed, see the next test)").toEqual([]);
+    expect(verdict.gone, "a listed line no longer occurs: it was mended, so take it off scripts/required-boxes-known.ts").toEqual([]);
+    expect(verdict.listedTwice).toEqual([]);
+  });
+
+  it("the list can only shrink: every listed line is one of the 59 P318 listed, so a new break cannot be listed, only mended", () => {
+    // His D1: "the test with its shrinking list". The baseline is the list as
+    // P318 left it, printed from scripts/required-boxes-known.ts by the code,
+    // not typed. A line may leave the list; none may join it. P318's records
+    // reviewer found the first gate let a new break pass by listing it.
+    const baseline = new Set(readFileSync(join(ROOT, "docs", "run-a", "p318-known-breaks.txt"), "utf8").split("\n").filter((line) => line.length > 0));
+    expect(baseline.size).toBe(59);
+    expect(KNOWN_BREAKS.map((line) => line.key).filter((key) => !baseline.has(key)), "a line joined the list after P318: mend the break instead").toEqual([]);
+  });
+
+  it("names what every listed line waits on", () => {
+    expect(KNOWN_BREAKS.filter((line) => line.waits.trim().length < 10)).toEqual([]);
+  });
+
+  it("the gate fails on a planted new line, on a planted mended line, and on a line listed twice", () => {
+    const current = new Set(["e|a", "e|b"]);
+    expect(gate(current, [{ key: "e|a" }, { key: "e|b" }])).toEqual({ unexpected: [], gone: [], listedTwice: [] });
+    expect(gate(new Set([...current, "e|c"]), [{ key: "e|a" }, { key: "e|b" }]).unexpected).toEqual(["e|c"]);
+    expect(gate(new Set(["e|a"]), [{ key: "e|a" }, { key: "e|b" }]).gone).toEqual(["e|b"]);
+    expect(gate(current, [{ key: "e|a" }, { key: "e|b" }, { key: "e|a" }]).listedTwice).toEqual(["e|a"]);
+  });
+
+  it("the gate catches a new break on the real entry: a required box planted on the funding details is a line not on the list", async () => {
+    const planted = findingsFor(withRules(await sheffield(), "fundingDetails", (rules) => [...rules, { kind: "required", source: "specialist_noted" }]), FUNDING);
+    const verdict = gate(breakingKeys("bp-sheffield-pgt-september-direct", planted), KNOWN_BREAKS.filter((line) => line.key.includes("|finance.funding|")));
+    expect(verdict.unexpected).toContain("bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingDetails|maxlength 118");
+  }, 120_000);
+});
+
+describe("P317: the answers the interview accepts, against every box of every signed entry (measured)", () => {
+  it("the saved output (docs/run-a/p317-required-boxes.txt) is what the checker prints today", () => {
     const saved = readFileSync(join(ROOT, "docs", "run-a", "p317-required-boxes.txt"), "utf8");
-    expect(await measureCatalogue(CATALOGUE)).toBe(saved);
-  }, 240_000);
+    expect(render(results)).toBe(saved);
+  });
 
   it("finds his run's case: a no to the funding question leaves Sheffield's required stage empty, after the plan is complete", async () => {
     const result = findingsFor(await sheffield(), FUNDING);

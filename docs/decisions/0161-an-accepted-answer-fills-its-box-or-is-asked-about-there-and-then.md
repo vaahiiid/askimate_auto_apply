@@ -1,15 +1,21 @@
 # ADR-0161 — An answer the interview accepts fills its box or is asked about there and then; a student answers a field again on their own word; a financial answer they change is reviewed again
 
-**Status:** Proposed · written 2026-10-16 (P317) at Vahid's request, for his approval · **nothing
-here is built** · it records three decisions of his, of 2026-10-16, in his own words (row 209,
-the general rule, row 189 (1)) · everything else here is mine, recommended, and not agreed ·
-would amend [ADR-0143](./0143-funding-is-a-closed-vocabulary-and-the-students-own-statement.md)
+**Status:** Accepted · approved by Vahid on 2026-10-17 in his own words, phased (D1: *"approved,
+phased"*), with D2, D4, D5, D6 and D11 answered differently from my recommendations or with
+conditions (see [His answers](#his-answers-2026-10-17)) · written 2026-10-16 (P317) at his request ·
+records three decisions of his of 2026-10-16 and his answers of 2026-10-17, in his own words ·
+everything else here is mine · phase 1 is building from P318: the review rule and the test
+gate in P318, the funding stage after a no and answering a field again after it; the rest
+follows in §8's order · amends [ADR-0143](./0143-funding-is-a-closed-vocabulary-and-the-students-own-statement.md)
 §1 and §3, [ADR-0154](./0154-a-confirmed-answer-can-be-corrected-by-asking.md) as amended in
 P311, [ADR-0148](./0148-the-interview-is-an-ai-asking-not-a-form-read-aloud.md) §4 and §11 (as
 built in P231 and P233), and the reach, not the rule, of
 [ADR-0123](./0123-a-star-is-not-a-requirement-and-a-step-that-cannot-ask-stops-for-a-person.md)
-Decision 2 · keeps the mandatory review of financial evidence and of minors whole, and narrows
-what an approval clears to the content it reviewed
+Decision 2, and, as built in P318, [ADR-0049](./0049-the-run-driver-drives-the-case-machine.md)
+§3 (the triggers are read from the stored profile, not the run's view of it) and §4 (an approval
+of a mandatory review names the case as the reviewer read it, `caseSequence`) · keeps the
+mandatory review of financial evidence and of minors whole, and narrows what an approval clears
+to the content it reviewed
 
 ## His words (2026-10-16)
 
@@ -44,6 +50,62 @@ His decisions, as he typed them, and only these:
 - **The general rule:** item 1 above, in his words.
 - **Row 189 (1):** *"a student may correct their own financial answers in the chat, with playback
   and a press. No person sets a financial answer for a student."*
+
+## His answers (2026-10-17)
+
+Saved whole as sent ([the message](../run-a/p318-his-answers-on-adr-0161-as-sent.txt)):
+
+> *"ADR-0161, my answers:*
+>
+> *D1: approved, phased. First build only what unblocks my run and protects every student: the
+> test with its shrinking list, the review rule (§8 first), the funding stage after "no", and
+> answering a field again. The rest follows in the ADR's order.*
+> *D2: approved. Ask with the form's own words and options. If the funding source box is also
+> required (row 210), ask it too.*
+> *D3: approved.*
+> *D4: build nothing yet. First observe on the live form whether Sheffield truly requires at
+> least one job. If it does and the student has none, tell the student then and there and hand it
+> to a person; never invent an entry.*
+> *D5: where the cause is an incomplete list in the entry (missing countries), fix the entry for
+> my signature rather than burden the student. Only a truly impossible case is told to the
+> student and a person.*
+> *D6: rejected as written. The profile is shared across universities. A shortened value is
+> stored for that application only; the student's full words stay in the profile.*
+> *D7: approved.*
+> *D8: approved.*
+> *D9: approved.*
+> *D10: approved.*
+> *D11: approved with conditions: the saved page is marked for re-fill, the change shows in the
+> final preview, and the page is re-filled before submission. Never after submission.*
+>
+> *Where any of my answers differs from your recommendation in the ADR, tell me in one line each
+> before building."*
+
+The six lines I sent him before building, as they read in my message (mine):
+
+> Six of your answers differ from what ADR-0161 recommended. One line each, before I build:
+>
+> - **D1:** you phase the build. The parts a map needs and text too long for its box now come
+>   after answering a field again; §8 had them before it.
+> - **D2:** I proposed my own words and not asking the funding source. You want the form's own
+>   question and options, and the source asked too if that box is required (row 210 is still
+>   unread).
+> - **D4:** I proposed building the empty-list sentence now. You build nothing until you observe
+>   the live form, and then the case goes to a person, not just a stop.
+> - **D5:** I proposed telling the student and stopping for a person whenever a fact can't fill a
+>   box. You fix the entry for your signature when the cause is a missing country, and keep the
+>   stop for truly impossible cases.
+> - **D6:** I proposed the shorter words replace the longer ones in the profile. You keep the
+>   full words in the profile and store the shorter value for that application only.
+> - **D11:** I proposed only telling the student what the university holds. You add re-filling
+>   the saved page before submission, shown in the final preview, never after. Re-filling a saved
+>   page is the "going back to an earlier portal page" that ADR-0154 §2 calls unmeasured, so it
+>   will need a read before it is built.
+>
+> D3, D7, D8, D9 and D10 match my recommendations.
+
+Where his answer and the sections below differ, his answer stands; the sections are amended
+in place below and say so.
 
 ## Why this is an ADR first
 
@@ -272,11 +334,16 @@ Under §3, a student who answers "no" to *"Do you know yet how your studies will
 asked the stage before the playback, wherever the entry requires it, as Sheffield's does. The
 answer then holds `{ known: false, stage }`.
 
-The words are mine. They are a question about money, so the words are his to approve:
+**Amended by his answer (D2):** *"Ask with the form's own words and options. If the funding
+source box is also required (row 210), ask it too."* So the stage is asked with the form's own
+question and its five options as the entry records them, and the source is asked too when its
+box is required. Whether row 210's reading of his saved page is enough to call it required, or
+whether the source waits for an entry patch, is not in his words: it is below, his. The words I
+had proposed are withdrawn; they were:
 
-> *"You said you do not know yet how your studies will be funded. Sheffield's form still asks how
-> far your funding is arranged. Which is closest — confirmed, applying for a project studentship,
-> applied, applying, or thinking about it?"*
+> ~~*"You said you do not know yet how your studies will be funded. Sheffield's form still asks
+> how far your funding is arranged. Which is closest — confirmed, applying for a project
+> studentship, applied, applying, or thinking about it?"*~~
 
 Three facts belong beside it:
 
@@ -285,8 +352,14 @@ Three facts belong beside it:
   would stop at a hidden box. He chose "not A" as row 209's settlement, and nothing here
   re-proposes it. The read stays where it already was: ADR-0160 §4 step 1, the agent's plan
   after his words of 2026-10-13.
-- **The source is not asked.** The entry marks no rule on the funding source, though his saved
-  page marks it (row 210). The stage is asked; the source is not.
+- **The source.** The signed entry marks no rule on the funding source, though his saved page
+  marks it (row 210). His answer asks it "if the funding source box is also required (row
+  210)". **Open, and his** (it touches money): does row 210's reading of his saved page make it
+  required now, so P319 asks the source on his run, or does it wait for an entry patch he signs?
+  My recommendation: row 210's reading is enough, because his words name row 210, and an entry
+  patch carrying the rule follows for his signature. My first draft of this paragraph read his
+  words as "only where the entry marks it" and did not say the reading was mine; P318's records
+  reviewer caught it. Nothing is built on either reading until he answers.
 - **The review sees it.** A stage held under *No* is a financial answer, and the review of
   financial evidence covers it (§6).
 
@@ -377,6 +450,11 @@ a press. No person sets a financial answer for a student."* So:
 
 ### §8 The order of the build, test-first (P318 onwards)
 
+**Phased by his answer (D1):** *"First build only what unblocks my run and protects every
+student: the test with its shrinking list, the review rule (§8 first), the funding stage after
+"no", and answering a field again. The rest follows in the ADR's order."* So phase 1 is items 1,
+2, the funding stage of item 3, and item 4; the rest of item 3 follows after item 4.
+
 1. **The review covers what it reviewed (§6),** before any new path changes a financial answer.
    A rule that protects the review comes before the paths that would test it.
 2. **The test (§2),** red on today's list, with the validator's option rule.
@@ -390,40 +468,40 @@ a press. No person sets a financial answer for a student."* So:
 
 ## What comes to him
 
-Each of these touches one of his four, so nothing is built on it until he answers. My
-recommendation stands beside each.
+Each of these touches one of his four, so nothing was built on it until he answered. My
+recommendation stands beside each, and his answer of 2026-10-17 after it, in his words.
 
-- **D1. The ADR as a whole.** I recommend he approves it.
+- **D1. The ADR as a whole.** I recommend he approves it. **His answer:** *"approved, phased."*
 - **D2. The stage asked after a no, and its words (§4)** — money. I recommend it, with the words
-  in §4.
+  in §4. **His answer:** *"approved. Ask with the form's own words and options. If the funding source box is also required (row 210), ask it too."*
 - **D3. The review's fingerprint, and old approvals covering nothing (§6)** — money and the
-  review. I recommend both, the minors trigger included.
+  review. I recommend both, the minors trigger included. **His answer:** *"approved."*
 - **D4. An empty list (row 202, §7)** — submitting. I recommend my row-202 recommendation (P315)
-  unchanged, with the sentence said at the "any …?" question.
+  unchanged, with the sentence said at the "any …?" question. **His answer:** *"build nothing yet. First observe on the live form whether Sheffield truly requires at least one job. If it does and the student has none, tell the student then and there and hand it to a person; never invent an entry."*
 - **D5. A fact the student cannot change (§3 case 4)** — submitting. I recommend that the
-  student is told at the answer and the case stops there for a person, with the reason named.
+  student is told at the answer and the case stops there for a person, with the reason named. **His answer:** *"where the cause is an incomplete list in the entry (missing countries), fix the entry for my signature rather than burden the student. Only a truly impossible case is told to the student and a person."*
 - **D6. Shorter words replacing longer ones in the profile (§7)** — personal data. I recommend
   the student's restated words, played back and pressed, replace the longer answer, so one
-  answer serves every form.
+  answer serves every form. **His answer:** *"rejected as written. The profile is shared across universities. A shortened value is stored for that application only; the student's full words stay in the profile."*
 - **D7. The scholarship's and the countries' offers (§7)** — money, and personal data. I
-  recommend the form's own list, with its escape.
+  recommend the form's own list, with its escape. **His answer:** *"approved."*
 - **D8. The validator's option rule (§2, row 213).** It changes when such a run stops, which I
-  read as touching submitting. I recommend it.
+  read as touching submitting. I recommend it. **His answer:** *"approved."*
 - **D9. A UK postcode asked again with the shape the map reads (§7).** It changes what is held of
-  the student's address, which is personal data. I recommend it.
+  the student's address, which is personal data. I recommend it. **His answer:** *"approved."*
 - **D10. §3's two moments.** Checked before the playback, and when a case begins. The second
   asks a student again about an answer they gave for another application, which changes what
-  is collected. I recommend both.
+  is collected. I recommend both. **His answer:** *"approved."*
 - **D11. A field answered again after its page is saved (§5).** A person reopens it, and the
   student answers in the chat. This reaches past ADR-0154 §2's *"Do not reach further yet"*. It
   touches personal data and the submission, because the university already holds the old
   value. I recommend it, with the student told, as today, what the university holds and on
-  which page.
+  which page. **His answer:** *"approved with conditions: the saved page is marked for re-fill, the change shows in the final preview, and the page is re-filled before submission. Never after submission."*
 
 ## Applied under his rule of 2026-10-14 (recorded as mine)
 
-These do not touch his four, so they are mine to apply under his rule of 2026-10-14. They sit in
-a proposed ADR, so none is built or in force until D1 is answered. Each is recorded as my choice,
+These do not touch his four, so they are mine to apply under his rule of 2026-10-14. They took
+effect with his D1 of 2026-10-17 and are built in its phases. Each is recorded as my choice,
 never as his:
 
 - The definition of holding the rule in §1.
@@ -433,6 +511,165 @@ never as his:
 Where an item could be read either way, I read it as touching his four. That is the reading of
 his rule written in P308 (mine, not his words), which says to do so when in doubt. That is why D8
 to D10 are his.
+
+## As built, phase 1 (P318)
+
+Built test-first in P318, the first two items of §8 at his D1. Each choice below that goes
+beyond his words is mine, recorded as mine. Three of them depart from §6 as he approved it and
+touch what his rule of 2026-10-14 sends to him first; they were built before asking him, which
+that rule says must not happen. That is my error, and each is row 214, undecided until he
+answers.
+
+**The review covers only the content it reviewed (§6, his D3).**
+
+- **What a raising and a review carry.** A raising of a mandatory trigger carries a fingerprint
+  of the content it stands on (`HumanReviewRequested.fingerprints`). A review carries the
+  fingerprint of what it saw (`HumanReviewRecord.covers`).
+- **When an approval clears.** Only when the two match (`unclearedMandatoryTriggers`, the fold,
+  and the guard, which share one rule). An approval with no fingerprint, or a raising with none,
+  clears nothing; that covers every approval recorded before P318, as §6 says.
+- **What the fingerprint is made of: each answer's revision and the moment it was confirmed,
+  never its value** (`reviewFingerprintsOf`). §6 as approved names *"the stored financial answers
+  and their revisions"*; I built it without the values, so that the case log, which is
+  append-only, holds nothing of what the student said. A date of birth hashed alone could be
+  recovered by trying every date, as a mapper found. **Departs from §6; row 214 (3).** Content
+  that is gone fingerprints too, over an empty list, so every raising carries one an approval can
+  match.
+- **Read from the stored profile, at the moment it is needed.** One reading (`#reviewBasis`)
+  serves the raising, the take-back, the locks, disclosure and the review. It reads the stored
+  profile, not the run's view of it, which hides a field a portal demand or a CV reading has
+  reopened. And it reads it fresh, so a decide holding an older profile cannot raise the older
+  content again after another raised the new. This changes ADR-0049 §3 as built.
+- **Every change to a value moves its revision.** Both profile stores move it on every
+  overwrite, whatever revision the writer gave. Migration 0041 makes the table move it for any
+  UPDATE that changes a value or its provenance in place, whoever writes it, and lets no UPDATE
+  lower it. 0028 was such a write, and a hand-written statement would be another. It fails
+  closed: a rewrite of a value's format alone sends a reviewed answer back to review. It does not
+  cover a row deleted and written again, which fires no UPDATE; nothing in the application does
+  that.
+- **A review names the case as the reviewer read it** (mine; **departs from §6, row 214 (4)**).
+  `GET /internal/v1/cases/{caseId}/review` gives the case's sequence and the reviews it waits on,
+  by name. The reviewer reads it before looking at the content, and an approval of a mandatory
+  review names that sequence (`caseSequence`), which changes ADR-0049 §4. The approval covers the
+  fingerprint the trigger was raised for, and is refused:
+  - with `/triggers`, writing nothing, when the case does not wait on that review and was never
+    raised for it (an adult's case approved for "a minor" by a slip);
+  - with `/caseSequence`, when it names no reading, or the trigger was raised or reviewed again
+    after the reading (a change the student made while the reviewer looked, or a rejection
+    recorded after it);
+  - with `/caseSequence`, when the content changed since it was raised; it is raised there and
+    then, for the content as it is.
+  What it holds is an honest reviewer's order of work (read, look, approve). It does not prove a
+  look, and a reading of one case posted to another is not refused: nothing ties the number to a
+  case.
+- **Raised again for the content as it stands.** Each trigger that applies, each still
+  outstanding, and each the case was ever raised for, whose raised fingerprint is not the
+  content's own. The last two whether or not the trigger still applies: a raising from before
+  P318 carries no fingerprint and could never be cleared, and a reviewed minor whose date of birth
+  is answered again as an adult's no longer "applies", though that date is exactly what no person
+  has seen.
+- **The order after the student's yes** (**departs from §6, row 214 (5)**). §6 says "the
+  authorisation is voided first and the trigger reopened after". The reviews of the plan showed
+  that order leaves the case waiting on the student with the review outstanding, where the
+  student's approval was not guarded. As built:
+  - The trigger is raised for the changed content.
+  - Then, on every decide while a review is outstanding, an authorised case is voided and goes
+    back to PREPARING; the domain does this when the guard into authorisation refuses. A case
+    waiting on the student is moved back to PREPARING.
+  - The walk forward then meets the guard and stops for the review.
+  - The hand-back is its own step on every decide; an append another request beat is read again
+    rather than thrown.
+- **The account's hand-back is not held.** While the run owes the student their portal account
+  (ADR-0050), a review raised does not take the case back or stop the run, so the hand-back is
+  asked for; the review gates the student's next yes, and every fill.
+- **AUTHORISED is reached by the student's yes, never by a walk.** A step that targets
+  AUTHORISED before the student is asked again (the account's hand-over) used to walk a voided
+  case there by a plain transition, with no authorisation on it, and the student's later yes was
+  refused for ever. The walk now stops before AUTHORISED unless an authorisation was captured.
+- **The guard, and the locks.** The guard runs at the student's approval and at the step into
+  submitting, as well as on the way into authorisation. No fill (execute work) is handed to a
+  runner, and no document handed over to one, while a review of the content as it now stands is
+  outstanding, a change no decide has raised included; a run with no case log is handed no fill.
+  The account's creation and a sign-in carry no answer a review covers and are not held. The
+  guards read the case's raisings, so a change no decide has raised is caught by the yes (raised
+  first, below) and by these locks; a press of the final submit, when it is built (ADR-0159),
+  must carry the same live check.
+- **The student's yes after a change no decide has raised.** The change is raised first, by the
+  advance every decide makes, which stops the run for the review; the domain then refuses the
+  yes. A yes refused while the case holds a review is named "a person is checking" whatever the
+  run's status. If the raising could not land (eight lost races), the yes is not weighed at all
+  and the request fails. P318's first build refused the yes in the coordinator before the domain,
+  which P11 recorded must not happen, and said "a person is checking" before anyone was asked.
+- **A minor is still a minor after the review.** Disclosure reads a minor's conditions as not
+  yet determined and refuses (ADR-0011). P318's first build read that from the outstanding
+  triggers, which an approval now empties, so a reviewed minor's passport was handed to the
+  runner as an adult's. Found by P318's regression refuter before anything was committed. Now a
+  minor is one while the stored date of birth says so or the trigger is outstanding: the same
+  outcome as before P318, by a different reading (the stored profile, not the run's view).
+- **What is untouched, and what changed.** The case binding at the transmission gate
+  (`mayTransmit`) and the comparison of the authorisation's content hash are not changed. The
+  authorisation's lifecycle is: a void now also moves the case to PREPARING when the guard
+  refuses, the capture runs the guard, and the walk reads whether a hash was captured. Each makes
+  the gate stricter.
+- **Not built, and open:**
+  - An approval followed by a rejection of the same trigger still stands, as before P318. A
+    rejection followed by an approval made on an older reading is refused.
+  - The minors fingerprint covers the date of birth only, as §6 says: row 214 (1), his.
+  - One funding answer changed sends every one of the student's applications back to review,
+    including a portal that never fills a financial field: row 214 (2), his.
+  - A case in AWAITING_HANDOFF, AWAITING_SPECIALIST_RECOVERY or SUBMITTING is not taken back.
+    Nothing in the application reaches those states today.
+  - A choice from a form's own list (P290) on a box filled from a financial answer is not in the
+    fingerprint. No signed entry offers one: `scripts/a-financial-choice-waits-for-the-review.test.ts`
+    fails when one first does, which his D7 will bring.
+  - After a take-back of a case already filled, the student is told the pre-fill sentence again
+    ("approving it lets me fill the form in for you"), and the stop's own sentence speaks of
+    approving before anything is shown. Reachable today only for a case holding an approval from
+    before P318. Mine to mend, with a test, after phase 1: row 214 (7).
+- **What it does to cases now in flight.** Every case that holds an approval from before P318
+  goes back to review on its next decide, because that approval covers nothing; an authorised
+  one is voided first. His live case, if it holds one, is among them; the read before the review
+  says `"approvable":false` for it until the raising is made again, and his live-run steps say so.
+
+**The rule's test, with its shrinking list (§2).**
+
+- **The gate.** `scripts/required-boxes-hold.test.ts` fails on any line that breaks the rule
+  and is not on `scripts/required-boxes-known.ts`, and on any listed line that no longer occurs.
+- **The list can only shrink.** It holds the 59 lines P318 found, each named with the row or
+  answer of his it waits on (mine), and the test fails on any listed line that is not one of
+  those 59 (`docs/run-a/p318-known-breaks.txt`, printed from the list by the code). So a new break
+  cannot be listed, only mended. The first gate let a new break pass by listing it, which P318's
+  records reviewer found.
+- **Whose words.** His D4 names jobs; the twelve qualification lines rest on his "build nothing
+  yet" and nothing more. Two lines call a case "truly impossible" in my reading of his D5.
+- **Checked both ways.** The gate was made to fail both ways on purpose: a line missing from the
+  list, and a listed line that does not occur (mutations 15 and 16 below).
+
+**What the reviews found (P318).** Two refuters read the first build; then three reviewers read
+the fixes, one each for a way past the review, a regression and the records, and each finding
+they did not rate low (every finding, for the records) went to another reviewer who tried to
+refute it. Nothing weakened the case binding at the transmission gate or the authorisation
+content hash. The first pair found nine things. The three found twenty-eight more: the sixteen
+put to a refuter were each confirmed real, four of them at a lower severity, and the twelve rated
+low by the way-past and regression reviewers were put to none (`docs/run-a/p318-review-findings.txt`,
+printed from the review's own journal). Each is fixed above, or is an open line above, or is row 214. Among them:
+
+- a reviewed minor's documents disclosed as an adult's (a regression: the first build weakened
+  the minors category until it was fixed, before any commit);
+- an approval covering content changed while the reviewer looked;
+- a raising from before P318, and a minor turned adult, never raised again;
+- a voided case walked to AUTHORISED at the account's hand-over, and the hand-back held behind
+  a review;
+- "a person is checking" said before anyone was asked;
+- three departures from §6 built without asking him (row 214 (3) to (5)), and his D2 on the
+  funding source narrowed in my words without saying so (now row 214 (6));
+- records that said more than the code: "no page" where only fills were held, "the list can only
+  shrink" where it could grow, and row 189's decision called built where only its review half is.
+
+**Mutations.** Eighteen, each run on the finished tree, are in `docs/run-a/p318-mutations/`:
+seventeen killed, and one survived. That one (13) took out the store's own rule that an overwrite
+moves the revision; migration 0041 does the same for the store's upsert, so no test sees the
+store's rule alone.
 
 ## What the refuters found (P317)
 

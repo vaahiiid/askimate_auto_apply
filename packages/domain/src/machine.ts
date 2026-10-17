@@ -15,8 +15,8 @@
  * could make historical cases unreadable.
  */
 
-import type { HumanReviewRecord, ReviewTrigger } from "./escalation.js";
-import { isMandatory } from "./escalation.js";
+import type { HumanReviewRecord, MandatoryReviewTrigger, ReviewFingerprints, ReviewTrigger } from "./escalation.js";
+import { isMandatory, unclearedMandatoryTriggers } from "./escalation.js";
 import type {
   CaseEvent,
   CaseEventPayload,
@@ -75,6 +75,8 @@ export interface ApplicationCase {
   readonly tasks: readonly Task[];
   readonly activeTriggers: readonly ReviewTrigger[];
   readonly completedReviews: readonly HumanReviewRecord[];
+  /** The fingerprint each mandatory trigger was last raised with (ADR-0161 §6, P318). */
+  readonly raisedFingerprints: ReviewFingerprints;
   readonly authorisedContentHash?: string;
   readonly preparedContentHash?: string;
   /** True once a submission has been attempted with the current identity. */
@@ -192,6 +194,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   const tasks = new Map<string, Task>();
   const activeTriggers = new Set<ReviewTrigger>();
   const completedReviews: HumanReviewRecord[] = [];
+  const raisedFingerprints: Partial<Record<MandatoryReviewTrigger, string>> = {};
 
   let expectedSequence = 1;
 
@@ -246,16 +249,34 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
       }
 
       case "HumanReviewRequested":
-        for (const trigger of event.triggers) activeTriggers.add(trigger);
+        for (const trigger of event.triggers) {
+          activeTriggers.add(trigger);
+          if (!isMandatory(trigger)) continue;
+          // The latest raising names the content a review must have seen
+          // (ADR-0161 §6). One without a fingerprint, from before P318, names
+          // none, and nothing can clear it until it is raised again with one.
+          const fingerprint = event.fingerprints?.[trigger];
+          if (fingerprint === undefined) delete raisedFingerprints[trigger];
+          else raisedFingerprints[trigger] = fingerprint;
+        }
         break;
 
       case "HumanReviewCompleted":
         completedReviews.push(event.review);
         // Only an approving review clears its triggers. A rejection or a
         // request for changes leaves them standing, so the work goes round
-        // again rather than slipping through.
+        // again rather than slipping through. And a mandatory trigger is
+        // cleared only by an approval of the content it was last raised for
+        // (ADR-0161 §6): what the guard checks, the fold agrees with.
         if (event.review.outcome === "approved") {
-          for (const trigger of event.review.triggers) activeTriggers.delete(trigger);
+          for (const trigger of event.review.triggers) {
+            if (!isMandatory(trigger)) {
+              activeTriggers.delete(trigger);
+              continue;
+            }
+            const raised = raisedFingerprints[trigger];
+            if (raised !== undefined && event.review.covers?.[trigger] === raised) activeTriggers.delete(trigger);
+          }
         }
         break;
 
@@ -402,7 +423,17 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     requestEvidence: first.requestEvidence,
     sequence: last.sequence,
     tasks: [...tasks.values()],
-    activeTriggers: [...activeTriggers],
+    // A mandatory trigger is active exactly when the guard would hold it
+    // (ADR-0161 §6): raised, and not approved for the content it was last
+    // raised for. One rule, so the fold and the guard agree. It is NOT what
+    // says whether an applicant is a minor: a review clears the trigger, not
+    // the minority, and disclosure reads the stored date of birth as well, so
+    // a reviewed minor's documents stay refused (ADR-0011; P318 found a first
+    // build that read this list alone and handed a minor's passport over).
+    activeTriggers: [...activeTriggers].filter(
+      (trigger) => !isMandatory(trigger) || unclearedMandatoryTriggers([trigger], completedReviews, raisedFingerprints).length > 0,
+    ),
+    raisedFingerprints: { ...raisedFingerprints },
     raisedHandoffs,
     completedHandoffs,
     declinedHandoffs,
@@ -457,7 +488,12 @@ export type CaseIntent =
     }
   | { readonly kind: "raise_task"; readonly taskId: string; readonly taskKind: TaskKind; readonly description: string; readonly blocksProgress: boolean }
   | { readonly kind: "complete_task"; readonly taskId: string; readonly outcome: "done" | "cancelled" | "superseded" }
-  | { readonly kind: "request_human_review"; readonly triggers: readonly ReviewTrigger[] }
+  | {
+      readonly kind: "request_human_review";
+      readonly triggers: readonly ReviewTrigger[];
+      /** The content that raised each mandatory trigger, fingerprinted by the service (ADR-0161 §6). */
+      readonly fingerprints?: ReviewFingerprints;
+    }
   | { readonly kind: "complete_human_review"; readonly review: HumanReviewRecord }
   | {
       readonly kind: "require_handoff";
@@ -534,6 +570,7 @@ function guardContextOf(applicationCase: ApplicationCase): GuardContext {
   return {
     activeTriggers: applicationCase.activeTriggers,
     completedReviews: applicationCase.completedReviews,
+    raisedFingerprints: applicationCase.raisedFingerprints,
     ...(applicationCase.authorisedContentHash !== undefined
       ? { authorisedContentHash: applicationCase.authorisedContentHash }
       : {}),
@@ -657,6 +694,7 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
             type: "HumanReviewRequested",
             triggers: intent.triggers,
             mandatory: intent.triggers.some(isMandatory),
+            ...(intent.fingerprints === undefined ? {} : { fingerprints: intent.fingerprints }),
           },
         ],
       };
@@ -842,6 +880,15 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
           },
         };
       }
+      {
+        // Through the guard, since P318 (ADR-0161 §6): a mandatory trigger
+        // raised again for changed content while the case waited on the
+        // student must stop their approval, not only the way in.
+        const approving = checkTransition(applicationCase.state, "AUTHORISED", guardContextOf(applicationCase));
+        if (!approving.permitted) {
+          return { accepted: false, refusal: { kind: "transition_refused", refusal: approving.refusal } };
+        }
+      }
       return {
         accepted: true,
         events: [
@@ -892,6 +939,30 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
         "AWAITING_STUDENT_AUTHORISATION",
         guardContextOf(applicationCase),
       );
+      if (!back.permitted && back.refusal.kind === "mandatory_review_outstanding") {
+        // ADR-0161 §6, P318. Until P318 this refusal left the case AUTHORISED
+        // with an authorisation its content had outgrown, and the driver did
+        // not act on the refusal. The student must not be asked again before a
+        // review has seen the change, and the old approval must not stand: so
+        // the void happens, and the case goes back to PREPARING, whose walk
+        // forward meets the same guard and stops for the review.
+        const preparing = checkTransition(applicationCase.state, "PREPARING", guardContextOf(applicationCase));
+        if (!preparing.permitted) {
+          return { accepted: false, refusal: { kind: "transition_refused", refusal: preparing.refusal } };
+        }
+        return {
+          accepted: true,
+          events: [
+            voided,
+            {
+              type: "CaseStateChanged",
+              from: applicationCase.state,
+              to: "PREPARING",
+              reason: `The approved content changed (${intent.reason}); a mandatory review must see it before the student is asked again.`,
+            },
+          ],
+        };
+      }
       if (!back.permitted) {
         return { accepted: false, refusal: { kind: "transition_refused", refusal: back.refusal } };
       }

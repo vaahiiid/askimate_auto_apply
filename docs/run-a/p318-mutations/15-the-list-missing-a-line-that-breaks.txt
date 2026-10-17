@@ -1,0 +1,15 @@
+mutation 15-the-list-missing-a-line-that-breaks on scripts/required-boxes-known.ts
+command: pnpm exec vitest run --project unit scripts/required-boxes-hold.test.ts
+exit: 1
+restored byte for byte: True
+
+replaced:
+  ["breaks_a_required_box|finance.funding|fundingStage|required", "row 209 and his D2: the stage asked after a no, with the form's own words and options; phase 1 (P319)"],
+with:
+(nothing)
+
+   × P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > finds no line that breaks the rule and is not on the known list, and no listed line that has stopped occurring 12ms
+     → a line breaks his rule that is not on scripts/required-boxes-known.ts: mend it (a new line cannot be listed, see the next test): expected [ Array(1) ] to deeply equal []
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P318: his rule's test — every signed entry, every accepted answer, and a list that can only shrink > finds no line that breaks the rule and is not on the known list, and no listed line that has stopped occurring

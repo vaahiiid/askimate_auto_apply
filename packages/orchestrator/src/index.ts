@@ -24,6 +24,7 @@ export {
   awaitsStudentAuthorisation,
   beginRun,
   handoffFor,
+  handsTheAccountBack,
   interviewActionOf,
   handoffMessageOf,
   handoffTokenFor,

@@ -4906,6 +4906,52 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P318 — a review covers only what it reviewed, and his rule's test is a gate
+
+*2026-10-17.* His answers on ADR-0161 (`docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt`)
+accepted it, phased: *"First build only what unblocks my run and protects every student: the
+test with its shrinking list, the review rule (§8 first), the funding stage after "no", and
+answering a field again."* Six of his answers differ from what I recommended (D1, D2, D4, D5, D6
+and D11); I told him each in one line before building, as he asked, and the ADR records them as
+sent. This phase built the first two items.
+
+**A review covers only what it reviewed.** Until now an approving review cleared the financial
+or minors trigger for good, so an answer changed after it was never seen again: row 189 (1).
+Now a raising carries a fingerprint of the content it stands on, and an approval covers that
+fingerprint and clears only while the content is unchanged. A change afterwards is raised again,
+a minor's date of birth answered again as an adult's included; an authorised case is voided and
+goes back to preparing; and the student is asked again only after a person has reviewed what is
+there now. No fill and no document reaches a runner meanwhile, but the student's portal account
+is still handed back. A reviewer now reads the case before looking (`GET
+/internal/v1/cases/{caseId}/review`, new), and the approval names that reading, so an answer the
+student changes while the reviewer looks is not approved unseen; his live-run steps and the
+runbook carry the new order. Migration 0041 makes the database move an answer's revision on any
+change in place, which the fingerprint relies on. Every approval recorded before today covers
+nothing, so a case holding one goes back to review on its next decide; his live case, if it holds
+one, is among them.
+
+Three of those choices depart from §6 as he approved it: the fingerprint holds no value, the
+approval is bound to the reviewer's reading, and the trigger is raised before the authorisation
+is voided. Each touches what his rule of 2026-10-14 sends to him first, and I built them before
+asking. That was my error; they are row 214, undecided until he answers, with the funding source
+under his D2, which my first draft narrowed in my own words.
+
+The build was read twice before it was committed. The worst finding was mine: the first build
+handed a reviewed minor's passport to the runner as an adult's, because it read "a minor" from the
+triggers an approval now clears. That would have weakened one of his mandatory-review
+categories. It is fixed, and a test drives a reviewed minor's run to the passport and sees it
+refused. Every other finding is fixed or recorded (`docs/run-a/p318-review-findings.txt`), and
+eighteen mutations of the finished change are kept: seventeen killed, one survived, with why.
+
+**His rule's test is a gate.** It fails on any line that breaks the rule and is not on the list,
+on any listed line that no longer occurs, and on any listed line that is not one of the 59 this
+phase found, so a new break can only be mended. Each line names what it waits on. The funding
+stage after a no, the next phase, takes its line off.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P317 — his rule measured, and proposed as ADR-0161
 
 *2026-10-16.* His message (`docs/run-a/p317-his-message-as-sent.txt`) settled row 209 in his

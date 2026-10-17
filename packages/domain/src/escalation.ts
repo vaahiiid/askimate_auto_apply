@@ -108,30 +108,62 @@ export interface HumanReviewRecord {
   readonly triggers: readonly ReviewTrigger[];
   readonly outcome: "approved" | "rejected" | "changes_requested";
   readonly notes?: string;
+  /**
+   * What this review saw, per mandatory trigger: the fingerprint of the content
+   * that raised it, computed by the service from the student's profile at the
+   * moment the review is recorded, never typed by the reviewer (ADR-0161 §6,
+   * approved by Vahid on 2026-10-17: "D3: approved.").
+   *
+   * An approval clears a mandatory trigger only while this matches the
+   * fingerprint the trigger was last raised with. Absent on every review
+   * recorded before P318, and absent covers nothing: such an approval saw
+   * content nobody can now name, so it cannot stand for content that may have
+   * changed since.
+   */
+  readonly covers?: ReviewFingerprints;
 }
 
 /**
+ * The fingerprint of the content each mandatory trigger was raised for (ADR-0161 §6).
+ *
+ * Opaque strings, compared for equality only. The service builds them from
+ * each answer's revision and the moment it was confirmed, never from the
+ * answer's value, so the case log that carries them holds nothing of what the
+ * student said (a date of birth hashed alone could be recovered by trying
+ * every date).
+ */
+export type ReviewFingerprints = Readonly<Partial<Record<MandatoryReviewTrigger, string>>>;
+
+/**
  * Returns the mandatory triggers that have not yet been cleared by a completed,
- * approving human review.
+ * approving human review of the content they were last raised for.
  *
  * A non-empty result means the case may NOT advance to student authorisation,
  * whatever its confidence score. Called from the transition guard rather than
  * from application code, so it cannot be forgotten at a call site.
+ *
+ * `raised` is the fingerprint each mandatory trigger was last raised with
+ * (ADR-0161 §6). Until P318 any approval ever recorded cleared a trigger for
+ * good, so a financial answer changed after its review was never reviewed again
+ * (row 189 (1)). Now an approval clears a trigger only when it saw that very
+ * content; a trigger raised with no fingerprint cannot be cleared by any
+ * approval, and is raised again with one.
  */
 export function unclearedMandatoryTriggers(
   active: readonly ReviewTrigger[],
   reviews: readonly HumanReviewRecord[],
+  raised: ReviewFingerprints,
 ): readonly MandatoryReviewTrigger[] {
   const mandatory = active.filter(isMandatory);
   if (mandatory.length === 0) return [];
 
-  const cleared = new Set<ReviewTrigger>();
-  for (const review of reviews) {
+  return mandatory.filter((trigger) => {
+    const fingerprint = raised[trigger];
+    if (fingerprint === undefined) return true;
     // Only an approving review clears a trigger. "changes_requested" and
     // "rejected" leave it standing — the work goes back round.
-    if (review.outcome !== "approved") continue;
-    for (const trigger of review.triggers) cleared.add(trigger);
-  }
-
-  return mandatory.filter((trigger) => !cleared.has(trigger));
+    return !reviews.some(
+      (review) => review.outcome === "approved" && review.triggers.includes(trigger) && review.covers?.[trigger] === fingerprint,
+    );
+  });
 }

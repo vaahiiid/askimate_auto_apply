@@ -80,6 +80,7 @@ export {
 export type {
   DiscretionaryReviewTrigger,
   HumanReviewRecord,
+  ReviewFingerprints,
   MandatoryReviewTrigger,
   ReviewTrigger,
 } from "./escalation.js";

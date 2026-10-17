@@ -16,7 +16,7 @@
  * invites code that treats it as one.
  */
 
-import type { HumanReviewRecord, ReviewTrigger } from "./escalation.js";
+import type { HumanReviewRecord, ReviewFingerprints, ReviewTrigger } from "./escalation.js";
 import type { BlueprintVersion, CaseId, EventId, ExternalRef, InterventionId, TaskId } from "./ids.js";
 import type { ReusabilityAssessment } from "./learning.js";
 import type { RecoveryEscalation, RecoveryResolution } from "./recovery.js";
@@ -180,6 +180,14 @@ export interface HumanReviewRequested {
    * re-deriving the rule that produced it.
    */
   readonly mandatory: boolean;
+  /**
+   * The fingerprint of the content that raised each mandatory trigger
+   * (ADR-0161 §6, his "D3: approved." of 2026-10-17). An approval clears the
+   * trigger only if it saw this very content, and a change raises it again
+   * with a new one. Absent on raisings recorded before P318, which no approval
+   * can clear: the driver raises them again with a fingerprint.
+   */
+  readonly fingerprints?: ReviewFingerprints;
 }
 
 /** A human review concluded. */

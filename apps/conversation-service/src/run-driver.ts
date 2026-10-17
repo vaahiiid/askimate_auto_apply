@@ -85,6 +85,8 @@ import {
   runId as makeRunId,
   stamp,
   studentId as makeStudentId,
+  isMandatory,
+  unclearedMandatoryTriggers,
   unwrapConfirmed,
 } from "@askimate/aas-domain";
 import type {
@@ -153,6 +155,7 @@ import {
   awaitsStudentAuthorisation,
   beginRun,
   handoffFor,
+  handsTheAccountBack,
   handoffMessageOf,
   interviewActionOf,
   pageAttachmentsOf,
@@ -4626,7 +4629,11 @@ export class RunDriver {
     // instant and both walk the case. The loop re-reads every iteration, so a
     // lost race is not an error to surface — the winner made the hop and this
     // caller finds it already made. Bounded rather than unbounded so a genuine
-    // repeated conflict fails loudly instead of spinning.
+    // repeated conflict does not spin: after eight passes it stops walking and
+    // answers as a walk that got as far as it could, and the next decide carries
+    // on. (P318's review read the earlier wording, "fails loudly", as more than
+    // this does.) A raising that never landed is caught where it matters, at
+    // the student's yes and at every fill.
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const events = await this.#options.stores.cases.read(input.caseId);
       if (events.length === 0) return { ok: true };
@@ -4643,9 +4650,27 @@ export class RunDriver {
       // can see coming.
       const raised = await this.#raiseMandatoryTriggers(held, input);
       if (raised) continue;
+      // The account is the student's, owed back whatever a review waits on
+      // (ADR-0050): while it is, a review raised does not take the case back
+      // or stop the run, so the hand-back is asked for. The review gates the
+      // student's next yes, and every fill, as everywhere else (P318).
+      if (handsTheAccountBack(input.step) && unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints).length > 0) {
+        return { ok: true };
+      }
+      // And a case standing with the student, or authorised, while a review of
+      // its content is outstanding goes back to PREPARING first (ADR-0161 §6).
+      const takenBack = await this.#takeBackFromTheStudent(held, input);
+      if (takenBack) continue;
 
       const hop = nextCaseHop(held.state, target);
       if (hop === null) return { ok: true };
+      // AUTHORISED is reached by the student's captured authorisation, never
+      // by a walk (P318). A step that targets it before the student has said
+      // yes, as the account's hand-over does, used to walk the case there with
+      // no authorisation on it, and the student's later yes was then refused
+      // for ever: capture needs AWAITING_STUDENT_AUTHORISATION, and a void
+      // needs a hash. The take-back made that reachable.
+      if (hop === "AUTHORISED" && held.authorisedContentHash === undefined) return { ok: true };
 
       const decision = decide(held, {
         kind: "transition",
@@ -4722,15 +4747,124 @@ export class RunDriver {
       readonly now: Date;
     },
   ): Promise<boolean> {
-    const wanted = mandatoryTriggersOf(input.state, input.now).filter(
-      (trigger) => !held.activeTriggers.includes(trigger),
-    );
+    // ADR-0161 §6 (P318, his "D3: approved."): a trigger is raised for the
+    // content it stands on, and raised AGAIN whenever that content changes,
+    // even if it is already active or was approved. Until P318 it was raised
+    // only when not active, so a change after an approval was never reviewed
+    // (row 189 (1)).
+    //
+    // Read from the stored profile, here, and not from the run's view loaded
+    // at the start of the request: a decide holding an older profile would
+    // otherwise raise the older content again after another decide raised the
+    // new, and the old approval would match it (P318's regression refuter).
+    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, input.now);
+    // And a trigger still outstanding is raised again too, applicable or not:
+    // a raising from before P318 carries no fingerprint, so no approval could
+    // ever clear it, and a minor's trigger stays outstanding after the student
+    // turns eighteen. Raised with the content's fingerprint, a person can
+    // clear it.
+    const wanted = triggersToRaise(held, basis);
     if (wanted.length === 0) return false;
 
-    const decision = decide(held, { kind: "request_human_review", triggers: wanted });
+    const fingerprints: Partial<Record<MandatoryReviewTrigger, string>> = {};
+    for (const trigger of wanted) fingerprints[trigger] = basis.fingerprints[trigger];
+    const decision = decide(held, { kind: "request_human_review", triggers: wanted, fingerprints });
     if (!decision.accepted) return false;
-    await this.#appendToCase(input.caseId, held.sequence, decision.events, input, input.now);
+    return await this.#appendOrReread(input.caseId, held.sequence, decision.events, input, input.now);
+  }
+
+  /**
+   * Appends, or answers `true` when another request appended first, so the
+   * caller's loop reads the case again rather than throwing out of it.
+   * Matched by name, as the hop's append below is.
+   */
+  async #appendOrReread(
+    caseId: CaseId,
+    sequence: number,
+    events: readonly CaseEventPayload[],
+    context: { readonly conversationId: string; readonly caseId: CaseId },
+    now: Date,
+  ): Promise<boolean> {
+    try {
+      await this.#appendToCase(caseId, sequence, events, context, now);
+    } catch (error: unknown) {
+      if (!(error instanceof Error) || error.name !== "ConcurrencyConflictError") throw error;
+    }
     return true;
+  }
+
+  /** Whether the case holds a mandatory trigger its content has outrun, or one not yet raised. */
+  async #reviewChangeUnraised(record: { readonly caseId: CaseId; readonly studentRef: StudentId }): Promise<boolean> {
+    const events = await this.#options.stores.cases.read(record.caseId);
+    if (events.length === 0) return false;
+    return triggersToRaise(fold(events), await this.#reviewBasis(String(record.studentRef), this.#options.now())).length > 0;
+  }
+
+  /** What a mandatory review stands on, from the student's stored profile as it is now. */
+  async #reviewBasis(studentRef: string, now: Date): Promise<ReviewBasis> {
+    return reviewBasisOf(await this.#options.profiles.load(studentRef, now), now);
+  }
+
+  /**
+   * After a mandatory trigger is raised for changed content, the case leaves
+   * the student until a review has seen the change (ADR-0161 §6, P318).
+   *
+   * An authorised case is voided, and the domain puts it back to PREPARING
+   * because the guard into the student's authorisation refuses (machine.ts,
+   * `void_authorisation`). A case already waiting on the student is moved back
+   * to PREPARING. Either way the walk forward then meets the guard, and the run
+   * stops for the review the way P11 stops one. The domain also refuses the
+   * student's approval and the step into submitting while the review is
+   * outstanding, so this is the order the student sees, not the only lock.
+   */
+  async #takeBackFromTheStudent(
+    held: ApplicationCase,
+    input: { readonly caseId: CaseId; readonly conversationId: string; readonly now: Date },
+  ): Promise<boolean> {
+    // Its own step on every decide, not a tail of the raising: a hand-back
+    // that lost a race is tried again on the next pass, because the raising
+    // that caused it will not be repeated (its fingerprint is already held).
+    if (unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints).length === 0) return false;
+    const reason = "A mandatory review must see what changed before the student is asked to approve it.";
+    const decision =
+      held.state === "AUTHORISED" && held.authorisedContentHash !== undefined
+        ? decide(held, { kind: "void_authorisation", reason: "content_changed" })
+        : held.state === "AWAITING_STUDENT_AUTHORISATION"
+          ? decide(held, { kind: "transition", to: "PREPARING", reason })
+          : null;
+    if (decision === null || !decision.accepted) return false;
+    return await this.#appendOrReread(input.caseId, held.sequence, decision.events, input, input.now);
+  }
+
+  /**
+   * What a reviewer reads BEFORE looking (ADR-0161 §6, P318): the case's
+   * sequence now, and each mandatory review it waits on, by name. Nothing of
+   * the student's: the content itself is looked at where it lives.
+   *
+   * The sequence is what binds the approval to what was seen. An approval
+   * names it, and is refused if the trigger was raised again after it, which
+   * is what a change made while the reviewer looked does. `approvable` is
+   * false while the content has outrun its raising: the next advance raises it
+   * again, and an approval recorded now would be refused.
+   *
+   * A look, not a move: nothing is written, so asking twice changes nothing.
+   */
+  public async reviewFor(caseId: CaseId): Promise<{
+    readonly caseSequence: number;
+    readonly outstanding: readonly { readonly trigger: MandatoryReviewTrigger; readonly approvable: boolean }[];
+  } | null> {
+    const events = await this.#options.stores.cases.read(caseId);
+    if (events.length === 0) return null;
+    const held = fold(events);
+    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, this.#options.now());
+    const waiting = new Set([...unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints), ...triggersToRaise(held, basis)]);
+    return {
+      caseSequence: held.sequence,
+      outstanding: [...waiting].sort().map((trigger) => ({
+        trigger,
+        approvable: held.raisedFingerprints[trigger] !== undefined && held.raisedFingerprints[trigger] === basis.fingerprints[trigger],
+      })),
+    };
   }
 
   /**
@@ -4749,11 +4883,81 @@ export class RunDriver {
   public async completeReview(input: {
     readonly caseId: CaseId;
     readonly review: HumanReviewRecord;
-  }): Promise<{ ok: true } | { ok: false; detail: string }> {
+    /**
+     * The case's sequence as `reviewFor` gave it to the reviewer before they
+     * looked. An approval of a mandatory trigger needs it (P318).
+     */
+    readonly caseSequence?: number;
+  }): Promise<{ ok: true } | { ok: false; detail: string; pointer?: "/caseSequence" | "/triggers" }> {
     const events = await this.#options.stores.cases.read(input.caseId);
     if (events.length === 0) return { ok: false, detail: `No case ${input.caseId}.` };
     const held = fold(events);
-    const decision = decide(held, { kind: "complete_human_review", review: input.review });
+    const now = this.#options.now();
+    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, now);
+    // What the review saw. That an approval covers only the content it reviewed
+    // is ADR-0161 §6, his "D3: approved."; binding it to the reviewer's reading
+    // of the case, below, is mine (P318). An approval of a mandatory trigger
+    // covers the content the trigger was raised for, and only when that is the
+    // content the reviewer looked at:
+    //
+    //   - it names the case as it stood when the reviewer read it, from
+    //     `reviewFor`, so a raising after that (the student changed it while
+    //     they looked) is not approved unseen;
+    //   - the content is unchanged since it was raised, or it is raised again
+    //     here and the approval refused, to be looked at again;
+    //   - and it was raised for content at all: a raising with no fingerprint
+    //     (before P318) is raised again with one first.
+    //
+    // The fingerprint is the service's, never the caller's: `covers` on the
+    // input is dropped, whoever sent it.
+    const mandatory = input.review.triggers.filter(isMandatory);
+    const covers: Partial<Record<MandatoryReviewTrigger, string>> = {};
+    if (input.review.outcome === "approved" && mandatory.length > 0) {
+      // A mandatory review the case does not wait on, and was never raised for,
+      // is not approved, and nothing is written: an adult's case approved for
+      // "a minor" by a slip would otherwise be raised for one (P318's second
+      // review).
+      const carried = new Set([
+        ...unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints),
+        ...basis.applies,
+        ...everRaised(held),
+      ]);
+      if (mandatory.some((trigger) => !carried.has(trigger))) {
+        return { ok: false, detail: "This case does not wait on that review.", pointer: "/triggers" };
+      }
+      if (input.caseSequence === undefined || input.caseSequence > held.sequence) {
+        return { ok: false, detail: "An approval names the case as it stood when the reviewer read it (caseSequence, from GET …/review).", pointer: "/caseSequence" };
+      }
+      const outrun = mandatory.filter((trigger) => held.raisedFingerprints[trigger] !== basis.fingerprints[trigger]);
+      if (outrun.length > 0) {
+        const fingerprints: Partial<Record<MandatoryReviewTrigger, string>> = {};
+        for (const trigger of outrun) fingerprints[trigger] = basis.fingerprints[trigger];
+        const raise = decide(held, { kind: "request_human_review", triggers: outrun, fingerprints });
+        if (raise.accepted) await this.#appendOrReread(input.caseId, held.sequence, raise.events, { conversationId: "", caseId: input.caseId }, now);
+        return { ok: false, detail: `What ${outrun.join(" and ")} stands on is not what was raised for review; it is raised now for the content as it is. Read the case again and look again.`, pointer: "/caseSequence" };
+      }
+      const seen = input.caseSequence;
+      // Raised again after the reading, or reviewed again after it: a review
+      // that withheld approval after this reviewer read the case is not
+      // overtaken by an approval made on the older reading (P318's second
+      // review).
+      const raisedSince = events.some(
+        (event) =>
+          event.sequence > seen &&
+          ((event.type === "HumanReviewRequested" && event.triggers.some((trigger) => mandatory.some((named) => named === trigger))) ||
+            (event.type === "HumanReviewCompleted" && event.review.triggers.some((trigger) => mandatory.some((named) => named === trigger)))),
+      );
+      if (raisedSince) {
+        return { ok: false, detail: "Raised or reviewed again after the case the reviewer read. Read the case again and look again.", pointer: "/caseSequence" };
+      }
+      for (const trigger of mandatory) {
+        const fingerprint = held.raisedFingerprints[trigger];
+        if (fingerprint !== undefined) covers[trigger] = fingerprint;
+      }
+    }
+    const { covers: _ignored, ...told } = input.review;
+    const review: HumanReviewRecord = { ...told, covers };
+    const decision = decide(held, { kind: "complete_human_review", review });
     if (!decision.accepted) return { ok: false, detail: detailOf(decision.refusal) };
     await this.#appendToCase(
       input.caseId,
@@ -5430,6 +5634,13 @@ export class RunDriver {
       }
     }
     if (captured === null) return { ok: false, refusal: "not_authorised" };
+    // ADR-0161 §6 (P318): nothing is disclosed while a mandatory review of the
+    // content as it now stands is outstanding, a change no decide has raised
+    // yet included: the runner's lease may have been taken before the change.
+    // The fill's own lock is at the claim; this is the same lock at the hand-over.
+    if (reviewOutstanding(fold(events), await this.#reviewBasis(String(record.studentRef), this.#options.now()))) {
+      return { ok: false, refusal: "not_authorised" };
+    }
     const held_documents = await this.#options.heldDocuments?.listForStudent(record.studentRef);
     const preview = buildPreview(
       entry.blueprint,
@@ -5471,10 +5682,17 @@ export class RunDriver {
         authorisedAt: captured.authorisedAt,
         method: "chat_affirmation",
       },
-      // A case a minor-safeguarding trigger is holding has conditions nobody
-      // has determined yet: an EMPTY set, which `authoriseDisclosure` refuses
-      // as undetermined rather than reading as "none apply" (ADR-0011).
-      ...(caseState?.activeTriggers.includes("involves_minor") === true ? { minorConditions: [] } : {}),
+      // A minor's case has conditions nobody has determined yet: an EMPTY set,
+      // which `authoriseDisclosure` refuses as undetermined rather than reading
+      // as "none apply" (ADR-0011). A minor while the stored date of birth says
+      // so, or while the trigger is outstanding: a review clears the trigger
+      // for the content it saw (ADR-0161 §6) and does not make anyone an adult.
+      // P318's first build read the outstanding triggers alone, which an
+      // approval now empties, and handed a reviewed minor's passport over.
+      ...(caseState?.activeTriggers.includes("involves_minor") === true ||
+      (await this.#reviewBasis(String(record.studentRef), now)).applies.includes("involves_minor")
+        ? { minorConditions: [] }
+        : {}),
     };
     const authorised = authoriseDisclosure(request);
     if (!authorised.authorised) return { ok: false, refusal: "disclosure_refused" };
@@ -5564,6 +5782,17 @@ export class RunDriver {
   }): Promise<
     { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
   > {
+    return await this.#recordDecision(input, true);
+  }
+
+  async #recordDecision(
+    input: {
+      readonly conversationId: string;
+      readonly runId: string;
+      readonly decision: StudentDecision;
+    },
+    mayRaise: boolean,
+  ): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }> {
     const bound = await this.#options.bindings.caseFor(input.conversationId);
     if (bound === null || bound.blueprintId === null) {
       return { ok: false, reason: "no_case" };
@@ -5619,6 +5848,29 @@ export class RunDriver {
         this.#options.now(),
       );
       return { ok: true };
+    }
+
+    // ── A change no decide has raised yet (ADR-0161 §6, P318) ────────────
+    //
+    // The student's yes is weighed against the case, and the case holds a
+    // mandatory review only once a decide has raised it. A financial answer or
+    // a date of birth changed since the last decide is raised here, by the
+    // advance every decide makes, which also stops the run for the review; and
+    // the decision is then weighed afresh. The domain refuses the yes while the
+    // review is outstanding, as it always has (P11), and `#refusal` names it.
+    // This coordinator refuses nothing itself: it makes sure that what the
+    // student is told, "a person is checking", is true when it is said. Once
+    // only, so an advance that could not raise is not asked again.
+    if (input.decision.kind === "authorise" && (await this.#reviewChangeUnraised(record))) {
+      // Not caught: a failed advance is a failure of this service, and says so.
+      if (mayRaise) {
+        await this.advance({ runId: input.runId, conversationId: input.conversationId });
+        return await this.#recordDecision(input, false);
+      }
+      // The advance did not land the raising (eight lost races). The domain
+      // cannot see a change no decide has raised, so the yes is not weighed at
+      // all rather than weighed against content no review covers.
+      throw new Error("A change to what a mandatory review covers could not be raised; the student's yes was not weighed.");
     }
 
     const situation = await this.#situation({
@@ -5750,16 +6002,25 @@ export class RunDriver {
 
     // Three hashed kinds reach here, and each is named: a "no" that fell to the
     // handoff branch would be recorded as a "yes" (P306).
+    //
+    // A yes refused while the case holds a mandatory review is named for what
+    // holds it, whatever the run's status and whichever refusal came first: a
+    // person checking is the true thing to say, and re-rendering will not help
+    // until they are done (P318). The domain or the step still refuses; this
+    // only names it.
+    const reviewHolds =
+      input.decision.kind === "authorise" &&
+      unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints).length > 0;
     const intent =
       input.decision.kind === "authorise"
         ? this.#authorisationIntent(situation.step, input.decision)
         : input.decision.kind === "decline_handoff"
           ? this.#declineIntent(situation.step, held, input.decision)
           : this.#handoffIntent(situation.step, held, input.decision);
-    if (!intent.ok) return this.#refusal(intent.reason, record.status);
+    if (!intent.ok) return reviewHolds ? { ok: false, reason: "held_for_specialist" } : this.#refusal(intent.reason, record.status);
 
     const decided = decide(held, intent.intent);
-    if (!decided.accepted) return this.#refusal("refused", record.status);
+    if (!decided.accepted) return reviewHolds ? { ok: false, reason: "held_for_specialist" } : this.#refusal("refused", record.status);
 
     // ADR-0108: with the yes, what the student owes goes on the record — from
     // the preview they authorised, which is the one thing the hash binds.
@@ -10566,6 +10827,15 @@ export class RunDriver {
       // step kinds kept here — see `browserWorkFor`.
       const kind = browserWorkFor(situation.step);
       if (kind === null) continue;
+      // ADR-0161 §6 (P318): no page is filled while a mandatory review of the
+      // content as it now stands is outstanding. The domain refuses the step
+      // into submitting too; this keeps the runner from being handed the page.
+      // A run with no case log is handed no page either: the authorisation a
+      // fill needs is read from that log, so none should reach here, and this
+      // lock does not take "no log" as "nothing outstanding".
+      if (kind === "execute" && (foldedCase === null || reviewOutstanding(foldedCase, await this.#reviewBasis(String(record.studentRef), this.#options.now())))) {
+        continue;
+      }
       // A fill needs the session the account was created in. A runner that
       // does not hold it is not handed the page — the run waits for the one
       // that does, or for the resume path (ADR-0101 §3) to sign one in.
@@ -12508,12 +12778,12 @@ function atOrigin(url: string, origin: string | undefined): string | null {
  * because ADR-0013 says a missing or ambiguous date of birth is never assumed
  * absent.
  */
-function confirmedDateOfBirth(state: RunState): Date | null {
+function confirmedDateOfBirth(profile: RunState["profile"]): Date | null {
   // Through `resolveField`, which is typed: `identity.date_of_birth` is a
   // `Date`, not a string. A first draft of this parsed it as an ISO string and
   // would have returned `null` every time — the minor trigger silently never
   // firing, which is the worst possible failure for this particular check.
-  const held = resolveField(state.profile, "identity.date_of_birth");
+  const held = resolveField(profile, "identity.date_of_birth");
   if (isFieldUnavailable(held)) return null;
   const value = unwrapConfirmed(held);
   return Number.isNaN(value.getTime()) ? null : value;
@@ -12584,13 +12854,20 @@ function triggersOf(refusal: DecisionRefusal): readonly string[] {
  *                      birth — correct for the question it answers, and it
  *                      raised this trigger on every case in the system when
  *                      used here.
- *   financial_evidence any field the plan fills that the profile says is
- *                      financial evidence.
+ *   financial_evidence any field the profile holds that is financial
+ *                      evidence, whether or not this portal's plan fills it.
+ *                      Broader than the plan, and so it fails closed: a funding
+ *                      answer changed for one application sends every one of
+ *                      the student's applications back to review (P318).
+ *
+ * Read from the STORED profile, never the run's view of it: the view hides a
+ * field a portal demand or a CV reading has reopened, and a review that read
+ * one and a raising that read the other would never agree (P318).
  */
-function mandatoryTriggersOf(state: RunState, now: Date): readonly MandatoryReviewTrigger[] {
+function mandatoryTriggersOf(profile: RunState["profile"], now: Date): readonly MandatoryReviewTrigger[] {
   const triggers: MandatoryReviewTrigger[] = [];
 
-  const dob = confirmedDateOfBirth(state);
+  const dob = confirmedDateOfBirth(profile);
   if (dob !== null && suggestsMinority({ level: "stated", value: dob }, now)) {
     // `suggestsMinority`, NOT `determineAge`. A first version used the latter,
     // and `determineAge` returns `requires_identity_check` for ANY merely
@@ -12601,10 +12878,92 @@ function mandatoryTriggersOf(state: RunState, now: Date): readonly MandatoryRevi
     triggers.push("involves_minor");
   }
 
-  if ([...state.profile.entries.keys()].some((key) => isFinancialField(key))) {
+  if ([...profile.entries.keys()].some((key) => isFinancialField(key))) {
     triggers.push("financial_evidence");
   }
   return triggers;
+}
+
+/**
+ * Whether a mandatory review of the content as it now stands is outstanding
+ * (ADR-0161 §6): one the case holds uncleared, or one the profile has outrun
+ * since the trigger was last raised (a change the next decide will raise).
+ * Only looks; the raising itself happens on the decide.
+ */
+function reviewOutstanding(held: ApplicationCase, basis: ReviewBasis): boolean {
+  if (unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints).length > 0) return true;
+  return triggersToRaise(held, basis).length > 0;
+}
+
+/** Each mandatory trigger the case has ever been raised for with a fingerprint. */
+function everRaised(held: ApplicationCase): readonly MandatoryReviewTrigger[] {
+  return (Object.keys(held.raisedFingerprints) as MandatoryReviewTrigger[]).filter((trigger) => held.raisedFingerprints[trigger] !== undefined);
+}
+
+/**
+ * What a mandatory review stands on (ADR-0161 §6): the triggers the student's
+ * stored profile carries, and the fingerprint of the content each stands on.
+ * One reading for the raising, the take-back, the locks, disclosure and the
+ * review itself, so none of them can disagree about what changed.
+ */
+interface ReviewBasis {
+  readonly applies: readonly MandatoryReviewTrigger[];
+  readonly fingerprints: Readonly<Record<MandatoryReviewTrigger, string>>;
+}
+
+function reviewBasisOf(profile: RunState["profile"], now: Date): ReviewBasis {
+  return { applies: mandatoryTriggersOf(profile, now), fingerprints: reviewFingerprintsOf(profile) };
+}
+
+/**
+ * The mandatory triggers to raise for the content as it now stands: each that
+ * applies, each still outstanding, and each the case was ever raised for,
+ * whose raised fingerprint is not the content's own.
+ *
+ * The last two whether or not the trigger still applies. A raising from before
+ * P318 carries no fingerprint, so no approval could ever clear it. And a
+ * reviewed minor whose date of birth is answered again as an adult's no longer
+ * "applies", yet that date is exactly what a person has not seen (P318's
+ * second review): it is raised again, and a person clears it.
+ */
+function triggersToRaise(held: ApplicationCase, basis: ReviewBasis): readonly MandatoryReviewTrigger[] {
+  const outstanding = unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints);
+  return [...new Set([...basis.applies, ...outstanding, ...everRaised(held)])].filter(
+    (trigger) => held.raisedFingerprints[trigger] !== basis.fingerprints[trigger],
+  );
+}
+
+/**
+ * The fingerprint of the content each mandatory trigger stands on (ADR-0161 §6, P318).
+ *
+ * Built from each answer's revision and the moment it was confirmed, never from
+ * its value: the fingerprint goes into the case log, which is append-only, and
+ * a hash of a date of birth or of a funding answer could be recovered by trying
+ * every value. A re-confirmation bumps the revision and moves the confirmation
+ * time, so any change to the answer moves the fingerprint. A write that
+ * changed a value and neither would be the way past it: the stores move the
+ * revision on every overwrite, whatever the writer gave, and migration 0041
+ * moves it for an UPDATE that changes a value in place.
+ */
+function reviewFingerprintsOf(profile: RunState["profile"]): Record<MandatoryReviewTrigger, string> {
+  const marks = (keys: readonly ProfileFieldKey[]): readonly (readonly [string, number, string])[] =>
+    keys.flatMap((key) => {
+      const entry = profile.entries.get(key);
+      if (entry === undefined) return [];
+      // A provenance with no readable time still fingerprints, by its revision:
+      // `toISOString` on an invalid date throws, and a throw here would stop
+      // every decide of the case rather than this one answer.
+      const at = entry.value.provenance.confirmedAt;
+      return [[key, entry.revision, Number.isNaN(at.getTime()) ? "unreadable" : at.toISOString()] as const];
+    });
+  // Both, always, even over nothing: content that is gone is content too, and
+  // a raising for it must carry a fingerprint an approval can match, or nothing
+  // could ever clear it (P318's second review).
+  const financial = [...profile.entries.keys()].filter((key) => isFinancialField(key)).sort();
+  return {
+    financial_evidence: hashOfText(JSON.stringify({ trigger: "financial_evidence", entries: marks(financial) })),
+    involves_minor: hashOfText(JSON.stringify({ trigger: "involves_minor", entries: marks(["identity.date_of_birth"]) })),
+  };
 }
 
 /**

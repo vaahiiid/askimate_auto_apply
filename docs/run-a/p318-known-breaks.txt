@@ -1,0 +1,59 @@
+bp-sheffield-pgt-september-direct|breaks_a_required_box|contact.address|corrAddress1|maxlength 35
+bp-sheffield-pgt-september-direct|breaks_a_required_box|contact.address|corrTown|maxlength 50
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|certificateStatus|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|certificateTranslationStatus|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|degree|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|endDateMonth|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|endDateYear|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|officialCertTranslStatus|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|officialTranTranslStatus|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|startDateMonth|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|startDateYear|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|transcriptStatus|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|transcriptTranslationStatus|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|education.prior_qualifications|unlistedDegree|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|employment.history|duties|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|employment.history|employerDetails|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|employment.history|position|maxlength 200, entry 1
+bp-sheffield-pgt-september-direct|breaks_a_required_box|employment.history|position|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|employment.history|startMonth|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|finance.funding|fundingStage|required
+bp-sheffield-pgt-september-direct|breaks_a_required_box|immigration.uk_study|highestQualificationOther|maxlength 100
+bp-sheffield-pgt-september-direct|breaks_another_box|contact.address|corrIntlPostcode|maxlength 20
+bp-sheffield-pgt-september-direct|breaks_another_box|finance.funding|fundingDetails|maxlength 118
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|education.prior_qualifications|awardDateYear|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|education.prior_qualifications|endDateYear|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|education.prior_qualifications|startDateYear|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|employment.history|endYear|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|employment.history|startYear|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|identity.date_of_birth|dobYear|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|immigration.uk_study|monthsOnStudentVisa|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|immigration.uk_study|visaExpiryYear|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|immigration.uk_study|yearsOnStudentVisa|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|residence.history|dateFromYear1|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|residence.history|dateToYear1|no option's value is the text
+bp-sheffield-pgt-september-direct|not_one_of_the_box_options|residence.uk_entry_date|dateEnteredUKYear|no option's value is the text
+bp-sheffield-pgt-september-direct|offered_but_the_escape_cannot_take_the_words|education.prior_qualifications|degree|render_refused (no_matching_option); the escape's box takes 28
+bp-sheffield-pgt-september-direct|refused_by_the_map|contact.address|corrCountry|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|contact.address|corrPostcode2|render_refused (rule_does_not_fit)
+bp-sheffield-pgt-september-direct|refused_by_the_map|contact.address|corrPostcode|render_refused (rule_does_not_fit)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|grade|render_refused (no_matching_case)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|grade|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|gradingSystemId|render_refused (no_matching_case)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|gradingSystemId|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|institution-ts-control|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|institutionCountry-ts-control|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|subjectSearch|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|education.prior_qualifications|subject|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|finance.funding|fundingSource|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|finance.funding|fundingSource|render_refused (no_such_part)
+bp-sheffield-pgt-september-direct|refused_by_the_map|identity.country_of_birth|countryOfBirth|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|identity.nationality|fundingNationality|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|immigration.uk_study|highestQualification(ENGLISH_LANGUAGE_STUDY)|no_mapping
+bp-sheffield-pgt-september-direct|refused_by_the_map|immigration.uk_study|highestQualification(FOUNDATION_LEVEL)|no_mapping
+bp-sheffield-pgt-september-direct|refused_by_the_map|immigration.uk_study|highestQualification(SCHOOL_LEVEL)|no_mapping
+bp-sheffield-pgt-september-direct|refused_by_the_map|immigration.uk_study|highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)|no_mapping
+bp-sheffield-pgt-september-direct|refused_by_the_map|immigration.uk_study|highestQualification(UNIVERSITY_LEVEL)|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|residence.country|permanentResidence|render_refused (no_matching_option)
+bp-sheffield-pgt-september-direct|refused_by_the_map|residence.history|previousCountry1|list_exceeds_form
+bp-sheffield-pgt-september-direct|refused_by_the_map|residence.history|previousCountry1|render_refused (no_matching_option)

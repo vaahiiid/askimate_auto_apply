@@ -1,0 +1,15 @@
+mutation 17-an-approval-overtakes-a-later-rejection on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t minor|mandatory-review guard|hand-back and the walk|not handed to a runner
+exit: 1
+restored byte for byte: True
+
+replaced:
+            (event.type === "HumanReviewCompleted" && event.review.triggers.some((trigger) => mandatory.some((named) => named === trigger)))),
+with:
+            false),
+
+   × the mandatory-review guard, now that something drives it > an approval made on a reading older than a later rejection is refused (P318) 125ms
+     → the rejection came after this reading: expected { ok: true } to match object { ok: false, pointer: '/caseSequence' }
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed | 424 skipped (442)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > the mandatory-review guard, now that something drives it > an approval made on a reading older than a later rejection is refused (P318)
