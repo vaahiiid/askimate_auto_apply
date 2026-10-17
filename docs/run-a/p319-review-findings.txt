@@ -1,0 +1,326 @@
+P319's review: every finding and verdict as the review run returned them, and what was done.
+
+Source: the run's journal (one JSON line per agent result), copied to the session scratchpad as
+p319-review-journal.jsonl. The titles, scenarios and verdict reasons below are its text, passed through
+by a script (p319-findings.py, in the same scratchpad) without editing. Only the "Done" lines are mine, written after the fixes.
+
+Six lenses: driver, interview, review-rule, checker, departures, patch. Each finding was to go to two
+refuters. The run was stopped after seven verdicts, on four findings, had come back; the other
+nineteen findings have no verdict and were judged by me.
+
+====================================================================================================
+driver 0  [medium]  A case-begin demand's sentence is never said if any other assistant message comes before its field's question
+file: apps/conversation-service/src/run-driver.ts:7973
+
+#putTheQuestion only says the atStart sentence when there is no assistant message after the demand's ordinal. That test was written for portal demands, which arrive in the middle of a run. A case-begin demand is appended by start() before any question, so any assistant message that comes before the funding question uses up that window. Concrete case: the student holds finance.funding {known:false} plus a full profile except one other field this entry requires (say identity.sex), and the entry is ASKS. start() appends value_part_demanded(finance.funding) at ordinal k. #decide then asks identity.sex first (value_asked at k+1, message at k+2). The student answers and confirms. When the walk reaches finance.funding, begun.ordinal is k and assistant messages exist after k, so demandSentence is skipped. The student sees "Please select your likely funding source\nEmployer\n…" with no word on why their earlier "no" is being reopened. The same happens when two fields get atStart demands (only the first field asked gets its sentence) and when a CV reading's sentence from #sayWhatArrived lands between the demand and the funding question. #sayWhatArrived skips atStart demands (line 11316), so nothing else says it. Test 2 only covers the case where funding is the very first question, because confirmTheInterview fills every other field.
+
+Verdict 1: stands.
+I could not refute it. Reading the code reproduces the scenario.
+
+1. **The demand is written first.** `start()` (run-driver.ts:3700) calls `#askWhatTheFormAsksOfHeldAnswers` before `#decide`. That appends `value_part_demanded` with `atStart: true` at ordinal k, ahead of any question.
+
+2. **The sentence's guard looks for any assistant message.** `#putTheQuestion` (run-driver.ts:7972-7973) says the atStart sentence only when `!events.some(e => e.ordinal > begun.ordinal && e.kind === "message" && e.actor === "assistant")`. That test counts every assistant message after k: another field's question, a playback, a CV sentence. It does not ask whether this field has been asked yet.
+
+3. **Nothing moves the demanded field to the front.** `nextAction` (packages/interview/src/interview.ts:859-905) asks the first outstanding field in `requiredFieldsFor` order, which is mapping-set order. The only fields brought forward are rejected ones (`refusedFirst`).
+
+4. **Funding comes last on the real entry.** In docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json, `finance.funding` is the last of the 20 profile fields in mapping order. Any other required field missing at case start is asked first, and its question and playback are assistant messages after k. When the walk reaches funding, the guard is false and `demandSentence` is never said.
+
+5. **Nothing else says it.** `#sayWhatArrived` skips atStart demands on purpose (line 11316). `demandSentence` has only two callers (7976 and 11317).
+
+6. **This is the main case, not an edge.** ADR-0161's D10 describes this moment as asking about "an answer they gave for another application". A student coming from another application will usually lack some Sheffield fields. The ADR (around line 852) promises "Just before the field's question the student is told …", and this path breaks that promise.
+
+7. **The test does not reach it.** Test 2 only covers it because `confirmTheInterview` fills every other field, so funding is the first question asked.
+
+The two-field case in the finding is not reachable with today's entries: only `finance.funding` has `absent: "ask"`. The main scenario stands on its own.
+Verdict 2: stands.
+I could not refute it. Reading the code, the scenario happens as described.
+
+1. In `start()` (run-driver.ts:3700), `#askWhatTheFormAsksOfHeldAnswers` adds `value_part_demanded{atStart:true}` for finance.funding at ordinal k. This runs before `#decide` asks anything.
+
+2. The interview always asks the first outstanding field (interview.ts:921, `askable[0]`). The order of outstanding fields is the mapping-set order (`requiredFieldsFor`, orchestrator run.ts:2443). In the `ASKS` fixture the funding mappings are added last, and in Sheffield funding is on page 12. So any other required field the profile lacks (identity.sex, say) is asked first.
+
+3. In `#putTheQuestion` (run-driver.ts:7971-7978), the demand sentence is said only when `!events.some(ordinal > begun.ordinal && kind==="message" && actor==="assistant")`. Asking identity.sex adds its message at k+2. The student answers, the playback follows, and the student confirms, all after k. When the walk reaches finance.funding, `begun.ordinal` is still k and assistant messages already exist after it, so `demandSentence(..., fieldKey)` is never added.
+
+4. No other path says it. `#sayWhatArrived` (11316) skips `atStart` demands on purpose. Grep finds no other use of `atStart` that says a sentence.
+
+5. The student therefore gets the source question in the form's words ("Please select your likely funding source\nEmployer\n…", seeded from the demand) with no word on why their earlier "no" is being reopened. The code comment at 7970 says that word should come: "the student hears why just before the question".
+
+6. Test 2 (run-driver.test.ts, conversation …F31902) only passes because `confirmTheInterview` fills every other field, so funding is the first question and nothing comes between k and it.
+
+The same guard also fails when a reading's sentence from `#sayWhatArrived` comes between the demand and the funding question. The two-atStart-demands variant cannot happen today, because only finance.funding has `reopens` (his answer 3: "funding stage only"). The main scenario does not depend on it.
+
+Done: Moot: the sentence is removed (finding departures 0). Whether a sentence should say why is row 217, his.
+
+====================================================================================================
+driver 1  [medium]  The case-begin check runs outside the binding lock and depends on resumed=false, so a concurrent or retried start skips it and the run goes to a person
+file: apps/conversation-service/src/run-driver.ts:3700
+
+#askWhatTheFormAsksOfHeldAnswers runs after withBinding has committed startRun and released the lock, and only for the one caller that got resumed:false. (a) Race: two start() calls for one conversation, for example a client retrying a timed-out start, which the start() docstring names as expected. Caller 2 waits on the lock, finds the live run, gets resumed:true and goes straight to #decide. If that runs before caller 1 has appended the demand, the profile still shows finance.funding {known:false}. Under an absent:"ask" mapping, renderConfirmed returns no_such_part and planFill records render_refused on fundingSource and fundingStage. nextStep turns that structural blocker into a specialist step, and #stopForSpecialist raises an intervention, tells the student a person is looking, and saves the run as escalated. Caller 1 then appends the demand onto a run a person already holds. (b) Failure: if the profile load, wholeLog or append inside the check throws after startRun has committed, start() answers 500. Every retry then sees the live run, gets resumed:true and never runs the check, and advance() does not call it either, so the run ends at the same specialist stop. Whether the check has run should be read from the log (for example, an open or closed atStart demand), not from whether this caller created the run.
+
+Verdict 1: stands.
+I could not refute it. Both paths are reachable by reading the code as written. Defect: apps/conversation-service/src/run-driver.ts:3700 runs `if (!resumed) await this.#askWhatTheFormAsksOfHeldAnswers(...)` outside `withBinding`, after `startRun` has already committed a run with status "running" (packages/orchestrator/src/durable.ts:241-263). Whether the check has run is decided by a value held in memory (`resumed`), not by anything durable.
+
+Concurrent path:
+- A second `start()` blocks on the binding lock. Once it gets the lock, `findByCase` sees the live "running" run (`AUTOMATABLE_STATUSES` = running and suspended) and returns `resumed: true` (line 3535). It then goes straight to `#decide`.
+- The worker can take the same path: `dueRuns` selects any running run, and `advance()` (around line 4110) never calls the check.
+- If `#situation` reads `wholeLog` before caller 1 appends its demand, `demandsFrom` is empty. So `withoutDemanded` leaves the held `finance.funding {known:false}` in the profile view.
+
+Failure path: if `profiles.load`, `wholeLog` or `append` inside the check throws, or the process dies, after `startRun` commits, `start()` throws. Every retry and every worker advance then gets `resumed: true` or goes through `advance()`, so the check never runs for that case.
+
+Consequence once the prepared entry change is applied (fundingSource is a switch and fundingStage a part, both `absent: "ask"`):
+1. format.ts `applyRule` returns `no_such_part`. P319's own format.test.ts asserts this.
+2. In plan.ts:686-700, `chosenInstead` returns null for `no_such_part` (it handles only `no_matching_option` and `no_matching_case`), so planFill records `render_refused`.
+3. `nextStep` (run.ts:551-562) treats any blocker other than `value_unavailable` as structural and returns `specialist`.
+4. `#offerTheirChoice` cannot settle `no_such_part`. `#stopForSpecialist` (line 8633 on) raises an intervention, sends the 'blocked by the form' or specialist message, and saves status "escalated".
+
+In the race, caller 1 then appends the demand and asks the funding question on a run that already has an open intervention. If caller 1's checkpoint lands first, the escalated save fails with `RunConcurrencyError`, which is swallowed. The intervention and the message stay anyway.
+
+This breaks ADR-0161's stated behaviour that an answer given before the case "is asked for that part … when a case first plans". The ADR's "never on a resume" was meant to exclude existing cases, not a new case whose check never ran. It also breaks the file's own standard for a start retried after a crash, the case the `claimSubmissionKey` ordering comment designs for.
+
+P319's tests do not cover this. The 'when a case begins' test uses a single start. The 'not on every resume' test advances the run and checks only that no demand was raised; it does not check that the run went to a person.
+Verdict 2: stands.
+I could not refute it. Every link in the scenario holds when I trace the code, and the failure case (b) does not depend on timing.
+
+1. **The run is durable before the check runs.** `#openAndStart` (apps/conversation-service/src/run-driver.ts:3509-3684) calls `startRun` through `this.#options.stores`. That store uses the pool, not the binding's connection, so the run row with status "running" is committed on its own. `withBinding` (application-store.ts:210-270) then commits the binding. Only after that does run-driver.ts:3700 call `#askWhatTheFormAsksOfHeldAnswers`, and only when `resumed` is false. That check makes three database calls (`profiles.load`, `wholeLog`, `append`). None of them is caught, so an error in any of them propagates out of `start()`.
+
+2. **No other path runs the check.**
+   - A retried `start()` finds the live run at 3534-3535 and returns `resumed: true`, so 3700 skips the check.
+   - `advance()` (4067) never calls it.
+   - `dueForWorker` (work-store.ts:146-163) selects any "running" run whose conversation is bound. So the worker's next pass advances the new run even if the client never retries.
+   - `demandsFrom` is the only thing that hides the field (run-driver.ts:4287-4293). It reads only the log, so with no `atStart` demand appended, the profile view still holds `finance.funding` as `{known:false}`.
+
+3. **Without the demand, the run goes to a person.** Under the prepared patch's `absent:"ask"` mapping, `applyRule` returns `no_such_part` (format.ts diff). `planFill` turns that into a `render_refused` blocker (plan.ts:686-700). `chosenInstead` acts only on `no_matching_option` and `no_matching_case`, so it does not catch it. `nextStep` treats any blocker other than `value_unavailable` as structural and returns a specialist step (orchestrator run.ts:553-565). `#offerTheirChoice` declines `no_such_part` (entry-choice-offer.ts:129). `#stopForSpecialist` (8633-8722) then raises the intervention, tells the student a person is looking, and saves the run as "escalated". From then on the run stays with a person, because the check never runs again.
+
+4. **The race in (a) is also plausible.** The second caller blocks on `SELECT … FOR UPDATE` until the first caller commits. It then sees the live run, gets `resumed: true`, and reads `wholeLog` in `#situation` (4277) a few round trips later. The first caller's `append` may not have committed by then. If so, the second caller escalates the run. The first caller then asks the funding question anyway, hits `RunConcurrencyError`, retries, and keeps "escalated". The student ends up with both "a person is looking" and the question.
+
+**Why this counts as a defect here.** The codebase treats "a retry of a start that crashed between two steps" as a case it must handle at this very spot (the P38 comment at 3626-3631, and the route at routes.ts:1225-1229, which is idempotent on purpose). ADR-0161 says the held answer is checked "when the case first plans". In (b) the case's first plan happens without the check: the caller that created the run never reached `#decide`.
+
+**What I checked against it.**
+- The P319 test "is checked when a case begins and not on every resume" covers only a "no" written after the case had already planned. Nothing covers a check that failed or lost a race.
+- The path is dormant on the entry as signed today, since nothing there says `ask`. It becomes reachable once the prepared change is signed, and that change is within the scope of this review.
+
+Done: Fixed. The check runs in #openAndStart while the run has never been checkpointed (record.revision === 0), not on this call's `resumed`, so a start that failed before its first decide, or a second start that arrives before the first has decided, still checks; an open demand is not raised again, and two racing appends read as one. Moving the check inside the binding deadlocked (the binding holds the conversation's row, which an append waits on), so it stays after the lock. Tests (run-driver.test.ts, the P319 group): "is checked on a start that resumes a run never planned, as a start that failed before its first decide leaves it (P319's review)" and "is checked when a case begins and not on every resume: a no written after the case planned is not asked about". The racing second start is not driven by a test; it finds the same never-checkpointed run the first test builds. Mutations 10 and 11.
+
+====================================================================================================
+driver 2  [low]  An open case-begin demand outlives a change to the held answer made in another conversation: it says something false and re-asks a part already answered
+file: apps/conversation-service/src/run-driver.ts:2219
+
+demandsFrom closes a demand only on a value_confirmed in the same conversation's log. Conversation A starts on the ASKS entry with funding held as {known:false}, so A gets an atStart demand with partKey "source". Before A reaches funding, the student confirms finance.funding as {known:true, source:"employer", stage:"applying"} in another application's conversation B. In A the demand is still open: withoutDemanded hides the field, and seededWithDemands seeds from the confirmed entry (known=true, stage=applying) and deletes "source". The walk therefore asks the spec's own "Who is paying — self or family, employer, …" question. #putTheQuestion first says the atStart sentence: the form asks "Please select your likely funding source" and "What stage are you at with your funding?", "which your earlier answer … does not say. Let me ask you now." The held answer now answers both, the question that follows is not the form's, and the student is asked for a source they have already confirmed.
+
+Verdict 1: refuted.
+Refuted: the scenario can't happen in the system as it stands. By reading the code, the funding answer can't be changed in another conversation while conversation A's case-begin demand is open.
+
+1. A confirmation in an application conversation is the only thing that writes the profile. `#persist` at run-driver.ts:8151 is the only `profiles.save` in apps/. `#interviewSituation` (run-driver.ts:7727) needs a bound case and run, so there is no conversation without a case that could ask.
+2. finance.funding can't be changed by a typed correction. `refusedPart` (correction-requests.ts:233-236) returns "financial" for a closed part of a field in FINANCIAL_FIELDS. finance.funding is in that list (packages/profile/src/fields.ts:453-456), and known, source and stage are all closed. Conversation B could only write a new funding value through a walk opened by its own demand. That needs a second entry with `absent: "ask"` on funding, or a portal refusal on funding.
+3. No second entry exists. docs/run-a/catalogue/entries holds only sheffield-pgt-2027-09.json, which has a single courseRef. The prepared patch only changes that one entry. `claimSubmissionKey` (run-driver.ts:3632-3651) refuses a second case for the same student, institution, course and intake. A reapplication needs the earlier case concluded, and a concluded case asks nothing more (run-driver.ts:7744 returns null for a completed run; a stopped application is refused by `#applicationStopFor`). So no A and B can be open at the same time for one student.
+4. The part that lets a demand outlive a confirmation made elsewhere is not new in P319. `demandsFrom` closing only on a `value_confirmed` in the same conversation's log is P233's design; P319 only widened its type to carry `atStart`.
+5. The finding contradicts itself on the sentence. "Before A reaches funding" means A asked other fields first. `#putTheQuestion` says the case-begin sentence only when no assistant message follows the demand (run-driver.ts:7973), so on that path the claimed false sentence is never said.
+
+It would become a real defect once a second entry also asks the funding parts in the form's own words (or refuses funding) and two applications run side by side. That is a latent constraint waiting for that entry, not a scenario that can be reproduced on this diff.
+
+Done: Refuted as worded (one verdict). Mended as a latent constraint (CLAUDE.md): #situation sets aside a case-begin demand once the held answer holds every part the form asks. Test: "a demand raised when the case began asks nothing once the held answer holds what the form asks, answered in another application (P319's review)". Mutation 12.
+
+====================================================================================================
+interview 0  [medium]  The 'funding is confirmed' explanation fires only for the bare word 'confirmed' or the form's exact sentence, so ordinary phrasings get the generic refusal and use up an attempt
+file: packages/interview/src/interview.ts:414
+
+Policy reopens stage and source. The student says no, then 'Employer'. At the stage question they type 'Confirmed.' (with a full stop) or 'My funding is confirmed'. `own = ownParse(utterance)` runs oneOf on the raw text, which does not strip the full stop that `formWords` strips, so it gets 'confirmed.' or 'my funding is confirmed' and returns null. The ruled-out words check needs an exact match on the whole sentence ('the funding has been confirmed'), and none of the four offered options contains the phrase. Result: not_understood with "I could not read one of the form's answers from \"Confirmed.\"". I reproduced this on the built dist. The student is never told that confirmed funding means yes, which his answer 6 requires, and the driver writes answer_unread, so three such replies stop the run for a person. Only 'confirmed' with no punctuation, or the form's own sentence, gets the explanation, which is all the tests cover.
+
+Verdict 1: stands.
+The finding stands; tracing the new P319 code reproduces it. In packages/interview/src/interview.ts, readInFormWords (lines 410-431) works out `said = formWords(utterance)`. formWords (line 388-390) drops a closing full stop, so "Confirmed." becomes "confirmed". But `own = ownParse(utterance)` (line 414) runs the spec's own reader on the raw text, and that reader is oneOf(FUNDING_STAGE_WORDS) (field-specs.ts:775-778, 818-826, 960). oneOf only trims, lowercases and collapses spaces, so it looks up "confirmed." and returns null. The ruled-out check at line 415 then fails both ways. By value, "confirmed" is not null. By words, it compares against formWords("The funding has been confirmed"), which only matches the form's whole sentence. Nothing is near either: the four options offered are "I am applying for a project studentship", "I have applied for funding", "I am applying for funding" and "I am thinking about funding my studies this way", and none contains " confirmed ". So the student gets the generic reply at line 430, "I could not read one of the form's answers from \"Confirmed.\"", and never the ruledOut.because sentence. "My funding is confirmed" takes the same path. This breaks answer 6 in docs/run-a/p319-his-answers-on-the-thirteen-as-sent.txt ("If the student says their funding is confirmed, tell them that means the answer to \"Do you know…\" is yes"). It also breaks formWords' own promise that a closing full stop is set aside. The test at interview.test.ts:2208-2220 covers only "confirmed", "The funding has been confirmed" and "the funding has been CONFIRMED", so it cannot catch this. One correction to the finding: the explained refusal also spends an attempt, because attempts are counted at line 1101 before either path. So the real harm is that the student is never told how to get out of the question, not that an extra attempt is spent. They can keep refusing until the attempts run out and the run goes to a person.
+Verdict 2: stands.
+The finding holds. I confirmed it by reading the code and by running the same logic inline. At packages/interview/src/interview.ts:411-416 in the P319 diff, `readInFormWords` normalises the student's text with `formWords`, which lowercases, collapses spaces and strips a closing '.' or '!'. It then calls `own = ownParse(utterance)` on the raw text. `ownParse` is the stage part's `oneOf(FUNDING_STAGE_WORDS)` (packages/interview/src/field-specs.ts:778), which only trims, lowercases and collapses spaces, so it keeps the full stop. The ruled-out check passes in two cases: `formWords` of the form's sentence 'The funding has been confirmed' equals `said`, or `own === 'confirmed'`. For 'Confirmed.' the first test compares 'the funding has been confirmed' with 'confirmed' and fails. The second gets `own` = `oneOf('Confirmed.')`, which looks up 'confirmed.' and finds nothing (null), so it fails too. The near-match filter also finds nothing, because none of the four offered Sheffield options ('I am applying for a project studentship', 'I have applied for funding', 'I am applying for funding', 'I am thinking about funding my studies this way') contains ' confirmed '. The result is the generic reason 'I could not read one of the form's answers from "Confirmed."'. I reproduced this by running the same `formWords`, `oneOf` and filter logic inline with `node -e`, with no file written. 'confirmed' and 'The funding has been confirmed.' get the ruled-out explanation, while 'Confirmed.', 'confirmed!', 'My funding is confirmed' and 'It is confirmed' all get the generic refusal. So the same function treats a closing full stop differently depending on which path matches: the form's sentence with a full stop is told why, the single word with one is not. The cost is real. interview.ts:1101 spends an attempt before this path, a `not_understood` reply is returned, and after MAX_ATTEMPTS_PER_FIELD = 3 (interview.ts:229, 923-924) the field stops for a person. Meanwhile the student is never told what his answer 6 requires ('If the student says their funding is confirmed, tell them that means the answer to "Do you know…" is yes'). The test at packages/interview/src/interview.test.ts:2210 covers only 'confirmed', 'The funding has been confirmed' and 'the funding has been CONFIRMED', so this case is not tested. The free-phrasing half ('My funding is confirmed') is partly a design limit of exact, model-free reading. The 'Confirmed.' half is a plain normalisation defect: the fix is to read `ownParse` from the normalised text, or to strip the closing punctuation before calling it.
+
+Done: Fixed. A ruled-out value is recognised by its sentence, by the part's own reading of the normalised text, or by its word said and not turned round (not, no, never, nothing, none, neither, nor, n't). Test (interview.test.ts): "tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review)". Mutations 13, 21 and 22.
+
+====================================================================================================
+interview 1  [low]  One near match is named in the refusal instead of offered for a press, against his answer 5, and the open question it cites (row 216) is not recorded anywhere
+file: packages/interview/src/interview.ts:424
+
+After a no, the student types 'applied', 'thinking about it' or 'self' at a question asked in the form's words. Exactly one option is near, so `readInFormWords` returns unread with 'write it as the form does'. No press is offered and an attempt is counted. His answer 5 is "suggest a near match for a press; never choose it", and the recommendation he agreed to used exactly this one-match case ('confirmed' suggested as "The funding has been confirmed" for a press). The comment at lines 401-404 defers the question to him as 'row 216'. No row 216 exists in docs/state-of-the-system.md (rows end at 215), and ADR-0161 does not record the question. CLAUDE.md requires a question about departing from an accepted decision to be recorded in the ADR and as a row before building around it, so this one is not on the record.
+
+Verdicts: none came back.
+
+Done: Recorded, not built: offering one near match alone departs from ADR-0146 Decision 1 ("One reading is never an offer"), so under his rule of 2026-10-17 it is asked. Row 216 and ADR-0161 "Asked in P319's build".
+
+====================================================================================================
+interview 2  [low]  The 'You said' line names parts asked in the form's words by the registry's labels, not by the form's questions the student saw
+file: packages/interview/src/interview.ts:1377
+
+A no, then 'Employer', then 'I have applied for funding'. The playback the press is bound to (output from the built dist) is: You said: "whether you know yet how your studies will be funded: no; source of funding: Employer; how far the funding is arranged: I have applied for funding". The 'recorded' line correctly uses "Please select your likely funding source" and "What stage are you at with your funding?". But `wholeOf` builds the verbatim with `partName(spec, partKey)`, the PART_LABELS name, which the student was never shown for these two parts. That breaks the rule stated right there (P228: each part under the name it was asked for by) and his answer 7 (play back by the form's question).
+
+Verdicts: none came back.
+
+Done: Fixed. wholeOf names a part asked in the form's words by the form's question in the "You said" line too. Test: "names every part asked in the form's words by the form's question in the student's words too, not by our label for it". Mutation 20.
+
+====================================================================================================
+interview 3  [low]  After being told their confirmed funding means 'yes', a student who replies 'yes' is refused and the reply counts toward the stop
+file: packages/interview/src/field-specs.ts:967
+
+After a no, the student types 'confirmed' and is told 'Funding that has been confirmed means the answer to "Do you know yet how your studies will be funded?" is yes.' The same four stages are asked again. The natural reply 'yes' goes to readInFormWords and comes back "I could not read one of the form's answers from \"yes\"" (checked on the dist). Each such reply writes answer_unread, and the third stops the run for a person. His answer 6 has two halves: tell them it means yes, AND offer to answer that field again (§5). Only the first is built. The 'because' text gives no way forward, and nothing in code or records marks the offer as pending on §5.
+
+Verdicts: none came back.
+
+Done: No code change. The offer to answer the field again is his answer 6's second half and is §5's (P320); the records now say it is not built (ADR-0161 as built, where-we-are, CHANGELOG). Until then three answers the question did not take stop for a person, as every question does (ADR-0123 Decision 2).
+
+====================================================================================================
+review-rule 0  [low]  A case once raised for involves_minor reviews every later answer and list choice as a minor's, even after the student is an adult
+file: apps/conversation-service/src/run-driver.ts:13062
+
+triggersToRaise (run-driver.ts:13021) raises every trigger in everRaised(held), whether or not it still applies. Before P319 the involves_minor fingerprint covered only the date of birth, so for a case whose student is no longer a minor it moved only when the DOB changed. It now hashes every profile entry and every entry choice (line 13062), so any answer or choice moves it. Concrete path: a 17-year-old's case is raised for involves_minor and approved. The student turns 18, so mandatoryTriggersOf no longer returns involves_minor, but everRaised still does. Any later confirmation (a P233 portal demand, the P319 at-start funding demand, a correction) or a choose_entry press then changes basis.fingerprints.involves_minor. The next decide raises involves_minor again, takes the case back (voiding an authorisation), and #pauseForReview stops the run with a critical intervention. Vahid then has to approve a 'minor' review for an adult on every answer, indefinitely. The same holds for an adult case carrying a pre-P318 minors raising (run-driver.test.ts:6088). His words cover 'a minor's review', and the new test's own stated guard says 'widening what the fingerprint covers must not widen who is reviewed as a minor'. That guard test (run-driver.test.ts ~11648) only checks an adult who was never raised. Note that a fix which picks the formula from `applies` would make the fingerprint depend on `now`, so it would move once at the 18th birthday.
+
+Verdicts: none came back.
+
+Done: Recorded, not built: it touches the mandatory review of minors. Row 218, his, with my recommendation.
+
+====================================================================================================
+review-rule 1  [low]  ADR-0161 still says the pre-fill sentence after a take-back is reachable only for pre-P318 approvals; P319 makes it reachable for reviewed minors
+file: docs/decisions/0161-an-accepted-answer-fills-its-box-or-is-asked-about-there-and-then.md:742
+
+The record says the wrong pre-fill sentence after a take-back of a filled case ('approving it lets me fill the form in for you'), row 214 (7), is 'Reachable today only for a case holding an approval from before P318'. Under P319 any reviewed minor's case reaches the same take-back path (void, then review, then AWAITING_STUDENT_AUTHORISATION announced again). This happens in two ways. First, once at deploy for every minor's case whose P318 approval covered a DOB-only fingerprint. Second, whenever a reviewed minor answers anything after the yes: a P233 portal demand during the fill, or an answer given in another application, since the profile is per student. Each of these now moves the involves_minor fingerprint. The same claim is repeated in state-of-the-system.md row 214 (7). The record now asserts a narrower reach than the code has.
+
+Verdicts: none came back.
+
+Done: Records fixed: ADR-0161's row 214 (7) reach note and state-of-the-system row 214 (7) now name the minors' take-back too.
+
+====================================================================================================
+checker 0  [low]  An absent:"ask" that reopenedBy cannot turn into a question is accepted without a word and asks nothing; the only signal is a generic gate line, and on fundingSource that line has the same key as an existing known line
+file: packages/orchestrator/src/run.ts:2414
+
+`readAbsent` (packages/catalogue/src/parse.ts:1291) accepts "ask" on any part or switch, at any depth, and checkUsable has no check that the clause can be asked. `reopenedBy` returns null, so nothing is asked, in several cases: the box's label equals its fieldRef (on the signed Sheffield entry that is already true of sex, countryOfBirth, fundingNationality, permanentResidence, previousCountry1-3, the date selects and about 30 more); the rule is not an option map or a same-path switch (for example `then: text` on fundingDetails); the clause is nested inside a switch case or an escaped branch; or every option is many-to-one. In each case the clause behaves exactly like having no absent clause. After a no, the part is not asked, the plan refuses with render_refused (no_such_part), and the run stops for a person, while the box's signed note says the student is asked. Nothing at authoring time reports this (format.ts:90 promises "the student is ASKED"). The only report is the CI gate's generic `refused_by_the_map|…|render_refused (no_such_part)` line. Concrete case: after his signature, suppose a re-capture writes fundingSource's label as "fundingSource", as on most boxes of this entry. Parse and checkUsable pass, the source is not reopened, and a no yields `refused_by_the_map|finance.funding|fundingSource|render_refused (no_such_part)`. That is the same key as known line scripts/required-boxes-known.ts:82, which a yes naming a scholarship without details already produces, so the gate stays green. The guard written against exactly this folding, required-boxes-hold.test.ts:193, filters to `breaks_a_required_box` and does not see `refused_by_the_map`. Only the Sheffield-specific pin at test line 184 would go red.
+
+Verdicts: none came back.
+
+Done: Fixed by a gate: unaskedAsks (scripts/required-boxes-hold.ts) lists each box whose mapping says ask anywhere in its rule and that the run would not ask, and a test fails CI if a signed entry has one: "every `absent: "ask"` on a signed entry is asked: one the run cannot ask fails here, not silently at a student's no (P319's review)". It is made to fail on the change with two planted causes, a label never read and a box not required. A nested clause is caught by the same rule (any ask below the top is not the top's ask) but no test plants one. Nothing on the signed entry says ask today. Mutation 19.
+
+====================================================================================================
+checker 1  [low]  Reopened options turn mapping keys into stored profile values, unchecked by the part's own parser, and the checker only walks reopened values that are among the spec's candidates
+file: scripts/required-boxes-hold.ts:348
+
+`reopenedBy` (run.ts:2426) offers each form option with the mapping key that renders to it as its value. `inFormWords` reads the student's choice straight back to that key (interview.ts:375), and `assemble` casts it (`stage as FundingStage`, field-specs.ts:996). Nothing checks the key against FUNDING_STAGES or the part's own `parse`. Before P319 a key outside the vocabulary was inert, because no answer could produce it. Now it becomes a student's stored answer. Example: a reviewed fundingStage map that also carries `later: "I will fund my studies later"` with absent:"ask". After a no, "later" is offered and stored, and every other portal's stage map refuses it as no_matching_option, so the profile is no longer portal-neutral. The checker cannot see this. Its walk picks a reopened value as `offered.find(same(value, wanted)) ?? offered[0]`, where `wanted` comes only from `candidatesOf` (the spec's oneOf(FUNDING_STAGE_WORDS)) or the base. So an offered value outside those candidates is planned only if it happens to be offered[0]. That contradicts the stated property "uses the interview's own gate … and the values it offers" (ADR-0161, the checker paragraph). Today's Sheffield keys are all vocabulary tokens, so this is latent (CLAUDE.md, latent constraints).
+
+Verdicts: none came back.
+
+Done: Fixed at the source: inFormWords offers only values the part's own closed list holds (parse.options), so a mapping key outside the vocabulary is never offered or stored. Test: "offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review)". Mutation 18. The checker's walk then covers every value offered: required-boxes-hold.test.ts asserts that after a no each of the four sources and each of the four stages is asked and taken.
+
+====================================================================================================
+departures 0  [medium]  Case-begin sentence tells the student the form asks two questions that the records say are unread for a No, in a preface D2 withdrew
+file: apps/conversation-service/src/run-driver.ts:2739
+
+Built: `${university}'s form asks ${unseen}, which your earlier answer about ${about} does not say. Let me ask you now.` After his signature, a student whose held answer is No starts a Sheffield application and reads: 'University of Sheffield's form asks "Please select your likely funding source" and "What stage are you at with your funding?", which your earlier answer about how your studies will be funded does not say.' The entry's own records say otherwise or say nobody knows: the entry note (sheffield-pgt-2027-09.json:30821) says 'the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged)'; ADR-0143 Consequences says 'The page hides the source, stage and details rows for No'; ADR-0161 §4 says 'Whether it hides the stage box for No is still not known'; and the patched note says it 'is unread'. This is a demand sentence (the same `demandSentence` as ADR-0148 §11), and his condition there is 'Never imply we know when we do not.' It also brings back an agent-worded preface of the kind D2 withdrew ('The words I had proposed are withdrawn'), while the as-built claims '§4's preface stays withdrawn'. It was applied as 'mine' under the 2026-10-14 rule, but it is said before a money question (when in doubt, it touches), and the 2026-10-17 rule says a departure from an accepted ADR is asked 'even if you are sure'. It is also assembled from FIELD_LABELS, the template-from-a-label shape ADR-0147 (P255) rules out; that part is latent while only funding uses it.
+
+Verdicts: none came back.
+
+Done: Fixed: the sentence is removed; the question is the form's own with nothing of mine before it. Whether the student should be told why is row 217, his.
+
+====================================================================================================
+departures 1  [medium]  Prepared change omits what-will-be-typed.md and three pinned prints its own tests read: main goes red at his signature
+file: scripts/run-a-profile.test.ts:711
+
+p319-review-patch.diff changes 8 tracked files. The scratch worktree p319-wt also changes docs/run-a/what-will-be-typed.md and creates docs/run-a/p319-content-stops-on-sheffield.txt, p319-funding-on-page-12.txt and p319-required-boxes.txt. None of these four is in the patch. If he applies the patch and approvals.json in one commit as planned: (1) run-a-profile.test.ts:711 `expect(output).toBe(readFileSync(READ))` fails, because main's what-will-be-typed.md line 1 still reads 'REVIEWED — blueprint 0.2.36, mapping set 0.3.48' and its Reference hash is old; (2) content-stops-on-sheffield.test.ts fails with ENOENT on two p319-*.txt files (its 'saved output' tests); (3) required-boxes-hold.test.ts fails with ENOENT on p319-required-boxes.txt. That breaks the rule the patch's own comment states: 'main never holds an entry that is not signed, and this test is never red there.' docs/run-a/p319-for-signature.md, which where-we-are.md cites, does not exist yet.
+
+Verdicts: none came back.
+
+Done: Duplicate of patch 0; see there.
+
+====================================================================================================
+departures 2  [low]  The 'why' sentence is skipped whenever any other question comes before funding
+file: apps/conversation-service/src/run-driver.ts:7973
+
+The sentence is said only if no assistant message has been appended since the `atStart` demand. The demand is written at `start`, but the interview asks the first outstanding field in requiredFields order (interview.ts:921), and demands do not move a field forward. Funding is on Sheffield's last page (page12). So in any new application where another field is still unanswered, that field's question lands after the demand, and when funding is reached the guard is false. The student who said No elsewhere then gets the bare source question with no reason. ADR-0161 as-built ('Just before the field's question the student is told …') and where-we-are.md ('the student is told why just before the question') claim more than the code does. The GATED test covers only the case where funding is asked first.
+
+Verdicts: none came back.
+
+Done: Duplicate of driver 0; moot.
+
+====================================================================================================
+departures 3  [low]  Answer 6 is quoted cut short in code, and where-we-are calls the behaviour complete and 'in his words'
+file: packages/interview/src/field-specs.ts:148
+
+His words: '…tell them that means the answer to "Do you know…" is yes, and offer to answer that field again (§5).' field-specs.ts:145-148 and interview.test.ts:2122 end the quote at 'is yes."*', turning his comma into a full stop and dropping the instruction that is not built. where-we-are.md:4941 says the student 'is told it means yes to the first question, in his words'. The sentence shown ('Funding that has been confirmed means the answer to "Do you know yet how your studies will be funded?" is yes.') is the agent's wording, not his, and the deferred offer goes unmentioned. Until §5, such a student is asked the four stages again and, after three misses, stopped for a person, who may not set a financial answer. The deferral itself is recorded only in ADR-0161 (line 843) and matches his answer 1's order. The quotes and the where-we-are line claim more than was built.
+
+Verdicts: none came back.
+
+Done: Fixed: answer 6 quoted in full in field-specs.ts and interview.test.ts; where-we-are says the wording is mine and the offer is §5's.
+
+====================================================================================================
+departures 4  [low]  `absent: "ask"` reopens a part whether or not its box is required, and the reopened question refuses 'none'
+file: packages/orchestrator/src/run.ts:2414
+
+`reopenedBy` checks only `absent === "ask"` and the label; it never reads the box's `required` validation. The reopened parse (interview.ts:375) accepts only the offered sentences. D2 makes the source conditional ('If the funding source box is also required (row 210), ask it too'). ADR-0148 §4 refuses 'none' only 'when that slot is required'. Latent: a signed entry whose mapping says `absent: "ask"` on a box that is not required (for example, if he signed the notes and the ask but not the source's required rule) would force a No student to pick a source, with no way to leave an optional box empty. Not reachable with the prepared change, which sets both together.
+
+Verdicts: none came back.
+
+Done: Fixed: a part is reopened only where the box is required (partPolicyFor reads the box's required rule). Test (orchestrator.test.ts): "reopens nothing on a box the form does not require: a no may leave an optional box empty (D2: "if the funding source box is also required")". Mutation 17.
+
+====================================================================================================
+departures 5  [low]  where-we-are.md says the scratch copy with the stand-in approval was removed; it still exists
+file: docs/where-we-are.md:4939
+
+Line 4939: 'the copy was removed once the checks passed'. The scratch worktree p319-wt still exists under the session scratchpad and holds docs/run-a/catalogue/approvals.json with the stand-in approval, plus the unshipped prints from finding 2. CLAUDE.md requires a record to say what was observed. This line becomes true only after removal; written now, it claims a cleanup nobody has checked.
+
+Verdicts: none came back.
+
+Done: Fixed: the line is written to be true at the commit; the scratch worktrees and every copy of the stand-in are deleted before it, and the deletion is checked by listing.
+
+====================================================================================================
+departures 6  [low]  A case ever raised for a minor now re-raises a minors review on every answer after the student turns 18; not asked or recorded
+file: apps/conversation-service/src/run-driver.ts:13062
+
+The `involves_minor` fingerprint now covers every profile entry and choice, and `triggersToRaise` re-raises every trigger the case was ever raised for (`everRaised`, line 12986) whenever its fingerprint moves, whether or not it still applies. Reachable today without any correction: a student born 2008-11-01 starts on 2026-10-17, is raised and reviewed as a minor, turns 18 on 2026-11-01, then confirms another answer or makes a list choice. The adult's case is taken back for a minors review, and again after each later answer. Before P319, only a change to the date of birth did this. P319's own design reading flagged it ('A case ever raised for a minor keeps being re-raised by any answer change, even once the date of birth says adult'). Question 11 asked only about the one-time re-review at deploy and a minor's new answers, and the as-built section does not mention this case. It fails safe (extra reviews), but it changes when a press can happen, which is one of his four.
+
+Verdicts: none came back.
+
+Done: Duplicate of review-rule 0; row 218.
+
+====================================================================================================
+patch 0  [medium]  The prepared change leaves out four files its own tests read, so the signature commit lands with red tests
+file: scripts/run-a-profile.test.ts:717
+
+p319-review-patch.diff is byte-identical to `git diff -- docs/captures docs/run-a/catalogue/entries scripts` in p319-wt. That pathspec leaves out three things: the modified docs/run-a/what-will-be-typed.md (version line 0.2.37/0.3.49 and Reference sha256:cf20da6c…) and the three untracked prints p319-content-stops-on-sheffield.txt, p319-funding-on-page-12.txt and p319-required-boxes.txt. The diff contains no 'new file' entries. If p319-for-signature.patch is cut the same way, Vahid's sign steps (grep, git apply --check, git apply, hash check, git add, commit) all pass, because none of them runs a test. CI is then red on main in four places. run-a-profile.test.ts:716-717 fails because what-will-be-typed.md still reads 'blueprint 0.2.36, mapping set 0.3.48' and Reference c22cfaec. content-stops-on-sheffield.test.ts:66 and :119 throw ENOENT on the p319 prints. required-boxes-hold.test.ts:117 throws ENOENT on p319-required-boxes.txt. Fix: put the regenerated file and the new prints in the patch (for example `git add -N` before the diff, or `git diff --binary` of every path the change touches), or add a test run before the commit.
+
+Verdicts: none came back.
+
+Done: Fixed: the patch is cut after `git add -N`, so it carries what-will-be-typed.md and the three p319 prints; checked by listing the patch's files and by the tests passing on a clean copy of main with the patch and the stand-in applied.
+
+====================================================================================================
+patch 1  [low]  After the patch, the 'loses a finding when the rule is taken off' test cannot fail for its reason
+file: scripts/required-boxes-hold.test.ts:141
+
+On the patched entry, fundingStage says absent:"ask". reopenedBy/partAsAsked reopen the stage whether or not the box carries `required`, so every no is asked the stage. brokenBy(..., 'fundingStage') is therefore [] with the rule, which the patched test at :121 now asserts, and [] without it. The test removes the rule and expects [], so it passes even if withRules failed to remove the rule or the checker stopped reading `required`. Before the patch its sibling pinned ['known=false'] with the rule, so the drop meant something; after the patch nothing in the file shows that taking a required rule off loses a finding. Fix: run it on asTheChangeMapsFunding(entry, 'leave_empty'), or plant the rule on a box with no ask arm.
+
+Verdicts: none came back.
+
+Done: Fixed in the patched test: it runs on the change with the stage back to leave_empty, where taking the rule off loses the finding.
+
+====================================================================================================
+patch 2  [low]  Moved test title says 'his run's case, mended', but his held no is not mended
+file: scripts/required-boxes-hold.test.ts:121
+
+The patched title reads "his run's case, mended by P319's change: a no to the funding question is asked the stage and the source there and then". The checker only walks answers given fresh. His run holds {known:false} from 16 October and resumes. On the patched tree that answer is refused at the plan (render_refused, no_such_part on fundingSource and fundingStage) and stops for a person. It is not asked 'there and then', because the D10 check runs only when !resumed (run-driver.ts start). The sheet itself says 'What his run gets from P319 alone: nothing yet'. The title records more than the change does for his run. The same overclaim sits in content-stops-on-sheffield.test.ts's P316 title ('both are refused, to be asked'), where a held no on resume is not asked.
+
+Verdicts: none came back.
+
+Done: Fixed in the patched tests: the titles say what the change does for an answer given after it, and that a held no is reached by §5.
+
+====================================================================================================
+patch 3  [low]  Sheet says the stand-in approval was deleted and lived only in the worktree; neither is true
+file: /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-for-signature.md:141
+
+Lines 141-142 say the stand-in 'lived only in a scratch worktree under the session's scratchpad … It was deleted with that worktree, once the checks had passed.' At review time p319-wt still exists and its docs/run-a/catalogue/approvals.json still holds the stand-in: contentHash sha256:388debf0…, approvedBy 'TEST STAND-IN, NOT A SIGNATURE', last written at 17:17:53. A second copy sits outside any worktree at scratchpad/p319-standin.json. If the sheet is committed as docs/run-a/p319-for-signature.md as written, it records a deletion that has not happened. That is the 'done without a look' class CLAUDE.md forbids. Either delete both copies and re-read before the sheet is committed, or reword the sentence to say what is true.
+
+Verdicts: none came back.
+
+Done: Fixed: the sheet says the stand-in was deleted only once it was, and the deletion was checked by listing.
+
+====================================================================================================
+patch 4  [low]  Sheet presents a question count as 'your run's' from a measure that cannot see his funding no
+file: /tmp/claude-0/-home-user-askimate-auto-apply/67805469-31b8-5441-91e9-e4b6086c06f7/scratchpad/p319-for-signature.md:127
+
+The sheet says 'Your run's questions per application (scripts/questions-his-run.ts): 5 with your title, 4 with "DBA", as on main.' questions-his-run.ts builds its profile from docs/run-a/synthetic-profile.json, whose finance.funding is {known:true, source:'self_or_family', …}; only the qualifications are replaced. On the patched entry, his actual held no changes his run in two ways the script cannot see. A new Sheffield case raises the atStart demand and asks two more questions (source and stage). His resumed case stops for a person. The 5 and 4 match main only because the method leaves his answer out. CLAUDE.md's rule on measurements whose method is wrong applies: state what the script cannot see, or measure with his no.
+
+Verdicts: none came back.
+
+Done: Fixed: the sheet says questions-his-run.ts cannot see his funding no, and what that no does on the patched tree.
+
+Findings: 23. Verdicts: 7, on 4 findings.

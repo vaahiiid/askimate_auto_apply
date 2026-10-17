@@ -2711,7 +2711,10 @@ components:
         reads: the page, the boxes it left empty there, and what the read-back
         did not see. Never the portal's own words. The part named is asked
         next as an interview question, and the field's next confirmation
-        closes the demand.
+        closes the demand. `atStart` marks one raised when the case first
+        planned, from an answer the student gave before it, and not by a
+        refused save (P319, ADR-0161 §3): `unseen` then holds the form's own
+        questions the answer does not answer.
       properties:
         kind: { type: string, enum: [value_part_demanded] }
         ordinal: { type: integer, minimum: 1 }
@@ -2726,6 +2729,7 @@ components:
             page: { type: string, maxLength: 200 }
             empty: { type: array, items: { type: string, maxLength: 200 } }
             unseen: { type: array, items: { type: string, maxLength: 200 } }
+            atStart: { type: boolean, enum: [true] }
 
     ValueConfirmedEvent:
       type: object

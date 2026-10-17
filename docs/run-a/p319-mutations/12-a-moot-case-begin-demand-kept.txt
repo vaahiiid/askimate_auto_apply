@@ -1,0 +1,15 @@
+mutation 12-a-moot-case-begin-demand-kept on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t where the entry says to ask them|keeps what the entry says to ask
+exit: 1
+restored byte for byte: True
+
+replaced:
+        if (open.demand.atStart !== true) return true;
+with:
+        if (open.demand.atStart !== true || (true as boolean)) return true;
+
+   × after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > a demand raised when the case began asks nothing once the held answer holds what the form asks, answered in another application (P319's review) 226ms
+     → the source the held answer now holds is not asked again: expected 'The university needs your name exactl…' not to contain 'Who is paying'
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed | 445 skipped (453)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > a demand raised when the case began asks nothing once the held answer holds what the form asks, answered in another application (P319's review)

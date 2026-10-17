@@ -6,13 +6,15 @@
  * student is already having.
  */
 
-export type { PartPolicy, PartRule } from "./interview.js";
+export type { PartPolicy, PartRule, ReopenedPart } from "./interview.js";
 export type { InterviewAction, InterviewState, ReplyOutcome,
   ReadingOnOffer } from "./interview.js";
 export {
   MAX_ATTEMPTS_PER_FIELD,
   newInterview,
   nextAction,
+  partAsAsked,
+  partsTheFormAsksOf,
   questionOf,
   receiveAnswer,
   receiveConfirmation,

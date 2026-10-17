@@ -4906,6 +4906,64 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P319 — after a no, the form's own questions, behind his signature; a minor's review covers every answer
+
+*2026-10-17.* His answers to row 214 (`docs/run-a/p319-his-answers-on-row-214-as-sent.txt`) gave
+a rule: *"From now on, when building would depart from an accepted ADR, stop and ask me first,
+even if you are sure; record the question, build nothing on it until I answer."* It is in
+CLAUDE.md. P319's design was read against the accepted ADRs before any code, and thirteen
+questions went to him. His answers (`docs/run-a/p319-his-answers-on-the-thirteen-as-sent.txt`)
+are recorded in his words in ADR-0161. Two differ from what I recommended:
+- after a no, four stages, not "The funding has been confirmed";
+- nothing filled against the note he signed: the note, the source's rule and whatever lets the
+  stage be asked go into one change he signs, as a step of his run.
+
+**A minor's review covers every answer and every choice from a form's list.** Before this, a
+reviewed minor's application could change in everything but the date of birth without a second
+review. The fingerprint still holds no value. Every case reviewed for a minor before today goes
+back to review once, as he accepted.
+
+**After a no, the form's own questions, where an entry he signs says so.** A reviewed mapping can
+now say `absent: "ask"`. Where a student's answer lacks the part, the box renders nothing, and the
+student is asked for the part in the box's own words and options. On Sheffield that is:
+- *"Please select your likely funding source"*, with the four options a value of its own names;
+- *"What stage are you at with your funding?"*, with the four sentences a no leaves open.
+
+The answer is read exactly, never by a model. It is played back in the form's words, and kept as
+the student's own no with the stage and the source beside it. No entry says `ask` today, and a
+test holds that.
+
+The change that puts it on Sheffield is prepared for his signature, not signed:
+`docs/run-a/p319-for-signature.md`, hashing to `sha256:388debf0…`. It also carries the source's rule
+on his observed asterisk and the two reworded notes. It was checked in a scratch copy under a
+stand-in approval that never carried his name, marked as a test. The scratch copies and every
+approvals file holding the stand-in were deleted once the checks passed, before this commit; a search
+of the scratchpad found none left (`docs/run-a/p319-for-signature.md`, "Checks").
+
+A student who says their funding is confirmed is told it means yes to the first question (the
+wording is mine; the offer to answer that field again is §5's, P320). A near match is never chosen:
+two or more are offered for a press. One alone is named and the question asked again, because
+ADR-0146 says a single reading is never an offer. Whether one may be offered alone is his: row 216.
+
+**Both of D10's moments.** In the walk, before the playback. And when a case first plans: an
+answer given before it that lacks what the entry asks raises the demand a refused save raises, and
+the form's question is asked with nothing of mine before it. P319 first said a sentence of mine
+there; its review found the sentence claimed more than the entry says, and it was removed. Whether
+a student should be told why is his: row 217. Once the case has planned it is never checked again.
+
+**P319's review** (six lenses, 23 findings; `docs/run-a/p319-review-findings.txt`) also found that a
+case once raised for a minor goes back to review on every later answer, even once the student is an
+adult. It fails closed; what to do is his: row 218.
+
+**What his run gets from this alone: nothing yet**, as he agreed. His no was held before the
+change. After his signature the plan refuses it at the two boxes and stops for a person; today it
+stops at `fix_content`. Answering a field again (§5) is next (P320), then the
+steps for his run (P321): his signature, his answer, then the resolve command.
+
+## Declared-but-unreachable surface
+
+**Three** — unchanged.
+
 # P318 — a review covers only what it reviewed, and his rule's test is a gate
 
 *2026-10-17.* His answers on ADR-0161 (`docs/run-a/p318-his-answers-on-adr-0161-as-sent.txt`)

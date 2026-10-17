@@ -90,7 +90,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { loadCatalogueDirectory } from "@askimate/aas-catalogue";
-import { FIELD_SPECS, isComposite, isList } from "@askimate/aas-interview";
+import { FIELD_SPECS, isComposite, isList, partAsAsked } from "@askimate/aas-interview";
+import type { PartRule } from "@askimate/aas-interview";
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import type { FillBlocker } from "@askimate/aas-mapping";
 import { partPolicyFor } from "@askimate/aas-orchestrator";
@@ -174,7 +175,7 @@ interface Candidates {
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(encodeValue(a)) === JSON.stringify(encodeValue(b));
 
-type PartPolicy = { readonly asked: ReadonlySet<string> | "all"; readonly required: ReadonlySet<string> };
+type PartPolicy = PartRule;
 
 /** What a part accepts, as the interview's own parser reads it, under the run's own part policy. */
 function candidatesOf(part: Part, policy: PartPolicy | undefined): Candidates {
@@ -259,7 +260,7 @@ type Option = { readonly part: Part } & Candidates;
  * accepted values, of the answer's own pieces, or leaving it out, brings the
  * assembly closest, two passes in the interview's order.
  */
-function baseParts(spec: Composite, options: readonly Option[], own: unknown): { readonly parts: ReadonlyMap<string, unknown>; readonly exact: boolean } {
+function baseParts(spec: Composite, options: readonly Option[], own: unknown, policy: PartPolicy | undefined): { readonly parts: ReadonlyMap<string, unknown>; readonly exact: boolean } {
   const held = own !== null && typeof own === "object" && !Array.isArray(own) ? (own as Record<string, unknown>) : {};
   const pieces = own === undefined ? [] : piecesOf(own);
   const chosen = new Map<string, unknown>();
@@ -270,7 +271,12 @@ function baseParts(spec: Composite, options: readonly Option[], own: unknown): {
   const assembleFrom = (parts: ReadonlyMap<string, unknown>): unknown => {
     const answered = new Map<string, unknown>();
     for (const { part } of options) {
-      if (part.askWhen !== undefined && !part.askWhen(answered)) continue;
+      if (part.askWhen !== undefined && !part.askWhen(answered)) {
+        const offered = reopenedValues(spec, part, answered, policy);
+        const value = parts.get(part.partKey);
+        if (offered.length > 0) answered.set(part.partKey, offered.find((held) => same(held, value)) ?? offered[0]);
+        continue;
+      }
       const value = parts.get(part.partKey);
       if (value !== undefined && value !== LEFT_OUT) answered.set(part.partKey, value);
     }
@@ -298,6 +304,12 @@ function baseParts(spec: Composite, options: readonly Option[], own: unknown): {
   return { parts: chosen, exact };
 }
 
+/** The values a part an earlier answer closed may take where the interview asks it in the form's words (P319): none where it is not asked. */
+function reopenedValues(spec: Composite, part: Part, answered: ReadonlyMap<string, unknown>, policy: PartPolicy | undefined): readonly unknown[] {
+  const asked = partAsAsked(spec as unknown as Parameters<typeof partAsAsked>[0], part as unknown as Parameters<typeof partAsAsked>[1], answered, policy);
+  return asked?.inFormWords?.options.map((option) => option.value) ?? [];
+}
+
 /**
  * At most `limit` values, spread over the list, the first and the last kept: what a pair varies
  * the second part over. A list of countries keeps the short list of OPENING_COUNTRIES first, so
@@ -321,14 +333,23 @@ interface Answer {
 /** Every answer a composite accepts: one part varied, then pairs, from the profile's own answer. */
 function compositeAnswers(spec: Composite, policy: PartPolicy | undefined, own: unknown): { readonly answers: readonly Answer[]; readonly exact: boolean; readonly neverVaried: readonly string[] } {
   const options: readonly Option[] = spec.parts.map((part) => ({ part, ...candidatesOf(part, policy) }));
-  const base = baseParts(spec, options, own);
+  const base = baseParts(spec, options, own, policy);
   const varied = new Set<string>();
   // The walk: each part in order, asked only when its askWhen holds; `set` holds the varied parts' values.
   const walk = (set: ReadonlyMap<string, unknown>): { readonly answered: ReadonlyMap<string, unknown>; readonly asked: ReadonlySet<string> } | null => {
     const answered = new Map<string, unknown>();
     const asked = new Set<string>();
     for (const { part, omittable, filler, unasked } of options) {
-      if (part.askWhen !== undefined && !part.askWhen(answered)) continue;
+      if (part.askWhen !== undefined && !part.askWhen(answered)) {
+        // P319: a part an earlier answer closed is asked where the entry says so, in the form's own
+        // words and options, by the interview's own gate; its answer is one of the options offered.
+        const offered = reopenedValues(spec, part, answered, policy);
+        if (offered.length === 0) continue;
+        const wanted = set.has(part.partKey) ? set.get(part.partKey) : base.parts.get(part.partKey);
+        if (set.has(part.partKey)) asked.add(part.partKey);
+        answered.set(part.partKey, offered.find((value) => same(value, wanted)) ?? offered[0]);
+        continue;
+      }
       if (unasked) continue;
       const value = set.has(part.partKey) ? set.get(part.partKey) : base.parts.get(part.partKey);
       if (set.has(part.partKey)) asked.add(part.partKey);
@@ -380,6 +401,32 @@ function policyOf(entry: Entry): ReadonlyMap<string, PartPolicy> {
   const check = checkUsable(entry.mappingSet as Parameters<typeof checkUsable>[0], entry.blueprint as Parameters<typeof planFill>[0]);
   if (!check.usable) throw new Error(`the mapping set is not usable: ${check.refusal.detail}`);
   return partPolicyFor(entry.blueprint as Parameters<typeof partPolicyFor>[0], check.mappingSet);
+}
+
+/** Whether a format rule says `absent: "ask"` anywhere in it. */
+function asksAnywhere(format: unknown): boolean {
+  if (format === null || typeof format !== "object") return false;
+  if ((format as { absent?: unknown }).absent === "ask") return true;
+  return Object.values(format as Record<string, unknown>).some((inner) => asksAnywhere(inner));
+}
+
+/**
+ * Each box whose reviewed mapping says `absent: "ask"` and that the run would
+ * not ask (P319's review): the clause nested where nothing reads it, a label
+ * never read, a box the form does not require, or no option the part's own
+ * list holds. Such a clause refuses like no clause at all, so a student's no
+ * would stop for a person while the entry says they are asked.
+ */
+export function unaskedAsks(entry: Entry): readonly string[] {
+  const policy = policyOf(entry);
+  return mappingsOf(entry).flatMap((mapping) => {
+    const fieldKey = mapping.source.fieldKey;
+    if (mapping.source.kind !== "profile_field" || fieldKey === undefined || !asksAnywhere(mapping.source.format)) return [];
+    const top = mapping.source.format as { readonly absent?: unknown; readonly path?: unknown } | undefined;
+    const path = typeof top?.path === "string" ? top.path : "";
+    const asked = top?.absent === "ask" && policy.get(fieldKey)?.reopens?.has(path) === true;
+    return asked ? [] : [`${mapping.fieldRef}: ${fieldKey}.${path}`];
+  });
 }
 
 interface Mapping {

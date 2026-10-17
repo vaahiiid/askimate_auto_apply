@@ -1529,6 +1529,19 @@ describe("a mapping keyed on two parts is parsed as a `switch` (P218)", () => {
     expect(format.absent).toBe("leave_empty");
   });
 
+  it("accepts `absent: \"ask\"` on a part and on a switch, and refuses a word it does not know (P319)", () => {
+    for (const format of [
+      { kind: "part", path: "stage", absent: "ask", then: { kind: "option", options: { applying: "I am applying for funding" } } },
+      { kind: "switch", path: "source", absent: "ask", cases: { employer: { kind: "part", path: "source", then: { kind: "option", options: { employer: "Employer" } } } } },
+    ]) {
+      const parsed = parseMappingSet(withFormat(format));
+      if (!parsed.ok) expect.unreachable(`${parsed.refusal.path}: ${parsed.refusal.detail}`);
+      expect((parsed.value.mappings[0]?.source as { format: { absent?: string } }).format.absent).toBe("ask");
+    }
+    const unknown = parseMappingSet(withFormat({ kind: "part", path: "stage", absent: "skip" }));
+    expect(unknown.ok, "an absent word nobody defined is not read as one").toBe(false);
+  });
+
   it("REFUSES a switch with no cases — a refusal wearing a rule's clothes", () => {
     const parsed = parseMappingSet(withFormat({ kind: "switch", path: "gradeScale", cases: {} }));
     expect(parsed.ok).toBe(false);

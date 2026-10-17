@@ -138,6 +138,37 @@ export interface FieldPart<P> {
    * month-and-year parts have one, because a date is the only such value.
    */
   readonly components?: PartComponents<P>;
+  /**
+   * Values the answers so far rule out, offered to nobody who gave them, and
+   * what a student who names one is told instead (P319). Read only where a
+   * form's own options are offered for a part an earlier answer closed
+   * (`PartRule.reopens`). Vahid, of the funding stage after a "no": *"offer
+   * the other four stages, not "The funding has been confirmed": the two
+   * contradict each other … If the student says their funding is confirmed,
+   * tell them that means the answer to "Do you know…" is yes, and offer to
+   * answer that field again (§5)."* The telling is built here, in my words;
+   * the offer is §5's, which is P320.
+   */
+  readonly ruledOut?: {
+    readonly when: (answered: PartAnswers) => boolean;
+    readonly values: readonly string[];
+    readonly because: string;
+  };
+  /**
+   * The form's own options this part is asked with, when it is asked in the
+   * form's words (P319): set on the part the walk asks, never on a spec. Read
+   * exactly, after normalising case and spaces, and never by a model.
+   */
+  readonly inFormWords?: {
+    readonly options: readonly { readonly words: string; readonly value: string }[];
+    /**
+     * The form's options the answers so far rule out, by their words, the words
+     * the spec's own reader takes for them (`spoken`), and why.
+     */
+    readonly ruledOut: { readonly words: readonly string[]; readonly spoken: readonly string[]; readonly values: readonly string[]; readonly because: string } | null;
+    /** The spec's own reader, for a near match only: what it reads is suggested, never chosen. */
+    readonly ownParse: (raw: string) => unknown;
+  };
 }
 
 /**
@@ -933,6 +964,13 @@ export const FIELD_SPECS: Partial<{
         expectedShape: "one of: confirmed, applying for a project studentship, applied, applying, thinking about it",
         parse: oneOf(FUNDING_STAGE_WORDS),
         askWhen: (answered) => answered.get("known") === true,
+        // P319, his answer 6: a "no" and a confirmed funding contradict each
+        // other, so after a no the confirmed stage is offered to nobody.
+        ruledOut: {
+          when: (answered) => answered.get("known") === false,
+          values: ["confirmed"],
+          because: 'Funding that has been confirmed means the answer to "Do you know yet how your studies will be funded?" is yes.',
+        },
       },
       {
         partKey: "details",
@@ -950,7 +988,19 @@ export const FIELD_SPECS: Partial<{
     assemble: (answered) => {
       const known = answered.get("known");
       if (typeof known !== "boolean") return null;
-      if (!known) return { known: false };
+      // A no keeps the stage and the source where the form it was asked for
+      // asked them in its own words (P319, ADR-0161 §4); `known` stays the
+      // student's no, never derived from them (ADR-0143 §2). The details stay
+      // a yes's alone.
+      if (!known) {
+        const source = answered.get("source");
+        const stage = answered.get("stage");
+        return {
+          known: false,
+          ...(typeof source === "string" ? { source: source as FundingSource } : {}),
+          ...(typeof stage === "string" ? { stage: stage as FundingStage } : {}),
+        };
+      }
       const source = answered.get("source");
       const stage = answered.get("stage");
       if (typeof source !== "string" || typeof stage !== "string") return null;

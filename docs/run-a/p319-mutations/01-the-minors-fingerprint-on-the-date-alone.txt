@@ -1,0 +1,15 @@
+mutation 01-the-minors-fingerprint-on-the-date-alone on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P319, his answers 1 and 11
+exit: 1
+restored byte for byte: True
+
+replaced:
+marks([...profile.entries.keys()].sort())
+with:
+marks(["identity.date_of_birth"])
+
+   × a minor's review covers every answer and every choice (P319, his answers 1 and 11) > an answer other than the date of birth, confirmed again after the review, raises the minors review again 201ms
+     → raised again, for the answers as they are now: expected [] to deeply equal [ { trigger: 'involves_minor', …(1) } ]
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed | 450 skipped (453)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a minor's review covers every answer and every choice (P319, his answers 1 and 11) > an answer other than the date of birth, confirmed again after the review, raises the minors review again

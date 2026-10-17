@@ -5,7 +5,9 @@ phased"*), with D2, D4, D5, D6 and D11 answered differently from my recommendati
 conditions (see [His answers](#his-answers-2026-10-17)) · written 2026-10-16 (P317) at his request ·
 records three decisions of his of 2026-10-16 and his answers of 2026-10-17, in his own words ·
 everything else here is mine · phase 1 is building from P318: the review rule and the test
-gate in P318, the funding stage after a no and answering a field again after it; the rest
+gate in P318; in P319 the funding stage and source after a no in the form's own words, behind
+his signature of a prepared change, both of D10's moments, and a minor's review over every
+answer and list choice; answering a field again (§5) next; the rest
 follows in §8's order · amends [ADR-0143](./0143-funding-is-a-closed-vocabulary-and-the-students-own-statement.md)
 §1 and §3, [ADR-0154](./0154-a-confirmed-answer-can-be-corrected-by-asking.md) as amended in
 P311, [ADR-0148](./0148-the-interview-is-an-ai-asking-not-a-form-read-aloud.md) §4 and §11 (as
@@ -179,13 +181,42 @@ recommendation, which is mine.
 11. **"Every answer" for a minor.** Does it include a choice made from a form's own list, held
     per application? At deploy every case ever reviewed for a minor goes back to review once, and
     each new answer of a minor raises it again (both fail closed). My recommendation: include
-    choices; accept both. The profile's answers are built now, on his answer 1.
+    choices; accept both. The profile's answers are built in P319, on his answer 1. (This line
+    first said "built now", before they were; corrected in P319.)
 12. **The source's rule in the entry change** rests on his observed red asterisk
     (`docs/captures/sheffield-part2-2026-09-25/taught-page.html:209`), not on a refused save
     (ADR-0123 Decision 1), recorded with the source `specialist_noted` (the tool did not read the
     star; he did). My recommendation: yes, in those words.
 13. **A stand-in approval** to check the patched entry, in a scratch copy, never in the
     repository and never committed, beside his "do not sign anything". My recommendation: yes.
+
+### His answers to the thirteen (2026-10-17)
+
+Saved as sent: `docs/run-a/p319-his-answers-on-the-thirteen-as-sent.txt`. In his words:
+
+> P319, my answers:
+>
+> 1. Agreed: build §5 (answering a field again) next, then the steps for my run.
+> 2. Agreed: both moments.
+> 3. Agreed: funding stage only. The shrinking list carries the rest.
+> 4. Agreed: a profile answer, asked in the form's words.
+> 5. Agreed: suggest a near match for a press; never choose it.
+> 6. Not as recommended. After a "no", offer the other four stages, not "The funding has been confirmed": the two contradict each other, and a contradiction in the submitted form is worse than one fewer option. If the student says their funding is confirmed, tell them that means the answer to "Do you know…" is yes, and offer to answer that field again (§5).
+> 7. Agreed.
+> 8. Not as recommended. No value is filled against the signed note's current wording, even temporarily. The note change and the source rule go into one prepared change, signed by me in one signature, as a step of my run before it continues (with 9).
+> 9. Agreed: my signature as a step of my run.
+> 10. Agreed: the four now; the rest with D7.
+> 11. Agreed: include list choices; accept the one-time re-review.
+> 12. Agreed.
+> 13. Agreed, on one condition: the stand-in approval never carries my name, is plainly marked as a test, and cannot be mistaken for my signature anywhere.
+>
+> Record these in my words and build test-first.
+
+Two of his answers differ from my recommendations: 6 (four stages after a no, not five, and a
+student who says their funding is confirmed is told it means yes and offered the field again)
+and 8 (nothing filled under the signed note's current wording, even for a moment: the note, the
+source's rule and whatever lets the stage be asked go into one change he signs, as a step of his
+run). Each of the others is his "Agreed", 13 with his condition.
 
 ## Why this is an ADR first
 
@@ -712,7 +743,10 @@ that rule says must not happen. That was my error. He answered each on 2026-10-1
   - After a take-back of a case already filled, the student is told the pre-fill sentence again
     ("approving it lets me fill the form in for you"), and the stop's own sentence speaks of
     approving before anything is shown. Reachable today only for a case holding an approval from
-    before P318. Mine to mend, with a test, after phase 1: row 214 (7).
+    before P318. Mine to mend, with a test, after phase 1: row 214 (7). (P319 widens its reach: a
+    reviewed minor's case reaches it too, once when P319 is deployed and again whenever the minor
+    answers anything after the yes, since the minors review now covers every answer. Found by
+    P319's review.)
 - **What it does to cases now in flight.** Every case that holds an approval from before P318
   goes back to review on its next decide, because that approval covers nothing; an authorised
   one is voided first. His live case, if it holds one, is among them; the read before the review
@@ -757,6 +791,162 @@ printed from the review's own journal). Each is fixed above, or is an open line 
 seventeen killed, and one survived. That one (13) took out the store's own rule that an overwrite
 moves the revision; migration 0041 does the same for the store's upsert, so no test sees the
 store's rule alone.
+
+## As built, phase 1 (P319)
+
+His answers to the thirteen, above, built test-first. Proven against the deterministic stand-in
+only: no model was called, and the real model reads nothing new (below).
+
+**A minor's review covers every answer and every list choice** (row 214 (1), his answers 1 and 11).
+The `involves_minor` fingerprint is taken over:
+- every confirmed answer in the stored profile;
+- every choice the application made from a form's own list, each by its id and the moment it was
+  made.
+
+It still holds no value (his answer 3). Every case reviewed for a minor before P319 goes back to
+review once, which he accepted: *"accept the one-time re-review"*. Red first: an answer other than
+the date of birth, and a list choice, each changed after the review, were not raised again. P319's
+review found one more reach: a case once raised for a minor goes back to review on every later
+answer, even after the student is an adult. That is row 218, his.
+
+**Nothing is asked, or filled, against the note he signed** (his answer 8). A reviewed mapping may now
+say `absent: "ask"` of a `part` or a `switch`. Where the student's answer lacks the part, the box
+renders nothing and refuses, as a rule with no `absent` does, and the student is asked for the part
+in the box's own words and options. The run reads which parts to ask from the mapping set and the
+blueprint alone (`partPolicyFor`, `reopens`), so what is asked is still read from the portal and never
+authored at run time (ADR-0148 §4).
+
+A part is asked only where all of these hold:
+- the box is required (his D2: *"If the funding source box is also required (row 210), ask it
+  too"*);
+- its label was read;
+- each option offered renders from one value;
+- the value is one the part's own closed list holds, so a mapping's key can never become a stored
+  answer outside the registry's vocabulary.
+
+A test fails CI if any signed entry carries an `ask` the run would not ask. Nothing on any entry as
+signed today says `ask`, and a test holds that. The prepared change for his signature
+(`docs/run-a/p319-for-signature.md`) puts it on Sheffield's two funding boxes, with the source's rule
+and the reworded notes, in one signature, as a step of his run (his answers 8 and 9). The mechanism is
+mine, built to hold his answer 8. I read it as departing from no accepted text, and record the reading
+as mine.
+
+**After a no, the form's own questions** (D2; his answers 4, 6, 7 and 10). Where the entry says to ask
+them, a student who answers *no* to *"Do you know yet how your studies will be funded?"* is asked,
+before the playback:
+- *"Please select your likely funding source"*, with Employer, Self or Family, Sponsor and Other: the
+  four options a value of its own names;
+- *"What stage are you at with your funding?"*, with the four sentences that are not *"The funding
+  has been confirmed"*, which a no contradicts.
+
+Each question is the box's label and then its options, one to a line, with no word of mine (§4's
+preface stays withdrawn). The answer is a profile answer, `{ known: false, source, stage }`:
+- `known` stays the student's own no and is never derived (ADR-0143 §2);
+- the details stay a yes's alone;
+- a question whose answer the value would not keep is not asked.
+
+The playback names each such part by the form's question, in the student's words and in the recorded
+value alike: *"What stage are you at with your funding?": I am thinking about funding my studies this
+way*.
+
+**Read exactly, never by a model, and a near match never chosen** (his answer 5). The answer is read
+against the options shown, with case, spaces and a closing full stop set aside, and no model call. So
+a model reading *"confirmed"* as the confirmed stage cannot happen. An answer near more than one
+option is offered with them for a press, as ADR-0146 offers any answer that reads two ways; nothing is
+chosen until the student presses.
+
+**An answer near exactly one option is named in the refusal, and the question asked again**, without
+a press. His answer 5 says *"suggest a near match for a press"*. ADR-0146 Decision 1, which he
+approved, says *"One reading is never an offer — it is read, or it is refused with why"*. Offering a
+single reading for a press departs from that sentence, so under his rule of 2026-10-17 it is asked,
+not built: row 216, undecided until he answers.
+
+**"Confirmed" after a no** (his answer 6). A student who says their funding is confirmed is told
+*'Funding that has been confirmed means the answer to "Do you know yet how your studies will be
+funded?" is yes.'* (wording mine), and the four stages are asked again. That covers the bare word, the
+form's sentence, or the word said and not turned round, so "my funding is confirmed" counts and "not
+confirmed yet" does not. His answer 6 goes on: *"and offer to answer that field again (§5)"*. The offer
+is §5's, P320, and is not built. Until then, a student who answers *yes* to that is not read, and three
+answers the question did not take stop for a person, as every question does (ADR-0123 Decision 2).
+
+**Both of D10's moments** (his answer 2). The first is in the walk, as above. The second is when a case
+first plans: an answer given before it that lacks a part this entry asks is asked for that part. It is
+raised by the demand a refused save raises (ADR-0148 §11), from the plan before any save, as §3 says,
+and marked so.
+- **Said with nothing before it.** The field's question is the form's own, with nothing of mine before
+  it (D2). P319 first said a sentence of mine before it. P319's review found the sentence claimed the
+  form asks two questions the records say may be hidden for a no, in a preface of the kind D2
+  withdrew. It is removed, and whether a sentence should say why is row 217, his.
+- **When "first plans" holds.** It holds while the run has never been checkpointed, not merely on this
+  call's first start. So a start that failed before its first decide, or a second start that arrives
+  before the first has decided, still checks. Once the case has planned, it is never checked again,
+  and his own held no is reached by §5 (his answer 1).
+- **When the demand is set aside.** A case-begin demand is set aside once the held answer holds every
+  part the form asks. That is latent today: one entry asks, and a second case for the same course is
+  refused. It becomes reachable with a second such entry, or with §5.
+
+**The checker walks as the interview asks.** `scripts/required-boxes-hold.ts` uses the interview's own
+gate (`partAsAsked`) and the values it offers. On the entry as the change would sign it, every answer
+beginning with a no is asked the stage and the source, and breaks no funding box. With the stage back
+to `leave_empty`, the gate goes red on that line. Run on the signed entry, its output is unchanged.
+
+**What his run gets from P319 alone: nothing yet**, as he agreed (answer 1). After his signature, his
+held no, given before the change, is refused at the plan on the two boxes and stops for a person; today
+it stops at `fix_content`. Answering the field again (§5, P320) reaches it. The steps for his run (P321)
+put his signature, then his answer, then the resolve command.
+
+### P319's review
+
+Six lenses read the build and the prepared change: 23 findings. Each was to go to two refuters, but
+the run was stopped once seven verdicts, on four findings, had come back, because at two agents at a
+time the rest would have taken over an hour. Counted from the run's journal:
+- three findings stand, each on two verdicts: the sentence skipped when another question comes first,
+  the check missed by a concurrent or failed start, and "Confirmed." read as unreadable;
+- one is refuted as worded, on the one verdict that came back: an answer changed in another
+  application. The refuter shows it cannot happen today, with one entry and one case per course. It
+  becomes reachable with a second entry that asks, so it is mended as a latent constraint (CLAUDE.md).
+
+The other nineteen I judged myself. Each code finding I acted on has a test that fails without the
+fix: twenty-two mutations of P319's code, one or more for each fix, all killed, each restored byte
+for byte (`docs/run-a/p319-mutations/`). All the findings are in `docs/run-a/p319-review-findings.txt`,
+with what was done about each. (A first draft of this
+paragraph said eight verdicts and seven standing; the journal holds seven and six.)
+
+### Applied in P319 under his rule of 2026-10-14 (mine, never his)
+
+- A ruled-out answer ("confirmed" after a no) counts toward the three answers after which a person is
+  asked, as any answer the question did not take.
+- What a near match is: the part's own reading of the answer, or the answer's words inside an
+  option's words, with one word of four letters or more beyond the commonest; two or more near
+  options, and fewer than all, are offered.
+- What counts as saying a ruled-out value: its sentence, its word, or the spec's own word for it,
+  not turned round by "not", "no", "never", "nothing", "none", "neither", "nor" or an "n't".
+- The playback's form for a part asked in the form's words: *"the form's question": the sentence*.
+- The sentence a student who says their funding is confirmed is told: *'Funding that has been
+  confirmed means the answer to "Do you know yet how your studies will be funded?" is yes.'*, his
+  answer 6's instruction put in the form's question.
+- Only values the part's own closed list holds are offered after a no.
+- The wording of the two notes in the prepared change, his to correct when he signs.
+- The stand-in approval's names and note, under his condition of answer 13.
+
+### Asked in P319's build (undecided until he answers)
+
+- **Row 216: a single near match, offered alone for a press?** His answer 5 against ADR-0146
+  Decision 1. My recommendation: yes, offered alone for a press, with the form's sentence as its only
+  button, as his words say. It touches what goes on the form (submitting), so it is his whatever my
+  recommendation, and it amends ADR-0146 Decision 1 for a near match, which is his to approve.
+- **Row 217: is the student told why, before a question asked when a case begins?** D2 says to ask
+  with the form's own words and options, and withdrew my preface. A question about funding that
+  arrives with no reason may puzzle a student. My recommendation: one sentence that claims no more
+  than the entry says: *"<University>'s form has its own questions about how your studies will be
+  funded. Here is the first."* It touches money and a student's words, so it is his.
+- **Row 218: a case once raised for a minor, when the student is now an adult.** The minors review
+  covers every answer (his answer 1). A case raised for a minor stays raised (P318: a change to what a
+  person reviewed is reviewed again). So every later answer of a former minor sends the case back to
+  review, indefinitely. It fails closed, and it changes when a press can happen. My recommendation:
+  once the stored date of birth says adult, the minors fingerprint is the date of birth alone. A
+  change to that date is still reviewed again, and the former minor's other answers are not. It
+  touches the mandatory review of minors, so it is his.
 
 ## What the refuters found (P317)
 

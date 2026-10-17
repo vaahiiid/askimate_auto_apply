@@ -2112,6 +2112,226 @@ describe("funding is the student's own statement (ADR-0143, P216)", () => {
   });
 });
 
+describe("after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, D2: "Ask with the form's own words and options. If the funding
+  // source box is also required (row 210), ask it too." P319, his answers:
+  // (4) "a profile answer, asked in the form's words"; (5) "suggest a near
+  // match for a press; never choose it"; (6) "After a "no", offer the other
+  // four stages, not "The funding has been confirmed" … If the student says
+  // their funding is confirmed, tell them that means the answer to "Do you
+  // know…" is yes, and offer to answer that field again (§5)" (the offer is
+  // §5's, P320); (7) the playback in the form's question and sentence;
+  // (10) "the four now". The rule here is what `partPolicyFor` derives from a
+  // mapping that says `absent: "ask"`, which only his signature puts there.
+  // ═══════════════════════════════════════════════════════════════════════
+  const STAGE_OPTIONS = [
+    { words: "The funding has been confirmed", value: "confirmed" },
+    { words: "I am applying for a project studentship", value: "project_studentship" },
+    { words: "I have applied for funding", value: "applied" },
+    { words: "I am applying for funding", value: "applying" },
+    { words: "I am thinking about funding my studies this way", value: "considering" },
+  ];
+  const SOURCE_OPTIONS = [
+    { words: "Employer", value: "employer" },
+    { words: "Self or Family", value: "self_or_family" },
+    { words: "Sponsor", value: "sponsor" },
+    { words: "Other", value: "other" },
+  ];
+  const STAGE_QUESTION = "What stage are you at with your funding?";
+  const SOURCE_QUESTION = "Please select your likely funding source";
+  const FORM_RULE: PartRule = {
+    asked: new Set(["known", "source", "stage", "details"]),
+    required: new Set(["known", "stage", "source"]),
+    reopens: new Map([
+      ["stage", { question: STAGE_QUESTION, options: STAGE_OPTIONS }],
+      ["source", { question: SOURCE_QUESTION, options: SOURCE_OPTIONS }],
+    ]),
+  };
+  const withRule = (rule: PartRule = FORM_RULE): InterviewState => ({ ...start(["finance.funding"]), partPolicy: new Map([["finance.funding", rule]]) });
+  const FOUR_STAGES = `${STAGE_QUESTION}\nI am applying for a project studentship\nI have applied for funding\nI am applying for funding\nI am thinking about funding my studies this way`;
+  const FOUR_SOURCES = `${SOURCE_QUESTION}\nEmployer\nSelf or Family\nSponsor\nOther`;
+  /** A client that counts the readings it is asked for, so "no model call" is measured, not assumed. */
+  const counting = (): { readonly client: typeof model; readonly reads: string[] } => {
+    const reads: string[] = [];
+    const client = {
+      composeQuestion: model.composeQuestion.bind(model),
+      composeDocumentRequest: model.composeDocumentRequest.bind(model),
+      extractFromDocument: model.extractFromDocument.bind(model),
+      interpretAnswer: (request: Parameters<typeof model.interpretAnswer>[0]) => {
+        reads.push(request.fieldKey);
+        return model.interpretAnswer(request);
+      },
+    } as unknown as typeof model;
+    return { client, reads };
+  };
+  async function afterNoAndSource(source = "Self or Family"): Promise<InterviewState> {
+    let state = withRule();
+    state = (await receiveAnswer(state, "finance.funding", "no", model)).state;
+    const read = await receiveAnswer(state, "finance.funding", source, model);
+    expect(read.kind, `the source "${source}"`).toBe("understood");
+    return read.state;
+  }
+
+  it("asks the source and then the stage in the form's own words and options, offering four stages and not 'The funding has been confirmed'", async () => {
+    let state = withRule();
+    state = (await receiveAnswer(state, "finance.funding", "no", model)).state;
+    const source = await nextAction(state, model);
+    if (source.kind !== "ask") return expect.unreachable(`expected the source to be asked, got ${source.kind}`);
+    expect(source.partKey).toBe("source");
+    expect(source.say, "the box's label and its four options, nothing added").toBe(FOUR_SOURCES);
+    state = (await receiveAnswer(state, "finance.funding", "Self or Family", model)).state;
+    const stage = await nextAction(state, model);
+    if (stage.kind !== "ask") return expect.unreachable(`expected the stage to be asked, got ${stage.kind}`);
+    expect(stage.partKey).toBe("stage");
+    expect(stage.say, "four stages: a no and a confirmed funding contradict each other").toBe(FOUR_STAGES);
+  });
+
+  it("reads the form's own sentence, whatever its case and spacing, with no model call, and plays it back in the form's words", async () => {
+    const { client, reads } = counting();
+    let state = withRule();
+    state = (await receiveAnswer(state, "finance.funding", "no", client)).state;
+    state = (await receiveAnswer(state, "finance.funding", "  self or  FAMILY ", client)).state;
+    const read = await receiveAnswer(state, "finance.funding", "i am thinking about  funding my studies this way.", client);
+    expect(read.kind).toBe("understood");
+    expect(reads.filter((key) => key !== "finance.funding#known"), "the form's words are read exactly, never by a model").toEqual([]);
+    const playback = await nextAction(read.state, client);
+    if (playback.kind !== "confirm") return expect.unreachable(`expected the playback, got ${playback.kind}`);
+    expect(playback.say).toContain(`"${STAGE_QUESTION}": I am thinking about funding my studies this way`);
+    expect(playback.say).toContain(`"${SOURCE_QUESTION}": Self or Family`);
+    expect(playback.say, "the registry's words are not what the student was shown").not.toContain("thinking about it");
+    const confirmed = receiveConfirmation(read.state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "finance.funding");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held), "known stays the student's no").toEqual({ known: false, source: "self_or_family", stage: "considering" });
+  });
+
+  it("tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again", async () => {
+    const base = await afterNoAndSource();
+    for (const utterance of ["confirmed", "The funding has been confirmed", "the funding has been CONFIRMED"]) {
+      const said = await receiveAnswer(base, "finance.funding", utterance, model);
+      expect(said.kind, utterance).toBe("not_understood");
+      if (said.kind === "not_understood") expect(said.reason).toContain('means the answer to "Do you know yet how your studies will be funded?" is yes');
+      expect(said.state.pending, "nothing is put for confirmation").toBeUndefined();
+      const again = await nextAction(said.state, model);
+      if (again.kind !== "ask") return expect.unreachable(`expected the stage again, got ${again.kind}`);
+      expect(again.say.startsWith("Funding that has been confirmed means"), "said there and then").toBe(true);
+      expect(again.say.endsWith(FOUR_STAGES), "and the four asked again in the form's words").toBe(true);
+    }
+  });
+
+  it("tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review)", async () => {
+    const base = await afterNoAndSource();
+    for (const utterance of ["Confirmed.", "My funding is confirmed", "it has been confirmed!", "The funding has been confirmed."]) {
+      const said = await receiveAnswer(base, "finance.funding", utterance, model);
+      if (said.kind !== "not_understood") return expect.unreachable(`"${utterance}" was ${said.kind}`);
+      expect(said.reason, utterance).toContain('means the answer to "Do you know yet how your studies will be funded?" is yes');
+    }
+    for (const utterance of ["not confirmed", "My funding isn't confirmed yet", "nothing is confirmed"]) {
+      const said = await receiveAnswer(base, "finance.funding", utterance, model);
+      if (said.kind !== "not_understood") return expect.unreachable(`"${utterance}" was ${said.kind}`);
+      expect(said.reason, utterance).not.toContain("means the answer");
+    }
+  });
+
+  it("names every part asked in the form's words by the form's question in the student's words too, not by our label for it", async () => {
+    let state = await afterNoAndSource("Employer");
+    state = (await receiveAnswer(state, "finance.funding", "I have applied for funding", model)).state;
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable("the playback");
+    const heard = playback.say.split("\n\n")[0] ?? "";
+    expect(heard).toContain(`${SOURCE_QUESTION}: Employer`);
+    expect(heard).toContain(`${STAGE_QUESTION}: I have applied for funding`);
+    expect(heard).not.toMatch(/source of funding|how far the funding is arranged/);
+  });
+
+  it("never chooses a near match: two are offered for a press, one is named and the question asked again (his answer 5; ADR-0146)", async () => {
+    const state = await afterNoAndSource();
+    const two = await receiveAnswer(state, "finance.funding", "applying", model);
+    if (two.kind !== "ambiguous") return expect.unreachable(`expected the two near matches offered, got ${two.kind}`);
+    expect(two.partKey).toBe("stage");
+    expect(two.readings.map((reading) => reading.label)).toEqual(["I am applying for a project studentship", "I am applying for funding"]);
+    expect(two.readings.map((reading) => unwrapProposed(reading.proposed).value)).toEqual(["project_studentship", "applying"]);
+    expect(two.state.pending, "an offer chooses nothing").toBeUndefined();
+    const one = await receiveAnswer(state, "finance.funding", "applied", model);
+    if (one.kind !== "not_understood") return expect.unreachable(`expected one near match named and not chosen, got ${one.kind}`);
+    expect(one.reason).toContain('"I have applied for funding"');
+    expect(one.state.pending).toBeUndefined();
+    for (const utterance of ["none", "I don't know", "funded"]) {
+      const refused = await receiveAnswer(state, "finance.funding", utterance, model);
+      expect(refused.kind, `"${utterance}" is not one of the form's answers`).toBe("not_understood");
+      expect(refused.state.pending).toBeUndefined();
+    }
+  });
+
+  it("offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review)", async () => {
+    const widened: PartRule = {
+      ...FORM_RULE,
+      reopens: new Map([...(FORM_RULE.reopens ?? []), ["stage", { question: STAGE_QUESTION, options: [...STAGE_OPTIONS, { words: "I will fund my studies later", value: "later" }] }]]),
+    };
+    let state = withRule(widened);
+    state = (await receiveAnswer(state, "finance.funding", "no", model)).state;
+    state = (await receiveAnswer(state, "finance.funding", "Employer", model)).state;
+    const stage = await nextAction(state, model);
+    if (stage.kind !== "ask") return expect.unreachable("the stage is asked");
+    expect(stage.say, "four stages, and nothing the registry cannot hold").toBe(FOUR_STAGES);
+    const later = await receiveAnswer(state, "finance.funding", "I will fund my studies later", model);
+    expect(later.kind).toBe("not_understood");
+  });
+
+  it("stops for a person after the attempt cap, as every question does (ADR-0123 Decision 2)", async () => {
+    let state = await afterNoAndSource();
+    for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FIELD; attempt++) state = (await receiveAnswer(state, "finance.funding", "maybe", model)).state;
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("escalate");
+  });
+
+  it("asks nothing more after a no where the entry does not say to ask (the signed entry as it stands, or no portal at all)", async () => {
+    for (const state0 of [withRule({ ...FORM_RULE, reopens: new Map() }), start(["finance.funding"])]) {
+      const state = (await receiveAnswer(state0, "finance.funding", "no", model)).state;
+      expect((await nextAction(state, model)).kind).toBe("confirm");
+      const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+      const held = resolveField(confirmed.state.profile, "finance.funding");
+      if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+      expect(unwrapConfirmed(held)).toEqual({ known: false });
+    }
+  });
+
+  it("does not ask a part the answer would drop: the details are a yes's alone", async () => {
+    const detailsOnly: PartRule = { ...FORM_RULE, reopens: new Map([["details", { question: "Please enter details of your funding source:", options: [{ words: "Chevening Scholarship", value: "Chevening Scholarship" }] }]]) };
+    const state = (await receiveAnswer(withRule(detailsOnly), "finance.funding", "no", model)).state;
+    expect((await nextAction(state, model)).kind, "a no keeps no details, so none are asked").toBe("confirm");
+  });
+
+  it("leaves a yes as it was: the spec's own questions and words, and the registry's words in the playback", async () => {
+    let state = withRule();
+    state = (await receiveAnswer(state, "finance.funding", "yes", model)).state;
+    const source = await nextAction(state, model);
+    if (source.kind !== "ask") return expect.unreachable("the source is asked of a yes");
+    expect(source.say).not.toBe(FOUR_SOURCES);
+    for (const utterance of ["self or family", "thinking about it", "none"]) state = (await receiveAnswer(state, "finance.funding", utterance, model)).state;
+    const playback = await nextAction(state, model);
+    if (playback.kind !== "confirm") return expect.unreachable("the playback");
+    expect(playback.say).toContain("thinking about it");
+    expect(playback.say).not.toContain(STAGE_QUESTION);
+  });
+
+  it("plays back the same words from the pending reading alone, as a state rebuilt from the log has it (ADR-0051)", async () => {
+    let state = await afterNoAndSource("Employer");
+    state = (await receiveAnswer(state, "finance.funding", "I am applying for funding", model)).state;
+    const first = await nextAction(state, model);
+    if (state.pending === undefined) return expect.unreachable("pending");
+    const rebuilt: InterviewState = { ...withRule(), pending: { fieldKey: "finance.funding", proposed: state.pending.proposed } };
+    const again = await nextAction(rebuilt, model);
+    expect(again).toEqual(first);
+    const confirmed = receiveConfirmation(rebuilt, { agreed: true }, NOW);
+    expect(confirmed.kind).toBe("confirmed");
+    const held = resolveField(confirmed.state.profile, "finance.funding");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual({ known: false, source: "employer", stage: "applying" });
+  });
+});
+
 describe("every part is asked for by the name a person uses, never by its key (P228, row 92, ADR-0147 §5)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, on his own interview: *"'What's your home address — line1?',

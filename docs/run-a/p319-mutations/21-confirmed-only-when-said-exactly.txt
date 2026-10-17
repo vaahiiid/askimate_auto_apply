@@ -1,0 +1,20 @@
+mutation 21-confirmed-only-when-said-exactly on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+    (ruledOut.words.some((words) => formWords(words) === said) ||
+      ruledOut.values.some((value) => value === own) ||
+      (!turned && ruledOut.spoken.some((words) => saysWords(heard, wordsOf(words)))))
+with:
+    ruledOut.words.some((words) => formWords(words) === said)
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again 41ms
+     → expected 'I could not read one of the form\'s a…' to contain 'means the answer to "Do you know yet …'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review) 2ms
+     → Confirmed.: expected 'I could not read one of the form\'s a…' to contain 'means the answer to "Do you know yet …'
+ Test Files  1 failed (1)
+      Tests  2 failed | 10 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review)

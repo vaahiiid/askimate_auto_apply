@@ -1590,11 +1590,16 @@ function branchesOf(rule: Extract<FormatRule, { kind: "switch" }>): readonly For
   return [...Object.values(rule.cases), ...(rule.escaped === undefined ? [] : [rule.escaped.then])];
 }
 
-/** Whether a rule carries an `absent` arm anywhere: a value rendered when the student stated none (P293). */
+/**
+ * Whether a rule carries an `absent` arm anywhere: a value rendered when the
+ * student stated none (P293). `"ask"` renders none — it refuses, and the
+ * student is asked (P319) — so it is not one.
+ */
 function hasAbsentArm(rule: FormatRule): boolean {
-  if (rule.kind === "part") return rule.absent !== undefined || (rule.then !== undefined && hasAbsentArm(rule.then));
+  const renders = (absent: unknown): boolean => absent !== undefined && absent !== "ask";
+  if (rule.kind === "part") return renders(rule.absent) || (rule.then !== undefined && hasAbsentArm(rule.then));
   if (rule.kind === "date") return rule.then !== undefined && hasAbsentArm(rule.then);
-  if (rule.kind === "switch") return rule.absent !== undefined || branchesOf(rule).some((branch) => hasAbsentArm(branch));
+  if (rule.kind === "switch") return renders(rule.absent) || branchesOf(rule).some((branch) => hasAbsentArm(branch));
   return false;
 }
 

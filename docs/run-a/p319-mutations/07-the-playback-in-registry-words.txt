@@ -1,0 +1,21 @@
+mutation 07-the-playback-in-registry-words on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+  if (spec === undefined || !isComposite(spec) || rule?.reopens === undefined || typeof value !== "object" || value === null) return undefined;
+  const held = value as Readonly<Record<string, unknown>>;
+  const answers: PartAnswers = new Map(Object.entries(held));
+  const shown
+with:
+  if (spec !== undefined) return undefined;
+  const held = value as Readonly<Record<string, unknown>>;
+  const answers: PartAnswers = new Map(Object.entries(held));
+  const shown
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > reads the form's own sentence, whatever its case and spacing, with no model call, and plays it back in the form's words 25ms
+     → expected 'You said: "whether you know yet how y…' to contain '"What stage are you at with your fund…'
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > reads the form's own sentence, whatever its case and spacing, with no model call, and plays it back in the form's words

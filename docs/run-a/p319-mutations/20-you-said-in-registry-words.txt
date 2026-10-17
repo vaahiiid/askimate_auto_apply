@@ -1,0 +1,15 @@
+mutation 20-you-said-in-registry-words on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+      if (reopen !== undefined) return reopen.question;
+with:
+      if (reopen !== undefined && (false as boolean)) return reopen.question;
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > names every part asked in the form's words by the form's question in the student's words too, not by our label for it 37ms
+     → expected 'You said: "whether you know yet how y…' to contain 'Please select your likely funding sou…'
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > names every part asked in the form's words by the form's question in the student's words too, not by our label for it

@@ -1,0 +1,26 @@
+mutation 06-the-form-read-by-a-model on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+  if (question.inFormWords !== undefined) {
+    const reading
+with:
+  if (false as boolean && question.inFormWords !== undefined) {
+    const reading
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > reads the form's own sentence, whatever its case and spacing, with no model call, and plays it back in the form's words 19ms
+     → the form's words are read exactly, never by a model: expected [ 'finance.funding#source', …(1) ] to deeply equal []
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again 5ms
+     → expected 'I could not read one of the form\'s a…' to contain 'means the answer to "Do you know yet …'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review) 4ms
+     → Confirmed.: expected 'I could not read one of the form\'s a…' to contain 'means the answer to "Do you know yet …'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > never chooses a near match: two are offered for a press, one is named and the question asked again (his answer 5; ADR-0146) 2ms
+     → expected "expected the two near matches offered, got not_understood" not to be reached
+ Test Files  1 failed (1)
+      Tests  4 failed | 8 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > reads the form's own sentence, whatever its case and spacing, with no model call, and plays it back in the form's words
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > never chooses a near match: two are offered for a press, one is named and the question asked again (his answer 5; ADR-0146)

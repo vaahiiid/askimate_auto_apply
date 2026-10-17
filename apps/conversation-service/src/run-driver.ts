@@ -126,6 +126,7 @@ import {
   isList,
   newInterview,
   nextAction,
+  partsTheFormAsksOf,
   questionOf,
   receiveAnswer,
   receiveConfirmation,
@@ -2367,7 +2368,7 @@ function renderPart(value: unknown): string {
 }
 
 /** The policy, with each demanded part required and asked — the portal's own evidence (P233). */
-function withDemandedParts(
+export function withDemandedParts(
   policy: PartPolicy,
   demands: ReadonlyMap<ProfileFieldKey, { readonly partKey: string }>,
 ): PartPolicy {
@@ -2379,7 +2380,10 @@ function withDemandedParts(
     const parts = spec === undefined ? [] : partsOfSpec(spec);
     const feeds = parts.find((part) => part.partKey === path)?.feeds ?? path;
     const rule = merged.get(fieldKey) ?? { asked: "all" as const, required: new Set<string>() };
+    // Widened, never rebuilt: what the entry says to ask in its own words
+    // (P319, `reopens`) stands beside the demand.
     merged.set(fieldKey, {
+      ...rule,
       asked: rule.asked === "all" ? "all" : new Set([...rule.asked, feeds]),
       required: new Set([...rule.required, feeds]),
     });
@@ -2551,8 +2555,8 @@ export function walkBehindProposal(
  */
 export function demandsFrom(
   events: readonly ConversationEvent[],
-): ReadonlyMap<ProfileFieldKey, { readonly partKey: string; readonly ordinal: number; readonly demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[] } }> {
-  const open = new Map<ProfileFieldKey, { partKey: string; ordinal: number; demand: { page: string; empty: readonly string[]; unseen: readonly string[] } }>();
+): ReadonlyMap<ProfileFieldKey, { readonly partKey: string; readonly ordinal: number; readonly demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[]; readonly atStart?: true } }> {
+  const open = new Map<ProfileFieldKey, { partKey: string; ordinal: number; demand: { page: string; empty: readonly string[]; unseen: readonly string[]; atStart?: true } }>();
   for (const event of events) {
     if (event.kind === "value_part_demanded") {
       open.set(event.fieldKey as ProfileFieldKey, { partKey: event.partKey, ordinal: event.ordinal, demand: event.demand });
@@ -2700,6 +2704,20 @@ export function demandFromRefusal(input: {
     partKey: first.list ? `item${String(input.item ?? 0)}.${first.part.partKey}` : first.part.partKey,
     demand: { page: page.title, empty: words(empty), unseen: words(named) },
   };
+}
+
+/** The title of the page whose box a reviewed mapping says to ask the part for (`absent: "ask"`, P319). */
+function pageAsking(entry: CatalogueEntry, fieldKey: ProfileFieldKey, path: string): string {
+  for (const page of entry.blueprint.pages) {
+    for (const section of page.sections) {
+      for (const field of section.fields) {
+        const mapping = entry.mappingSet.mappings.find((candidate) => candidate.fieldRef === field.fieldRef);
+        const format = mapping?.source.kind === "profile_field" && mapping.source.fieldKey === fieldKey ? (mapping.source.format as { path?: string; absent?: unknown } | undefined) : undefined;
+        if (format?.path === path && format.absent === "ask") return page.title;
+      }
+    }
+  }
+  return entry.blueprint.institutionName;
 }
 
 /** The demand, in the student's words: what the university would not take, and what is asked next. */
@@ -3661,6 +3679,18 @@ export class RunDriver {
     if ("ok" in outcome) return outcome;
     const { record, caseId, studentRef, resumed, restarting } = outcome;
 
+    // D10's second moment (ADR-0161 §3; P319, his "2. Agreed: both
+    // moments"): an answer given before this application is checked against
+    // this entry when the case first plans, and never once it has. "First
+    // plans" is the run's revision, not this call's `resumed`: a start that
+    // failed after the run was created, or a second start that arrives before
+    // the first has decided, still finds a run that has never been checkpointed
+    // (P319's review). A demand already open is not raised again; two starts
+    // racing may each append one, and `demandsFrom` reads them as one. Not
+    // inside the binding: it holds the conversation's row, which an append
+    // waits on.
+    if (record.revision === 0) await this.#askWhatTheFormAsksOfHeldAnswers({ entry, conversationId: input.conversationId, studentRef });
+
     const decided = await this.#decide({
       entry,
       record,
@@ -3688,6 +3718,40 @@ export class RunDriver {
       });
     }
     return decided;
+  }
+
+  /**
+   * A held answer that lacks a part this form asks in its own words is asked
+   * for that part when the case first plans (P319; ADR-0161 §3, D10). By the
+   * demand a refused save raises (P233, ADR-0148 §11), raised here from the
+   * plan before any save, as §3 says: *"The check would raise the same demand
+   * from the plan, before any save."* While it is open the run reads the
+   * profile without the field, the interview asks the parts the answer lacks
+   * from a walk seeded with the rest, and the student's confirmation of the
+   * whole closes it. Nothing is written to the profile here.
+   */
+  async #askWhatTheFormAsksOfHeldAnswers(input: { readonly entry: CatalogueEntry; readonly conversationId: string; readonly studentRef: StudentId }): Promise<void> {
+    const usable = checkUsable(input.entry.mappingSet, input.entry.blueprint);
+    if (!usable.usable) return;
+    const policy = partPolicyFor(input.entry.blueprint, usable.mappingSet);
+    const profile = await this.#options.profiles.load(input.studentRef, this.#options.now());
+    const open = demandsFrom(await this.#options.conversations.wholeLog(input.conversationId));
+    for (const [fieldKey, rule] of policy) {
+      const held = profile.entries.get(fieldKey);
+      if (held === undefined || open.has(fieldKey)) continue;
+      const asked = partsTheFormAsksOf(fieldKey, unwrapConfirmed(held.value), rule);
+      const first = asked[0];
+      if (first === undefined) continue;
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: {
+          kind: "value_part_demanded",
+          fieldKey,
+          partKey: first.partKey,
+          demand: { page: pageAsking(input.entry, fieldKey, first.partKey), empty: [], unseen: asked.map((part) => part.question), atStart: true },
+        },
+      });
+    }
   }
 
   /** True when a case exists and has reached a terminal state. */
@@ -4211,8 +4275,19 @@ export class RunDriver {
     const readingInFlight = reading !== undefined && reading !== null && (reading.state === "pending" || reading.state === "leased");
     // P233, ADR-0148 §11: while the portal's demand for a part is open, the
     // run reads the profile WITHOUT that field, so the plan blocks on it and
-    // the interview asks — for the one part, from a walk seeded below.
-    const demands = demandsFrom(events);
+    // the interview asks — for the one part, from a walk seeded below. A
+    // demand raised when the case began (P319) is set aside once the held
+    // answer holds every part the form asks, as an answer given again in
+    // another application can make it: it would hide a complete answer and
+    // ask a part already given (P319's review).
+    const policyOfEntry = partPolicyFor(input.entry.blueprint, usable.mappingSet);
+    const demands = new Map(
+      [...demandsFrom(events)].filter(([fieldKey, open]) => {
+        if (open.demand.atStart !== true) return true;
+        const held = profile.entries.get(fieldKey);
+        return held === undefined || partsTheFormAsksOf(fieldKey, unwrapConfirmed(held.value), policyOfEntry.get(fieldKey)).length > 0;
+      }),
+    );
     // P252, row 107: the same, for the fields a late yes reopened — hidden
     // from the moment the CV's reading was seeded until the student confirms
     // the CV's value, which replaces theirs. Until then theirs stands.
@@ -4757,7 +4832,7 @@ export class RunDriver {
     // at the start of the request: a decide holding an older profile would
     // otherwise raise the older content again after another decide raised the
     // new, and the old approval would match it (P318's regression refuter).
-    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, input.now);
+    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, input.caseId, input.now);
     // And a trigger still outstanding is raised again too, applicable or not:
     // a raising from before P318 carries no fingerprint, so no approval could
     // ever clear it, and a minor's trigger stays outstanding after the student
@@ -4797,12 +4872,16 @@ export class RunDriver {
   async #reviewChangeUnraised(record: { readonly caseId: CaseId; readonly studentRef: StudentId }): Promise<boolean> {
     const events = await this.#options.stores.cases.read(record.caseId);
     if (events.length === 0) return false;
-    return triggersToRaise(fold(events), await this.#reviewBasis(String(record.studentRef), this.#options.now())).length > 0;
+    return triggersToRaise(fold(events), await this.#reviewBasis(String(record.studentRef), record.caseId, this.#options.now())).length > 0;
   }
 
-  /** What a mandatory review stands on, from the student's stored profile as it is now. */
-  async #reviewBasis(studentRef: string, now: Date): Promise<ReviewBasis> {
-    return reviewBasisOf(await this.#options.profiles.load(studentRef, now), now);
+  /**
+   * What a mandatory review stands on, from the student's stored profile as it
+   * is now, and the choices this application made from a form's own lists
+   * (P319, his answer 11: "include list choices").
+   */
+  async #reviewBasis(studentRef: string, caseId: string, now: Date): Promise<ReviewBasis> {
+    return reviewBasisOf(await this.#options.profiles.load(studentRef, now), now, (await this.#options.entryChoices?.forCase(caseId)) ?? []);
   }
 
   /**
@@ -4856,7 +4935,7 @@ export class RunDriver {
     const events = await this.#options.stores.cases.read(caseId);
     if (events.length === 0) return null;
     const held = fold(events);
-    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, this.#options.now());
+    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, caseId, this.#options.now());
     const waiting = new Set([...unclearedMandatoryTriggers(held.activeTriggers, held.completedReviews, held.raisedFingerprints), ...triggersToRaise(held, basis)]);
     return {
       caseSequence: held.sequence,
@@ -4893,7 +4972,7 @@ export class RunDriver {
     if (events.length === 0) return { ok: false, detail: `No case ${input.caseId}.` };
     const held = fold(events);
     const now = this.#options.now();
-    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, now);
+    const basis = await this.#reviewBasis(held.submissionIdentity.studentId, input.caseId, now);
     // What the review saw. That an approval covers only the content it reviewed
     // is ADR-0161 §6, his "D3: approved."; binding it to the reviewer's reading
     // of the case, below, is mine (P318). An approval of a mandatory trigger
@@ -5638,7 +5717,7 @@ export class RunDriver {
     // content as it now stands is outstanding, a change no decide has raised
     // yet included: the runner's lease may have been taken before the change.
     // The fill's own lock is at the claim; this is the same lock at the hand-over.
-    if (reviewOutstanding(fold(events), await this.#reviewBasis(String(record.studentRef), this.#options.now()))) {
+    if (reviewOutstanding(fold(events), await this.#reviewBasis(String(record.studentRef), record.caseId, this.#options.now()))) {
       return { ok: false, refusal: "not_authorised" };
     }
     const held_documents = await this.#options.heldDocuments?.listForStudent(record.studentRef);
@@ -5690,7 +5769,7 @@ export class RunDriver {
       // P318's first build read the outstanding triggers alone, which an
       // approval now empties, and handed a reviewed minor's passport over.
       ...(caseState?.activeTriggers.includes("involves_minor") === true ||
-      (await this.#reviewBasis(String(record.studentRef), now)).applies.includes("involves_minor")
+      (await this.#reviewBasis(String(record.studentRef), record.caseId, now)).applies.includes("involves_minor")
         ? { minorConditions: [] }
         : {}),
     };
@@ -10833,7 +10912,7 @@ export class RunDriver {
       // A run with no case log is handed no page either: the authorisation a
       // fill needs is read from that log, so none should reach here, and this
       // lock does not take "no log" as "nothing outstanding".
-      if (kind === "execute" && (foldedCase === null || reviewOutstanding(foldedCase, await this.#reviewBasis(String(record.studentRef), this.#options.now())))) {
+      if (kind === "execute" && (foldedCase === null || reviewOutstanding(foldedCase, await this.#reviewBasis(String(record.studentRef), record.caseId, this.#options.now())))) {
         continue;
       }
       // A fill needs the session the account was created in. A runner that
@@ -11225,8 +11304,10 @@ export class RunDriver {
     }
     // A portal's demand whose sentence was not said when it arrived: the
     // event is the last thing on the log after it, or it was said.
+    // One raised when the case began (P319) has no sentence: nothing was
+    // refused, and its field's question is the form's own (his D2).
     const demanded = [...events].reverse().find((event) => event.kind === "value_part_demanded");
-    if (situated !== null && demanded !== undefined && !events.some((event) => event.ordinal > demanded.ordinal && event.kind === "message" && event.actor === "assistant")) {
+    if (situated !== null && demanded !== undefined && demanded.demand.atStart !== true && !events.some((event) => event.ordinal > demanded.ordinal && event.kind === "message" && event.actor === "assistant")) {
       await say(demandSentence(situated.entry, demanded.demand));
     }
     return false;
@@ -12911,9 +12992,12 @@ interface ReviewBasis {
   readonly fingerprints: Readonly<Record<MandatoryReviewTrigger, string>>;
 }
 
-function reviewBasisOf(profile: RunState["profile"], now: Date): ReviewBasis {
-  return { applies: mandatoryTriggersOf(profile, now), fingerprints: reviewFingerprintsOf(profile) };
+function reviewBasisOf(profile: RunState["profile"], now: Date, choices: readonly ChoiceMark[]): ReviewBasis {
+  return { applies: mandatoryTriggersOf(profile, now), fingerprints: reviewFingerprintsOf(profile, choices) };
 }
+
+/** What a fingerprint takes of a choice from a form's own list: which one, and when it was made. Never what it says. */
+type ChoiceMark = { readonly choiceId: string; readonly chosenAt?: Date };
 
 /**
  * The mandatory triggers to raise for the content as it now stands: each that
@@ -12945,7 +13029,7 @@ function triggersToRaise(held: ApplicationCase, basis: ReviewBasis): readonly Ma
  * revision on every overwrite, whatever the writer gave, and migration 0041
  * moves it for an UPDATE that changes a value in place.
  */
-function reviewFingerprintsOf(profile: RunState["profile"]): Record<MandatoryReviewTrigger, string> {
+export function reviewFingerprintsOf(profile: RunState["profile"], choices: readonly ChoiceMark[]): Record<MandatoryReviewTrigger, string> {
   const marks = (keys: readonly ProfileFieldKey[]): readonly (readonly [string, number, string])[] =>
     keys.flatMap((key) => {
       const entry = profile.entries.get(key);
@@ -12960,9 +13044,16 @@ function reviewFingerprintsOf(profile: RunState["profile"]): Record<MandatoryRev
   // a raising for it must carry a fingerprint an approval can match, or nothing
   // could ever clear it (P318's second review).
   const financial = [...profile.entries.keys()].filter((key) => isFinancialField(key)).sort();
+  // A minor's review covers every answer (his words, row 214 (1)) and every
+  // choice made from a form's own list for this application (P319 (11)). A
+  // choice is never changed in place, only made, so its id and its moment
+  // are enough, and they say nothing of what was chosen.
+  const chosen = choices
+    .map((choice) => [choice.choiceId, choice.chosenAt === undefined || Number.isNaN(choice.chosenAt.getTime()) ? "unreadable" : choice.chosenAt.toISOString()] as const)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return {
     financial_evidence: hashOfText(JSON.stringify({ trigger: "financial_evidence", entries: marks(financial) })),
-    involves_minor: hashOfText(JSON.stringify({ trigger: "involves_minor", entries: marks(["identity.date_of_birth"]) })),
+    involves_minor: hashOfText(JSON.stringify({ trigger: "involves_minor", entries: marks([...profile.entries.keys()].sort()), choices: chosen })),
   };
 }
 

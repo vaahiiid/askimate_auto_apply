@@ -59,7 +59,7 @@ import type {
 } from "@askimate/aas-mapping";
 import { PASSWORD_RESET_REFUSAL, isPasswordResetUrl, readsAsPasswordReset } from "@askimate/aas-blueprint";
 import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
-import type { FormatRule, OrdinaryFieldKey, ProfileFieldKey } from "@askimate/aas-profile";
+import type { AbsentPart, FormatRule, OrdinaryFieldKey, ProfileFieldKey } from "@askimate/aas-profile";
 import { LIST_VALUED_FIELD_KEYS, PROFILE_FIELD_KEYS, categoryOf } from "@askimate/aas-profile";
 import type {
   ObservedPortalAuthentication,
@@ -1280,13 +1280,15 @@ export function parseReviewedEntryText(text_: string): ParseResult<ReviewedCatal
 }
 
 /**
- * The `absent` clause of a `part` rule: `"leave_empty"`, or `{ typed }` — the
+ * The `absent` clause of a `part` rule: `"leave_empty"`, `"ask"` (P319: the
+ * box needs the part, and the student is asked for it), or `{ typed }` — the
  * portal's own instruction for a stated absence, quoted (ADR-0117). Non-empty:
  * an empty typed text would be `leave_empty` wearing a costume.
  */
-function readAbsent(value: unknown, path: string): "leave_empty" | { readonly typed: string } | undefined {
+function readAbsent(value: unknown, path: string): AbsentPart | undefined {
   if (value === undefined) return undefined;
   if (value === "leave_empty") return "leave_empty";
+  if (value === "ask") return "ask";
   const source = record(value, path);
   const typed = text(source, "typed", path);
   if (typed.trim().length === 0) fail(`${path}.typed`, "expected the portal's words, not an empty string");

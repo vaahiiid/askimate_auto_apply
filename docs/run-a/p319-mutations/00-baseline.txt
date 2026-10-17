@@ -1,0 +1,37 @@
+each command below, run on the tree unmutated, before the mutations
+
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P319, his answers 1 and 11
+exit: 0
+ Test Files  1 passed (1)
+      Tests  3 passed | 450 skipped (453)
+
+command: pnpm exec vitest run --project unit packages/orchestrator/src/orchestrator.test.ts scripts/required-boxes-hold.test.ts -t P319
+exit: 0
+ Test Files  2 passed (2)
+      Tests  9 passed | 85 skipped (94)
+
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 0
+ Test Files  1 passed (1)
+      Tests  12 passed | 118 skipped (130)
+
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t where the entry says to ask them|keeps what the entry says to ask
+exit: 0
+ Test Files  1 passed (1)
+      Tests  8 passed | 445 skipped (453)
+
+command: pnpm exec vitest run --project unit scripts/required-boxes-hold.test.ts -t P319
+exit: 0
+ Test Files  1 passed (1)
+      Tests  4 passed | 10 skipped (14)
+
+command: pnpm exec vitest run --project unit packages/profile/src/format.test.ts
+exit: 0
+ Test Files  1 passed (1)
+      Tests  35 passed (35)
+
+command: pnpm exec vitest run --project unit packages/catalogue/src/catalogue.test.ts -t ask
+exit: 0
+ Test Files  1 passed (1)
+      Tests  8 passed | 63 skipped (71)
+

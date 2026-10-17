@@ -1,0 +1,25 @@
+mutation 09-a-demand-rebuilt-without-what-the-entry-asks on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t where the entry says to ask them|keeps what the entry says to ask
+exit: 1
+restored byte for byte: True
+
+replaced:
+      ...rule,
+      asked: rule.asked === "all"
+with:
+      asked: rule.asked === "all"
+
+   × a part the portal demands keeps what the entry says to ask (P319) > a demand on a field keeps the part rule's reopened parts, in the box's own words 68ms
+     → the demand widened the rule; it did not rebuild it: expected undefined to be Map{ 'stage' => { …(2) } } // Object.is equality
+   × after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > when a case begins: a no given before this application is asked the form's two questions in the form's words alone, and the answer completes it 85ms
+     → asked there and then, in the form's words: expected 'I asked for your how your studies wil…' to be 'Please select your likely funding sou…' // Object.is equality
+   × after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > when a case begins and another question comes first, the funding question still comes, in the form's words, once that is answered 119ms
+     → Cannot read properties of undefined (reading 'playback_hash')
+   × after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > a demand raised when the case began asks nothing once the held answer holds what the form asks, answered in another application (P319's review) 108ms
+     → Cannot read properties of undefined (reading 'playback_hash')
+ Test Files  1 failed (1)
+      Tests  4 failed | 4 passed | 445 skipped (453)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a part the portal demands keeps what the entry says to ask (P319) > a demand on a field keeps the part rule's reopened parts, in the box's own words
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > when a case begins: a no given before this application is asked the form's two questions in the form's words alone, and the answer completes it
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > when a case begins and another question comes first, the funding question still comes, in the form's words, once that is answered
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > a demand raised when the case began asks nothing once the held answer holds what the form asks, answered in another application (P319's review)

@@ -20,8 +20,10 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { loadCatalogueDirectory } from "@askimate/aas-catalogue";
+import { checkUsable } from "@askimate/aas-mapping";
+import { partPolicyFor } from "@askimate/aas-orchestrator";
 
-import { breakingKeys, findingsFor, gate, measureCatalogueResults, render } from "./required-boxes-hold.js";
+import { acceptedAnswers, breakingKeys, findingsFor, gate, measureCatalogueResults, render, unaskedAsks } from "./required-boxes-hold.js";
 import { KNOWN_BREAKS } from "./required-boxes-known.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -140,5 +142,77 @@ describe("P317: the answers the interview accepts, against every box of every si
   it("loses a finding when the rule behind it is taken off: the stage not required, the no breaks nothing", async () => {
     const lifted = withRules(await sheffield(), "fundingStage", (rules) => rules.filter((rule) => rule.kind !== "required"));
     expect(brokenBy(findingsFor(lifted, FUNDING), "finance.funding", "fundingStage")).toEqual([]);
+  }, 120_000);
+});
+
+/**
+ * The entry as the change prepared for his signature maps the funding boxes
+ * (P319): the source required, on his observed asterisk, and both boxes
+ * `absent: "ask"`. Planted here, in memory; nothing is signed or written.
+ */
+function asTheChangeMapsFunding(entry: { readonly blueprint: unknown; readonly mappingSet: unknown }, absent: "ask" | "leave_empty" = "ask"): { readonly blueprint: unknown; readonly mappingSet: unknown } {
+  const required = withRules(entry, "fundingSource", (rules) => (rules.some((rule) => rule.kind === "required") ? rules : [...rules, { kind: "required", source: "specialist_noted" }]));
+  const mappingSet = structuredClone(required.mappingSet) as { mappings: { fieldRef: string; source: { format?: { absent?: unknown } } }[] };
+  let found = 0;
+  for (const mapping of mappingSet.mappings) {
+    if ((mapping.fieldRef !== "fundingStage" && mapping.fieldRef !== "fundingSource") || mapping.source.format === undefined) continue;
+    mapping.source.format.absent = absent;
+    found += 1;
+  }
+  if (found !== 2) throw new Error(`expected the two funding maps, found ${String(found)}`);
+  return { ...required, mappingSet };
+}
+
+describe("P319: the checker walks as the interview asks, with the interview's own gate", () => {
+  it("reopens nothing on any entry as signed today: no value is filled against the signed note's wording (his answer 8)", async () => {
+    const load = await loadCatalogueDirectory({ directory: CATALOGUE });
+    if (!load.ok) throw new Error("the signed catalogue does not load");
+    for (const item of load.catalogue.inventory()) {
+      const entry = await load.catalogue.find(item.blueprintId);
+      if (entry === null) continue;
+      const usable = checkUsable(entry.mappingSet, entry.blueprint);
+      if (!usable.usable) continue;
+      const reopened = [...partPolicyFor(entry.blueprint, usable.mappingSet)].filter(([, rule]) => (rule.reopens?.size ?? 0) > 0).map(([fieldKey]) => fieldKey);
+      expect(reopened, String(item.blueprintId)).toEqual([]);
+    }
+  }, 120_000);
+
+  it("under the change for his signature, a no is asked the source and the stage in the form's words, and breaks no funding box", async () => {
+    const changed = asTheChangeMapsFunding(await sheffield());
+    const answers = acceptedAnswers(changed, "finance.funding")?.answers.map((answer) => answer.value) ?? [];
+    const noes = answers.filter((answer): answer is { known: false; source?: string; stage?: string } => (answer as { known?: unknown }).known === false);
+    expect(new Set(noes.map((answer) => answer.source)), "after a no, each of the four sources the map names is asked and taken").toEqual(new Set(["employer", "self_or_family", "sponsor", "other"]));
+    expect(new Set(noes.map((answer) => answer.stage)), "and each of the four stages").toEqual(new Set(["project_studentship", "applied", "applying", "considering"]));
+    expect(answers, "the confirmed stage is offered to nobody who said no (his answer 6)").not.toContainEqual(expect.objectContaining({ known: false, stage: "confirmed" }));
+    expect(answers, "nor a source whose name the student was not asked (his answer 10)").not.toContainEqual(expect.objectContaining({ known: false, source: "scholarship" }));
+    const measured = findingsFor(changed, FUNDING);
+    expect(brokenBy(measured, "finance.funding", "fundingStage")).toEqual([]);
+    expect(brokenBy(measured, "finance.funding", "fundingSource")).toEqual([]);
+    // The gate's key carries no answer, so a no's break could fold into a line a yes still holds:
+    // asked here of the answers themselves.
+    expect(measured.findings.filter((finding) => finding.answer.startsWith("known=false") && finding.kind === "breaks_a_required_box")).toEqual([]);
+  }, 120_000);
+
+  it("every `absent: \"ask\"` on a signed entry is asked: one the run cannot ask fails here, not silently at a student's no (P319's review)", async () => {
+    const load = await loadCatalogueDirectory({ directory: CATALOGUE });
+    if (!load.ok) throw new Error("the signed catalogue does not load");
+    for (const item of load.catalogue.inventory()) {
+      const entry = await load.catalogue.find(item.blueprintId);
+      if (entry !== null) expect(unaskedAsks(entry), String(item.blueprintId)).toEqual([]);
+    }
+    const changed = asTheChangeMapsFunding(await sheffield());
+    expect(unaskedAsks(changed), "the change asks both").toEqual([]);
+    // Made to fail: the stage's label never read, as on most boxes the observer
+    // could not label, and the stage's rule taken off.
+    const unlabelled = structuredClone(changed.blueprint) as { pages: { sections: { fields: { fieldRef: string; label: string }[] }[] }[] };
+    for (const page of unlabelled.pages) for (const section of page.sections) for (const field of section.fields) if (field.fieldRef === "fundingStage") field.label = "fundingStage";
+    expect(unaskedAsks({ ...changed, blueprint: unlabelled })).toEqual(["fundingStage: finance.funding.stage"]);
+    expect(unaskedAsks(withRules(changed, "fundingSource", (rules) => rules.filter((rule) => rule.kind !== "required")))).toEqual(["fundingSource: finance.funding.source"]);
+  }, 120_000);
+
+  it("fails as it should without the change's `ask`: the source required and left empty, a no breaks both boxes", async () => {
+    const measured = findingsFor(asTheChangeMapsFunding(await sheffield(), "leave_empty"), FUNDING);
+    expect(brokenBy(measured, "finance.funding", "fundingStage")).toEqual(["known=false"]);
+    expect(brokenBy(measured, "finance.funding", "fundingSource")).toEqual(["known=false"]);
   }, 120_000);
 });

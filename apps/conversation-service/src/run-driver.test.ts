@@ -121,7 +121,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
 import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { NothingToHaveHappenedError, answeredQuestion, stoppedApplicationMessage, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom } from "./run-driver.js";
+import { NothingToHaveHappenedError, answeredQuestion, stoppedApplicationMessage, demandFromRefusal, demandSentence, demandsFrom, previewDocumentsOf, rejectedFrom, withDemandedParts } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
@@ -11539,6 +11539,144 @@ describeIfDatabase("a minor's documents after the review (P318)", () => {
   }, 300_000);
 });
 
+describe("a part the portal demands keeps what the entry says to ask (P319)", () => {
+  it("a demand on a field keeps the part rule's reopened parts, in the box's own words", () => {
+    const reopens = new Map([["stage", { question: "What stage are you at with your funding?", options: [{ words: "I am applying for funding", value: "applying" }] }]]);
+    const merged = withDemandedParts(
+      new Map([["finance.funding", { asked: new Set(["known", "stage"]), required: new Set(["known"]), reopens }]]),
+      new Map([["finance.funding", { partKey: "stage" }]]),
+    );
+    expect(merged.get("finance.funding")?.reopens, "the demand widened the rule; it did not rebuild it").toBe(reopens);
+    expect(merged.get("finance.funding")?.required).toEqual(new Set(["known", "stage"]));
+  });
+});
+
+describeIfDatabase("a minor's review covers every answer and every choice (P319, his answers 1 and 11)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // His words, row 214 (1): "Yes: a minor's review covers every answer." And
+  // P319 (11): "Agreed: include list choices; accept the one-time re-review."
+  // Until P319 the minors fingerprint stood on the date of birth alone, so a
+  // reviewed minor's other answers, and what they chose from a form's list,
+  // could change after the review and reach the yes unseen.
+  // ═══════════════════════════════════════════════════════════════════════
+  /** The fixture form attaches the passport, so each applicant here has one on file. */
+  async function withAPassport(owner: string, subject: string): Promise<void> {
+    await new PostgresDocumentRecordStore(pool).insert(
+      {
+        documentId: `01JQP319${subject.replace(/[^a-z]/g, "").toUpperCase().replace(/[ILOU]/g, "X").padEnd(18, "0").slice(0, 18)}`,
+        studentId: owner,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "uploaded",
+        contentHash: "c".repeat(64),
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-02T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+      },
+      `documents/${owner}/${subject}`,
+    );
+  }
+
+  async function reviewedMinor(conversation: string, subject: string): Promise<{ owner: string; runId: string; caseId: ReturnType<typeof makeCaseId>; instance: ReturnType<typeof buildInstance>; profiles: PostgresConfirmedProfileStore }> {
+    const created = await pool.query<{ id: string }>("INSERT INTO students (subject, email_verified) VALUES ($1, true) RETURNING id", [subject]);
+    const owner = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, owner]);
+    await withAPassport(owner, subject);
+    const instance = buildInstance(connectionString(), opener());
+    const profiles = new PostgresConfirmedProfileStore(instance.pool);
+    await confirmTheInterview(profiles, owner);
+    await confirmInto(profiles, "identity.date_of_birth", new Date("2012-05-01T00:00:00Z"), "1 May 2012", owner);
+    const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+    if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    const caseId = makeCaseId(`case_${conversation.toLowerCase()}`);
+    const read = await instance.driver.reviewFor(caseId);
+    expect(read?.outstanding, "raised for the minor").toEqual([{ trigger: "involves_minor", approvable: true }]);
+    const reviewed = await instance.driver.completeReview({
+      caseId,
+      review: { reviewerId: "specialist_vahid", reviewedAt: NOW, triggers: ["involves_minor"], outcome: "approved" },
+      caseSequence: read?.caseSequence ?? 0,
+    });
+    expect(reviewed.ok, "the review is recorded").toBe(true);
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [started.position.runId]);
+    const asked = await instance.driver.advance({ runId: started.position.runId, conversationId: conversation });
+    if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+    expect(asked.position.step, "reviewed, so the student is asked").toBe("authorise");
+    expect((await instance.driver.reviewFor(caseId))?.outstanding, "nothing outstanding once reviewed").toEqual([]);
+    return { owner, runId: started.position.runId, caseId, instance, profiles };
+  }
+
+  it("an answer other than the date of birth, confirmed again after the review, raises the minors review again", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPMNR321";
+    const { owner, runId, caseId, instance, profiles } = await reviewedMinor(conversation, "oidc-p319-minor-answer");
+    try {
+      await confirmInto(profiles, "identity.given_name", "Niloo", "Niloo", owner);
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect((await instance.driver.reviewFor(caseId))?.outstanding, "raised again, for the answers as they are now").toEqual([
+        { trigger: "involves_minor", approvable: true },
+      ]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a choice from a form's own list, recorded for the reviewed minor's application, raises the minors review again", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPMNR322";
+    const { runId, caseId, instance } = await reviewedMinor(conversation, "oidc-p319-minor-choice");
+    try {
+      await new EntryChoiceStore(instance.pool).record({
+        choiceId: "ch_p319_minor_choice",
+        caseId: String(caseId),
+        conversationId: conversation,
+        fieldRef: "nationality",
+        studentValue: "Iran",
+        value: "Iran (Islamic Republic of)",
+        label: "Iran (Islamic Republic of)",
+        escape: false,
+        offerHash: `sha256:${"a".repeat(64)}`,
+        chosenAt: NOW,
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect((await instance.driver.reviewFor(caseId))?.outstanding, "raised again: a person has not seen the choice").toEqual([
+        { trigger: "involves_minor", approvable: true },
+      ]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("an adult's answer changed is never a minors review", async () => {
+    // A guard, green before P319 as after: widening what the fingerprint covers
+    // must not widen who is reviewed as a minor.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPMNR323";
+    const created = await pool.query<{ id: string }>("INSERT INTO students (subject, email_verified) VALUES ('oidc-p319-adult', true) RETURNING id");
+    const owner = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, owner]);
+    await withAPassport(owner, "oidc-p319-adult");
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles, owner);
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step, "an adult: no review before the yes").toBe("authorise");
+      await confirmInto(profiles, "identity.given_name", "Niloo", "Niloo", owner);
+      await instance.driver.advance({ runId: started.position.runId, conversationId: conversation });
+      const caseId = makeCaseId(`case_${conversation.toLowerCase()}`);
+      expect((await instance.driver.reviewFor(caseId))?.outstanding ?? [], "no minors review for an adult").toEqual([]);
+      const raised = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM case_events WHERE case_id = $1 AND event->>'type' = 'HumanReviewRequested' AND event->'triggers' ? 'involves_minor'`,
+        [String(caseId)],
+      );
+      expect(raised.rows[0]?.n).toBe("0");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
 describeIfDatabase("a run only a person can carry on", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // What this group is here to stop happening again.
@@ -17120,6 +17258,291 @@ const DEMANDING_CATALOGUE: TestCatalogue = {
   targets: () => [targetOf({ entry: DEMANDING_ENTRY, contentHash: TEST_CONTENT_HASH, admits: DEMANDING_ENTRY.admits })],
   find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? DEMANDING_ENTRY : null),
 };
+
+/**
+ * The gated portal with the two funding boxes of Sheffield's page 12, in the
+ * form's own words and options, both required, and mapped as the change for
+ * his signature maps them: `absent: "ask"` (P319). `ASKS` is that change;
+ * `LEAVES_EMPTY` is the signed entry as it stands, which leaves both empty.
+ */
+function fundingEntry(absent: "ask" | "leave_empty"): CatalogueEntry {
+  const STAGES = ["Select...", "The funding has been confirmed", "I am applying for a project studentship", "I have applied for funding", "I am applying for funding", "I am thinking about funding my studies this way"];
+  const SOURCES = ["Select...", "Employer", "Scholarship or studentship (not listed below)", "Self or Family", "Sponsor", "Chevening Scholarship", "Postgraduate Government Loan", "Other"];
+  const select = (fieldRef: string, label: string, options: readonly string[]) => ({
+    fieldRef,
+    label,
+    inputType: "select" as const,
+    dataCategory: "ordinary" as const,
+    locators: [{ strategy: "label" as const, value: label }],
+    validations: [{ kind: "required" as const, source: "observed_marker" as const }],
+    options: options.map((words) => ({ value: words, label: words })),
+  });
+  const one = (value: string, words: string) => ({ kind: "part" as const, path: "source", then: { kind: "option" as const, options: { [value]: words } } });
+  return {
+    ...GATED_ENTRY,
+    blueprint: {
+      ...GATED_ENTRY.blueprint,
+      pages: GATED_ENTRY.blueprint.pages.map((page) =>
+        page.pageRef !== "page-application"
+          ? page
+          : {
+              ...page,
+              sections: [
+                ...page.sections,
+                {
+                  sectionRef: "sec-funding",
+                  title: "Funding",
+                  fields: [
+                    select("fundingSource", "Please select your likely funding source", SOURCES),
+                    select("fundingStage", "What stage are you at with your funding?", STAGES),
+                  ],
+                },
+              ],
+            },
+      ),
+    },
+    mappingSet: {
+      ...GATED_ENTRY.mappingSet,
+      mappings: [
+        ...GATED_ENTRY.mappingSet.mappings,
+        {
+          fieldRef: "fundingSource",
+          source: {
+            kind: "profile_field" as const,
+            fieldKey: "finance.funding" as const,
+            format: {
+              kind: "switch" as const,
+              path: "source",
+              absent,
+              cases: {
+                self_or_family: one("self_or_family", "Self or Family"),
+                employer: one("employer", "Employer"),
+                sponsor: one("sponsor", "Sponsor"),
+                other: one("other", "Other"),
+                scholarship: { kind: "part" as const, path: "details", then: { kind: "option" as const, options: { "Chevening Scholarship": "Chevening Scholarship" } } },
+                loan: { kind: "part" as const, path: "details", then: { kind: "option" as const, options: { "Postgraduate Government Loan": "Postgraduate Government Loan" } } },
+              },
+            },
+          },
+        },
+        {
+          fieldRef: "fundingStage",
+          source: {
+            kind: "profile_field" as const,
+            fieldKey: "finance.funding" as const,
+            format: {
+              kind: "part" as const,
+              path: "stage",
+              absent,
+              then: {
+                kind: "option" as const,
+                options: {
+                  confirmed: "The funding has been confirmed",
+                  project_studentship: "I am applying for a project studentship",
+                  applied: "I have applied for funding",
+                  applying: "I am applying for funding",
+                  considering: "I am thinking about funding my studies this way",
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+}
+const ASKS = fundingEntry("ask");
+const LEAVES_EMPTY = fundingEntry("leave_empty");
+const gatedCatalogueOf = (entry: CatalogueEntry): TestCatalogue => ({
+  targets: () => [targetOf({ entry, contentHash: TEST_CONTENT_HASH, admits: entry.admits })],
+  find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? entry : null),
+});
+
+describeIfDatabase("after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, D2: "Ask with the form's own words and options." P319: (2) "both
+  // moments" — in the walk, and when a case begins; (8) "No value is filled
+  // against the signed note's current wording, even temporarily."; (10) "the
+  // four now". Proven against the deterministic stand-in only.
+  // ═══════════════════════════════════════════════════════════════════════
+  const FOUR_SOURCES = "Please select your likely funding source\nEmployer\nSelf or Family\nSponsor\nOther";
+  const FOUR_STAGES =
+    "What stage are you at with your funding?\nI am applying for a project studentship\nI have applied for funding\nI am applying for funding\nI am thinking about funding my studies this way";
+
+  async function saidIn(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+  async function sayIn(entry: CatalogueEntry, conversation: string, what: string): Promise<void> {
+    const built = buildInstance(connectionString(), opener(), gatedCatalogueOf(entry));
+    try {
+      const written = await new ConversationEventStore(built.pool).append({ conversationId: conversation, event: { kind: "message", actor: "student", content: what } });
+      await built.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function pressYes(entry: CatalogueEntry, conversation: string, runId: string): Promise<void> {
+    const proposals = await pool.query<{ playback_hash: string }>(
+      "SELECT playback_hash FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_proposed' ORDER BY ordinal DESC LIMIT 1",
+      [conversation],
+    );
+    const built = buildInstance(connectionString(), opener(), gatedCatalogueOf(entry));
+    try {
+      expect(await built.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "confirm_value", contentHash: proposals.rows[0]!.playback_hash } })).toEqual({ ok: true });
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function begin(entry: CatalogueEntry, conversation: string, held?: "no", without?: ProfileFieldKey): Promise<{ owner: string; runId: string }> {
+    await ownConversation(conversation);
+    const owner = ownerOf(conversation);
+    const built = buildInstance(connectionString(), opener(), gatedCatalogueOf(entry));
+    try {
+      const profiles = new PostgresConfirmedProfileStore(built.pool);
+      await confirmTheInterview(profiles, owner);
+      if (held === "no") await confirmInto(profiles, "finance.funding", { known: false }, "no", owner);
+      if (without !== undefined) await pool.query("DELETE FROM profile_entries WHERE student_id = $1 AND field_key = $2", [owner, without]);
+      const started = await built.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      return { owner, runId: started.position.runId };
+    } finally {
+      await built.pool.end();
+    }
+  }
+  async function heldFunding(owner: string): Promise<unknown> {
+    const stored = await pool.query<{ value: unknown }>("SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = 'finance.funding'", [owner]);
+    return stored.rows[0]?.value;
+  }
+  async function demandsIn(conversation: string): Promise<readonly { partKey: string; atStart: boolean }[]> {
+    const rows = await pool.query<{ part_key: string; proposal: { atStart?: boolean } }>(
+      "SELECT part_key, proposal FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_part_demanded' ORDER BY ordinal",
+      [conversation],
+    );
+    return rows.rows.map((row) => ({ partKey: row.part_key, atStart: row.proposal.atStart === true }));
+  }
+
+  it("in the walk: a no is followed by the source and the stage, each in the form's words; the playback says them; the plan fills both", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPF31901";
+    const { owner, runId } = await begin(ASKS, conversation);
+    expect((await saidIn(conversation)).at(-1), "the first funding question is the student's own, as before").toContain("Do you know yet how your studies will be funded?");
+    await sayIn(ASKS, conversation, "no");
+    expect((await saidIn(conversation)).at(-1), "the source box's own words and four options").toBe(FOUR_SOURCES);
+    await sayIn(ASKS, conversation, "Employer");
+    expect((await saidIn(conversation)).at(-1), "the stage box's own words, four stages and not the confirmed one").toBe(FOUR_STAGES);
+    await sayIn(ASKS, conversation, "I am applying for funding");
+    const playback = (await saidIn(conversation)).at(-1) ?? "";
+    expect(playback).toContain('"What stage are you at with your funding?": I am applying for funding');
+    expect(playback).toContain('"Please select your likely funding source": Employer');
+    await pressYes(ASKS, conversation, runId);
+    expect(await heldFunding(owner)).toEqual({ known: false, source: "employer", stage: "applying" });
+    const usable = checkUsable(ASKS.mappingSet, ASKS.blueprint);
+    if (!usable.usable) return expect.unreachable("the fixture's mapping set is usable");
+    const plan = planFill(ASKS.blueprint, usable.mappingSet, await new PostgresConfirmedProfileStore(pool).load(owner, NOW));
+    const typed = (fieldRef: string): unknown => plan.instructions.find((instruction) => instruction.fieldRef === fieldRef)?.value;
+    expect(JSON.stringify(typed("fundingSource"))).toContain("Employer");
+    expect(JSON.stringify(typed("fundingStage"))).toContain("I am applying for funding");
+    expect(await demandsIn(conversation), "asked in the walk, before the playback: no demand").toEqual([]);
+  }, 300_000);
+
+  it("when a case begins: a no given before this application is asked the form's two questions in the form's words alone, and the answer completes it", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPF31902";
+    const { owner, runId } = await begin(ASKS, conversation, "no");
+    expect(await demandsIn(conversation), "raised from the plan when the case began, before any save").toEqual([{ partKey: "source", atStart: true }]);
+    const said = await saidIn(conversation);
+    expect(said.at(-1), "asked there and then, in the form's words").toBe(FOUR_SOURCES);
+    // Nothing of mine before it (his D2), and no word that a save was refused:
+    // whether a sentence should say why is his (row 217).
+    expect(said.join("\n")).not.toMatch(/would not save|does not say/);
+    await sayIn(ASKS, conversation, "Self or Family");
+    expect((await saidIn(conversation)).at(-1)).toBe(FOUR_STAGES);
+    await sayIn(ASKS, conversation, "I am thinking about funding my studies this way");
+    await pressYes(ASKS, conversation, runId);
+    expect(await heldFunding(owner), "known stays the student's own no").toEqual({ known: false, source: "self_or_family", stage: "considering" });
+    expect(demandsFrom(await new ConversationEventStore(pool).wholeLog(conversation)).size, "the confirmation closed the demand").toBe(0);
+  }, 300_000);
+
+  it("when a case begins and another question comes first, the funding question still comes, in the form's words, once that is answered", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPF31906";
+    const { runId } = await begin(ASKS, conversation, "no", "identity.given_name");
+    expect((await saidIn(conversation)).join("\n")).not.toContain("Please select your likely funding source");
+    await sayIn(ASKS, conversation, "Niloofar");
+    await pressYes(ASKS, conversation, runId);
+    expect((await saidIn(conversation)).at(-1)).toBe(FOUR_SOURCES);
+  }, 300_000);
+
+  it("a demand raised when the case began asks nothing once the held answer holds what the form asks, answered in another application (P319's review)", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPF31908";
+    const { owner, runId } = await begin(ASKS, conversation, "no", "identity.given_name");
+    expect(await demandsIn(conversation)).toEqual([{ partKey: "source", atStart: true }]);
+    // Answered again elsewhere before this application reached funding.
+    await confirmInto(new PostgresConfirmedProfileStore(pool), "finance.funding", { known: true, source: "employer", stage: "applying" }, "my employer is paying", owner);
+    await sayIn(ASKS, conversation, "Niloofar");
+    await pressYes(ASKS, conversation, runId);
+    const said = (await saidIn(conversation)).join("\n");
+    expect(said, "the source the held answer now holds is not asked again").not.toContain("Who is paying");
+    expect(said).not.toContain("Please select your likely funding source");
+    expect(await heldFunding(owner)).toEqual({ known: true, source: "employer", stage: "applying" });
+  }, 300_000);
+
+  it("is checked on a start that resumes a run never planned, as a start that failed before its first decide leaves it (P319's review)", async () => {
+    // A start whose check or decide failed after the run was created leaves a
+    // run at revision 0; the retry resumes it (`resumed: true`) and must still
+    // check. Simulated by setting the revision back, before any checkpoint.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPF31907";
+    const { owner, runId } = await begin(ASKS, conversation);
+    await pool.query("UPDATE workflow_runs SET revision = 0 WHERE run_id = $1", [runId]);
+    const built = buildInstance(connectionString(), opener(), gatedCatalogueOf(ASKS));
+    try {
+      await confirmInto(new PostgresConfirmedProfileStore(built.pool), "finance.funding", { known: false }, "no", owner);
+      const again = await built.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!again.ok) expect.unreachable(`resume refused: ${again.refusal.kind}`);
+      expect(again.position.resumed).toBe(true);
+    } finally {
+      await built.pool.end();
+    }
+    expect(await demandsIn(conversation), "a run that has never planned is a case that begins").toEqual([{ partKey: "source", atStart: true }]);
+  }, 300_000);
+
+  it("is checked when a case begins and not on every resume: a no written after the case planned is not asked about", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPF31903";
+    const { owner, runId } = await begin(ASKS, conversation);
+    const built = buildInstance(connectionString(), opener(), gatedCatalogueOf(ASKS));
+    try {
+      await confirmInto(new PostgresConfirmedProfileStore(built.pool), "finance.funding", { known: false }, "no", owner);
+      // A second start of the same conversation while the run is live resumes
+      // the case (P319's mutation 11 survived a test that started it again only
+      // after a person held the run, which returns before any check).
+      const again = await built.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!again.ok) expect.unreachable(`resume refused: ${again.refusal.kind}`);
+      expect(again.position.resumed, "the case was resumed, not begun").toBe(true);
+      await built.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await built.pool.end();
+    }
+    expect(await demandsIn(conversation), "his held no is reached by answering the field again (§5), not by a check on resume").toEqual([]);
+    expect((await saidIn(conversation)).join("\n")).not.toContain("Please select your likely funding source");
+  }, 300_000);
+
+  it("under the entry as signed today (leave the boxes empty), a no is asked nothing more, at the walk or when a case begins (his answer 8)", async () => {
+    const walk = "01JBXQ8Z9WKTQ6M4H2NPF31904";
+    await begin(LEAVES_EMPTY, walk);
+    await sayIn(LEAVES_EMPTY, walk, "no");
+    expect((await saidIn(walk)).at(-1), "the playback follows the no").toContain("Is that right?");
+    const begun = "01JBXQ8Z9WKTQ6M4H2NPF31905";
+    await begin(LEAVES_EMPTY, begun, "no");
+    expect(await demandsIn(begun)).toEqual([]);
+    for (const conversation of [walk, begun]) {
+      const said = (await saidIn(conversation)).join("\n");
+      expect(said).not.toContain("What stage are you at with your funding?");
+      expect(said).not.toContain("Please select your likely funding source");
+    }
+  }, 300_000);
+});
 
 describeIfDatabase("a page the portal would not save without a part becomes ONE question, and the run resumes (P233, ADR-0148 §11)", () => {
   // ═══════════════════════════════════════════════════════════════════════

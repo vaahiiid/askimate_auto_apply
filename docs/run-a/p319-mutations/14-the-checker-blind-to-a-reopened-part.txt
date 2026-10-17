@@ -1,0 +1,17 @@
+mutation 14-the-checker-blind-to-a-reopened-part on scripts/required-boxes-hold.ts
+command: pnpm exec vitest run --project unit scripts/required-boxes-hold.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+        const offered = reopenedValues(spec, part, answered, policy);
+        if (offered.length === 0) continue;
+with:
+        const offered: readonly unknown[] = [];
+        if (offered.length === 0) continue;
+
+   × P319: the checker walks as the interview asks, with the interview's own gate > under the change for his signature, a no is asked the source and the stage in the form's words, and breaks no funding box 81ms
+     → after a no, each of the four sources the map names is asked and taken: expected Set{ undefined } to deeply equal Set{ 'employer', …(3) }
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 10 skipped (14)
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P319: the checker walks as the interview asks, with the interview's own gate > under the change for his signature, a no is asked the source and the stage in the form's words, and breaks no funding box

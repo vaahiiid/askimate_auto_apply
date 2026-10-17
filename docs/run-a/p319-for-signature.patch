@@ -1,0 +1,665 @@
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+index 54c3fe9c..edcda369 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json
+@@ -1,6 +1,6 @@
+ {
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "version": "0.2.36",
++  "version": "0.2.37",
+   "status": "draft",
+   "institutionName": "University of Sheffield",
+   "courseName": "MSc Management and International Business",
+@@ -30461,7 +30461,12 @@
+                   "value": "fundingSource"
+                 }
+               ],
+-              "validations": [],
++              "validations": [
++                {
++                  "kind": "required",
++                  "source": "specialist_noted"
++                }
++              ],
+               "options": [
+                 {
+                   "value": "Select...",
+@@ -30725,10 +30730,12 @@
+       "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
+       "PART 2, second read 2026-09-25 (526174c), the course typed and chosen in the typeahead, Save NOT pressed: the course box offered two MGT entries for the target's course name and the chosen one submits 'MGT:Management and International Business'; the qualification list loaded with one real entry, 'MSC, Master of Science'; the START-DATE list did NOT load, because it follows the qualification and none was chosen — UNREAD, one more choice in the same read. His note on doing it by hand: the box offered nothing on the first try and found the course on the second — a server search whose entries follow the start window above it, which the markup's handlers confirm (updateCourses on studyTerm and startYear) and the blueprint's order and optionsAfter already hold.",
+       "PART 2, the funding radios: both fundingSourceKnown inputs carry value=\"\" in the markup; the script the read did not capture may set what the form submits. The blueprint records Yes / No as the tool derived them from the labels; the runner chooses such a group by its <label for> text (P216), and what the form actually submits for each is UNREAD.",
+-      "PART 2, third read 2026-09-25 (2c54b6c), the qualification chosen too, Save NOT pressed: startDate has ZERO entries, and so has flexibleStartDateMonth, after a synthetic change and after a mouse re-choice. READ FROM THE MARKUP, not the script: both rows are hidden — <div id=\"startDateRow\" style=\"display:none\"> and <div id=\"flexibleStartDateRow\" style=\"display:none\"> — and each row's own tooltip says when it is shown: 'The course you have selected has more than one start date in the year so please select when you want to start' and 'The course you have selected has a flexible start date so please select when you want to start'. So the page asks for a start date only of a course with several starts, or a flexible one, and asks NOTHING of a course with one fixed start; the mandatory marker sits inside a hidden row, as unlistedDegree's does behind degree. closedForFeeStatusWarning is display:none and empty: the course is open for the account's fee status. The three start-date boxes are therefore NOT recorded on page 12 for this target — the runner never meets them, exactly as a person does not — and if Sheffield ever shows one of them for this course, the save fails at the portal, loudly, and the page is re-read. Vahid's own line stands as the rule: the day '1' sitting in flexibleStartDateDay is exactly the degree map's shape, a value that renders because something plausible is there, and it is not answered."
++      "PART 2, third read 2026-09-25 (2c54b6c), the qualification chosen too, Save NOT pressed: startDate has ZERO entries, and so has flexibleStartDateMonth, after a synthetic change and after a mouse re-choice. READ FROM THE MARKUP, not the script: both rows are hidden — <div id=\"startDateRow\" style=\"display:none\"> and <div id=\"flexibleStartDateRow\" style=\"display:none\"> — and each row's own tooltip says when it is shown: 'The course you have selected has more than one start date in the year so please select when you want to start' and 'The course you have selected has a flexible start date so please select when you want to start'. So the page asks for a start date only of a course with several starts, or a flexible one, and asks NOTHING of a course with one fixed start; the mandatory marker sits inside a hidden row, as unlistedDegree's does behind degree. closedForFeeStatusWarning is display:none and empty: the course is open for the account's fee status. The three start-date boxes are therefore NOT recorded on page 12 for this target — the runner never meets them, exactly as a person does not — and if Sheffield ever shows one of them for this course, the save fails at the portal, loudly, and the page is re-read. Vahid's own line stands as the rule: the day '1' sitting in flexibleStartDateDay is exactly the degree map's shape, a value that renders because something plausible is there, and it is not answered.",
++      "P319 (2026-10-17): fundingSource REQUIRED, on Vahid's observed red asterisk at docs/captures/sheffield-part2-2026-09-25/taught-page.html:209 (the row's label followed by <font color=\"red\">*</font>), in his words of 2026-10-17: \"treat the funding source box as required on my observed red asterisk\" (docs/run-a/p319-his-answers-on-row-214-as-sent.txt, answer 6). Not on a save the portal refused (ADR-0123 Decision 1). Recorded specialist_noted: the observer did not read this star; he did."
+     ]
+   },
+   "$comment": [
++    "0.2.37 (2026-10-17, P319): fundingSource required, on his observed red asterisk, as the P319 line of the unobserved claims records. One signature with the mapping set's 0.3.49 (his answer 8 of 2026-10-17: \"The note change and the source rule go into one prepared change, signed by me in one signature\").",
+     "0.2.35 (2026-10-11, P296): from Vahid's reads R and L of 2026-10-11, each printed with the country selected when it ran (docs/run-a/p294-reads.md). grade: its list after gradingSystemId = 6, read with 'Not in list' as the institution and Iran as the country, recorded as listsAfter with under: institution-ts-control = 'Not in list', institutionCountry-ts-control = IRAN — R's own under: the values as R printed them, the names those of the boxes that set the selects R printed (frontedBy), as docs/run-a/p294-reads.md says (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R-grade-after-institution-escape-gpa20.json); the 203 entries are R's values in R's order, less its first line, 'Select your grade...', which is the list's prompt and is now recorded as such so it is never offered as an answer. Every line R printed was already among the field's options. These reads replace neither record of the country entered by hand in P294 (0.2.34 said the reads planned next would): R prints the grading system's value, 6, not its list after the escape, and T searched 'azad' and 'sheff', not 'HHE'. Both records still rest on his words of 2026-10-10 (docs/run-a/p295-his-message-as-sent.txt): \"I confirm that my reads of 6 October were made with the country set to Iran.\" unlistedInstitution and unlistedDegree: labelled from L (docs/captures/sheffield-pgt-2026-09-10/reads/p294-L-escape-box-labels.json), which printed no label, aria-label, placeholder or title for any of the three boxes, and each row's text. No labelSource is claimed: the observer did not read these labels; L, a console read, printed the row's text. unlistedDegree's row text is one sentence and is the label, normalised as the observer normalises row text (whitespace collapsed, ends trimmed). unlistedInstitution's row text is three sentences, two of help and one addressed to the box; the label is the third, cut at the row's last sentence boundary and otherwise unchanged. That is a judgement made in P296. The observer would not have made it: it gives a control no label from its own words when they run to more than one sentence or end as a statement (apps/browser-runner/src/observe-script.ts), and this sentence ends with a full stop. unlistedSubject's existing label is L's row text under the same normalisation, unchanged.",
+     "0.2.34 (2026-10-09, P294): two of Vahid's reads carry the country they were made under, under: institutionCountry-ts-control = IRAN — institution-ts-control's 'HHE' search and gradingSystemId's list after 'Not in list' as the institution — at his word: \"Record the country a read was made under in the reads record itself, and make the check refuse a mapping row whose key does not match the country of the read it rests on.\" These two reads did not print the country. IRAN was entered by hand in P294 from what states it beside them: the reads file (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt) heads read 1 '1 — UNTOUCHED (country Iran only)', and the plan the reads followed (docs/run-a/p290-reads.md) asks for Iran as the country; 'Iran' is the label of the country box's entry IRAN. The reads planned next print the country with each list (docs/run-a/p294-reads.md) and replace this record. The subject's searches carry none: its list follows the search box only.",
+     "0.2.26 (2026-09-16, P153): four label fixes before Vahid signs, at his word ('If the labels in the blueprint are wrong, then the thing I read and the thing I signed are not the same thing'). (1) The nationality page's radios carry the option labels the third read found (2026-09-14) — Yes / No, and the document-status sentences — where the third read's values equal this draft's; P110's rewrite of the values from the markup had set every option label to the field's own name. Restored: livedOutsideCountry, alwaysUKResident, alwaysEUResident, refugeeStatus, migrantWorker, spouseOfUKCitizen, euPassport, spouseOfEUCitizen, previousStudentVisa, passportScanStatus, visaScanStatus, utilityBillScanStatus, proofOfUKSpouseStatus, refugeeProofStatus. Not restored, because the third read's 'no' label ran on into the row's help text: britishPassport, indefinateVisa, livingInUK — they keep the field's name and are off a resident abroad's path. (2) dobMonth and dobYear carry 'Date of Birth:*', startYear 'Start Date:*' and endYear 'End Date:' — the row's question, which the read attached to the row's first control (dobDay, startMonth, endMonth); the same one-row-several-controls shape P131 recorded for the markers, now in the labels. No labelSource is claimed for the carried ones: the row was read, the sibling was not. (3) institutionCountry and institutionCode carry frontedBy — the Tom Select boxes that set them — so the plan lists them nowhere; they were read as 'left empty' when the boxes fill them. The thirteen unread labels of the five-pages read (fundingNationality, countryOfBirth, permanentResidence, yearsOnStudentVisa, monthsOnStudentVisa, applicationLocation, …) and 'grade' still carry the field's name: no capture holds their question, and a label the file did not carry is not invented.",
+diff --git a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+index b12b2eb5..657e0f2c 100644
+--- a/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
++++ b/docs/captures/sheffield-pgt-2026-09-10/mapping-set.draft.json
+@@ -65,13 +65,14 @@
+     "P291 (2026-10-06), from Vahid's six reads on his own account, nothing saved (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, his message as sent): the institution box's 'HHE' search (only the escape), the boxes the institution, subject and award-title escapes open (shown only then, and filled with the student's own words, ADR-0109 amended), the grading list after the institution's escape (GPA 20), the award title's prompt, the grading system's escape recorded as leading nowhere (no grade can be given after it), the subject's 'international' search (his P283 read) and its 'HHE' search (only the escape). One signature.",
+     "P293 (2026-10-08, ADR-0156 §3), at Vahid's request in his own words (docs/run-a/p293-his-decisions-as-sent.txt): one row on gradingSystemId, taken only when the institution box holds the form's escape for that entry, by the student's recorded choice — for a qualification in Iran, the grade scale they state, twenty_point, renders 6 (GPA 20), the system his read of 2026-10-06 (made with Iran as the country) shows after that escape. The P291 batch (0.3.44, never signed) with this row; one signature.",
+     "P294 (2026-10-09): reviewed against blueprint 0.2.34, whose only change is the country two of his reads were made under (Iran), recorded on them at his word: \"Record the country a read was made under in the reads record itself\". No row changed: gradingSystemId's row after the institution's escape was already keyed on IR, and checkUsable now refuses that key unless it matches the country the read records. That record was entered by hand in P294, from read 1's heading and the plan's instruction, because the reads did not print a country; read R, which prints it, replaces it.",
+-    "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
++    "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case.",
++    "P319 (2026-10-17): reviewed against blueprint 0.2.37, whose only change is fundingSource's required rule on his observed asterisk. fundingStage and fundingSource say absent: \"ask\": a student who does not know how their studies will be funded is asked each box's own question with the options a no leaves open, the four stages that are not \"The funding has been confirmed\" and the four sources a value of its own names (his answers 6 and 10 of 2026-10-17, docs/run-a/p319-his-answers-on-the-thirteen-as-sent.txt). The two notes that said these boxes are left empty for a no are reworded; the wording is mine. One signature with the blueprint's rule (his answer 8)."
+   ],
+   "mappingSetId": "map-sheffield-pgt-2027-09",
+-  "version": "0.3.48",
++  "version": "0.3.49",
+   "status": "draft",
+   "blueprintId": "bp-sheffield-pgt-september-direct",
+-  "blueprintVersion": "0.2.36",
++  "blueprintVersion": "0.2.37",
+   "authoredBy": "Vahid Mohammadi",
+   "authoredAt": "2026-09-11T12:00:00Z",
+   "mappings": [
+@@ -4875,7 +4876,7 @@
+         "format": {
+           "kind": "switch",
+           "path": "source",
+-          "absent": "leave_empty",
++          "absent": "ask",
+           "cases": {
+             "self_or_family": {
+               "kind": "part",
+@@ -4963,7 +4964,7 @@
+           }
+         }
+       },
+-      "note": "Please select your likely funding source — from the registry's closed vocabulary (ADR-0143) onto the list's own options, keyed on TWO parts where the list needs two (P218, blocker 85 widened): a scholarship or a loan is named by its details — the name as the student gave it — onto the twenty-two scholarships and schemes and three loans the list carries, exactly as the form prints them. A scholarship or loan the list does not name refuses and is asked about; 'Scholarship or studentship (not listed below)' is the student's own escape and is never chosen by this map. Left EMPTY for a student who does not know (absent part)."
++      "note": "Please select your likely funding source — from the registry's closed vocabulary (ADR-0143) onto the list's own options, keyed on TWO parts where the list needs two (P218, blocker 85 widened): a scholarship or a loan is named by its details — the name as the student gave it — onto the twenty-two scholarships and schemes and three loans the list carries, exactly as the form prints them. A scholarship or loan the list does not name refuses and is asked about; 'Scholarship or studentship (not listed below)' is the student's own escape and is never chosen by this map. Required on his observed red asterisk (docs/captures/sheffield-part2-2026-09-25/taught-page.html:209), in his words of 2026-10-17. For a student who does not know how their studies will be funded, this box's own question is asked with the four options a value of its own names, Employer, Self or Family, Sponsor and Other, and nothing is left empty (absent: ask; ADR-0161 §4; his words of 2026-10-17: \"the four now; the rest with D7\")."
+     },
+     {
+       "fieldRef": "fundingStage",
+@@ -4973,7 +4974,7 @@
+         "format": {
+           "kind": "part",
+           "path": "stage",
+-          "absent": "leave_empty",
++          "absent": "ask",
+           "then": {
+             "kind": "option",
+             "options": {
+@@ -4986,7 +4987,7 @@
+           }
+         }
+       },
+-      "note": "What stage are you at with your funding? — the registry's five stages (ADR-0143) onto the list's own five sentences. Left EMPTY for a student who does not know; the page's script hides this row for No (his expectation, unread — blocker 86 says what happens if it does not)."
++      "note": "What stage are you at with your funding? — the registry's five stages (ADR-0143) onto the list's own five sentences. For a student who does not know how their studies will be funded, this box's own question is asked with the four sentences a no leaves open, not \"The funding has been confirmed\", and nothing is left empty (absent: ask; ADR-0161 §4; his words of 2026-10-17: \"After a \"no\", offer the other four stages\"). Whether the page's script hides this row for No is unread (blockers 82 and 86): if it does, the fill meets a hidden box and stops for a person."
+     },
+     {
+       "fieldRef": "fundingDetails",
+diff --git a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+index 676050b4..af152146 100644
+--- a/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
++++ b/docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json
+@@ -96,7 +96,7 @@
+   },
+   "blueprint": {
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "version": "0.2.36",
++    "version": "0.2.37",
+     "status": "reviewed",
+     "institutionName": "University of Sheffield",
+     "courseName": "MSc Management and International Business",
+@@ -30557,7 +30557,12 @@
+                     "value": "fundingSource"
+                   }
+                 ],
+-                "validations": [],
++                "validations": [
++                  {
++                    "kind": "required",
++                    "source": "specialist_noted"
++                  }
++                ],
+                 "options": [
+                   {
+                     "value": "Select...",
+@@ -30821,10 +30826,12 @@
+         "PART 2, lists loaded by the page's own script (studyprogrammetaught.js, not captured): the course typeahead's entries follow studyTerm and startYear (updateCourses); the qualification list follows the chosen course (updateQualifications); the start-date list follows the qualification (updateMultipleStartDates); flexibleStartDateRow shows only for a course with a flexible start; the funding rows toggle on fundingSourceKnown (fundingSourceKnownChanged). None of the loaded lists was read, because reading them means choosing a course in the typeahead — a client-side choice, not a save — and that read is his, next.",
+         "PART 2, second read 2026-09-25 (526174c), the course typed and chosen in the typeahead, Save NOT pressed: the course box offered two MGT entries for the target's course name and the chosen one submits 'MGT:Management and International Business'; the qualification list loaded with one real entry, 'MSC, Master of Science'; the START-DATE list did NOT load, because it follows the qualification and none was chosen — UNREAD, one more choice in the same read. His note on doing it by hand: the box offered nothing on the first try and found the course on the second — a server search whose entries follow the start window above it, which the markup's handlers confirm (updateCourses on studyTerm and startYear) and the blueprint's order and optionsAfter already hold.",
+         "PART 2, the funding radios: both fundingSourceKnown inputs carry value=\"\" in the markup; the script the read did not capture may set what the form submits. The blueprint records Yes / No as the tool derived them from the labels; the runner chooses such a group by its <label for> text (P216), and what the form actually submits for each is UNREAD.",
+-        "PART 2, third read 2026-09-25 (2c54b6c), the qualification chosen too, Save NOT pressed: startDate has ZERO entries, and so has flexibleStartDateMonth, after a synthetic change and after a mouse re-choice. READ FROM THE MARKUP, not the script: both rows are hidden — <div id=\"startDateRow\" style=\"display:none\"> and <div id=\"flexibleStartDateRow\" style=\"display:none\"> — and each row's own tooltip says when it is shown: 'The course you have selected has more than one start date in the year so please select when you want to start' and 'The course you have selected has a flexible start date so please select when you want to start'. So the page asks for a start date only of a course with several starts, or a flexible one, and asks NOTHING of a course with one fixed start; the mandatory marker sits inside a hidden row, as unlistedDegree's does behind degree. closedForFeeStatusWarning is display:none and empty: the course is open for the account's fee status. The three start-date boxes are therefore NOT recorded on page 12 for this target — the runner never meets them, exactly as a person does not — and if Sheffield ever shows one of them for this course, the save fails at the portal, loudly, and the page is re-read. Vahid's own line stands as the rule: the day '1' sitting in flexibleStartDateDay is exactly the degree map's shape, a value that renders because something plausible is there, and it is not answered."
++        "PART 2, third read 2026-09-25 (2c54b6c), the qualification chosen too, Save NOT pressed: startDate has ZERO entries, and so has flexibleStartDateMonth, after a synthetic change and after a mouse re-choice. READ FROM THE MARKUP, not the script: both rows are hidden — <div id=\"startDateRow\" style=\"display:none\"> and <div id=\"flexibleStartDateRow\" style=\"display:none\"> — and each row's own tooltip says when it is shown: 'The course you have selected has more than one start date in the year so please select when you want to start' and 'The course you have selected has a flexible start date so please select when you want to start'. So the page asks for a start date only of a course with several starts, or a flexible one, and asks NOTHING of a course with one fixed start; the mandatory marker sits inside a hidden row, as unlistedDegree's does behind degree. closedForFeeStatusWarning is display:none and empty: the course is open for the account's fee status. The three start-date boxes are therefore NOT recorded on page 12 for this target — the runner never meets them, exactly as a person does not — and if Sheffield ever shows one of them for this course, the save fails at the portal, loudly, and the page is re-read. Vahid's own line stands as the rule: the day '1' sitting in flexibleStartDateDay is exactly the degree map's shape, a value that renders because something plausible is there, and it is not answered.",
++        "P319 (2026-10-17): fundingSource REQUIRED, on Vahid's observed red asterisk at docs/captures/sheffield-part2-2026-09-25/taught-page.html:209 (the row's label followed by <font color=\"red\">*</font>), in his words of 2026-10-17: \"treat the funding source box as required on my observed red asterisk\" (docs/run-a/p319-his-answers-on-row-214-as-sent.txt, answer 6). Not on a save the portal refused (ADR-0123 Decision 1). Recorded specialist_noted: the observer did not read this star; he did."
+       ]
+     },
+     "$comment": [
++      "0.2.37 (2026-10-17, P319): fundingSource required, on his observed red asterisk, as the P319 line of the unobserved claims records. One signature with the mapping set's 0.3.49 (his answer 8 of 2026-10-17: \"The note change and the source rule go into one prepared change, signed by me in one signature\").",
+       "0.2.35 (2026-10-11, P296): from Vahid's reads R and L of 2026-10-11, each printed with the country selected when it ran (docs/run-a/p294-reads.md). grade: its list after gradingSystemId = 6, read with 'Not in list' as the institution and Iran as the country, recorded as listsAfter with under: institution-ts-control = 'Not in list', institutionCountry-ts-control = IRAN — R's own under: the values as R printed them, the names those of the boxes that set the selects R printed (frontedBy), as docs/run-a/p294-reads.md says (docs/captures/sheffield-pgt-2026-09-10/reads/p294-R-grade-after-institution-escape-gpa20.json); the 203 entries are R's values in R's order, less its first line, 'Select your grade...', which is the list's prompt and is now recorded as such so it is never offered as an answer. Every line R printed was already among the field's options. These reads replace neither record of the country entered by hand in P294 (0.2.34 said the reads planned next would): R prints the grading system's value, 6, not its list after the escape, and T searched 'azad' and 'sheff', not 'HHE'. Both records still rest on his words of 2026-10-10 (docs/run-a/p295-his-message-as-sent.txt): \"I confirm that my reads of 6 October were made with the country set to Iran.\" unlistedInstitution and unlistedDegree: labelled from L (docs/captures/sheffield-pgt-2026-09-10/reads/p294-L-escape-box-labels.json), which printed no label, aria-label, placeholder or title for any of the three boxes, and each row's text. No labelSource is claimed: the observer did not read these labels; L, a console read, printed the row's text. unlistedDegree's row text is one sentence and is the label, normalised as the observer normalises row text (whitespace collapsed, ends trimmed). unlistedInstitution's row text is three sentences, two of help and one addressed to the box; the label is the third, cut at the row's last sentence boundary and otherwise unchanged. That is a judgement made in P296. The observer would not have made it: it gives a control no label from its own words when they run to more than one sentence or end as a statement (apps/browser-runner/src/observe-script.ts), and this sentence ends with a full stop. unlistedSubject's existing label is L's row text under the same normalisation, unchanged.",
+       "0.2.34 (2026-10-09, P294): two of Vahid's reads carry the country they were made under, under: institutionCountry-ts-control = IRAN — institution-ts-control's 'HHE' search and gradingSystemId's list after 'Not in list' as the institution — at his word: \"Record the country a read was made under in the reads record itself, and make the check refuse a mapping row whose key does not match the country of the read it rests on.\" These two reads did not print the country. IRAN was entered by hand in P294 from what states it beside them: the reads file (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt) heads read 1 '1 — UNTOUCHED (country Iran only)', and the plan the reads followed (docs/run-a/p290-reads.md) asks for Iran as the country; 'Iran' is the label of the country box's entry IRAN. The reads planned next print the country with each list (docs/run-a/p294-reads.md) and replace this record. The subject's searches carry none: its list follows the search box only.",
+       "0.2.26 (2026-09-16, P153): four label fixes before Vahid signs, at his word ('If the labels in the blueprint are wrong, then the thing I read and the thing I signed are not the same thing'). (1) The nationality page's radios carry the option labels the third read found (2026-09-14) — Yes / No, and the document-status sentences — where the third read's values equal this draft's; P110's rewrite of the values from the markup had set every option label to the field's own name. Restored: livedOutsideCountry, alwaysUKResident, alwaysEUResident, refugeeStatus, migrantWorker, spouseOfUKCitizen, euPassport, spouseOfEUCitizen, previousStudentVisa, passportScanStatus, visaScanStatus, utilityBillScanStatus, proofOfUKSpouseStatus, refugeeProofStatus. Not restored, because the third read's 'no' label ran on into the row's help text: britishPassport, indefinateVisa, livingInUK — they keep the field's name and are off a resident abroad's path. (2) dobMonth and dobYear carry 'Date of Birth:*', startYear 'Start Date:*' and endYear 'End Date:' — the row's question, which the read attached to the row's first control (dobDay, startMonth, endMonth); the same one-row-several-controls shape P131 recorded for the markers, now in the labels. No labelSource is claimed for the carried ones: the row was read, the sibling was not. (3) institutionCountry and institutionCode carry frontedBy — the Tom Select boxes that set them — so the plan lists them nowhere; they were read as 'left empty' when the boxes fill them. The thirteen unread labels of the five-pages read (fundingNationality, countryOfBirth, permanentResidence, yearsOnStudentVisa, monthsOnStudentVisa, applicationLocation, …) and 'grade' still carry the field's name: no capture holds their question, and a label the file did not carry is not invented.",
+@@ -30900,13 +30907,14 @@
+       "P291 (2026-10-06), from Vahid's six reads on his own account, nothing saved (docs/captures/sheffield-pgt-2026-09-10/reads/p291-six-reads-as-sent.txt, his message as sent): the institution box's 'HHE' search (only the escape), the boxes the institution, subject and award-title escapes open (shown only then, and filled with the student's own words, ADR-0109 amended), the grading list after the institution's escape (GPA 20), the award title's prompt, the grading system's escape recorded as leading nowhere (no grade can be given after it), the subject's 'international' search (his P283 read) and its 'HHE' search (only the escape). One signature.",
+       "P293 (2026-10-08, ADR-0156 §3), at Vahid's request in his own words (docs/run-a/p293-his-decisions-as-sent.txt): one row on gradingSystemId, taken only when the institution box holds the form's escape for that entry, by the student's recorded choice — for a qualification in Iran, the grade scale they state, twenty_point, renders 6 (GPA 20), the system his read of 2026-10-06 (made with Iran as the country) shows after that escape. The P291 batch (0.3.44, never signed) with this row; one signature.",
+       "P294 (2026-10-09): reviewed against blueprint 0.2.34, whose only change is the country two of his reads were made under (Iran), recorded on them at his word: \"Record the country a read was made under in the reads record itself\". No row changed: gradingSystemId's row after the institution's escape was already keyed on IR, and checkUsable now refuses that key unless it matches the country the read records. That record was entered by hand in P294, from read 1's heading and the plan's instruction, because the reads did not print a country; read R, which prints it, replaces it.",
+-      "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case."
++      "P296 (2026-10-11): reviewed against blueprint 0.2.35, which records read R as the grade's list after GPA 20 with the institution's escape and Iran, the grade's prompt, and two escape boxes' labels from read L. One row added, at his word (\"build the grade row from R for my signature\"): grade's branch after the institution's escape, for IR and twenty_point, R's 203 lines label to value. Neither the hand-entered IRAN on gradingSystemId's list after the escape nor that on the institution's 'HHE' search is replaced by these reads: both still rest on his confirmation of 2026-10-10. The grade note now also records that read R2 holds every row of the Islamic Azad University case.",
++      "P319 (2026-10-17): reviewed against blueprint 0.2.37, whose only change is fundingSource's required rule on his observed asterisk. fundingStage and fundingSource say absent: \"ask\": a student who does not know how their studies will be funded is asked each box's own question with the options a no leaves open, the four stages that are not \"The funding has been confirmed\" and the four sources a value of its own names (his answers 6 and 10 of 2026-10-17, docs/run-a/p319-his-answers-on-the-thirteen-as-sent.txt). The two notes that said these boxes are left empty for a no are reworded; the wording is mine. One signature with the blueprint's rule (his answer 8)."
+     ],
+     "mappingSetId": "map-sheffield-pgt-2027-09",
+-    "version": "0.3.48",
++    "version": "0.3.49",
+     "status": "reviewed",
+     "blueprintId": "bp-sheffield-pgt-september-direct",
+-    "blueprintVersion": "0.2.36",
++    "blueprintVersion": "0.2.37",
+     "authoredBy": "Vahid Mohammadi",
+     "authoredAt": "2026-09-11T12:00:00Z",
+     "mappings": [
+@@ -35710,7 +35718,7 @@
+           "format": {
+             "kind": "switch",
+             "path": "source",
+-            "absent": "leave_empty",
++            "absent": "ask",
+             "cases": {
+               "self_or_family": {
+                 "kind": "part",
+@@ -35798,7 +35806,7 @@
+             }
+           }
+         },
+-        "note": "Please select your likely funding source — from the registry's closed vocabulary (ADR-0143) onto the list's own options, keyed on TWO parts where the list needs two (P218, blocker 85 widened): a scholarship or a loan is named by its details — the name as the student gave it — onto the twenty-two scholarships and schemes and three loans the list carries, exactly as the form prints them. A scholarship or loan the list does not name refuses and is asked about; 'Scholarship or studentship (not listed below)' is the student's own escape and is never chosen by this map. Left EMPTY for a student who does not know (absent part)."
++        "note": "Please select your likely funding source — from the registry's closed vocabulary (ADR-0143) onto the list's own options, keyed on TWO parts where the list needs two (P218, blocker 85 widened): a scholarship or a loan is named by its details — the name as the student gave it — onto the twenty-two scholarships and schemes and three loans the list carries, exactly as the form prints them. A scholarship or loan the list does not name refuses and is asked about; 'Scholarship or studentship (not listed below)' is the student's own escape and is never chosen by this map. Required on his observed red asterisk (docs/captures/sheffield-part2-2026-09-25/taught-page.html:209), in his words of 2026-10-17. For a student who does not know how their studies will be funded, this box's own question is asked with the four options a value of its own names, Employer, Self or Family, Sponsor and Other, and nothing is left empty (absent: ask; ADR-0161 §4; his words of 2026-10-17: \"the four now; the rest with D7\")."
+       },
+       {
+         "fieldRef": "fundingStage",
+@@ -35808,7 +35816,7 @@
+           "format": {
+             "kind": "part",
+             "path": "stage",
+-            "absent": "leave_empty",
++            "absent": "ask",
+             "then": {
+               "kind": "option",
+               "options": {
+@@ -35821,7 +35829,7 @@
+             }
+           }
+         },
+-        "note": "What stage are you at with your funding? — the registry's five stages (ADR-0143) onto the list's own five sentences. Left EMPTY for a student who does not know; the page's script hides this row for No (his expectation, unread — blocker 86 says what happens if it does not)."
++        "note": "What stage are you at with your funding? — the registry's five stages (ADR-0143) onto the list's own five sentences. For a student who does not know how their studies will be funded, this box's own question is asked with the four sentences a no leaves open, not \"The funding has been confirmed\", and nothing is left empty (absent: ask; ADR-0161 §4; his words of 2026-10-17: \"After a \"no\", offer the other four stages\"). Whether the page's script hides this row for No is unread (blockers 82 and 86): if it does, the fill meets a hidden box and stops for a person."
+       },
+       {
+         "fieldRef": "fundingDetails",
+diff --git a/docs/run-a/p319-content-stops-on-sheffield.txt b/docs/run-a/p319-content-stops-on-sheffield.txt
+new file mode 100644
+index 00000000..d31b9503
+--- /dev/null
++++ b/docs/run-a/p319-content-stops-on-sheffield.txt
+@@ -0,0 +1,54 @@
++Sheffield's entry: blueprint 0.2.37, mapping set 0.3.49.
++
++Run A's synthetic profile as it is
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++
++his residence answers
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++
++his residence answers, the list not yet confirmed
++  blockers: 20
++    value_unavailable residence.history → previousCountry1
++    value_unavailable residence.history → dateFromMonth1
++    value_unavailable residence.history → dateFromYear1
++    value_unavailable residence.history → dateToMonth1
++    value_unavailable residence.history → dateToYear1
++    value_unavailable residence.history → previousCountry2
++    value_unavailable residence.history → dateFromMonth2
++    value_unavailable residence.history → dateFromYear2
++    value_unavailable residence.history → dateToMonth2
++    value_unavailable residence.history → dateToYear2
++    value_unavailable residence.history → previousCountry3
++    value_unavailable residence.history → dateFromMonth3
++    value_unavailable residence.history → dateFromYear3
++    value_unavailable residence.history → dateToMonth3
++    value_unavailable residence.history → dateToYear3
++    value_unavailable residence.history → previousCountry4
++    value_unavailable residence.history → dateFromMonth4
++    value_unavailable residence.history → dateFromYear4
++    value_unavailable residence.history → dateToMonth4
++    value_unavailable residence.history → dateToYear4
++  not validated: the plan blocks, so the step is the interview
++
++a job list confirmed empty
++  blockers: 0
++  violations: 4
++    "Start Date:*" (startMonth): required [specialist_noted]
++    "Job Title / Position held:*" (position): required [specialist_noted]
++    "Name and address of employer:*" (employerDetails): required [specialist_noted]
++    "Brief Overview of Duties(Max 4000 characters):*" (duties): required [specialist_noted]
++  boxes the entry does not know: 0
++  so: fix_content, a person
++
++funding not known
++  blockers: 2
++    render_refused finance.funding → fundingSource (no_such_part)
++    render_refused finance.funding → fundingStage (no_such_part)
++  not validated: the plan blocks on something not missing, so the step is a person's stop (specialist)
++
+diff --git a/docs/run-a/p319-funding-on-page-12.txt b/docs/run-a/p319-funding-on-page-12.txt
+new file mode 100644
+index 00000000..1fb0cab1
+--- /dev/null
++++ b/docs/run-a/p319-funding-on-page-12.txt
+@@ -0,0 +1,89 @@
++Sheffield's entry: blueprint 0.2.37, mapping set 0.3.49.
++
++funding not known (his answer of 2026-10-16)
++  blockers: 2
++    render_refused finance.funding → fundingSource (no_such_part)
++    render_refused finance.funding → fundingStage (no_such_part)
++  not validated: the plan blocks on something not missing, so the step is a person's stop (specialist)
++  planned on page 12:
++    fundingSourceKnown: "No"
++    fundingSource: not planned
++    fundingDetails: ""
++    fundingStage: not planned
++
++funding known: self or family, stage confirmed
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++  planned on page 12:
++    fundingSourceKnown: "Yes"
++    fundingSource: "Self or Family"
++    fundingDetails: ""
++    fundingStage: "The funding has been confirmed"
++
++funding known: self or family, stage project_studentship
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++  planned on page 12:
++    fundingSourceKnown: "Yes"
++    fundingSource: "Self or Family"
++    fundingDetails: ""
++    fundingStage: "I am applying for a project studentship"
++
++funding known: self or family, stage applied
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++  planned on page 12:
++    fundingSourceKnown: "Yes"
++    fundingSource: "Self or Family"
++    fundingDetails: ""
++    fundingStage: "I have applied for funding"
++
++funding known: self or family, stage applying
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++  planned on page 12:
++    fundingSourceKnown: "Yes"
++    fundingSource: "Self or Family"
++    fundingDetails: ""
++    fundingStage: "I am applying for funding"
++
++funding known: self or family, stage considering
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++  planned on page 12:
++    fundingSourceKnown: "Yes"
++    fundingSource: "Self or Family"
++    fundingDetails: ""
++    fundingStage: "I am thinking about funding my studies this way"
++
++funding known: a scholarship the form lists, stage applying
++  blockers: 0
++  violations: 0
++  boxes the entry does not know: 0
++  so: no stop for content
++  planned on page 12:
++    fundingSourceKnown: "Yes"
++    fundingSource: "Chevening Scholarship"
++    fundingDetails: "Chevening Scholarship"
++    fundingStage: "I am applying for funding"
++
++funding known: a scholarship the form does not list, stage applying
++  blockers: 1
++    render_refused finance.funding → fundingSource (no_matching_option)
++  not validated: the plan blocks on something not missing, so the step is a person's stop (specialist)
++  planned on page 12:
++    fundingSourceKnown: "Yes"
++    fundingSource: not planned
++    fundingDetails: "A scholarship not on the list"
++    fundingStage: "I am applying for funding"
++
+diff --git a/docs/run-a/p319-required-boxes.txt b/docs/run-a/p319-required-boxes.txt
+new file mode 100644
+index 00000000..095bd043
+--- /dev/null
++++ b/docs/run-a/p319-required-boxes.txt
+@@ -0,0 +1,76 @@
++bp-sheffield-pgt-september-direct (blueprint 0.2.37)
++  fields measured: 20; accepted answers planned: 5564
++  what Run A's synthetic profile breaks itself (findings below are new against it): nothing
++  breaks_a_required_box: 20
++    contact.address → corrAddress1 [required]: maxlength 35, by 29 answer(s): line1="A1BBBBBBBBBB…" (120 characters); line1="A1BBBBBBBBBB…" (120 characters), city="1"; line1="A1BBBBBBBBBB…" (120 characters), city="A1BBBBBBBBBB…" (120 characters); line1="A1BBBBBBBBBB…" (120 characters), city="city"; line1="A1BBBBBBBBBB…" (120 characters), city="a town"; line1="A1BBBBBBBBBB…" (120 characters), city="Example"; line1="A1BBBBBBBBBB…" (120 characters), city="city is it in"; line1="A1BBBBBBBBBB…" (120 characters), postalCode="1"; line1="A1BBBBBBBBBB…" (120 characters), postalCode="A1BBBBBBBBBB…" (120 characters); line1="A1BBBBBBBBBB…" (120 characters), postalCode="Example"; line1="A1BBBBBBBBBB…" (120 characters), postalCode="ZIP code"; line1="A1BBBBBBBBBB…" (120 characters), postalCode="a postcode"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="IE"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="FR"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="US"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="IN"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="CN"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="AD"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="BI"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="CL"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="ET"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="GT"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="JP"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="LY"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="MZ"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="PN"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="SM"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="TT"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="ZW"
++    contact.address → corrTown [required]: maxlength 50, by 28 answer(s): city="A1BBBBBBBBBB…" (120 characters); line1="1", city="A1BBBBBBBBBB…" (120 characters); line1="A1BBBBBBBBBB…" (120 characters), city="A1BBBBBBBBBB…" (120 characters); line1="Example", city="A1BBBBBBBBBB…" (120 characters); line1="the number and street", city="A1BBBBBBBBBB…" (120 characters); line1="the first line of an address", city="A1BBBBBBBBBB…" (120 characters); city="A1BBBBBBBBBB…" (120 characters), postalCode="1"; city="A1BBBBBBBBBB…" (120 characters), postalCode="A1BBBBBBBBBB…" (120 characters); city="A1BBBBBBBBBB…" (120 characters), postalCode="Example"; city="A1BBBBBBBBBB…" (120 characters), postalCode="ZIP code"; city="A1BBBBBBBBBB…" (120 characters), postalCode="a postcode"; city="A1BBBBBBBBBB…" (120 characters), countryCode="IE"; city="A1BBBBBBBBBB…" (120 characters), countryCode="FR"; city="A1BBBBBBBBBB…" (120 characters), countryCode="US"; city="A1BBBBBBBBBB…" (120 characters), countryCode="IN"; city="A1BBBBBBBBBB…" (120 characters), countryCode="CN"; city="A1BBBBBBBBBB…" (120 characters), countryCode="AD"; city="A1BBBBBBBBBB…" (120 characters), countryCode="BI"; city="A1BBBBBBBBBB…" (120 characters), countryCode="CL"; city="A1BBBBBBBBBB…" (120 characters), countryCode="ET"; city="A1BBBBBBBBBB…" (120 characters), countryCode="GT"; city="A1BBBBBBBBBB…" (120 characters), countryCode="JP"; city="A1BBBBBBBBBB…" (120 characters), countryCode="LY"; city="A1BBBBBBBBBB…" (120 characters), countryCode="MZ"; city="A1BBBBBBBBBB…" (120 characters), countryCode="PN"; city="A1BBBBBBBBBB…" (120 characters), countryCode="SM"; city="A1BBBBBBBBBB…" (120 characters), countryCode="TT"; city="A1BBBBBBBBBB…" (120 characters), countryCode="ZW"
++    education.prior_qualifications → certificateStatus [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → certificateTranslationStatus [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → degree [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → endDateMonth [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → endDateYear [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → officialCertTranslStatus [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → officialTranTranslStatus [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → startDateMonth [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → startDateYear [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → transcriptStatus [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → transcriptTranslationStatus [required]: required, by 1 answer(s): no entries
++    education.prior_qualifications → unlistedDegree [required]: required, by 1 answer(s): no entries
++    employment.history → duties [required]: required, by 1 answer(s): no entries
++    employment.history → employerDetails [required]: required, by 1 answer(s): no entries
++    employment.history → position [required]: maxlength 200, entry 1, by 21 answer(s): one entry: position="A1BBBBBBBBBB…" (4000 characters); one entry: position="A1BBBBBBBBBB…" (4000 characters), employer="1"; one entry: position="A1BBBBBBBBBB…" (4000 characters), employer="A1BBBBBBBBBB…" (4000 characters); one entry: position="A1BBBBBBBBBB…" (4000 characters), employer="Example"; one entry: position="A1BBBBBBBBBB…" (4000 characters), employer="the employer's name"; one entry: position="A1BBBBBBBBBB…" (4000 characters), employerAddress="1"; one entry: position="A1BBBBBBBBBB…" (4000 characters), employerAddress="A1BBBBBBBBBB…" (4000 characters); one entry: position="A1BBBBBBBBBB…" (4000 characters), employerAddress="Example"; one entry: position="A1BBBBBBBBBB…" (4000 characters), employerAddress="the employer's address"; one entry: position="A1BBBBBBBBBB…" (4000 characters), startDate={"year":2023,"month":5}; one entry: position="A1BBBBBBBBBB…" (4000 characters), startDate={"year":1900,"month":1}; one entry: position="A1BBBBBBBBBB…" (4000 characters), startDate={"year":1950,"month":1}; one entry: position="A1BBBBBBBBBB…" (4000 characters), startDate={"year":1956,"month":6}; one entry: position="A1BBBBBBBBBB…" (4000 characters), startDate={"year":1960,"month":1}; one entry: position="A1BBBBBBBBBB…" (4000 characters), startDate={"year":2031,"month":6}; one entry: position="A1BBBBBBBBBB…" (4000 characters), startDate={"year":2019,"month":9}; one entry: position="A1BBBBBBBBBB…" (4000 characters), still=false; one entry: position="A1BBBBBBBBBB…" (4000 characters), duties="1"; one entry: position="A1BBBBBBBBBB…" (4000 characters), duties="A1BBBBBBBBBB…" (4000 characters); one entry: position="A1BBBBBBBBBB…" (4000 characters), duties="Example"; one entry: position="A1BBBBBBBBBB…" (4000 characters), duties="a short description of your duties"
++    employment.history → position [required]: required, by 1 answer(s): no entries
++    employment.history → startMonth [required]: required, by 1 answer(s): no entries
++    immigration.uk_study → highestQualificationOther [required]: maxlength 100, by 1 answer(s): highestLevel="other", qualification="A1BBBBBBBBBB…" (4000 characters)
++  breaks_another_box: 2
++    contact.address → corrIntlPostcode [not required]: maxlength 20, by 29 answer(s): postalCode="A1BBBBBBBBBB…" (120 characters); line1="1", postalCode="A1BBBBBBBBBB…" (120 characters); line1="A1BBBBBBBBBB…" (120 characters), postalCode="A1BBBBBBBBBB…" (120 characters); line1="Example", postalCode="A1BBBBBBBBBB…" (120 characters); line1="the number and street", postalCode="A1BBBBBBBBBB…" (120 characters); line1="the first line of an address", postalCode="A1BBBBBBBBBB…" (120 characters); city="1", postalCode="A1BBBBBBBBBB…" (120 characters); city="A1BBBBBBBBBB…" (120 characters), postalCode="A1BBBBBBBBBB…" (120 characters); city="city", postalCode="A1BBBBBBBBBB…" (120 characters); city="a town", postalCode="A1BBBBBBBBBB…" (120 characters); city="Example", postalCode="A1BBBBBBBBBB…" (120 characters); city="city is it in", postalCode="A1BBBBBBBBBB…" (120 characters); postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="IE"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="FR"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="US"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="IN"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="CN"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="AD"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="BI"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="CL"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="ET"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="GT"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="JP"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="LY"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="MZ"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="PN"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="SM"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="TT"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="ZW"
++    finance.funding → fundingDetails [not required]: maxlength 118, by 8 answer(s): details="A1BBBBBBBBBB…" (4000 characters); source="employer", details="A1BBBBBBBBBB…" (4000 characters); source="sponsor", details="A1BBBBBBBBBB…" (4000 characters); source="other", details="A1BBBBBBBBBB…" (4000 characters); stage="project_studentship", details="A1BBBBBBBBBB…" (4000 characters); stage="applied", details="A1BBBBBBBBBB…" (4000 characters); stage="applying", details="A1BBBBBBBBBB…" (4000 characters); stage="considering", details="A1BBBBBBBBBB…" (4000 characters)
++  held_but_unreadable: 0
++  refused_by_the_map: 23
++    contact.address → corrCountry [required]: render_refused (no_matching_option), by 18 answer(s): countryCode="AQ"; countryCode="AX"; countryCode="BL"; countryCode="BQ"; countryCode="BV"; countryCode="CI"; countryCode="CW"; countryCode="CY"; countryCode="HM"; countryCode="MF"; countryCode="MK"; countryCode="MP"; countryCode="RE"; countryCode="SH"; countryCode="SJ"; countryCode="SX"; countryCode="TF"; countryCode="UM"
++    contact.address → corrPostcode [required]: render_refused (rule_does_not_fit), by 17 answer(s): countryCode="GB"; line1="1", countryCode="GB"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="GB"; line1="Example", countryCode="GB"; line1="the number and street", countryCode="GB"; line1="the first line of an address", countryCode="GB"; city="1", countryCode="GB"; city="A1BBBBBBBBBB…" (120 characters), countryCode="GB"; city="city", countryCode="GB"; city="a town", countryCode="GB"; city="Example", countryCode="GB"; city="city is it in", countryCode="GB"; postalCode="1", countryCode="GB"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="GB"; postalCode="Example", countryCode="GB"; postalCode="ZIP code", countryCode="GB"; postalCode="a postcode", countryCode="GB"
++    contact.address → corrPostcode2 [not required]: render_refused (rule_does_not_fit), by 17 answer(s): countryCode="GB"; line1="1", countryCode="GB"; line1="A1BBBBBBBBBB…" (120 characters), countryCode="GB"; line1="Example", countryCode="GB"; line1="the number and street", countryCode="GB"; line1="the first line of an address", countryCode="GB"; city="1", countryCode="GB"; city="A1BBBBBBBBBB…" (120 characters), countryCode="GB"; city="city", countryCode="GB"; city="a town", countryCode="GB"; city="Example", countryCode="GB"; city="city is it in", countryCode="GB"; postalCode="1", countryCode="GB"; postalCode="A1BBBBBBBBBB…" (120 characters), countryCode="GB"; postalCode="Example", countryCode="GB"; postalCode="ZIP code", countryCode="GB"; postalCode="a postcode", countryCode="GB"
++    education.prior_qualifications → grade [not required]: render_refused (no_matching_case), by 719 answer(s): one entry: institution="1"; one entry: institution="A1BBBBBBBBBB…" (4000 characters); one entry: institution="Example"; …
++    education.prior_qualifications → grade [not required]: render_refused (no_matching_option), by 255 answer(s): one entry: grade="1"; one entry: grade="A1BBBBBBBBBB…" (4000 characters); one entry: grade="Example"; …
++    education.prior_qualifications → gradingSystemId [not required]: render_refused (no_matching_case), by 256 answer(s): one entry: institution="1"; one entry: institution="A1BBBBBBBBBB…" (4000 characters); one entry: institution="Example"; …
++    education.prior_qualifications → gradingSystemId [not required]: render_refused (no_matching_option), by 236 answer(s): one entry: level="Doctorate"; one entry: level="Diploma"; one entry: level="Certificate"; …
++    education.prior_qualifications → institution-ts-control [not required]: render_refused (no_matching_option), by 256 answer(s): one entry: institution="1"; one entry: institution="A1BBBBBBBBBB…" (4000 characters); one entry: institution="Example"; …
++    education.prior_qualifications → institutionCountry-ts-control [not required]: render_refused (no_matching_option), by 18 answer(s): one entry: countryCode="AQ"; one entry: countryCode="AX"; one entry: countryCode="BL"; one entry: countryCode="BQ"; one entry: countryCode="BV"; one entry: countryCode="CI"; one entry: countryCode="CW"; one entry: countryCode="CY"; one entry: countryCode="HM"; one entry: countryCode="MF"; one entry: countryCode="MK"; one entry: countryCode="MP"; one entry: countryCode="RE"; one entry: countryCode="SH"; one entry: countryCode="SJ"; one entry: countryCode="SX"; one entry: countryCode="TF"; one entry: countryCode="UM"
++    education.prior_qualifications → subject [not required]: render_refused (no_matching_option), by 256 answer(s): one entry: subject="1"; one entry: subject="A1BBBBBBBBBB…" (4000 characters); one entry: subject="Example"; …
++    education.prior_qualifications → subjectSearch [not required]: render_refused (no_matching_option), by 256 answer(s): one entry: subject="1"; one entry: subject="A1BBBBBBBBBB…" (4000 characters); one entry: subject="Example"; …
++    finance.funding → fundingSource [required]: render_refused (no_matching_option), by 16 answer(s): source="scholarship", details="1"; source="scholarship", details="A1BBBBBBBBBB…" (4000 characters); source="scholarship", details="none"; source="scholarship", details="a name"; source="scholarship", details="Example"; source="scholarship", details="employer"; source="scholarship", details="scholarship"; source="scholarship", details="the name of the sponsor"; source="loan", details="1"; source="loan", details="A1BBBBBBBBBB…" (4000 characters); source="loan", details="none"; source="loan", details="a name"; source="loan", details="Example"; source="loan", details="employer"; source="loan", details="scholarship"; source="loan", details="the name of the sponsor"
++    finance.funding → fundingSource [required]: render_refused (no_such_part), by 10 answer(s): source="scholarship"; source="loan"; source="scholarship", stage="project_studentship"; source="scholarship", stage="applied"; source="scholarship", stage="applying"; source="scholarship", stage="considering"; source="loan", stage="project_studentship"; source="loan", stage="applied"; source="loan", stage="applying"; source="loan", stage="considering"
++    identity.country_of_birth → countryOfBirth [not required]: render_refused (no_matching_option), by 15 answer(s): "AQ"; "BQ"; "BV"; "CW"; "CY"; "GF"; "GP"; "HM"; "IO"; "MF"; "MQ"; "RE"; "SX"; "TF"; "UM"
++    identity.nationality → fundingNationality [not required]: render_refused (no_matching_option), by 15 answer(s): "AQ"; "BQ"; "BV"; "CW"; "CY"; "GF"; "GP"; "HM"; "IO"; "MF"; "MQ"; "RE"; "SX"; "TF"; "UM"
++    immigration.uk_study → highestQualification(ENGLISH_LANGUAGE_STUDY) [required]: no_mapping, by 21 answer(s): highestLevel="english_language"; onStudentVisa=false, highestLevel="english_language"; highestLevel="english_language", qualification="1"; highestLevel="english_language", qualification="A1BBBBBBBBBB…" (4000 characters); highestLevel="english_language", qualification="none"; highestLevel="english_language", qualification="Example"; highestLevel="english_language", qualification="none if it had no name"; highestLevel="english_language", qualification="the qualification's name"; highestLevel="english_language", timeOnVisa={"years":0,"months":6}; highestLevel="english_language", timeOnVisa={"years":0,"months":18}; highestLevel="english_language", timeOnVisa={"years":1,"months":0}; highestLevel="english_language", timeOnVisa={"years":13,"months":0}; highestLevel="english_language", timeOnVisa={"years":2,"months":3}; highestLevel="english_language", timeOnVisa=left out; highestLevel="english_language", currentVisaExpiry={"$date":"2023-05-14T00:00:00.000Z"}; highestLevel="english_language", currentVisaExpiry={"$date":"1990-01-31T00:00:00.000Z"}; highestLevel="english_language", currentVisaExpiry={"$date":"2027-09-30T00:00:00.000Z"}; highestLevel="english_language", currentVisaExpiry={"$date":"2031-01-15T00:00:00.000Z"}; highestLevel="english_language", currentVisaExpiry={"$date":"1939-12-31T00:00:00.000Z"}; highestLevel="english_language", currentVisaExpiry={"$date":"1900-01-01T00:00:00.000Z"}; highestLevel="english_language", currentVisaExpiry={"$date":"2028-09-30T00:00:00.000Z"}
++    immigration.uk_study → highestQualification(FOUNDATION_LEVEL) [required]: no_mapping, by 21 answer(s): highestLevel="foundation"; onStudentVisa=false, highestLevel="foundation"; highestLevel="foundation", qualification="1"; highestLevel="foundation", qualification="A1BBBBBBBBBB…" (4000 characters); highestLevel="foundation", qualification="none"; highestLevel="foundation", qualification="Example"; highestLevel="foundation", qualification="none if it had no name"; highestLevel="foundation", qualification="the qualification's name"; highestLevel="foundation", timeOnVisa={"years":0,"months":6}; highestLevel="foundation", timeOnVisa={"years":0,"months":18}; highestLevel="foundation", timeOnVisa={"years":1,"months":0}; highestLevel="foundation", timeOnVisa={"years":13,"months":0}; highestLevel="foundation", timeOnVisa={"years":2,"months":3}; highestLevel="foundation", timeOnVisa=left out; highestLevel="foundation", currentVisaExpiry={"$date":"2023-05-14T00:00:00.000Z"}; highestLevel="foundation", currentVisaExpiry={"$date":"1990-01-31T00:00:00.000Z"}; highestLevel="foundation", currentVisaExpiry={"$date":"2027-09-30T00:00:00.000Z"}; highestLevel="foundation", currentVisaExpiry={"$date":"2031-01-15T00:00:00.000Z"}; highestLevel="foundation", currentVisaExpiry={"$date":"1939-12-31T00:00:00.000Z"}; highestLevel="foundation", currentVisaExpiry={"$date":"1900-01-01T00:00:00.000Z"}; highestLevel="foundation", currentVisaExpiry={"$date":"2028-09-30T00:00:00.000Z"}
++    immigration.uk_study → highestQualification(SCHOOL_LEVEL) [required]: no_mapping, by 21 answer(s): highestLevel="school"; onStudentVisa=false, highestLevel="school"; highestLevel="school", qualification="1"; highestLevel="school", qualification="A1BBBBBBBBBB…" (4000 characters); highestLevel="school", qualification="none"; highestLevel="school", qualification="Example"; highestLevel="school", qualification="none if it had no name"; highestLevel="school", qualification="the qualification's name"; highestLevel="school", timeOnVisa={"years":0,"months":6}; highestLevel="school", timeOnVisa={"years":0,"months":18}; highestLevel="school", timeOnVisa={"years":1,"months":0}; highestLevel="school", timeOnVisa={"years":13,"months":0}; highestLevel="school", timeOnVisa={"years":2,"months":3}; highestLevel="school", timeOnVisa=left out; highestLevel="school", currentVisaExpiry={"$date":"2023-05-14T00:00:00.000Z"}; highestLevel="school", currentVisaExpiry={"$date":"1990-01-31T00:00:00.000Z"}; highestLevel="school", currentVisaExpiry={"$date":"2027-09-30T00:00:00.000Z"}; highestLevel="school", currentVisaExpiry={"$date":"2031-01-15T00:00:00.000Z"}; highestLevel="school", currentVisaExpiry={"$date":"1939-12-31T00:00:00.000Z"}; highestLevel="school", currentVisaExpiry={"$date":"1900-01-01T00:00:00.000Z"}; highestLevel="school", currentVisaExpiry={"$date":"2028-09-30T00:00:00.000Z"}
++    immigration.uk_study → highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL) [required]: no_mapping, by 21 answer(s): highestLevel="study_abroad_or_exchange"; onStudentVisa=false, highestLevel="study_abroad_or_exchange"; highestLevel="study_abroad_or_exchange", qualification="1"; highestLevel="study_abroad_or_exchange", qualification="A1BBBBBBBBBB…" (4000 characters); highestLevel="study_abroad_or_exchange", qualification="none"; highestLevel="study_abroad_or_exchange", qualification="Example"; highestLevel="study_abroad_or_exchange", qualification="none if it had no name"; highestLevel="study_abroad_or_exchange", qualification="the qualification's name"; highestLevel="study_abroad_or_exchange", timeOnVisa={"years":0,"months":6}; highestLevel="study_abroad_or_exchange", timeOnVisa={"years":0,"months":18}; highestLevel="study_abroad_or_exchange", timeOnVisa={"years":1,"months":0}; highestLevel="study_abroad_or_exchange", timeOnVisa={"years":13,"months":0}; highestLevel="study_abroad_or_exchange", timeOnVisa={"years":2,"months":3}; highestLevel="study_abroad_or_exchange", timeOnVisa=left out; highestLevel="study_abroad_or_exchange", currentVisaExpiry={"$date":"2023-05-14T00:00:00.000Z"}; highestLevel="study_abroad_or_exchange", currentVisaExpiry={"$date":"1990-01-31T00:00:00.000Z"}; highestLevel="study_abroad_or_exchange", currentVisaExpiry={"$date":"2027-09-30T00:00:00.000Z"}; highestLevel="study_abroad_or_exchange", currentVisaExpiry={"$date":"2031-01-15T00:00:00.000Z"}; highestLevel="study_abroad_or_exchange", currentVisaExpiry={"$date":"1939-12-31T00:00:00.000Z"}; highestLevel="study_abroad_or_exchange", currentVisaExpiry={"$date":"1900-01-01T00:00:00.000Z"}; highestLevel="study_abroad_or_exchange", currentVisaExpiry={"$date":"2028-09-30T00:00:00.000Z"}
++    immigration.uk_study → highestQualification(UNIVERSITY_LEVEL) [required]: render_refused (no_matching_option), by 90 answer(s): qualification="1"; qualification="A1BBBBBBBBBB…" (4000 characters); qualification="none"; …
++    residence.country → permanentResidence [not required]: render_refused (no_matching_option), by 15 answer(s): "AQ"; "AX"; "BL"; "BQ"; "BV"; "CW"; "CY"; "GG"; "HM"; "IM"; "JE"; "LA"; "RE"; "TF"; "UM"
++    residence.history → previousCountry1 [not required]: list_exceeds_form, by 1 answer(s): with residence.outside_residence_country_last_three_years=true: five entries
++    residence.history → previousCountry1 [not required]: render_refused (no_matching_option), by 18 answer(s): with residence.outside_residence_country_last_three_years=true: one entry: countryCode="AQ"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="AX"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="BL"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="BQ"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="BV"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="CI"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="CW"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="CY"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="HM"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="MF"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="MK"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="MP"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="RE"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="SH"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="SJ"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="SX"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="TF"; with residence.outside_residence_country_last_three_years=true: one entry: countryCode="UM"
++  offered_but_the_escape_cannot_take_the_words: 1
++    education.prior_qualifications → degree [required]: render_refused (no_matching_option); the escape's box takes 28, by 63 answer(s): one entry: awardTitle="A1BBBBBBBBBB…" (4000 characters); one entry: awardTitle="A1BBBBBBBBBB…" (4000 characters), subject="1"; one entry: awardTitle="A1BBBBBBBBBB…" (4000 characters), subject="A1BBBBBBBBBB…" (4000 characters); …
++  not_one_of_the_box_options: 12
++    education.prior_qualifications → awardDateYear [not required]: no option's value is the text, by 244 answer(s): one entry: award={"year":1900,"month":1}; one entry: award={"year":1950,"month":1}; one entry: award={"year":1956,"month":6}; …
++    education.prior_qualifications → endDateYear [required]: no option's value is the text, by 244 answer(s): one entry: endDate={"year":1900,"month":1}; one entry: endDate={"year":1950,"month":1}; one entry: endDate={"year":1956,"month":6}; …
++    education.prior_qualifications → startDateYear [required]: no option's value is the text, by 244 answer(s): one entry: start={"year":1900,"month":1}; one entry: start={"year":1950,"month":1}; one entry: start={"year":1956,"month":6}; …
++    employment.history → endYear [not required]: no option's value is the text, by 4 answer(s): one entry: still=false, endDate={"year":1900,"month":1}; one entry: still=false, endDate={"year":1950,"month":1}; one entry: still=false, endDate={"year":1956,"month":6}; one entry: still=false, endDate={"year":2031,"month":6}
++    employment.history → startYear [not required]: no option's value is the text, by 72 answer(s): one entry: startDate={"year":1900,"month":1}; one entry: startDate={"year":1950,"month":1}; one entry: startDate={"year":1956,"month":6}; …
++    identity.date_of_birth → dobYear [not required]: no option's value is the text, by 5 answer(s): {"$date":"2023-05-14T00:00:00.000Z"}; {"$date":"2027-09-30T00:00:00.000Z"}; {"$date":"2031-01-15T00:00:00.000Z"}; {"$date":"1939-12-31T00:00:00.000Z"}; {"$date":"1900-01-01T00:00:00.000Z"}
++    immigration.uk_study → monthsOnStudentVisa [not required]: no option's value is the text, by 20 answer(s): timeOnVisa={"years":0,"months":18}; onStudentVisa=false, timeOnVisa={"years":0,"months":18}; highestLevel="other", timeOnVisa={"years":0,"months":18}; highestLevel="study_abroad_or_exchange", timeOnVisa={"years":0,"months":18}; highestLevel="school", timeOnVisa={"years":0,"months":18}; highestLevel="foundation", timeOnVisa={"years":0,"months":18}; highestLevel="english_language", timeOnVisa={"years":0,"months":18}; qualification="1", timeOnVisa={"years":0,"months":18}; qualification="A1BBBBBBBBBB…" (4000 characters), timeOnVisa={"years":0,"months":18}; qualification="none", timeOnVisa={"years":0,"months":18}; qualification="Example", timeOnVisa={"years":0,"months":18}; qualification="none if it had no name", timeOnVisa={"years":0,"months":18}; qualification="the qualification's name", timeOnVisa={"years":0,"months":18}; timeOnVisa={"years":0,"months":18}, currentVisaExpiry={"$date":"2023-05-14T00:00:00.000Z"}; timeOnVisa={"years":0,"months":18}, currentVisaExpiry={"$date":"1990-01-31T00:00:00.000Z"}; timeOnVisa={"years":0,"months":18}, currentVisaExpiry={"$date":"2027-09-30T00:00:00.000Z"}; timeOnVisa={"years":0,"months":18}, currentVisaExpiry={"$date":"2031-01-15T00:00:00.000Z"}; timeOnVisa={"years":0,"months":18}, currentVisaExpiry={"$date":"1939-12-31T00:00:00.000Z"}; timeOnVisa={"years":0,"months":18}, currentVisaExpiry={"$date":"1900-01-01T00:00:00.000Z"}; timeOnVisa={"years":0,"months":18}, currentVisaExpiry={"$date":"2028-09-30T00:00:00.000Z"}
++    immigration.uk_study → visaExpiryYear [not required]: no option's value is the text, by 95 answer(s): currentVisaExpiry={"$date":"2023-05-14T00:00:00.000Z"}; currentVisaExpiry={"$date":"1990-01-31T00:00:00.000Z"}; currentVisaExpiry={"$date":"2031-01-15T00:00:00.000Z"}; …
++    immigration.uk_study → yearsOnStudentVisa [not required]: no option's value is the text, by 20 answer(s): timeOnVisa={"years":13,"months":0}; onStudentVisa=false, timeOnVisa={"years":13,"months":0}; highestLevel="other", timeOnVisa={"years":13,"months":0}; highestLevel="study_abroad_or_exchange", timeOnVisa={"years":13,"months":0}; highestLevel="school", timeOnVisa={"years":13,"months":0}; highestLevel="foundation", timeOnVisa={"years":13,"months":0}; highestLevel="english_language", timeOnVisa={"years":13,"months":0}; qualification="1", timeOnVisa={"years":13,"months":0}; qualification="A1BBBBBBBBBB…" (4000 characters), timeOnVisa={"years":13,"months":0}; qualification="none", timeOnVisa={"years":13,"months":0}; qualification="Example", timeOnVisa={"years":13,"months":0}; qualification="none if it had no name", timeOnVisa={"years":13,"months":0}; qualification="the qualification's name", timeOnVisa={"years":13,"months":0}; timeOnVisa={"years":13,"months":0}, currentVisaExpiry={"$date":"2023-05-14T00:00:00.000Z"}; timeOnVisa={"years":13,"months":0}, currentVisaExpiry={"$date":"1990-01-31T00:00:00.000Z"}; timeOnVisa={"years":13,"months":0}, currentVisaExpiry={"$date":"2027-09-30T00:00:00.000Z"}; timeOnVisa={"years":13,"months":0}, currentVisaExpiry={"$date":"2031-01-15T00:00:00.000Z"}; timeOnVisa={"years":13,"months":0}, currentVisaExpiry={"$date":"1939-12-31T00:00:00.000Z"}; timeOnVisa={"years":13,"months":0}, currentVisaExpiry={"$date":"1900-01-01T00:00:00.000Z"}; timeOnVisa={"years":13,"months":0}, currentVisaExpiry={"$date":"2028-09-30T00:00:00.000Z"}
++    residence.history → dateFromYear1 [not required]: no option's value is the text, by 108 answer(s): with residence.outside_residence_country_last_three_years=true: one entry: from={"year":1900,"month":1}; with residence.outside_residence_country_last_three_years=true: one entry: from={"year":1950,"month":1}; with residence.outside_residence_country_last_three_years=true: one entry: from={"year":1956,"month":6}; …
++    residence.history → dateToYear1 [not required]: no option's value is the text, by 100 answer(s): with residence.outside_residence_country_last_three_years=true: one entry: to={"year":1900,"month":1}; with residence.outside_residence_country_last_three_years=true: one entry: to={"year":1950,"month":1}; with residence.outside_residence_country_last_three_years=true: one entry: to={"year":1956,"month":6}; …
++    residence.uk_entry_date → dateEnteredUKYear [not required]: no option's value is the text, by 4 answer(s): with residence.country="GB": {"year":1900,"month":1}; with residence.country="GB": {"year":1950,"month":1}; with residence.country="GB": {"year":1956,"month":6}; with residence.country="GB": {"year":2031,"month":6}
++  offered_from_the_form_list: 1
++    education.prior_qualifications → degree [required]: render_refused (no_matching_option), by 252 answer(s): one entry: awardTitle="1"; one entry: awardTitle="none"; one entry: awardTitle="Example"; …
++  lines that break the rule on a box the entry marks required: 32; that stop the run on a box it does not mark required: 26; that hold the rule: 1
++  fields the interview has no spec for (not measured): none
++  composite bases rebuilt exactly from the synthetic profile's own answer: contact.address, education.prior_qualifications, finance.funding, identity.passport, immigration.uk_status, immigration.uk_study, residence.history
++  composite bases only near it (the varied answers start from a nearby answer): employment.history
++  parts never varied (their silence is not a pass): contact.email
++  fields whose every box the base hides, measured again where another answer shows one: immigration.uk_status (residence.country="GB"; residence.country="IE"; residence.country="FR"), residence.always_in_eu (residence.country="IE"; residence.country="FR"), residence.always_in_residence_country (residence.country="GB"), residence.history (residence.outside_residence_country_last_three_years=true), residence.uk_entry_date (residence.country="GB")
++
+diff --git a/docs/run-a/what-will-be-typed.md b/docs/run-a/what-will-be-typed.md
+index 8a4a3fb9..da628e78 100644
+--- a/docs/run-a/what-will-be-typed.md
++++ b/docs/run-a/what-will-be-typed.md
+@@ -1,4 +1,4 @@
+-REVIEWED — blueprint 0.2.36, mapping set 0.3.48, reviewed by Vahid Mohammadi.
++REVIEWED — blueprint 0.2.37, mapping set 0.3.49, reviewed by Vahid Mohammadi.
+ Profile: 19 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
+ 
+ University of Sheffield — MSc Management and International Business, 2027-09
+@@ -131,4 +131,4 @@ We did not answer these for you:
+     Not answered on your behalf. Instead we entered "Prefer not to say".
+     Why: Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer.
+ 
+-Reference: sha256:c22cfaec2c2c92f329c973acf9fb81562633b9966960f7f172098e2c01a1a0cc
++Reference: sha256:cf20da6cf1fb69a3f0cebd2efbfcab41fcfce009d25104be4c8a9ac1de3ed23a
+diff --git a/scripts/content-stops-on-sheffield.test.ts b/scripts/content-stops-on-sheffield.test.ts
+index 2c5d36c1..5811af48 100644
+--- a/scripts/content-stops-on-sheffield.test.ts
++++ b/scripts/content-stops-on-sheffield.test.ts
+@@ -12,7 +12,9 @@ import { CASES, FUNDING_CASES, describe, outcomeFor, plannedFunding } from "./co
+ // committed (blueprint 0.2.36, mapping set 0.3.48), saved as it printed them in
+ // docs/run-a/p315-content-stops-on-sheffield.txt; if the entry moves, these
+ // move with it, and the records that quote them (rows 202 and the P315 sheet)
+-// do too.
++// do too. P319's change, signed by Vahid (blueprint 0.2.37, mapping set 0.3.49),
++// moved them: printed again in docs/run-a/p319-content-stops-on-sheffield.txt,
++// and P315's print kept as it was.
+ 
+ const ROOT = join(import.meta.dirname, "..");
+ const ENTRY = join(ROOT, "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json");
+@@ -51,14 +53,18 @@ group("what stops for content on Sheffield's entry (P315)", () => {
+     ]);
+   });
+ 
+-  it("funding not known breaks the required funding stage (row 86)", () => {
++  it("funding not known, held from before the change, is refused at the two boxes the change asks: never filled empty (P319, his answer 8)", () => {
++    // A no given after the change is asked the stage and the source in the walk
++    // (P319). A no held from before stops here for a person, until it is
++    // answered again (§5, P320, not built).
+     const outcome = outcomeFor(ENTRY, named("funding not known"));
+-    expect(outcome.validation?.violations.map((violation) => [violation.fieldRef, violation.rule.kind])).toEqual([["fundingStage", "required"]]);
++    expect(outcome.plan.blockers.map((blocker) => [blocker.kind, blocker.fieldRef])).toEqual([["render_refused", "fundingSource"], ["render_refused", "fundingStage"]]);
++    expect(outcome.validation).toBeNull();
+   });
+ 
+   it("the saved output is what the measure prints now, line for line", () => {
+     const printed = execFileSync("npx", ["tsx", join(ROOT, "scripts", "content-stops-on-sheffield.ts")], { cwd: ROOT, encoding: "utf8" });
+-    const saved = readFileSync(join(ROOT, "docs", "run-a", "p315-content-stops-on-sheffield.txt"), "utf8");
++    const saved = readFileSync(join(ROOT, "docs", "run-a", "p319-content-stops-on-sheffield.txt"), "utf8");
+     expect(printed).toBe(saved);
+     for (const one of CASES) expect(saved).toContain(describe(one, outcomeFor(ENTRY, one)));
+   });
+@@ -66,7 +72,8 @@ group("what stops for content on Sheffield's entry (P315)", () => {
+ 
+ // P316: the funding stage his run stopped on. His words (docs/run-a/p316-his-message-as-sent.txt):
+ // *"Which profile field(s) the mapping reads to fill fundingStage, and which value of mine would
+-// map to each option."* Saved as printed in docs/run-a/p316-funding-on-page-12.txt.
++// map to each option."* Saved as printed in docs/run-a/p316-funding-on-page-12.txt, and again
++// after P319's change in docs/run-a/p319-funding-on-page-12.txt.
+ group("what each funding answer fills on page 12 (P316)", () => {
+   const planned = (name: string, ref: string): unknown => {
+     const one = FUNDING_CASES.find((candidate) => candidate.name === name);
+@@ -77,11 +84,12 @@ group("what each funding answer fills on page 12 (P316)", () => {
+     return value;
+   };
+ 
+-  it("his held no fills No and leaves the stage empty, which its required rule refuses", () => {
++  it("his held no fills No and leaves neither the stage nor the source empty: the plan refuses both, and his run stops for a person until the no is answered again (§5, P320)", () => {
+     const outcome = outcomeFor(ENTRY, FUNDING_CASES[0] ?? expect.unreachable("no first case"));
+     expect(planned("funding not known (his answer of 2026-10-16)", "fundingSourceKnown")).toBe("No");
+-    expect(planned("funding not known (his answer of 2026-10-16)", "fundingStage")).toBe("");
+-    expect(outcome.validation?.violations.map((violation) => [violation.fieldRef, violation.rule.kind])).toEqual([["fundingStage", "required"]]);
++    expect(planned("funding not known (his answer of 2026-10-16)", "fundingStage")).toBeUndefined();
++    expect(planned("funding not known (his answer of 2026-10-16)", "fundingSource")).toBeUndefined();
++    expect(outcome.plan.blockers.map((blocker) => [blocker.kind, blocker.fieldRef])).toEqual([["render_refused", "fundingSource"], ["render_refused", "fundingStage"]]);
+   });
+ 
+   it("each of the five stages fills the form's own sentence, and breaks no rule", () => {
+@@ -109,7 +117,7 @@ group("what each funding answer fills on page 12 (P316)", () => {
+ 
+   it("the saved output is what the measure prints now, line for line", () => {
+     const printed = execFileSync("npx", ["tsx", join(ROOT, "scripts", "content-stops-on-sheffield.ts"), "--funding"], { cwd: ROOT, encoding: "utf8" });
+-    const saved = readFileSync(join(ROOT, "docs", "run-a", "p316-funding-on-page-12.txt"), "utf8");
++    const saved = readFileSync(join(ROOT, "docs", "run-a", "p319-funding-on-page-12.txt"), "utf8");
+     expect(printed).toBe(saved);
+     for (const one of FUNDING_CASES) expect(saved).toContain(plannedFunding(outcomeFor(ENTRY, one)));
+   });
+diff --git a/scripts/required-boxes-hold.test.ts b/scripts/required-boxes-hold.test.ts
+index c1722e3a..5cade601 100644
+--- a/scripts/required-boxes-hold.test.ts
++++ b/scripts/required-boxes-hold.test.ts
+@@ -113,16 +113,18 @@ describe("P318: his rule's test — every signed entry, every accepted answer, a
+ });
+ 
+ describe("P317: the answers the interview accepts, against every box of every signed entry (measured)", () => {
+-  it("the saved output (docs/run-a/p317-required-boxes.txt) is what the checker prints today", () => {
+-    const saved = readFileSync(join(ROOT, "docs", "run-a", "p317-required-boxes.txt"), "utf8");
++  it("the saved output (docs/run-a/p319-required-boxes.txt, printed after P319's change; P317's print kept as it was) is what the checker prints today", () => {
++    const saved = readFileSync(join(ROOT, "docs", "run-a", "p319-required-boxes.txt"), "utf8");
+     expect(render(results)).toBe(saved);
+   });
+ 
+-  it("finds his run's case: a no to the funding question leaves Sheffield's required stage empty, after the plan is complete", async () => {
++  it("after P319's change, a no given to the funding question is asked the stage and the source in the walk, and breaks neither box", async () => {
++    // A no given as the walk asks it. His own no, held from before the change,
++    // is not walked here: it is refused at the plan and stops for a person
++    // until it is answered again (§5, P320; content-stops-on-sheffield.test.ts).
+     const result = findingsFor(await sheffield(), FUNDING);
+-    expect(brokenBy(result, "finance.funding", "fundingStage")).toEqual(["known=false"]);
+-    // And no other answer to the funding questions breaks it.
+-    expect(result.findings.filter((finding) => finding.box === "fundingStage" && finding.kind === "breaks_a_required_box")).toHaveLength(1);
++    expect(brokenBy(result, "finance.funding", "fundingStage")).toEqual([]);
++    expect(brokenBy(result, "finance.funding", "fundingSource")).toEqual([]);
+   }, 120_000);
+ 
+   it("sees a required box planted on the entry: the funding details marked required, Run A's own answer (which names none) breaks it, and says so", async () => {
+@@ -139,8 +141,12 @@ describe("P317: the answers the interview accepts, against every box of every si
+     expect([...new Set(onDetails.map((finding) => `${finding.kind}: ${finding.detail}`))]).toEqual(["breaks_a_required_box: maxlength 118"]);
+   }, 120_000);
+ 
+-  it("loses a finding when the rule behind it is taken off: the stage not required, the no breaks nothing", async () => {
+-    const lifted = withRules(await sheffield(), "fundingStage", (rules) => rules.filter((rule) => rule.kind !== "required"));
++  it("loses a finding when the rule behind it is taken off: with the stage left empty as before the change, a no breaks it while it is required and nothing once it is not", async () => {
++    // On the change as signed a no is asked the stage, so the rule's removal
++    // would show nothing; the stage left empty again is where the rule bites.
++    const before = asTheChangeMapsFunding(await sheffield(), "leave_empty");
++    expect(brokenBy(findingsFor(before, FUNDING), "finance.funding", "fundingStage")).toEqual(["known=false"]);
++    const lifted = withRules(before, "fundingStage", (rules) => rules.filter((rule) => rule.kind !== "required"));
+     expect(brokenBy(findingsFor(lifted, FUNDING), "finance.funding", "fundingStage")).toEqual([]);
+   }, 120_000);
+ });
+@@ -164,7 +170,7 @@ function asTheChangeMapsFunding(entry: { readonly blueprint: unknown; readonly m
+ }
+ 
+ describe("P319: the checker walks as the interview asks, with the interview's own gate", () => {
+-  it("reopens nothing on any entry as signed today: no value is filled against the signed note's wording (his answer 8)", async () => {
++  it("reopens the funding stage and source on Sheffield's entry, by his signature of P319's change, and nothing anywhere else (his answer 8)", async () => {
+     const load = await loadCatalogueDirectory({ directory: CATALOGUE });
+     if (!load.ok) throw new Error("the signed catalogue does not load");
+     for (const item of load.catalogue.inventory()) {
+@@ -173,7 +179,7 @@ describe("P319: the checker walks as the interview asks, with the interview's ow
+       const usable = checkUsable(entry.mappingSet, entry.blueprint);
+       if (!usable.usable) continue;
+       const reopened = [...partPolicyFor(entry.blueprint, usable.mappingSet)].filter(([, rule]) => (rule.reopens?.size ?? 0) > 0).map(([fieldKey]) => fieldKey);
+-      expect(reopened, String(item.blueprintId)).toEqual([]);
++      expect(reopened, String(item.blueprintId)).toEqual(String(item.blueprintId) === "bp-sheffield-pgt-september-direct" ? ["finance.funding"] : []);
+     }
+   }, 120_000);
+ 
+diff --git a/scripts/required-boxes-known.ts b/scripts/required-boxes-known.ts
+index fb0d2ffa..bf0c2d73 100644
+--- a/scripts/required-boxes-known.ts
++++ b/scripts/required-boxes-known.ts
+@@ -50,7 +50,6 @@ const lines: readonly (readonly [string, string])[] = [
+   ["breaks_a_required_box|employment.history|position|maxlength 200, entry 1", TOO_LONG],
+   ["breaks_a_required_box|employment.history|position|required", EMPTY_LIST],
+   ["breaks_a_required_box|employment.history|startMonth|required", EMPTY_LIST],
+-  ["breaks_a_required_box|finance.funding|fundingStage|required", "row 209 and his D2: the stage asked after a no, with the form's own words and options; phase 1 (P319)"],
+   ["breaks_a_required_box|immigration.uk_study|highestQualificationOther|maxlength 100", TOO_LONG],
+   ["breaks_another_box|contact.address|corrIntlPostcode|maxlength 20", TOO_LONG],
+   ["breaks_another_box|finance.funding|fundingDetails|maxlength 118", TOO_LONG],
+diff --git a/scripts/run-a-profile.test.ts b/scripts/run-a-profile.test.ts
+index 6f64c9c6..7dcfaee9 100644
+--- a/scripts/run-a-profile.test.ts
++++ b/scripts/run-a-profile.test.ts
+@@ -503,10 +503,15 @@ describe("the catalogue entry for Run A (P152)", () => {
+     //                     this", his words its source, and what Sheffield's
+     //                     reset sends (0.2.36 / 0.3.48), P301; never signed,
+     //                     withdrawn at his word, "Do not sign P300's sheet"
+-    //   sha256:2a4ae5a9…  13 October, THIS one — the same, with AUTH 5
++    //   sha256:2a4ae5a9…  13 October — the same, with AUTH 5
+     //                     resting on Run A's observation alone, as he asked:
+     //                     "I cannot confirm the exact words of 2026-09-11"
+-    //                     (0.2.36 / 0.3.48), P302
++    //                     (0.2.36 / 0.3.48), P302 (signed, P303)
++    //   sha256:388debf0…  17 October, THIS one — the funding source required
++    //                     on his observed asterisk, and the stage and source
++    //                     asked after a no in the form's own words, "one
++    //                     prepared change, signed by me in one signature"
++    //                     (0.2.37 / 0.3.49), P319
+     //
+     // The `degree` mapping reads `awardTitle` — the part the registry now
+     // holds, stated by the student and distinct from `level` — onto the
+@@ -522,7 +527,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // P283 and P284 moved it again, for step 2 of his own run, delivered as a patch he
+     // applies and signs in ONE commit with approvals.json — so main never
+     // holds an entry that is not signed, and this test is never red there.
+-    expect(labelledHash(toCanonical(value))).toBe("sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0");
++    expect(labelledHash(toCanonical(value))).toBe("sha256:388debf05a1ff4c2529b1096d3be13ecf6f663d7c6d000823e6686596bb4cb6e");
+     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
+     expect(load.ok, "signed at item 6 — the directory loads (ADR-0057, ADR-0118)").toBe(true);
+     if (!load.ok) expect.unreachable(`refused: ${load.problems.map((problem) => problem.detail).join("; ")}`);
+@@ -542,7 +547,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+       ownAccountOnly?: { studentId: string };
+     }[];
+     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
+-    expect(approvals[0]?.contentHash).toBe("sha256:2a4ae5a9f000409aa70c0dba594c3e1bdbc9342b696fdd5f283e4b796a1dcbe0");
++    expect(approvals[0]?.contentHash).toBe("sha256:388debf05a1ff4c2529b1096d3be13ecf6f663d7c6d000823e6686596bb4cb6e");
+     expect(approvals[0]?.ownAccountOnly?.studentId).toBe("5774ff16-ff9c-424a-882f-42d0f304968b");
+     // The four spellings of Iran, from the entry itself: unchanged by this
+     // edit, and the reason the countries' signature was spent.
+@@ -709,7 +714,7 @@ describe("the catalogue entry for Run A (P152)", () => {
+     // it. Nothing typed here came from a map's guess.
+     expect(code).toBe(0);
+     expect(output).toBe(readFileSync(READ, "utf8"));
+-    expect(output).toContain("REVIEWED — blueprint 0.2.36, mapping set 0.3.48, reviewed by Vahid Mohammadi.");
++    expect(output).toContain("REVIEWED — blueprint 0.2.37, mapping set 0.3.49, reviewed by Vahid Mohammadi.");
+     expect(output).toContain("How do you want to study?*: Full Time");
+     expect(output).toContain('(sent as "MGT:Management and International Business")');
+     expect(output).toContain("MSC, Master of Science");
+diff --git a/scripts/sheffield-draft.test.ts b/scripts/sheffield-draft.test.ts
+index 1d0e8d99..6367c0f3 100644
+--- a/scripts/sheffield-draft.test.ts
++++ b/scripts/sheffield-draft.test.ts
+@@ -144,7 +144,7 @@ describe("the Sheffield drafts, under the real checks", () => {
+     // The two marks flagged for Iman are carried as observed, not dropped.
+     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
+     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
+-    expect(blueprint.version).toBe("0.2.36");
++    expect(blueprint.version).toBe("0.2.37");
+   });
+ 
+   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
+@@ -459,8 +459,8 @@ describe("the Sheffield drafts, under the real checks", () => {
+   });
+ 
+   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
+-    expect(blueprint.version).toBe("0.2.36");
+-    expect(mappingSet.version).toBe("0.3.48");
++    expect(blueprint.version).toBe("0.2.37");
++    expect(mappingSet.version).toBe("0.3.49");
+     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
+     expect(employment?.repeats?.fieldKey).toBe("employment.history");
+     expect(employment?.title).toBe("Employment history");

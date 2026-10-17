@@ -160,6 +160,12 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
   label: string,
   /** The authored question this value answers (P255), when the field has one: the playback names it rather than the label (P256). */
   question?: string,
+  /**
+   * The parts asked in a form's own words, by part: the form's question and
+   * the sentence chosen (P319). Played back so, because that is what the
+   * student was shown — Vahid, P234: *"They said Iran. Play back Iran."*
+   */
+  shown?: ReadonlyMap<string, { readonly question: string; readonly words: string }>,
 ): string {
   const proposal = unwrapProposed(proposed);
   // ── P199: a country is shown as a country ───────────────────────────────
@@ -171,7 +177,7 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
   // already renders it (`Nationality: Iran  (sent as "IR")`) — and the value
   // being stored is still exactly what is displayed inside the brackets.
   // Faithful and readable, rather than faithful alone.
-  const rendered = countryNameFor(key, proposal.value) ?? formatValue(proposal.value, key);
+  const rendered = countryNameFor(key, proposal.value) ?? formatValue(proposal.value, key, shown);
   const heard =
     proposal.origin === "conversation"
       ? proposal.documentId === undefined
@@ -390,7 +396,7 @@ function countryNameFor(key: ProfileFieldKey, value: unknown): string | null {
  * nested object with no table of names — the months and years of a visa, the
  * components of a test score — reads its own keys as words.
  */
-function formatValue(value: unknown, key?: ProfileFieldKey): string {
+function formatValue(value: unknown, key?: ProfileFieldKey, inFormWords?: ReadonlyMap<string, { readonly question: string; readonly words: string }>): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   // A yes or a no, as the student said it — never `true` (P256).
   if (typeof value === "boolean") return value ? "yes" : "no";
@@ -411,6 +417,9 @@ function formatValue(value: unknown, key?: ProfileFieldKey): string {
   if (value !== null && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
       .map(([field, item]) => {
+        // A part asked in the form's own words is played back in them (P319).
+        const asShown = inFormWords?.get(field);
+        if (asShown !== undefined) return `"${asShown.question}": ${asShown.words}`;
         const named = key === undefined ? null : partLabel(key, field);
         const label = named ?? field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
         const spoken = key !== undefined && typeof item === "string" ? vocabularyWords(key, field, item) : null;

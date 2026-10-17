@@ -86,12 +86,21 @@ export type FormatRule =
    * reviewed mapping and never stored in the profile: they are the portal's
    * instruction, not a fact about the student, and a portal that says
    * something else gets its own words.
+   *
+   * `absent: "ask"` renders nothing for a missing part, and refuses as a rule
+   * with no `absent` does: the box needs the part, and where an earlier answer
+   * closed it the student is ASKED for it, in the box's own words and options
+   * (P319; ADR-0161 §3 and §4). It is what the interview reads to ask a part an
+   * earlier answer closed, so nothing is asked, and nothing filled, unless a
+   * reviewed mapping says so. Vahid, of the funding stage after a "no": *"No
+   * value is filled against the signed note's current wording, even
+   * temporarily."*
    */
   | {
       readonly kind: "part";
       readonly path: string;
       readonly then?: FormatRule;
-      readonly absent?: "leave_empty" | { readonly typed: string };
+      readonly absent?: AbsentPart;
     }
   /**
    * Several parts of a structured value, each as text, joined in order with
@@ -176,7 +185,7 @@ export type FormatRule =
       readonly kind: "switch";
       readonly path: string;
       readonly cases: Readonly<Record<string, FormatRule>>;
-      readonly absent?: "leave_empty" | { readonly typed: string };
+      readonly absent?: AbsentPart;
       /**
        * P293, ADR-0156 §3: the rule taken when — and only when — the plan has
        * put the form's ESCAPE into `fieldRef` for this entry. The form then
@@ -190,6 +199,9 @@ export type FormatRule =
        */
       readonly escaped?: { readonly fieldRef: string; readonly then: FormatRule };
     };
+
+/** What a `part` or `switch` rule does when the value has no such part: see `part`. */
+export type AbsentPart = "leave_empty" | "ask" | { readonly typed: string };
 
 /**
  * What the plan knows when it renders one value (P293): the fields whose
@@ -384,7 +396,7 @@ function applyRule(value: unknown, rule: FormatRule, context: RenderContext = NO
       const container = value as Record<string, unknown> | null;
       if (container === null || typeof container !== "object" || !(rule.path in container)) {
         if (rule.absent === "leave_empty") return "";
-        if (rule.absent !== undefined) return rule.absent.typed;
+        if (rule.absent !== undefined && rule.absent !== "ask") return rule.absent.typed;
         return {
           kind: "no_such_part",
           detail: `The confirmed value has no part "${rule.path}".`,
@@ -404,7 +416,7 @@ function applyRule(value: unknown, rule: FormatRule, context: RenderContext = NO
       const container = value as Record<string, unknown> | null;
       if (container === null || typeof container !== "object" || !(rule.path in container)) {
         if (rule.absent === "leave_empty") return "";
-        if (rule.absent !== undefined) return rule.absent.typed;
+        if (rule.absent !== undefined && rule.absent !== "ask") return rule.absent.typed;
         return { kind: "no_such_part", detail: `The confirmed value has no part "${rule.path}".` };
       }
       // P293: the plan put the form's escape into the field this branch

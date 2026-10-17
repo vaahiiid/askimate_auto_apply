@@ -1,0 +1,21 @@
+mutation 15-absent-ask-renders-empty on packages/profile/src/format.ts
+command: pnpm exec vitest run --project unit packages/profile/src/format.test.ts
+exit: 1
+restored byte for byte: True
+
+replaced:
+        if (rule.absent === "leave_empty") return "";
+        if (rule.absent !== undefined && rule.absent !== "ask") return rule.absent.typed;
+        return {
+          kind:
+with:
+        if (rule.absent === "leave_empty" || rule.absent === "ask") return "";
+        if (rule.absent !== undefined) return rule.absent.typed;
+        return {
+          kind:
+
+   × a map keyed on two parts (switch, P218 — blocker 78's shape) > `absent: "ask"` renders NOTHING for a missing part — it refuses as a rule with no absent clause does, and the student is asked (P319) 8ms
+     → expected "rendered "" for a part the student was never asked" not to be reached
+ Test Files  1 failed (1)
+      Tests  1 failed | 34 passed (35)
+ FAIL |unit|  packages/profile/src/format.test.ts > a map keyed on two parts (switch, P218 — blocker 78's shape) > `absent: "ask"` renders NOTHING for a missing part — it refuses as a rule with no absent clause does, and the student is asked (P319)

@@ -64,7 +64,7 @@ import type { ApplicationBlueprint, ConsentBanner } from "@askimate/aas-blueprin
 import { allFields, checkExecutable } from "@askimate/aas-blueprint";
 import type { HandoffKind, RunId, StudentId, WorkflowCheckpoint } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
-import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
+import type { InterviewAction, InterviewState, PartPolicy, PartRule, ReopenedPart } from "@askimate/aas-interview";
 import type {
   SecretHandle,
   SecretLifecycle,
@@ -2365,17 +2365,16 @@ export function interviewWorklist(state: RunState, plan: FillPlan): InterviewSta
  * any mapping reads the whole value. `required`: the paths read by a mapping
  * whose blueprint field carries a `required` validation.
  */
-export function partPolicyFor(
-  blueprint: ApplicationBlueprint,
-  mappingSet: UsableMappingSet,
-): ReadonlyMap<ProfileFieldKey, { readonly asked: ReadonlySet<string> | "all"; readonly required: ReadonlySet<string> }> {
+export function partPolicyFor(blueprint: ApplicationBlueprint, mappingSet: UsableMappingSet): PartPolicy {
   const required = new Set(
     allFields(blueprint)
       .filter((field) => field.validations.some((validation) => validation.kind === "required"))
       .map((field) => field.fieldRef),
   );
+  const fields = new Map(allFields(blueprint).map((field) => [field.fieldRef, field] as const));
   const asked = new Map<ProfileFieldKey, Set<string> | "all">();
   const requiredPaths = new Map<ProfileFieldKey, Set<string>>();
+  const reopened = new Map<ProfileFieldKey, Map<string, ReopenedPart>>();
   for (const mapping of mappingSet.mappings) {
     if (mapping.source.kind !== "profile_field") continue;
     const fieldKey = mapping.source.fieldKey;
@@ -2386,12 +2385,53 @@ export function partPolicyFor(
     if (required.has(mapping.fieldRef) && paths !== "all") {
       requiredPaths.set(fieldKey, new Set([...(requiredPaths.get(fieldKey) ?? []), ...paths]));
     }
+    const field = fields.get(mapping.fieldRef);
+    // Only a box the form requires is asked after an earlier answer closed its
+    // part: an optional one may be left empty (his D2: "If the funding source
+    // box is also required (row 210), ask it too"; P319's review).
+    const reopen = field === undefined || !required.has(mapping.fieldRef) ? null : reopenedBy(mapping.source.format, field);
+    if (reopen !== null) reopened.set(fieldKey, new Map([...(reopened.get(fieldKey) ?? []), [reopen.path, reopen.part]]));
   }
-  const policy = new Map<ProfileFieldKey, { asked: ReadonlySet<string> | "all"; required: ReadonlySet<string> }>();
+  const policy = new Map<ProfileFieldKey, PartRule>();
   for (const [fieldKey, read] of asked) {
-    policy.set(fieldKey, { asked: read, required: requiredPaths.get(fieldKey) ?? new Set() });
+    const reopens = reopened.get(fieldKey);
+    policy.set(fieldKey, { asked: read, required: requiredPaths.get(fieldKey) ?? new Set(), ...(reopens === undefined ? {} : { reopens }) });
   }
   return policy;
+}
+
+/**
+ * The part a box asks for when the value lacks it, in the box's own words
+ * (P319, ADR-0161 §4) — only where the reviewed mapping says `absent: "ask"`.
+ * Vahid, D2: *"Ask with the form's own words and options."* So the question is
+ * the box's label as read, and the options are the box's own, in the form's
+ * order, each with the one value the mapping renders to it. An option two
+ * values render to is not offered, because an answer naming it could not be
+ * read back to one; an option the mapping renders from another part (a
+ * scholarship's name) is not offered, because the student would be asked a
+ * part nobody asked them (his answer 10: *"the four now; the rest with D7"*).
+ * A label never read — the box's own name — asks nothing, and nor does a box
+ * the form does not require (the caller's test).
+ */
+function reopenedBy(format: unknown, field: { readonly fieldRef: string; readonly label: string; readonly options?: readonly { readonly value: string; readonly label: string }[] }): { readonly path: string; readonly part: ReopenedPart } | null {
+  const rule = format as { kind?: string; path?: string; absent?: unknown; then?: { kind?: string; options?: Readonly<Record<string, string>> }; cases?: Readonly<Record<string, unknown>> } | undefined;
+  if (rule === undefined || rule.absent !== "ask" || typeof rule.path !== "string" || field.label === field.fieldRef) return null;
+  const path = rule.path;
+  const rendered: (readonly [string, string])[] = [];
+  if (rule.kind === "part" && rule.then?.kind === "option" && rule.then.options !== undefined) {
+    for (const [value, option] of Object.entries(rule.then.options)) rendered.push([option, value]);
+  } else if (rule.kind === "switch" && rule.cases !== undefined) {
+    for (const [value, branch] of Object.entries(rule.cases)) {
+      const own = branch as { kind?: string; path?: string; then?: { kind?: string; options?: Readonly<Record<string, string>> } };
+      const option = own.kind === "part" && own.path === path && own.then?.kind === "option" ? own.then.options?.[value] : undefined;
+      if (option !== undefined) rendered.push([option, value]);
+    }
+  }
+  const options = (field.options ?? []).flatMap((option) => {
+    const values = rendered.filter(([target]) => target === option.value).map(([, value]) => value);
+    return values.length === 1 && values[0] !== undefined ? [{ words: option.label, value: values[0] }] : [];
+  });
+  return options.length === 0 ? null : { path, part: { question: field.label, options } };
 }
 
 /** The top-level paths a format rule reads of the value, or `"all"` when it reads the whole. */

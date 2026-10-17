@@ -1,0 +1,21 @@
+mutation 03-a-box-left-empty-reopened on packages/orchestrator/src/run.ts
+command: pnpm exec vitest run --project unit packages/orchestrator/src/orchestrator.test.ts scripts/required-boxes-hold.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+rule.absent !== "ask" || typeof rule.path
+with:
+(rule.absent !== "ask" && rule.absent !== "leave_empty") || typeof rule.path
+
+   × a part an earlier answer closed is asked again only where a reviewed mapping says `absent: "ask"` (P319, ADR-0161 §4) > reopens NOTHING where the mapping leaves the box empty, or says nothing, as the signed entry does today (his answer 8) 29ms
+     → absent: leave_empty: expected 2 to be +0 // Object.is equality
+   × P319: the checker walks as the interview asks, with the interview's own gate > reopens nothing on any entry as signed today: no value is filled against the signed note's wording (his answer 8) 56ms
+     → bp-sheffield-pgt-september-direct: expected [ 'immigration.uk_study', …(1) ] to deeply equal []
+   × P319: the checker walks as the interview asks, with the interview's own gate > fails as it should without the change's `ask`: the source required and left empty, a no breaks both boxes 371ms
+     → expected [] to deeply equal [ 'known=false' ]
+ Test Files  2 failed (2)
+      Tests  3 failed | 6 passed | 85 skipped (94)
+ FAIL |unit|  packages/orchestrator/src/orchestrator.test.ts > a part an earlier answer closed is asked again only where a reviewed mapping says `absent: "ask"` (P319, ADR-0161 §4) > reopens NOTHING where the mapping leaves the box empty, or says nothing, as the signed entry does today (his answer 8)
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P319: the checker walks as the interview asks, with the interview's own gate > reopens nothing on any entry as signed today: no value is filled against the signed note's wording (his answer 8)
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P319: the checker walks as the interview asks, with the interview's own gate > fails as it should without the change's `ask`: the source required and left empty, a no breaks both boxes

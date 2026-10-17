@@ -1,0 +1,15 @@
+mutation 02-a-choice-left-out-of-the-minors-fingerprint on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t P319, his answers 1 and 11
+exit: 1
+restored byte for byte: True
+
+replaced:
+, choices: chosen })
+with:
+ })
+
+   × a minor's review covers every answer and every choice (P319, his answers 1 and 11) > a choice from a form's own list, recorded for the reviewed minor's application, raises the minors review again 200ms
+     → raised again: a person has not seen the choice: expected [] to deeply equal [ { trigger: 'involves_minor', …(1) } ]
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed | 450 skipped (453)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > a minor's review covers every answer and every choice (P319, his answers 1 and 11) > a choice from a form's own list, recorded for the reviewed minor's application, raises the minors review again

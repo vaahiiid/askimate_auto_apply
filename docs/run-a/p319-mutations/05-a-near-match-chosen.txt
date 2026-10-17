@@ -1,0 +1,15 @@
+mutation 05-a-near-match-chosen on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+  if (near.length >= 2 && near.length < options.length) return { kind: "offered", options: near };
+with:
+  if (near.length >= 1 && near[0] !== undefined) return { kind: "read", value: near[0].value };
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > never chooses a near match: two are offered for a press, one is named and the question asked again (his answer 5; ADR-0146) 22ms
+     → expected "expected the two near matches offered, got understood" not to be reached
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > never chooses a near match: two are offered for a press, one is named and the question asked again (his answer 5; ADR-0146)

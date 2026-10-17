@@ -1,0 +1,15 @@
+mutation 19-an-unasked-ask-passes-the-gate on scripts/required-boxes-hold.ts
+command: pnpm exec vitest run --project unit scripts/required-boxes-hold.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+    return asked ? [] : [`${mapping.fieldRef}: ${fieldKey}.${path}`];
+with:
+    return asked || (true as boolean) ? [] : [`${mapping.fieldRef}: ${fieldKey}.${path}`];
+
+   × P319: the checker walks as the interview asks, with the interview's own gate > every `absent: "ask"` on a signed entry is asked: one the run cannot ask fails here, not silently at a student's no (P319's review) 201ms
+     → expected [] to deeply equal [ Array(1) ]
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 10 skipped (14)
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P319: the checker walks as the interview asks, with the interview's own gate > every `absent: "ask"` on a signed entry is asked: one the run cannot ask fails here, not silently at a student's no (P319's review)

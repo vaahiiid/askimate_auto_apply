@@ -1,0 +1,15 @@
+mutation 18-a-key-outside-the-vocabulary-offered on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+const offered = reopen.options.filter((option) => held.has(option.value) && !(excluded
+with:
+const offered = reopen.options.filter((option) => !(excluded
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review) 38ms
+     → four stages, and nothing the registry cannot hold: expected 'What stage are you at with your fundi…' to be 'What stage are you at with your fundi…' // Object.is equality
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review)

@@ -93,7 +93,7 @@ export type AppendableEvent =
   | { readonly kind: "value_proposed"; readonly fieldKey: string;
       readonly proposal: unknown; readonly playbackHash: string }
   // P225: the readings a two-way answer was offered as, and the offer's hash.
-  | { readonly kind: "value_part_demanded"; readonly fieldKey: string; readonly partKey: string; readonly demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[] } }
+  | { readonly kind: "value_part_demanded"; readonly fieldKey: string; readonly partKey: string; readonly demand: { readonly page: string; readonly empty: readonly string[]; readonly unseen: readonly string[]; readonly atStart?: true } }
   | { readonly kind: "value_offered"; readonly fieldKey: string; readonly partKey?: string;
       readonly readings: readonly { readonly id: string; readonly label: string; readonly proposal: unknown }[];
       readonly offerHash: string }
@@ -307,7 +307,7 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         createdAt,
         fieldKey: row["field_key"] as string,
         partKey: row["part_key"] as string,
-        demand: row["proposal"] as { page: string; empty: string[]; unseen: string[] },
+        demand: row["proposal"] as { page: string; empty: string[]; unseen: string[]; atStart?: true },
       };
     case "value_offered": {
       const partKey = row["part_key"] as string | null;

@@ -1,0 +1,15 @@
+mutation 16-the-parser-drops-ask on packages/catalogue/src/parse.ts
+command: pnpm exec vitest run --project unit packages/catalogue/src/catalogue.test.ts -t ask
+exit: 1
+restored byte for byte: True
+
+replaced:
+  if (value === "ask") return "ask";
+with:
+(nothing)
+
+   × a mapping keyed on two parts is parsed as a `switch` (P218) > accepts `absent: "ask"` on a part and on a switch, and refuses a word it does not know (P319) 14ms
+     → expected "mappingSet.mappings[0].source.format.absent: expected an object" not to be reached
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed | 63 skipped (71)
+ FAIL |unit|  packages/catalogue/src/catalogue.test.ts > a mapping keyed on two parts is parsed as a `switch` (P218) > accepts `absent: "ask"` on a part and on a switch, and refuses a word it does not know (P319)

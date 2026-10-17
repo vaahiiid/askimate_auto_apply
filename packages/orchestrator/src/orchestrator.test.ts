@@ -1969,3 +1969,99 @@ describe("what the portal reads of a field with parts is derived, never authored
     for (const rule of partPolicyFor(FIXTURE_BLUEPRINT, usable()).values()) expect(rule.asked).toBe("all");
   });
 });
+
+describe("a part an earlier answer closed is asked again only where a reviewed mapping says `absent: \"ask\"` (P319, ADR-0161 §4)", () => {
+  // Vahid, P319: "Ask with the form's own words and options" (D2); "the four
+  // now" (10); and (8): "No value is filled against the signed note's current
+  // wording, even temporarily." So the box's own label and options are what is
+  // asked, and only a mapping that says `absent: "ask"` — carried by the change
+  // he signs — reopens anything.
+  const STAGES = [
+    ["Select...", null],
+    ["The funding has been confirmed", "confirmed"],
+    ["I am applying for a project studentship", "project_studentship"],
+    ["I have applied for funding", "applied"],
+    ["I am applying for funding", "applying"],
+    ["I am thinking about funding my studies this way", "considering"],
+  ] as const;
+  const SOURCES = ["Select...", "Employer", "Scholarship or studentship (not listed below)", "Self or Family", "Sponsor", "-----------", "Chevening Scholarship", "Postgraduate Government Loan", "Other"];
+  const blueprint = (overrides: { readonly stageLabel?: string } = {}) =>
+    ({
+      pages: [{ sections: [{ fields: [
+        { fieldRef: "fundingSource", label: "Please select your likely funding source", validations: [{ kind: "required" }], options: SOURCES.map((words) => ({ value: words, label: words })) },
+        { fieldRef: "fundingStage", label: overrides.stageLabel ?? "What stage are you at with your funding?", validations: [{ kind: "required" }], options: STAGES.map(([words]) => ({ value: words, label: words })) },
+      ] }] }],
+    }) as unknown as Parameters<typeof partPolicyFor>[0];
+  const mappings = (list: readonly unknown[]) => ({ mappings: list }) as unknown as Parameters<typeof partPolicyFor>[1];
+  const stageMap = Object.fromEntries(STAGES.flatMap(([words, token]) => (token === null ? [] : [[token, words]])));
+  const stage = (absent: unknown, options: Record<string, string> = stageMap) => ({
+    fieldRef: "fundingStage",
+    source: { kind: "profile_field", fieldKey: "finance.funding", format: { kind: "part", path: "stage", ...(absent === undefined ? {} : { absent }), then: { kind: "option", options } } },
+  });
+  const one = (token: string, words: string) => ({ kind: "part", path: "source", then: { kind: "option", options: { [token]: words } } });
+  const source = (absent: unknown) => ({
+    fieldRef: "fundingSource",
+    source: {
+      kind: "profile_field",
+      fieldKey: "finance.funding",
+      format: {
+        kind: "switch",
+        path: "source",
+        ...(absent === undefined ? {} : { absent }),
+        cases: {
+          self_or_family: one("self_or_family", "Self or Family"),
+          employer: one("employer", "Employer"),
+          sponsor: one("sponsor", "Sponsor"),
+          other: one("other", "Other"),
+          scholarship: { kind: "part", path: "details", then: { kind: "option", options: { "Chevening Scholarship": "Chevening Scholarship" } } },
+          loan: { kind: "part", path: "details", then: { kind: "option", options: { "Postgraduate Government Loan": "Postgraduate Government Loan" } } },
+        },
+      },
+    },
+  });
+
+  it("asks the stage in the box's own words and options, in the form's order, and never its placeholder", () => {
+    const reopens = partPolicyFor(blueprint(), mappings([stage("ask")])).get("finance.funding")?.reopens;
+    expect(reopens?.get("stage")).toEqual({
+      question: "What stage are you at with your funding?",
+      options: STAGES.flatMap(([words, token]) => (token === null ? [] : [{ words, value: token }])),
+    });
+  });
+
+  it("asks the source with the four options a value of its own names, and not those that need a name the student was not asked (his answer 10)", () => {
+    const reopens = partPolicyFor(blueprint(), mappings([source("ask")])).get("finance.funding")?.reopens;
+    expect(reopens?.get("source")).toEqual({
+      question: "Please select your likely funding source",
+      options: [
+        { words: "Employer", value: "employer" },
+        { words: "Self or Family", value: "self_or_family" },
+        { words: "Sponsor", value: "sponsor" },
+        { words: "Other", value: "other" },
+      ],
+    });
+  });
+
+  it("reopens NOTHING where the mapping leaves the box empty, or says nothing, as the signed entry does today (his answer 8)", () => {
+    for (const absent of ["leave_empty", undefined]) {
+      const rule = partPolicyFor(blueprint(), mappings([stage(absent), source(absent)])).get("finance.funding");
+      expect(rule, "the field still has its rule").toBeDefined();
+      expect(rule?.reopens?.size ?? 0, `absent: ${String(absent)}`).toBe(0);
+    }
+  });
+
+  it("reopens nothing on a box the form does not require: a no may leave an optional box empty (D2: \"if the funding source box is also required\")", () => {
+    const optional = {
+      pages: [{ sections: [{ fields: [
+        { fieldRef: "fundingStage", label: "What stage are you at with your funding?", validations: [], options: STAGES.map(([words]) => ({ value: words, label: words })) },
+      ] }] }],
+    } as unknown as Parameters<typeof partPolicyFor>[0];
+    expect(partPolicyFor(optional, mappings([stage("ask")])).get("finance.funding")?.reopens?.size ?? 0).toBe(0);
+  });
+
+  it("reopens nothing it cannot ask in the form's own words: a label never read, or an option two values render to", () => {
+    const unread = partPolicyFor(blueprint({ stageLabel: "fundingStage" }), mappings([stage("ask")])).get("finance.funding");
+    expect(unread?.reopens?.has("stage") ?? false, "a label that is only the box's name").toBe(false);
+    const twoToOne = partPolicyFor(blueprint(), mappings([stage("ask", { ...stageMap, considering: "I am applying for funding" })])).get("finance.funding");
+    expect(twoToOne?.reopens?.get("stage")?.options.map((option) => option.value), "an option two values render to cannot be read back to one").toEqual(["confirmed", "project_studentship", "applied"]);
+  });
+});

@@ -1090,6 +1090,19 @@ describe("the portal's demand for a part, on the wire (P233, ADR-0148 §11)", ()
     expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties", demand: { page: "Employment", empty: [] } })).toBeNull();
     expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "employment.history", partKey: "item0.duties", demand: { ...demand, unseen: [null] } })).toBeNull();
   });
+
+  it("carries a demand raised when the case began, marked so, and refuses any other mark (P319)", () => {
+    const begun = { page: "Your application", empty: [], unseen: ["What stage are you at with your funding?"], atStart: true };
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "finance.funding", partKey: "stage", demand: begun })).toEqual({
+      ...base,
+      kind: "value_part_demanded",
+      fieldKey: "finance.funding",
+      partKey: "stage",
+      demand: begun,
+    });
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "finance.funding", partKey: "stage", demand: { ...begun, atStart: "yes" } })).toBeNull();
+    expect(parseConversationEvent({ ...base, kind: "value_part_demanded", fieldKey: "finance.funding", partKey: "stage", demand: { ...begun, atStart: false } })).toBeNull();
+  });
 });
 
 describe("an asking carries its own count on the wire (ADR-0145)", () => {

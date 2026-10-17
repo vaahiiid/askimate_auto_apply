@@ -1,0 +1,15 @@
+mutation 22-a-negated-confirmed-told on packages/interview/src/interview.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+(!turned && ruledOut.spoken.some(
+with:
+((true as boolean) && ruledOut.spoken.some(
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review) 64ms
+     → not confirmed: expected 'Funding that has been confirmed means…' not to contain 'means the answer'
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review)

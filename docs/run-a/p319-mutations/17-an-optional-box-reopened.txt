@@ -1,0 +1,18 @@
+mutation 17-an-optional-box-reopened on packages/orchestrator/src/run.ts
+command: pnpm exec vitest run --project unit packages/orchestrator/src/orchestrator.test.ts scripts/required-boxes-hold.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+const reopen = field === undefined || !required.has(mapping.fieldRef) ? null : reopenedBy(
+with:
+const reopen = field === undefined ? null : reopenedBy(
+
+   × a part an earlier answer closed is asked again only where a reviewed mapping says `absent: "ask"` (P319, ADR-0161 §4) > reopens nothing on a box the form does not require: a no may leave an optional box empty (D2: "if the funding source box is also required") 17ms
+     → expected 1 to be +0 // Object.is equality
+   × P319: the checker walks as the interview asks, with the interview's own gate > every `absent: "ask"` on a signed entry is asked: one the run cannot ask fails here, not silently at a student's no (P319's review) 134ms
+     → expected [] to deeply equal [ Array(1) ]
+ Test Files  2 failed (2)
+      Tests  2 failed | 7 passed | 85 skipped (94)
+ FAIL |unit|  packages/orchestrator/src/orchestrator.test.ts > a part an earlier answer closed is asked again only where a reviewed mapping says `absent: "ask"` (P319, ADR-0161 §4) > reopens nothing on a box the form does not require: a no may leave an optional box empty (D2: "if the funding source box is also required")
+ FAIL |unit|  scripts/required-boxes-hold.test.ts > P319: the checker walks as the interview asks, with the interview's own gate > every `absent: "ask"` on a signed entry is asked: one the run cannot ask fails here, not silently at a student's no (P319's review)

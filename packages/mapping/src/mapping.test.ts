@@ -2113,6 +2113,11 @@ describe("a switch's branch taken after a form's escape (P293, ADR-0156 §3)", (
     for (const [name, set, blueprint, expected] of cases) expect(refusalOf(set, blueprint), name).toContain(expected);
   });
 
+  it("takes `absent: \"ask\"` for what it is, not an absent arm: it renders nothing, it asks (P319)", () => {
+    const asked = setWith({ fieldRef: "qualification_institution", then: { kind: "part", path: "gradeScale", absent: "ask", then: { kind: "option", options: { iran_20_point: "6" } } } });
+    expect(refusalOf(asked, blueprintWith())).toBe("usable");
+  });
+
   it("a branch naming the field's own escape is refused as the ADR-0109 rule it breaks, before anything else", () => {
     const blueprint = blueprintWith({}, { options: [...(SYSTEM.options ?? []), { value: ESCAPE, label: "Not in list" }], escapeValue: ESCAPE });
     const check = checkUsable(setWith({ fieldRef: "qualification_institution", then: { kind: "part", path: "gradeScale", then: { kind: "option", options: { iran_20_point: ESCAPE } } } }), blueprint);

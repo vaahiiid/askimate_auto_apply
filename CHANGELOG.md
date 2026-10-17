@@ -19,6 +19,66 @@ not shipped artefacts.
 
 ---
 
+## [0.312.0] — 2026-10-17
+
+**P319 — after a no, the funding stage and source are asked in the form's own words, where an
+entry he signs says so; a minor's review covers every answer and every list choice.** His answers
+to the thirteen questions asked before the build (`docs/run-a/p319-his-answers-on-the-thirteen-as-sent.txt`),
+and to row 214 (`docs/run-a/p319-his-answers-on-row-214-as-sent.txt`), recorded in his words in
+ADR-0161 and built test-first. His rule of 2026-10-17 is recorded in CLAUDE.md: a build that would
+depart from an accepted ADR stops and asks first.
+
+- **A minor's review covers every answer** (row 214 (1), his answer 11). The `involves_minor`
+  fingerprint is taken over every confirmed answer in the stored profile and every choice the
+  application made from a form's own list, each by its revision or id and its time, never its value.
+  Every case reviewed for a minor before this goes back to review once, as he accepted.
+- **`absent: "ask"`** in the format language and the catalogue parser: a box that needs a part an
+  answer lacks renders nothing and refuses, and the student is asked for the part in the box's own
+  words and options. `partPolicyFor` derives what to ask (`reopens`) from it alone, and only for a box
+  the entry marks required whose label was read, each option rendering from one value the part's own
+  closed list holds. No signed entry carries it, and a test fails CI if a signed entry ever carries an
+  `ask` the run would not ask (`unaskedAsks`); the prepared change for his signature does (below). His answer 8: *"No value is filled
+  against the signed note's current wording, even temporarily."*
+- **After a no, the form's own questions.** Where the entry says to ask them, a student who does not
+  know how their studies will be funded is asked *"Please select your likely funding source"* (the
+  four options a value of its own names) and *"What stage are you at with your funding?"* (the four
+  sentences that are not *"The funding has been confirmed"*), each as the box's label and options, and
+  the answer is played back in those words and kept as `{ known: false, source, stage }`.
+- **Read exactly, never by a model.** An answer to such a question is read against the options shown,
+  case and spaces set aside, with no model call. An answer near two or more options is offered with
+  them for a press (ADR-0146); one near exactly one option is named in the refusal and the question
+  asked again, because ADR-0146 Decision 1 says a single reading is never an offer: row 216, his.
+- **"Confirmed" after a no** (the word, the form's sentence, or the word said and not turned round) is
+  told that it means the answer to *"Do you know yet how your studies will be funded?"* is yes, and the
+  four stages are asked again; the offer to answer that field again is §5 (P320).
+- **The playback names each such part by the form's question**, in the student's words and in the
+  recorded value alike.
+- **When a case first plans**, an answer given before it that lacks a part the entry asks raises the
+  demand a refused save raises (P233), marked `atStart`, and the field's question is asked with nothing
+  of mine before it (whether a sentence should say why is row 217, his). "First plans" is read as the
+  run never checkpointed, so a start that failed before its first decide, or a second start that
+  arrives first, still checks; once the case has planned it is never checked again. A case-begin
+  demand is set aside once the held answer holds every part the form asks (latent today). The event's
+  `demand.atStart` is on the wire and in the published contract.
+- **The rule's checker** (`scripts/required-boxes-hold.ts`) walks with the interview's own gate
+  (`partAsAsked`) and the values it offers. Its output on the signed catalogue is unchanged.
+- **Reviewed before it shipped:** six lenses, 23 findings; seven refuter verdicts on four findings
+  before the run was stopped for time (three findings stand on two verdicts each, one refuted as worded
+  and mended as a latent constraint), the other nineteen judged by me
+  (`docs/run-a/p319-review-findings.txt`). Rows 216, 217 and 218 are his, undecided.
+- **Mutations:** twenty-two of P319's code, one or more for each review fix, all killed, each restored
+  byte for byte, after a green unmutated run of each command (`docs/run-a/p319-mutations/`). One
+  survived the first run (the check on every resume) until its test was reordered.
+- **Prepared for his signature, not signed:** `docs/run-a/p319-for-signature.patch` and its sheet.
+  The funding source required on his observed asterisk (`specialist_noted`), `absent: "ask"` on the
+  stage and the source, the two notes reworded, blueprint 0.2.37 and mapping set 0.3.49, hashing to
+  `sha256:388debf05a1ff4c2529b1096d3be13ecf6f663d7c6d000823e6686596bb4cb6e`. Checked in a scratch
+  worktree under a stand-in approval that never carries his name; signing it is a step of his run.
+
+Proven against the deterministic stand-in only.
+
+---
+
 ## [0.311.0] — 2026-10-17
 
 **P318 — ADR-0161 accepted as he answered it; phase 1's first two items built: a review covers

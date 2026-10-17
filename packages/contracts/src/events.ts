@@ -234,6 +234,13 @@ export interface ValuePartDemandedEvent extends EventBase {
     readonly empty: readonly string[];
     /** What the read-back did not see, as the student names it; empty when the read-back could not say. */
     readonly unseen: readonly string[];
+    /**
+     * Raised when the case first planned, from an answer the student gave
+     * before it, and not by a save the portal refused (P319; ADR-0161 §3, his
+     * "D10: approved" and "2. Agreed: both moments"). `unseen` then holds the
+     * form's own questions the answer does not answer.
+     */
+    readonly atStart?: true;
   };
 }
 
@@ -543,8 +550,9 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const empty = record["empty"];
       const unseen = record["unseen"];
       const words = (list: unknown): list is readonly string[] => Array.isArray(list) && list.every((item) => typeof item === "string");
-      if (page === null || !words(empty) || !words(unseen)) return null;
-      return { ...base, kind: "value_part_demanded", fieldKey, partKey, demand: { page, empty, unseen } };
+      const atStart = record["atStart"];
+      if (page === null || !words(empty) || !words(unseen) || (atStart !== undefined && atStart !== true)) return null;
+      return { ...base, kind: "value_part_demanded", fieldKey, partKey, demand: { page, empty, unseen, ...(atStart === true ? { atStart: true as const } : {}) } };
     }
     case "value_confirmed": {
       const fieldKey = readString(source, "fieldKey");

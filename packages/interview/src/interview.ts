@@ -143,6 +143,21 @@ interface PendingConfirmation {
 export interface PartRule {
   readonly asked: ReadonlySet<string> | "all";
   readonly required: ReadonlySet<string>;
+  /**
+   * The parts a box needs that an earlier answer may have closed, each with
+   * the box's own question and options (P319, ADR-0161 §4). Derived from a
+   * reviewed mapping that says `absent: "ask"`, and from nothing else: Vahid,
+   * of the funding stage after a "no", *"No value is filled against the signed
+   * note's current wording, even temporarily."* A part named here is asked
+   * even where the spec's `askWhen` closed it, in exactly these words.
+   */
+  readonly reopens?: ReadonlyMap<string, ReopenedPart>;
+}
+
+/** A part asked in a form's own words (P319): the box's label, and its options in the form's order with the value each is read as. */
+export interface ReopenedPart {
+  readonly question: string;
+  readonly options: readonly { readonly words: string; readonly value: string }[];
 }
 export type PartPolicy = ReadonlyMap<ProfileFieldKey, PartRule>;
 
@@ -311,9 +326,187 @@ function nextPart(
   rule?: PartRule,
 ): FieldPart<unknown> | undefined {
   const answers = valuesOf(readings);
-  return spec.parts.find(
-    (part) => !answered(readings, part.partKey) && (part.askWhen?.(answers) ?? true) && isAsked(part, rule),
-  );
+  for (const part of spec.parts) {
+    if (answered(readings, part.partKey)) continue;
+    const asked = partAsAsked(spec, part, answers, rule);
+    if (asked !== undefined) return asked;
+  }
+  return undefined;
+}
+
+/**
+ * Whether the walk asks this part after these answers, and as what: the
+ * spec's own part where its `askWhen` holds and the portal gives a reason to
+ * ask it (P231); the part in the form's own words where an earlier answer
+ * closed it and the entry says to ask it (P319, ADR-0161 §4); else nothing.
+ * The interview's one gate, exported so the checker of his rule
+ * (scripts/required-boxes-hold.ts) walks as the interview asks.
+ */
+export function partAsAsked(spec: CompositeFieldSpec<unknown>, part: FieldPart<unknown>, answers: PartAnswers, rule: PartRule | undefined): FieldPart<unknown> | undefined {
+  if (part.askWhen?.(answers) ?? true) return isAsked(part, rule) ? part : undefined;
+  return inFormWords(spec, part, answers, rule);
+}
+
+/**
+ * A part an earlier answer closed, as the form asks it (P319, ADR-0161 §4):
+ * the box's own question and options, said exactly so and read exactly, with
+ * no word of ours added (ADR-0161 §4: the preface I had proposed was
+ * withdrawn by his D2). Only where the entry's reviewed mapping says
+ * `absent: "ask"` (`PartRule.reopens`), and only where the answer keeps the
+ * part: a question whose answer `assemble` would drop is not asked. Options
+ * the answers so far rule out are offered to nobody (his answer 6).
+ */
+function inFormWords(spec: CompositeFieldSpec<unknown>, part: FieldPart<unknown>, answers: PartAnswers, rule: PartRule | undefined): FieldPart<unknown> | undefined {
+  const reopen = rule?.reopens?.get(part.feeds ?? part.partKey);
+  if (reopen === undefined) return undefined;
+  const excluded = part.ruledOut !== undefined && part.ruledOut.when(answers) ? part.ruledOut : null;
+  // Only what the part's own closed list holds is offered, so a mapping's key
+  // outside the registry's vocabulary never becomes a student's stored answer,
+  // and the profile stays one for every portal (P319's review). A part with
+  // no closed list is not asked in a form's words at all.
+  const vocabulary = (part.parse as { readonly options?: Readonly<Record<string, unknown>> }).options;
+  if (vocabulary === undefined) return undefined;
+  const held = new Set(Object.values(vocabulary).map((value) => String(value)));
+  const offered = reopen.options.filter((option) => held.has(option.value) && !(excluded?.values.includes(option.value) ?? false));
+  const probe = offered[0];
+  if (probe === undefined) return undefined;
+  const kept = spec.assemble(new Map([...answers, [part.partKey, probe.value]]));
+  if (kept === null || typeof kept !== "object" || !((part.feeds ?? part.partKey) in kept)) return undefined;
+  const { readings: _readings, components: _components, ...asked } = part;
+  return {
+    ...asked,
+    question: reopen.question,
+    rationale: "",
+    exactly: [reopen.question, ...offered.map((option) => option.words)].join("\n"),
+    expectedShape: `one of the form's answers: ${offered.map((option) => `"${option.words}"`).join(", ")}`,
+    parse: (raw) => offered.find((option) => formWords(option.words) === formWords(raw))?.value ?? null,
+    inFormWords: {
+      options: offered,
+      ruledOut:
+        excluded === null
+          ? null
+          : {
+              words: reopen.options.filter((option) => excluded.values.includes(option.value)).map((option) => option.words),
+              spoken: Object.entries((part.parse as { readonly options?: Readonly<Record<string, unknown>> }).options ?? {})
+                .filter(([, value]) => excluded.values.includes(String(value)))
+                .map(([words]) => words),
+              values: excluded.values,
+              because: excluded.because,
+            },
+      ownParse: part.parse,
+    },
+  };
+}
+
+/** A form's words or a student's, for an exact match: case, spaces and a closing full stop set aside (his words of 2026-10-15: "exact, after normalising case, spaces and numbers"). */
+function formWords(text: string): string {
+  return text.toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, " ").trim().replace(/[.!]+$/, "").trim();
+}
+
+/** The words of a text, for a match of whole words in order: what is between them set aside. */
+function wordsOf(text: string): readonly string[] {
+  return formWords(text).split(/[^\p{L}\p{N}']+/u).filter((word) => word.length > 0);
+}
+
+/** Whether `phrase`'s words occur, whole and in order, among `text`'s. */
+function saysWords(text: readonly string[], phrase: readonly string[]): boolean {
+  if (phrase.length === 0) return false;
+  return text.some((_, at) => phrase.every((word, offset) => text[at + offset] === word));
+}
+
+/** Words that turn a statement round: "not confirmed" does not say it is confirmed. */
+const NEGATIONS = new Set(["not", "no", "never", "nothing", "none", "neither", "nor"]);
+
+/** Words common enough to tell no option from another: a near match needs one word beyond them. */
+const TOO_COMMON = new Set(["i", "am", "a", "an", "the", "for", "my", "this", "that", "way", "have", "has", "been", "of", "to", "and", "or", "it", "is"]);
+
+/**
+ * What an answer to a part asked in the form's words is (P319). Exact, after
+ * normalising case and spaces, and never by a model: the form's sentence is
+ * the value. A value the answers so far rule out is told why (his answer 6).
+ * A near match is never chosen (his answer 5, and his words of 2026-10-15:
+ * *"a near match is only ever suggested, never chosen"*): two or more are
+ * offered for a press, as ADR-0146 offers any answer that reads more than one
+ * way; one is named, and the question asked again, because ADR-0146 Decision 1
+ * says *"One reading is never an offer"* — whether one may be offered alone
+ * for a press is his to say (row 216).
+ */
+function readInFormWords(
+  question: FieldPart<unknown> & { readonly inFormWords: NonNullable<FieldPart<unknown>["inFormWords"]> },
+  utterance: string,
+): { readonly kind: "read"; readonly value: string } | { readonly kind: "offered"; readonly options: readonly { readonly words: string; readonly value: string }[] } | { readonly kind: "unread"; readonly reason: string } {
+  const { options, ruledOut, ownParse } = question.inFormWords;
+  const said = formWords(utterance);
+  const exact = options.find((option) => formWords(option.words) === said);
+  if (exact !== undefined) return { kind: "read", value: exact.value };
+  const own = ownParse(said) ?? ownParse(utterance);
+  // Ruled out (his answer 6) however it is said: the form's sentence, the
+  // spec's own reading, or the spec's own word for it said and not turned
+  // round ("my funding is confirmed" is; "not confirmed yet" is not).
+  const heard = wordsOf(utterance);
+  const turned = heard.some((word) => NEGATIONS.has(word) || word.endsWith("n't"));
+  if (
+    ruledOut !== null &&
+    (ruledOut.words.some((words) => formWords(words) === said) ||
+      ruledOut.values.some((value) => value === own) ||
+      (!turned && ruledOut.spoken.some((words) => saysWords(heard, wordsOf(words)))))
+  ) {
+    return { kind: "unread", reason: ruledOut.because };
+  }
+  const saidWords = said.split(" ").filter((word) => word.length > 0);
+  const telling = saidWords.some((word) => word.length >= 4 && !TOO_COMMON.has(word));
+  const near = options.filter((option) => option.value === own || (telling && ` ${formWords(option.words)} `.includes(` ${said} `)));
+  // Two or more, and fewer than all: an answer every option contains tells none of them apart.
+  if (near.length >= 2 && near.length < options.length) return { kind: "offered", options: near };
+  const one = near.length === 1 ? near[0] : undefined;
+  if (one !== undefined) {
+    return {
+      kind: "unread",
+      reason: `"${utterance.trim()}" is not one of the form's answers as it words them. The nearest is "${one.words}"; if that is what you mean, write it as the form does.`,
+    };
+  }
+  return { kind: "unread", reason: `I could not read one of the form's answers from "${utterance.trim()}".` };
+}
+
+/**
+ * The parts a held answer lacks that a form asks in its own words (P319, D10's
+ * second moment, ADR-0161 §3): an answer given before this application, checked
+ * against this entry when the case first plans. Each is a part an earlier
+ * answer closed, that the entry says to ask, and that the answer would keep —
+ * the same test the walk asks by, so the two cannot disagree.
+ */
+export function partsTheFormAsksOf(fieldKey: ProfileFieldKey, value: unknown, rule: PartRule | undefined): readonly { readonly partKey: string; readonly question: string }[] {
+  const spec = specFor(fieldKey);
+  if (spec === undefined || !isComposite(spec) || rule?.reopens === undefined || typeof value !== "object" || value === null) return [];
+  const held = value as Readonly<Record<string, unknown>>;
+  const answers: PartAnswers = new Map(Object.entries(held));
+  return spec.parts.flatMap((part) => {
+    if (held[part.feeds ?? part.partKey] !== undefined || (part.askWhen?.(answers) ?? true)) return [];
+    const asked = inFormWords(spec, part, answers, rule);
+    return asked === undefined ? [] : [{ partKey: part.partKey, question: asked.question }];
+  });
+}
+
+/**
+ * The parts of a value asked in the form's words, by their question and the
+ * sentence chosen (P319, his answer 7): the playback says what the student
+ * was shown. Derived from the value and the entry's rule alone, so a state
+ * rebuilt from the log plays back the same words (ADR-0051).
+ */
+function shownInFormWords(fieldKey: ProfileFieldKey, value: unknown, rule: PartRule | undefined): ReadonlyMap<string, { readonly question: string; readonly words: string }> | undefined {
+  const spec = specFor(fieldKey);
+  if (spec === undefined || !isComposite(spec) || rule?.reopens === undefined || typeof value !== "object" || value === null) return undefined;
+  const held = value as Readonly<Record<string, unknown>>;
+  const answers: PartAnswers = new Map(Object.entries(held));
+  const shown = new Map<string, { question: string; words: string }>();
+  for (const part of spec.parts) {
+    const path = part.feeds ?? part.partKey;
+    const reopen = rule.reopens.get(path);
+    if (reopen === undefined || (part.askWhen?.(answers) ?? true)) continue;
+    const option = reopen.options.find((candidate) => candidate.value === held[path]);
+    if (option !== undefined) shown.set(path, { question: reopen.question, words: option.words });
+  }
+  return shown.size === 0 ? undefined : shown;
 }
 
 /**
@@ -690,6 +883,7 @@ export async function nextAction(
       state.pending.proposed as ProposedValue<ProfileFieldType<ProfileFieldKey>>,
       label,
       questionOf(state.pending.fieldKey),
+      shownInFormWords(state.pending.fieldKey, whole.value, state.partPolicy?.get(state.pending.fieldKey)),
     );
     return {
       kind: "confirm",
@@ -963,6 +1157,34 @@ export async function receiveAnswer(
     }
   }
 
+  // ── A part asked in the form's own words (P319) ───────────────────────
+  //
+  // Read exactly, by the form's own sentences, and never by a model: a model
+  // reading "confirmed" as "The funding has been confirmed" would be a near
+  // match chosen, which his words forbid.
+  if (question.inFormWords !== undefined) {
+    const reading = readInFormWords({ ...question, inFormWords: question.inFormWords }, utterance);
+    if (reading.kind === "read") {
+      const proposed = proposeValue({ value: reading.value, origin: "conversation", verbatim: utterance, confidence: 1 });
+      return withPartRead(state, spec, fieldKey, question.partKey, proposed, transcript, attempts);
+    }
+    if (reading.kind === "offered") {
+      // Offered, as any answer that reads more than one way is (ADR-0146):
+      // no attempt is spent, and the pick is the student's own statement.
+      const readings = reading.options.map((option, index) => ({
+        id: `r${String(index + 1)}`,
+        label: option.words,
+        proposed: proposeValue({ value: option.value, origin: "conversation", verbatim: utterance, confidence: 0.9 }),
+      }));
+      return { kind: "ambiguous", state: { ...state, transcript }, fieldKey, partKey: question.partKey, readings };
+    }
+    return {
+      kind: "not_understood",
+      state: { ...state, transcript, attempts, unread: { fieldKey, reason: reading.reason } },
+      reason: reading.reason,
+    };
+  }
+
   const interpreted: ProposedValue<unknown> | NotUnderstood = await model.interpretAnswer({
     fieldKey: asked,
     label: `${label} — ${open.suffix}`,
@@ -1115,7 +1337,7 @@ function withPartRead(
       attempts,
       pending: {
         fieldKey,
-        proposed: wholeOf(spec, whole, readings),
+        proposed: wholeOf(spec, whole, readings, state.partPolicy?.get(fieldKey)),
         parts: [...readings]
           .filter(([, reading]) => unwrapProposed(reading).value !== OMITTED)
           .map(([partKey, reading]) => {
@@ -1162,7 +1384,18 @@ function wholeOf(
   spec: CompositeFieldSpec<unknown> | ListFieldSpec<unknown>,
   value: unknown,
   readings: PartReadings,
+  /** The entry's rule: a part asked in the form's words is named by the form's question (P319). */
+  rule?: PartRule,
 ): ProposedValue<unknown> {
+  const answers = valuesOf(readings);
+  const named = (partKey: string): string => {
+    if (!isList(spec)) {
+      const part = spec.parts.find((candidate) => candidate.partKey === partKey);
+      const reopen = part === undefined || (part.askWhen?.(answers) ?? true) ? undefined : rule?.reopens?.get(part.feeds ?? part.partKey);
+      if (reopen !== undefined) return reopen.question;
+    }
+    return partName(spec, partKey);
+  };
   // An entry left out (P264) is not in the value, so its parts are not the
   // value's words either: only the mark that left it out is, under its name.
   const removedItems = new Set(
@@ -1190,7 +1423,7 @@ function wholeOf(
     // Vahid read in his own "You said:" line.
     verbatim: parts
       .filter((part) => part.value !== OMITTED)
-      .map((part) => `${partName(spec, part.partKey)}: ${part.verbatim}`)
+      .map((part) => `${named(part.partKey)}: ${part.verbatim}`)
       .join("; "),
     confidence: parts.reduce((lowest, part) => Math.min(lowest, part.confidence), 1),
   });
@@ -1225,6 +1458,7 @@ export function receiveConfirmation(
     pending.proposed as ProposedValue<ProfileFieldType<ProfileFieldKey>>,
     label,
     questionOf(pending.fieldKey),
+    shownInFormWords(pending.fieldKey, unwrapProposed(pending.proposed).value, state.partPolicy?.get(pending.fieldKey)),
   );
 
   // A correction the agent cannot parse is not a confirmation. Storing the

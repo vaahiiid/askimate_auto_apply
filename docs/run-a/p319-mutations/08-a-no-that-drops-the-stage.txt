@@ -1,0 +1,40 @@
+mutation 08-a-no-that-drops-the-stage on packages/interview/src/field-specs.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+          ...(typeof stage === "string" ? { stage: stage as FundingStage } : {}),
+        };
+with:
+        };
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > asks the source and then the stage in the form's own words and options, offering four stages and not 'The funding has been confirmed' 23ms
+     → expected "expected the stage to be asked, got confirm" not to be reached
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > reads the form's own sentence, whatever its case and spacing, with no model call, and plays it back in the form's words 4ms
+     → expected 'not_understood' to be 'understood' // Object.is equality
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again 4ms
+     → expected 'I could not read yes or no from "conf…' to contain 'means the answer to "Do you know yet …'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review) 2ms
+     → Confirmed.: expected 'I could not read yes or no from "Conf…' to contain 'means the answer to "Do you know yet …'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > names every part asked in the form's words by the form's question in the student's words too, not by our label for it 2ms
+     → expected 'You said: "whether you know yet how y…' to contain 'What stage are you at with your fundi…'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > never chooses a near match: two are offered for a press, one is named and the question asked again (his answer 5; ADR-0146) 1ms
+     → expected "expected the two near matches offered, got not_understood" not to be reached
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review) 1ms
+     → expected "the stage is asked" not to be reached
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > stops for a person after the attempt cap, as every question does (ADR-0123 Decision 2) 1ms
+     → expected 'confirm' to be 'escalate' // Object.is equality
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > plays back the same words from the pending reading alone, as a state rebuilt from the log has it (ADR-0051) 4ms
+     → expected { known: false, source: 'employer' } to deeply equal { known: false, …(2) }
+ Test Files  1 failed (1)
+      Tests  9 failed | 3 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > asks the source and then the stage in the form's own words and options, offering four stages and not 'The funding has been confirmed'
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > reads the form's own sentence, whatever its case and spacing, with no model call, and plays it back in the form's words
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > names every part asked in the form's words by the form's question in the student's words too, not by our label for it
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > never chooses a near match: two are offered for a press, one is named and the question asked again (his answer 5; ADR-0146)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > stops for a person after the attempt cap, as every question does (ADR-0123 Decision 2)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > plays back the same words from the pending reading alone, as a state rebuilt from the log has it (ADR-0051)

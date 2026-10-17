@@ -432,6 +432,25 @@ describe("a map keyed on two parts (switch, P218 — blocker 78's shape)", () =>
     expect(unwrapConfirmed(tolerant.value)).toBe("");
   });
 
+  it("`absent: \"ask\"` renders NOTHING for a missing part — it refuses as a rule with no absent clause does, and the student is asked (P319)", () => {
+    // Vahid, P319 (8): "No value is filled against the signed note's current
+    // wording, even temporarily." So the clause that lets a part be asked
+    // never renders a value of its own: not "", not a typed word.
+    const stage = { kind: "part", path: "stage", absent: "ask", then: { kind: "option", options: { applying: "I am applying for funding" } } } as const;
+    const source = { kind: "switch", path: "source", absent: "ask", cases: { employer: { kind: "part", path: "source", then: { kind: "option", options: { employer: "Employer" } } } } } as const;
+    for (const rule of [stage, source]) {
+      const no = renderConfirmed(confirmed("identity.nationality", { known: false } as never), rule);
+      if (no.rendered) expect.unreachable(`rendered "${unwrapConfirmed(no.value)}" for a part the student was never asked`);
+      expect(no.refusal.kind).toBe("no_such_part");
+    }
+    const held = renderConfirmed(confirmed("identity.nationality", { known: false, stage: "applying", source: "employer" } as never), stage);
+    if (!held.rendered) expect.unreachable(held.refusal.detail);
+    expect(unwrapConfirmed(held.value)).toBe("I am applying for funding");
+    const chosen = renderConfirmed(confirmed("identity.nationality", { known: false, stage: "applying", source: "employer" } as never), source);
+    if (!chosen.rendered) expect.unreachable(chosen.refusal.detail);
+    expect(unwrapConfirmed(chosen.value)).toBe("Employer");
+  });
+
   it("nests, so a grade can depend on the institution, the level and the scale together", () => {
     const nested: Parameters<typeof renderConfirmed>[1] = {
       kind: "switch",

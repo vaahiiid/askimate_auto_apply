@@ -1,0 +1,15 @@
+mutation 11-the-check-on-every-resume on apps/conversation-service/src/run-driver.ts
+command: pnpm exec vitest run --project unit apps/conversation-service/src/run-driver.test.ts -t where the entry says to ask them|keeps what the entry says to ask
+exit: 1
+restored byte for byte: True
+
+replaced:
+if (record.revision === 0) await this.#askWhatTheFormAsksOfHeldAnswers(
+with:
+if (true as boolean) await this.#askWhatTheFormAsksOfHeldAnswers(
+
+   × after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > is checked when a case begins and not on every resume: a no written after the case planned is not asked about 171ms
+     → his held no is reached by answering the field again (§5), not by a check on resume: expected [ Array(1) ] to deeply equal []
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed | 445 skipped (453)
+ FAIL |unit|  apps/conversation-service/src/run-driver.test.ts > after a no, the funding stage and source are asked in the form's own words, where the entry says to ask them (P319, ADR-0161 §3, §4) > is checked when a case begins and not on every resume: a no written after the case planned is not asked about

@@ -1,0 +1,24 @@
+mutation 04-confirmed-offered-after-a-no on packages/interview/src/field-specs.ts
+command: pnpm exec vitest run --project unit packages/interview/src/interview.test.ts -t P319
+exit: 1
+restored byte for byte: True
+
+replaced:
+          when: (answered) => answered.get("known") === false,
+with:
+          when: () => false,
+
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > asks the source and then the stage in the form's own words and options, offering four stages and not 'The funding has been confirmed' 28ms
+     → four stages: a no and a confirmed funding contradict each other: expected 'What stage are you at with your fundi…' to be 'What stage are you at with your fundi…' // Object.is equality
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again 6ms
+     → expected '"confirmed" is not one of the form\'s…' to contain 'means the answer to "Do you know yet …'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review) 5ms
+     → Confirmed.: expected '"Confirmed." is not one of the form\'…' to contain 'means the answer to "Do you know yet …'
+   × after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review) 1ms
+     → four stages, and nothing the registry cannot hold: expected 'What stage are you at with your fundi…' to be 'What stage are you at with your fundi…' // Object.is equality
+ Test Files  1 failed (1)
+      Tests  4 failed | 8 passed | 118 skipped (130)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > asks the source and then the stage in the form's own words and options, offering four stages and not 'The funding has been confirmed'
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells a student who says their funding is confirmed that this means yes to the first question, and asks the four again
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > tells the student it means yes however they say their funding is confirmed, and only when they say it is (P319's review)
+ FAIL |unit|  packages/interview/src/interview.test.ts > after a no, the form's own questions are asked where the entry says to ask them (P319, ADR-0161 §4) > offers only what the part's own vocabulary holds: a form option whose value is outside it is not offered, and is never stored (P319's review)
